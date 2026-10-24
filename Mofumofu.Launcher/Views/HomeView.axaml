@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.HomeView">
+    <Grid>
+        <!-- ============ 自由摆放的格子板：小组件由 WidgetRegistry 在 code-behind 里建 ============ -->
+        <ScrollViewer x:Name="BoardScroll"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <Canvas x:Name="WidgetBoard" Height="1000" Margin="0,0,0,24">
+                <Canvas x:Name="WidgetLayer" />
+
+                <!-- 长按时逐渐浮现的格子线 -->
+                <Path x:Name="GridLines" IsVisible="False" Opacity="0" IsHitTestVisible="False"
+                      Stroke="{DynamicResource NekoAccentLineBrush}" StrokeThickness="1">
+                    <Path.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.22" />
+                        </Transitions>
+                    </Path.Transitions>
+                </Path>
+
+                <!-- 拖动落点预览 -->
+                <Border x:Name="DropPreview" IsVisible="False" IsHitTestVisible="False"
+                        Opacity="0"
+                        Background="{DynamicResource NekoAccentSoftBrush}"
+                        BorderBrush="{DynamicResource NekoAccentBrush}"
+                        BorderThickness="2" CornerRadius="10">
+                    <Border.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.14" />
+                        </Transitions>
+                    </Border.Transitions>
+                </Border>
+            </Canvas>
+        </ScrollViewer>
+
+        <!-- 空桌面提示 -->
+        <Border x:Name="EmptyBoardHint" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Padding="26,18" CornerRadius="12"
+                Background="{DynamicResource NekoOverlayBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}"
+                BorderThickness="1">
+            <StackPanel Spacing="6" HorizontalAlignment="Center">
+                <TextBlock Text="{DynamicResource L.Home.Empty.Title}" FontSize="14" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="{DynamicResource L.Home.Empty.Hint}" Classes="caption"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- 右下角：上面是页面胶囊（分页 + 页面管理/新建），下面是圆形加号（添加组件） -->
+        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,10,10" Spacing="6">
+            <Border x:Name="WidgetPageCapsule"
+                    HorizontalAlignment="Right"
+                    Padding="4" CornerRadius="21"
+                    Background="{DynamicResource NekoCardBrush}"
+                    BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <StackPanel x:Name="WidgetPageTabs" Orientation="Horizontal" Spacing="2"
+                                VerticalAlignment="Center" />
+                    <Button x:Name="WidgetPageManageButton"
+                            Classes="icon" CornerRadius="17"
+                            Width="34" Height="34" MinWidth="34" MinHeight="34" Padding="0"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                            ToolTip.Tip="{DynamicResource L.Home.Page.Manage}"
+                            Click="OnPageManageClick">
+                        <controls:IconParkIcon Kind="IconFluentList" Width="14" Height="14"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+            </Border>
+            <Button x:Name="WidgetLibraryButton"
+                    Width="44" Height="44" MinWidth="44" MinHeight="44"
+                    Padding="0" CornerRadius="22"
+                    HorizontalAlignment="Right"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    Classes="primary"
+                    ToolTip.Tip="{DynamicResource L.Home.Page.AddWidget}"
+                    Click="OnWidgetLibraryClick">
+                <controls:IconParkIcon Kind="IconPlus" Width="18" Height="18"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+        </StackPanel>
+
+        <!-- 组件盒（拖到桌面放置 / 点击添加） -->
+        <Border x:Name="WidgetDrawer"
+                IsVisible="False"
+                Width="352"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Stretch"
+                Margin="0,0,0,2"
+                Background="{DynamicResource NekoDrawerBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14"
+                RenderTransformOrigin="1,0.5">
+            <Border.RenderTransform>
+                <TransformOperations>translateX(380px)</TransformOperations>
+            </Border.RenderTransform>
+            <Border.Transitions>
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.24"
+                                                   Easing="CubicEaseOut" />
+                </Transitions>
+            </Border.Transitions>
+            <Grid RowDefinitions="Auto,Auto,Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{DynamicResource L.Home.Library.Title}" Classes="section-title" />
+                        <TextBlock x:Name="WidgetDrawerHint" Text="{DynamicResource L.Home.Library.Hint}"
+                                   Classes="caption" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="icon" Click="OnCloseWidgetDrawerClick">
+                        <controls:IconParkIcon Kind="IconClose" Width="14" Height="14" />
+                    </Button>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+                    <controls:IconParkIcon Kind="IconSearch" Width="13" Height="13"
+                              VerticalAlignment="Center" />
+                    <TextBox x:Name="WidgetSearchBox" Grid.Column="1" Classes="search"
+                             Watermark="{DynamicResource L.Home.Library.Search}" Height="30" Margin="8,0,0,0"
+                             FontSize="11.5" VerticalContentAlignment="Center"
+                             TextChanged="OnWidgetSearchChanged" />
+                </Grid>
+
+                <Border Grid.Row="2" Height="1" Margin="0,10,0,8"
+                        Background="{DynamicResource NekoBorderBrush}" />
+
+                <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="WidgetDrawerList" Spacing="5" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- 拖动浮层：幽灵卡 -->
+        <Canvas x:Name="DragOverlay" IsVisible="False" IsHitTestVisible="False">
+            <Border x:Name="DragGhost" CornerRadius="10" Padding="10,8"
+                    Opacity="0"
+                    Background="{DynamicResource NekoDialogBrush}"
+                    BorderBrush="{DynamicResource NekoAccentBrush}"
+                    BorderThickness="1">
+                <Border.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                    </Transitions>
+                </Border.Transitions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Width="26" Height="26" CornerRadius="7"
+                            Background="{DynamicResource NekoAccentSoftBrush}">
+                        <controls:IconParkIcon x:Name="DragGhostIcon" Kind="IconFluentPlay"
+                                  Width="13" Height="13"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="DragGhostText" Text="{DynamicResource L.Home.Drag.Widget}" FontSize="12" FontWeight="SemiBold" />
+                        <TextBlock x:Name="DragGhostHint" Text="{DynamicResource L.Home.Drag.Hint}"
+                                   Classes="caption" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Canvas>
+
+        <Border x:Name="DeleteHint" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                Margin="0,0,0,92" Padding="16,9" CornerRadius="10"
+                Background="{DynamicResource NekoDangerSoftBrush}"
+                BorderBrush="{DynamicResource NekoDangerBrush}" BorderThickness="1">
+            <TextBlock x:Name="DeleteHintText" Text="{DynamicResource L.Home.Drag.ReleaseToRemove}" FontSize="12"
+                       Foreground="{DynamicResource NekoDangerBrush}" />
+        </Border>
+
+        <!-- 长按进度条：按住磁贴 1 秒进入拖动 -->
+        <Canvas x:Name="HoldOverlay" IsHitTestVisible="False">
+            <Border x:Name="HoldBar" IsVisible="False" Height="4" Width="160"
+                    CornerRadius="2" Background="{DynamicResource NekoOverlayBrush}"
+                    BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
+                    Padding="1">
+                <ProgressBar x:Name="HoldProgress" Minimum="0" Maximum="1" Value="0" Height="4" />
+            </Border>
+        </Canvas>
+    </Grid>
+</UserControl>

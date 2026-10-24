@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "Fonbildo",
+  "Wallpaper.Mode": "Reĝimo",
+  "Wallpaper.Mode.Image": "Unuopa bildo",
+  "Wallpaper.Mode.Slideshow": "Bilda prezento",
+  "Wallpaper.Mode.None": "Sen fonbildo",
+  "Wallpaper.PickImage": "Elekti bildon",
+  "Wallpaper.AddImages": "Aldoni bildojn",
+  "Wallpaper.ImageEmpty": "Ankoraŭ neniu bildo elektita",
+  "Wallpaper.SlideshowEmpty": "Post aldono de bildoj ili aŭtomate rotacios laŭ la intervalo.",
+  "Wallpaper.Interval": "Intervalo de rotacio",
+  "Wallpaper.Interval.Value": "{0} sekundoj",
+  "Wallpaper.Shuffle": "Hazarda ordo",
+  "Wallpaper.PauseWhenInactive": "Paŭzi sen fokuso",
+  "Wallpaper.PickerTitle": "Elekti fonbildan dosieron",
+  "Wallpaper.Status.On": "Fonbildo ŝaltita",
+  "Wallpaper.Status.Off": "Fonbildo malŝaltita",
+  "Wallpaper.Status.Error": "Fonbildo ne efikas: {0}",
+  "Wallpaper.Error.NoContent": "La fonbilda dosiero ne ekzistas aŭ estis forigita",
+  "Wallpaper.Blur": "Fonmalklareco",
+  "Wallpaper.Dim": "Fonmalheligo"
+}

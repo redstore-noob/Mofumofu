@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "Analizo de ludokolapso",
+  "Crash.Section.Findings": "Konkludoj ({0})",
+  "Crash.Section.ModIssues": "Modulaj dependecoj / konfliktoj",
+  "Crash.Severity.Critical": "Grava",
+  "Crash.Severity.Warning": "Duba",
+  "Crash.Severity.Info": "Informo",
+  "Crash.Description": "Kolapsa scenaro",
+  "Crash.Exception": "Unua escepto",
+  "Crash.Report.Path": "Kolapsraporto",
+  "Crash.Meta.Instance": "Instanco",
+  "Crash.Meta.Version": "Versio",
+  "Crash.Meta.Loader": "Ŝargilo",
+  "Crash.Meta.Memory": "Memoro",
+  "Crash.Meta.ExitCode": "Elir-kodo",
+  "Crash.Action.Copy": "Kopii la diagnozon",
+  "Crash.Action.Copied": "Kopiita ✓",
+  "Crash.Action.OpenReport": "Malfermi la kolapsraporton",
+  "Crash.Action.OpenHsErr": "Malfermi la JVM-erarprotokolon",
+  "Crash.Hint.Close": "Klaku ie ajn ekster la fenestro por fermi"
+}

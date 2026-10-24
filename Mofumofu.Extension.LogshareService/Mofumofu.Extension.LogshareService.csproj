@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mofumofu.Extension.LogshareService</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="12.1.4" ExcludeAssets="runtime" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Mofumofu.ExtensionAPI\Mofumofu.ExtensionAPI.csproj" />
+    </ItemGroup>  <Import Project="../build/nekoex.target" Condition="Exists('../build/nekoex.target')" />
+</Project>

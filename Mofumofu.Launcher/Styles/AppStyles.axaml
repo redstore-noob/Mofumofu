@@ -1,0 +1,483 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI">
+    <Styles.Resources>
+        <!-- ==== 主题令牌 ====
+             这里是唯一允许出现颜色字面量的地方：初值是深色主题，实际取值由
+             Services/ThemeManager 在换主题/换强调色时统一改写（就地改 brush 的 Color）。
+             视图里一律用 {DynamicResource NekoXxxBrush}，不要写死颜色。 -->
+        <SolidColorBrush x:Key="NekoAccentBrush" Color="#3FC6C1" />
+        <SolidColorBrush x:Key="NekoAccentHoverBrush" Color="#57D8D3" />
+        <SolidColorBrush x:Key="NekoAccentPressedBrush" Color="#33BDB8" />
+        <SolidColorBrush x:Key="NekoAccentSoftBrush" Color="#1E3A3C" />
+        <SolidColorBrush x:Key="NekoAccentSoftHoverBrush" Color="#265053" />
+        <SolidColorBrush x:Key="NekoAccentOnBrush" Color="#06121A" />
+        <SolidColorBrush x:Key="NekoAccentLineBrush" Color="#2A6F6C" />
+
+        <SolidColorBrush x:Key="NekoTextBrush" Color="#E9EEF6" />
+        <SolidColorBrush x:Key="NekoMutedBrush" Color="#93A0B4" />
+        <SolidColorBrush x:Key="NekoDimBrush" Color="#74839A" />
+        <SolidColorBrush x:Key="NekoBorderBrush" Color="#26303D" />
+
+        <SolidColorBrush x:Key="NekoDangerBrush" Color="#E5484D" />
+        <SolidColorBrush x:Key="NekoDangerSoftBrush" Color="#3A1B1E" />
+        <SolidColorBrush x:Key="NekoSuccessBrush" Color="#4CC38A" />
+        <SolidColorBrush x:Key="NekoSuccessSoftBrush" Color="#17342A" />
+        <SolidColorBrush x:Key="NekoWarningBrush" Color="#F2AE49" />
+        <SolidColorBrush x:Key="NekoWarningSoftBrush" Color="#3A2E18" />
+        <SolidColorBrush x:Key="NekoInfoBrush" Color="#5AA9E6" />
+        <SolidColorBrush x:Key="NekoInfoSoftBrush" Color="#16293A" />
+
+        <SolidColorBrush x:Key="NekoCardBrush" Color="#D9121822" />
+        <SolidColorBrush x:Key="NekoCardSoftBrush" Color="#B30E141C" />
+        <SolidColorBrush x:Key="NekoCardHoverBrush" Color="#1A2230" />
+        <SolidColorBrush x:Key="NekoSurfaceBrush" Color="#0A0E15" />
+        <SolidColorBrush x:Key="NekoFieldBrush" Color="#16202B" />
+        <SolidColorBrush x:Key="NekoFieldSoftBrush" Color="#0F151E" />
+        <SolidColorBrush x:Key="NekoFieldHoverBrush" Color="#1A2430" />
+        <SolidColorBrush x:Key="NekoPressBrush" Color="#1C2836" />
+        <SolidColorBrush x:Key="NekoControlHoverBrush" Color="#243343" />
+        <SolidColorBrush x:Key="NekoControlPressedBrush" Color="#2A3B4C" />
+        <SolidColorBrush x:Key="NekoNavIdleBrush" Color="#9AA9BC" />
+        <SolidColorBrush x:Key="NekoStartBarBrush" Color="#E60D131B" />
+        <SolidColorBrush x:Key="NekoTitleBarBrush" Color="#B30C121A" />
+        <SolidColorBrush x:Key="NekoDrawerBrush" Color="#F50C121A" />
+        <SolidColorBrush x:Key="NekoOverlayBrush" Color="#66101822" />
+        <SolidColorBrush x:Key="NekoDialogBrush" Color="#F20C121A" />
+        <SolidColorBrush x:Key="NekoDialogSolidBrush" Color="#121A24" />
+        <SolidColorBrush x:Key="NekoScrimBrush" Color="#55000000" />
+        <SolidColorBrush x:Key="NekoTerminalBrush" Color="#05090C" />
+        <SolidColorBrush x:Key="NekoTerminalTextBrush" Color="#9FE8D5" />
+
+        <LinearGradientBrush x:Key="NekoBackgroundBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#FF0A0E15" Offset="0" />
+            <GradientStop Color="#FF0C1520" Offset="0.55" />
+            <GradientStop Color="#FF0A1018" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="NekoHeroGlowBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#1F3FC6C1" Offset="0" />
+            <GradientStop Color="#00121822" Offset="0.6" />
+            <GradientStop Color="#000A0E15" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- ==== 图标几何（Material Icons, Apache 2.0） ==== -->
+        <StreamGeometry x:Key="IconHome">M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z</StreamGeometry>
+        <StreamGeometry x:Key="IconDownload">M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z</StreamGeometry>
+        <StreamGeometry x:Key="IconCube">M12,2L2,7V17L12,22L22,17V7L12,2M12,4.15L19.5,8L12,11.85L4.5,8L12,4.15M4,9.8L11,13.3V19.8L4,16.3V9.8M13,19.8V13.3L20,9.8V16.3L13,19.8Z</StreamGeometry>
+        <StreamGeometry x:Key="IconSettings">M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMusic">M12,3V13.55C11.41,13.21 10.73,13 10,13A3,3 0 0,0 7,16A3,3 0 0,0 10,19A3,3 0 0,0 13,16V7H17V3H12Z</StreamGeometry>
+        <StreamGeometry x:Key="IconGlobe">M17.9,17.39C19.2,15.97 20,14.08 20,12C20,9.92 19.2,8.03 17.9,6.61C17.05,5.64 15.99,4.86 14.79,4.34C13.9,3.96 12.97,3.75 12,3.75C11.03,3.75 10.1,3.96 9.21,4.34C8.01,4.86 6.95,5.64 6.11,6.61C4.8,8.03 4,9.92 4,12C4,14.08 4.8,15.97 6.1,17.39C7.5,18.96 9.6,20 12,20C13.5,20 14.9,19.6 16.1,18.9L17.9,17.39M12,2C17.5,2 22,6.5 22,12C22,17.5 17.5,22 12,22C6.5,22 2,17.5 2,12C2,6.5 6.5,2 12,2M12,4C8.1,4 4.9,6.6 4.3,10H8V14H4.3C4.9,17.4 8.1,20 12,20C13.9,20 15.7,19.3 17,18.1V15H14V11H17.9C17.6,8.1 15.2,5.3 12.2,4.2C12.1,4.1 12.1,4 12,4Z</StreamGeometry>
+        <StreamGeometry x:Key="IconServer">M4,1H20A1,1 0 0,1 21,2V6A1,1 0 0,1 20,7H4A1,1 0 0,1 3,6V2A1,1 0 0,1 4,1M4,9H20A1,1 0 0,1 21,10V14A1,1 0 0,1 20,15H4A1,1 0 0,1 3,14V10A1,1 0 0,1 4,9M4,17H20A1,1 0 0,1 21,18V22A1,1 0 0,1 20,23H4A1,1 0 0,1 3,22V18A1,1 0 0,1 4,17M9,2V6H7V2H9M9,10V14H7V10H9M9,18V22H7V18H9Z</StreamGeometry>
+        <StreamGeometry x:Key="IconAccount">M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z</StreamGeometry>
+        <StreamGeometry x:Key="IconCreator">M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z</StreamGeometry>
+        <StreamGeometry x:Key="IconRobot">M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z</StreamGeometry>
+        <StreamGeometry x:Key="IconPlugin">M20.5,11H19V7A2,2 0 0,0 17,5H13V3.5A2.5,2.5 0 0,0 10.5,1A2.5,2.5 0 0,0 8,3.5V5H4A2,2 0 0,0 2,7V10.8H3.5C5,10.8 6.2,12 6.2,13.5C6.2,15 5,16.2 3.5,16.2H2V20A2,2 0 0,0 4,22H7.8V20.5C7.8,19 9,17.8 10.5,17.8C12,17.8 13.2,19 13.2,20.5V22H17A2,2 0 0,0 19,20V16H20.5A2.5,2.5 0 0,0 23,13.5A2.5,2.5 0 0,0 20.5,11Z</StreamGeometry>
+        <StreamGeometry x:Key="IconGrid">M4,2H20A2,2 0 0,1 22,4V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V4A2,2 0 0,1 4,2M4,4V11H11V4H4M13,4V11H20V4H13M4,13V20H11V13H4M13,13V20H20V13H13Z</StreamGeometry>
+        <StreamGeometry x:Key="IconPlay">M8,5.14V19.14L19,12.14L8,5.14Z</StreamGeometry>
+        <StreamGeometry x:Key="IconStop">M18,18H6V6H18V18Z</StreamGeometry>
+        <StreamGeometry x:Key="IconPlus">M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z</StreamGeometry>
+        <StreamGeometry x:Key="IconRefresh">M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z</StreamGeometry>
+        <StreamGeometry x:Key="IconSearch">M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z</StreamGeometry>
+        <StreamGeometry x:Key="IconFolder">M20,18H4V8H20M20,6H12L10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6Z</StreamGeometry>
+        <StreamGeometry x:Key="IconStar">M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z</StreamGeometry>
+        <StreamGeometry x:Key="IconClock">M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z</StreamGeometry>
+        <StreamGeometry x:Key="IconWarning">M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z</StreamGeometry>
+        <StreamGeometry x:Key="IconCheck">M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z</StreamGeometry>
+        <StreamGeometry x:Key="IconClose">M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z</StreamGeometry>
+        <StreamGeometry x:Key="IconChevronDown">M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z</StreamGeometry>
+        <StreamGeometry x:Key="IconArrowLeft">M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMinimize">M4,11H20V13H4V11Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMaximize">M4,4H20V20H4V4M6,6V18H18V6H6Z</StreamGeometry>
+        <StreamGeometry x:Key="IconRestore">M8,8H20V20H8V8M6,4H18V6H6V18H4V6A2,2 0 0,1 6,4M10,10V18H18V10H10Z</StreamGeometry>
+        <StreamGeometry x:Key="IconArrowRight">M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMonitor">M21,16H3V4H21M21,2H3C1.89,2 1,2.89 1,4V16A2,2 0 0,0 3,18H10V20H8V22H16V20H14V18H21A2,2 0 0,0 23,16V4C23,2.89 22.1,2 21,2Z</StreamGeometry>
+        <StreamGeometry x:Key="IconDisk">M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z</StreamGeometry>
+        <StreamGeometry x:Key="IconNetwork">M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12C4,13.85 4.63,15.54 5.69,16.9L7.1,15.5C6.41,14.5 6,13.3 6,12A6,6 0 0,1 12,6C14.7,6 16.96,8.03 17.3,10.64L19.3,12.64C18.63,7.76 14.7,4 12,4M12,8A4,4 0 0,0 8,12C8,13.11 8.45,14.11 9.17,14.83L10.6,13.4C10.22,13.02 10,12.53 10,12A2,2 0 0,1 12,10C13.11,10 14,10.89 14,12L15.4,13.4C15.76,12.8 16,12.09 16,11.3C16,9.05 14.2,7.3 11.95,7.3C11.97,7.59 12,7.88 12,8M12,12A2,2 0 0,0 10,14C10,15.11 10.9,16 12,16C13.11,16 14,15.11 14,14A2,2 0 0,0 12,12Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMemory">M17,17H7V7H17M21,11V9H19V7A2,2 0 0,0 17,5H15V3H13V5H11V3H9V5H7A2,2 0 0,0 5,7V9H3V11H5V13H3V15H5V17A2,2 0 0,0 7,19H9V21H11V19H13V21H15V19H17A2,2 0 0,0 19,17V15H21V13H19V11M17,17H7V7H17V17Z</StreamGeometry>
+
+        <!-- ==== 字体 ==== -->
+        <FontFamily x:Key="NekoIconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    </Styles.Resources>
+
+    <!-- 弹窗（SukiDialog）用不透明底板：默认玻璃材质在内容留白多时会透出下层页面 -->
+    <Style Selector="suki|SukiDialog">
+        <Setter Property="Background" Value="{DynamicResource NekoDialogSolidBrush}" />
+    </Style>
+    <!-- ================= 交互反馈（统一去掉点击黑框） ================= -->
+    <!-- 焦点框默认值：不画焦点虚线框 -->
+    <Style Selector="AdornerLayer">
+        <Setter Property="DefaultFocusAdorner" Value="{x:Null}" />
+    </Style>
+    <Style Selector=":is(Control)">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
+    <Style Selector=":is(Control):focus">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
+    <Style Selector=":is(Control):focus-visible">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="RenderTransform" Value="none" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.08" />
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                <BrushTransition Property="Background" Duration="0:0:0.12" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button:pointerover">
+        <Setter Property="RenderTransform" Value="scale(1.015)" />
+    </Style>
+    <Style Selector="Button:pressed">
+        <Setter Property="Opacity" Value="0.86" />
+        <Setter Property="RenderTransform" Value="scale(0.985)" />
+    </Style>
+    <!-- 默认按钮按下：不要黑块，用轻微提亮的同色系 -->
+    <Style Selector="Button:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+
+    <!-- ================= 文本 ================= -->
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource NekoMutedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource NekoDimBrush}" />
+    </Style>
+    <Style Selector="TextBlock.stat">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+    </Style>
+
+    <!-- ================= 表面 ================= -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{StaticResource NekoCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="18" />
+    </Style>
+    <Style Selector="Border.card-soft">
+        <Setter Property="Background" Value="{StaticResource NekoCardSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="14" />
+    </Style>
+    <Style Selector="Border.divider">
+        <Setter Property="Background" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="Height" Value="1" />
+    </Style>
+
+    <!-- ================= 按钮 ================= -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,8" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="Padding" Value="14,7" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.icon">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.icon:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Width" Value="42" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoNavIdleBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.nav.active">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.pill">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button.pill:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.pill.active">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.round">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="19" />
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.round:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.tile">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.tile:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+    </Style>
+
+    <Style Selector="Button.menu-row">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button.menu-row:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- ================= 输入 / 列表 ================= -->
+    <Style Selector="TextBox.search">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="ListBoxItem">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="8" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+        <!-- 悬停 = 高亮描边框，不做整块填充 -->
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="ListBoxItem:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="ListBoxItem:selected:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+    </Style>
+
+    <!-- 下拉项：同样悬停 = 描边框 -->
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="ComboBoxItem:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+
+    <!-- 开始栏里的紧凑选择器（版本 / 账号）：无外框感、悬停才显底色 -->
+    <Style Selector="ComboBox.startbar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ComboBox.startbar /template/ Border#Background">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ComboBox.startbar:pointerover /template/ Border#Background">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="ComboBox.startbar:pressed /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- ================= 各按钮样式的按下态 ================= -->
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentPressedBrush}" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.icon:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.nav:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
+    </Style>
+    <Style Selector="Button.pill:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.round:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoControlPressedBrush}" />
+    </Style>
+    <Style Selector="Button.tile:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.menu-row:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.rail:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+    <Style Selector="Button.player:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+
+    <Style Selector="Image.icon-tile">
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="38" />
+    </Style>
+    <Style Selector="PathIcon.tile-icon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
+    </Style>
+
+    <!-- ================= 悬停统一：不要任何方块底色，只让图标/文字变青绿 ================= -->
+    <Style Selector="Button:pointerover">
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <!-- 选中态/强调色按钮保留原有背景，不出现悬停方块 -->
+    <Style Selector="Button.primary:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.pill.active:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+
+    <!-- BETA 徽章：标题栏版本阶段标记 -->
+    <!-- 语言切换旗子卡片 -->
+    <Style Selector="Button.language-card">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="9,5" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+    </Style>
+    <Style Selector="Button.language-card:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+    </Style>
+    <Style Selector="Button.language-card.active">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+    </Style>
+
+    <Style Selector="Border.beta-badge">
+        <Setter Property="Background" Value="#E8B93A" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="6,2" />
+    </Style>
+    <Style Selector="Border.beta-badge TextBlock">
+        <Setter Property="Foreground" Value="#1A1206" />
+    </Style>
+</Styles>

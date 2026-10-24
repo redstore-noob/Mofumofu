@@ -1,0 +1,456 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:acrylic="using:Fluid.Avalonia.Acrylic"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.MusicView">
+    <UserControl.Resources>
+        <!-- 歌曲行模板：两个列表共用，行尾带收藏爱心 -->
+        <DataTemplate x:Key="TrackTemplate">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="56">
+                <Border Width="40" Height="40" CornerRadius="10"
+                        Background="{DynamicResource NekoAccentSoftBrush}"
+                        ClipToBounds="True"
+                        VerticalAlignment="Center">
+                    <Panel>
+                        <controls:IconParkIcon Kind="IconFluentMusic"
+                                  Width="16" Height="16"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                        <Image Source="{Binding CoverImage}" Stretch="UniformToFill" />
+                    </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="1"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayTitle}" FontSize="12.5"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    <TextBlock Text="{Binding FileInfo}" Classes="caption"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                </StackPanel>
+                <ToggleButton Grid.Column="2" Classes="fav"
+                              IsChecked="{Binding IsFavorite, Mode=TwoWay}"
+                              Click="OnItemFavoriteClick"
+                              ToolTip.Tip="{DynamicResource L.Pages.Music.Favorite}"
+                              VerticalAlignment="Center">
+                    <Panel>
+                        <controls:IconParkIcon Classes="heart-off" Kind="IconFluentHeart" Width="15" Height="15" />
+                        <controls:IconParkIcon Classes="heart-on" Kind="IconFluentHeartFilled" Width="15" Height="15" />
+                    </Panel>
+                </ToggleButton>
+                <TextBlock Grid.Column="3" Text="{Binding DurationDisplay}"
+                           Classes="caption" VerticalAlignment="Center"
+                           Margin="10,0,10,0" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+    <UserControl.Styles>
+        <!-- 侧栏导航行 -->
+        <Style Selector="Button.rail">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="Button.rail:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.rail.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <!-- 播放控制 -->
+        <Style Selector="Button.player">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="Button.player:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Button.player.active">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+
+        <!-- 图标按钮 -->
+        <Style Selector="Button.icon-soft">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="Button.icon-soft:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+        </Style>
+
+        <!-- 右栏标签 -->
+        <Style Selector="Button.music-tab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="4,0,4,8" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.music-tab.active">
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- 列表内收藏爱心 -->
+        <Style Selector="ToggleButton.fav">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.fav:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.fav controls|IconParkIcon.heart-on">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="ToggleButton.fav:checked">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.fav:checked controls|IconParkIcon.heart-on">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="ToggleButton.fav:checked controls|IconParkIcon.heart-off">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+
+        <!-- 歌曲列表 -->
+        <Style Selector="ListBox#TrackList, ListBox#ListTracks">
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBox#TrackList ListBoxItem, ListBox#ListTracks ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="252,*,332">
+        <!-- 隐藏的页头：仅用于保留 Header.Subtitle 的代码引用 -->
+        <controls:PageHeader x:Name="Header" IsVisible="False"
+                             Title="{DynamicResource L.Pages.Music.Title}" />
+
+        <!-- ==================== 左：Music 侧栏 ==================== -->
+        <acrylic:AcrylicSurface Grid.Column="0" CornerRadius="22" Padding="16,18" Margin="0,0,12,0" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+            <Grid RowDefinitions="Auto,*">
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="8,0,0,16">
+                    <controls:IconParkIcon Kind="IconFluentMusic" Width="20" Height="20" VerticalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource L.Pages.Music.Title}" FontSize="20"
+                               FontWeight="Bold" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Spacing="4">
+                    <Button x:Name="RailLocal" Classes="rail active" Tag="local" Click="OnRailClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.Source.Local}">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconHome" Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Home}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="rail" Click="OnSearchNavClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.SearchPlaceholder}">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconSearch"
+                                      Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Search}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="RailCloud" Classes="rail" Tag="cloud" Click="OnRailClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.Source.Cloud}">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconGlobe" Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Library}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="RailFavorites" Classes="rail" Tag="favorites" Click="OnRailClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.Rail.Favorites}">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFluentHeart" Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Liked}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="RailRoam" Classes="rail" Tag="roam" Click="OnRailClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.Rail.Roam}">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFluentSparkle" Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Roam}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="rail" IsEnabled="False" Opacity="0.55">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFluentMusic" Width="17" Height="17" />
+                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Playlists}" FontSize="13"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="LoginButton" Classes="ghost" Height="32" Margin="0,10,0,0"
+                            IsVisible="False" Click="OnCloudLoginClick"
+                            HorizontalContentAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconAccount" Width="14" Height="14" />
+                            <TextBlock x:Name="LoginButtonText" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </acrylic:AcrylicSurface>
+
+        <!-- ==================== 中：正在播放（仅首页三段式使用） ==================== -->
+        <acrylic:AcrylicSurface x:Name="NowPane" Grid.Column="1" CornerRadius="24" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+            <Grid>
+                <Border Background="{DynamicResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
+                <Border Background="{DynamicResource NekoAccentSoftBrush}" Opacity="0.16"
+                        IsHitTestVisible="False" />
+
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="30,22,30,22">
+                    <!-- 顶栏 -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Button Classes="icon-soft" Click="OnBackClick" ToolTip.Tip="{DynamicResource L.Pages.Music.Back}">
+                            <controls:IconParkIcon Kind="IconArrowLeft" Width="16" Height="16" />
+                        </Button>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                            <Button x:Name="FavButton" Classes="player"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Favorite}"
+                                    Click="OnFavoriteClick">
+                                <controls:IconParkIcon x:Name="FavHeartIcon" Kind="IconFluentHeart" Width="17" Height="17" />
+                            </Button>
+                            <Button x:Name="LoopButton" Classes="player"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Loop}" Click="OnLoopClick">
+                                <controls:IconParkIcon Kind="IconFluentRepeat" Width="17" Height="17" />
+                            </Button>
+                            <Button Classes="player" ToolTip.Tip="{DynamicResource L.Pages.Music.Stop}"
+                                    Click="OnStopClick">
+                                <controls:IconParkIcon Kind="IconStop" Width="15" Height="15" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 封面 -->
+                    <Border Grid.Row="1" Width="300" Height="300" CornerRadius="24"
+                            Margin="0,10,0,18" HorizontalAlignment="Center"
+                            BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
+                            ClipToBounds="True" Background="{DynamicResource NekoAccentSoftBrush}"
+                            x:Name="NowCoverHost">
+                        <Panel>
+                            <Grid>
+                                <Border Width="86" Height="86" CornerRadius="43"
+                                        Background="{DynamicResource NekoAccentSoftBrush}"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <controls:IconParkIcon Kind="IconFluentMusic" Width="40" Height="40"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                            <Image Source="{Binding CoverImage}" Stretch="UniformToFill" />
+                        </Panel>
+                    </Border>
+
+                    <!-- 标题 / 艺术家 / 标签 -->
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock x:Name="NowTitle" Text="—" FontSize="26" FontWeight="Bold"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            <TextBlock x:Name="NowMeta" Text="—" FontSize="13"
+                                       Foreground="{DynamicResource NekoMutedBrush}"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                        </StackPanel>
+                        <Border Grid.Column="1" CornerRadius="12" Padding="9,4"
+                                Background="{DynamicResource NekoAccentSoftBrush}"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <controls:IconParkIcon Kind="IconFluentSpeaker" Width="12" Height="12" />
+                                <TextBlock Text="{DynamicResource L.Pages.Music.HiRes}" FontSize="10.5" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 进度 -->
+                    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,18,0,0">
+                        <TextBlock x:Name="ElapsedText" Text="0:00" Width="42" Classes="caption"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="ProgressSlider" Grid.Column="1" Margin="10,0"
+                                Minimum="0" Maximum="1" ValueChanged="OnProgressChanged" />
+                        <TextBlock x:Name="TotalText" Grid.Column="2" Text="--:--" Width="42"
+                                   Classes="caption" VerticalAlignment="Center"
+                                   HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+
+                    <!-- 控制区 -->
+                    <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="18" VerticalAlignment="Center">
+                            <Button Classes="player" Click="OnPrevClick"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Prev}">
+                                <controls:IconParkIcon Kind="IconMediaPrevious" Width="20" Height="20" />
+                            </Button>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Button Classes="player" Click="OnRewind10Click"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Rewind10}">
+                                <controls:IconParkIcon Kind="IconFluentArrowCounterclockwise"
+                                          Width="18" Height="18" />
+                            </Button>
+                            <Button x:Name="PlayButton" Width="62" Height="62" CornerRadius="31"
+                                    Background="{DynamicResource NekoDialogSolidBrush}"
+                                    Foreground="{DynamicResource NekoTextBrush}"
+                                    BorderThickness="0" Padding="0"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Play}" Click="OnPlayPauseClick">
+                                <controls:IconParkIcon x:Name="PlayIcon" Kind="IconPlay" Width="22" Height="22" />
+                            </Button>
+                            <Button Classes="player" Click="OnForward10Click"
+                                    ToolTip.Tip="{DynamicResource L.Pages.Music.Forward10}">
+                                <controls:IconParkIcon Kind="IconFluentArrowClockwise" Width="18" Height="18" />
+                            </Button>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="player" Click="OnNextClick"
+                                ToolTip.Tip="{DynamicResource L.Pages.Music.Next}">
+                            <controls:IconParkIcon Kind="IconMediaNext" Width="20" Height="20" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 音量 -->
+                    <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0"
+                          VerticalAlignment="Bottom">
+                        <controls:IconParkIcon Kind="IconFluentSpeaker" Width="16" Height="16" VerticalAlignment="Center" />
+                        <Slider x:Name="VolumeSlider" Grid.Column="1" Margin="12,0" Minimum="0" Maximum="100"
+                                Value="72" ValueChanged="OnVolumeChanged" />
+                        <TextBlock x:Name="VolumeText" Grid.Column="2" Text="72%" Classes="caption"
+                                   Width="38" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                </Grid>
+            </Grid>
+        </acrylic:AcrylicSurface>
+
+        <!-- ==================== 右：队列（仅首页三段式使用） ==================== -->
+        <acrylic:AcrylicSurface x:Name="QueuePane" Grid.Column="2" CornerRadius="22" Padding="16,18" Margin="12,0,0,0" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+            <Grid RowDefinitions="Auto,Auto,Auto,*">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <Button Classes="music-tab active" Content="{DynamicResource L.Pages.Music.Tab.NowPlaying}" />
+                        <Button Classes="music-tab" Content="{DynamicResource L.Pages.Music.Tab.Playlist}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <Button Classes="icon-soft" Width="30" Height="30"
+                                ToolTip.Tip="{DynamicResource L.Pages.Music.Rescan}" Click="OnRescanClick">
+                            <controls:IconParkIcon Kind="IconRefresh" Width="14" Height="14" />
+                        </Button>
+                        <Button Classes="icon-soft" Width="30" Height="30"
+                                ToolTip.Tip="{DynamicResource L.Pages.Music.PickFolder}" Click="OnPickFolderClick">
+                            <controls:IconParkIcon Kind="IconFolder" Width="14" Height="14" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,10,0,6">
+                    <TextBox x:Name="SearchBox" Height="34" FontSize="12"
+                             PlaceholderText="{DynamicResource L.Pages.Music.SearchPlaceholder}"
+                             TextChanged="OnSearchChanged" />
+                    <ComboBox x:Name="SortCombo" Grid.Column="1" Width="104" Height="34" FontSize="11.5"
+                              Margin="8,0,0,0" SelectedIndex="0" SelectionChanged="OnSortChanged">
+                        <ComboBoxItem Content="{DynamicResource L.Pages.Music.Sort.Name}" />
+                        <ComboBoxItem Content="{DynamicResource L.Pages.Music.Sort.Duration}" />
+                    </ComboBox>
+                </Grid>
+
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                    <TextBlock Text="{DynamicResource L.Pages.Music.Tab.NowPlaying}" Classes="caption" />
+                    <TextBlock x:Name="TrackCountText" Grid.Column="1" Classes="caption" />
+                </Grid>
+
+                <Grid Grid.Row="3">
+                    <Border x:Name="TrackListCard" CornerRadius="14" Padding="2">
+                        <Grid>
+                            <ListBox x:Name="TrackList" Background="Transparent"
+                                     ItemTemplate="{StaticResource TrackTemplate}"
+                                     SelectionChanged="OnTrackSelected" />
+                            <TextBlock x:Name="EmptyHint" IsVisible="False" Classes="muted"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextWrapping="Wrap" MaxWidth="240" TextAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </acrylic:AcrylicSurface>
+
+        <!-- ==================== 传统列表（云 / 收藏 / 漫游） ==================== -->
+        <acrylic:AcrylicSurface x:Name="ListPane" Grid.Column="1" Grid.ColumnSpan="2"
+                                CornerRadius="22" Padding="20,18" IsVisible="False"
+                                BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <controls:IconParkIcon x:Name="ListIcon" Kind="IconFluentSparkle"
+                                  Width="18" Height="18" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ListTitleText" FontSize="18" FontWeight="Bold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="ListCountText" Grid.Column="1" Classes="caption"
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,12,0,8">
+                    <TextBox x:Name="ListSearch" Height="34" FontSize="12"
+                             TextChanged="OnListSearchChanged" />
+                    <ComboBox x:Name="ListSort" Grid.Column="1" Width="104" Height="34" FontSize="11.5"
+                              Margin="8,0,0,0" SelectedIndex="0" SelectionChanged="OnSortChanged">
+                        <ComboBoxItem Content="{DynamicResource L.Pages.Music.Sort.Name}" />
+                        <ComboBoxItem Content="{DynamicResource L.Pages.Music.Sort.Duration}" />
+                    </ComboBox>
+                </Grid>
+
+                <Grid Grid.Row="2">
+                    <ListBox x:Name="ListTracks" Background="Transparent"
+                             ItemTemplate="{StaticResource TrackTemplate}"
+                             SelectionChanged="OnTrackSelected" />
+                    <TextBlock x:Name="ListEmpty" IsVisible="False" Classes="muted"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="300" TextAlignment="Center" />
+                </Grid>
+            </Grid>
+        </acrylic:AcrylicSurface>
+    </Grid>
+</UserControl>

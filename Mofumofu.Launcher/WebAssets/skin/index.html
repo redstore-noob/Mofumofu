@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D 皮肤预览</title>
+  <style>
+    :root {
+      --skin-bg: #0f151e;
+      --skin-text: #e9eef6;
+      --skin-muted: #93a0b4;
+      --skin-border: #26303d;
+      --skin-panel: rgba(12, 18, 26, .72);
+      --skin-accent: #3fc6c1;
+    }
+    html, body { margin: 0; height: 100%; background: var(--skin-bg); overflow: hidden; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: var(--skin-text);
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+    }
+    #app { display: flex; flex: 1; min-height: 0; }
+    #stage { position: relative; flex: 1; min-height: 0; }
+    #skin { width: 100%; height: 100%; display: block; outline: none; }
+    .chip {
+      position: absolute; top: 12px;
+      font-size: 11.5px; line-height: 1;
+      padding: 6px 10px; border-radius: 8px;
+      color: var(--skin-muted);
+      background: var(--skin-panel);
+      border: 1px solid var(--skin-border);
+      backdrop-filter: blur(8px);
+      white-space: nowrap;
+    }
+    #name { left: 14px; }
+    #name b { color: var(--skin-text); font-weight: 600; }
+    #source { right: 14px; }
+    #source.ready { color: var(--skin-accent); }
+    #controls {
+      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+      display: flex; gap: 8px; align-items: center;
+      padding: 6px 12px; border-radius: 10px;
+      background: var(--skin-panel);
+      border: 1px solid var(--skin-border);
+      backdrop-filter: blur(10px);
+      white-space: nowrap;
+      font-size: 11px; color: var(--skin-muted);
+    }
+    label.toggle { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+    input[type=checkbox] { accent-color: var(--skin-accent); margin: 0; }
+    #hint {
+      position: absolute; right: 14px; bottom: 16px;
+      font-size: 10px; color: var(--skin-muted); opacity: .65;
+    }
+
+    /* 启动卡内嵌预览：只留模型，不显示任何文字浮层 */
+    body.bare #name, body.bare #source, body.bare #controls, body.bare #hint {
+      display: none !important;
+    }
+
+    /* 只保留模型本身：隐藏名称、来源、拖拽提示 */
+    #name, #source, #hint { display: none !important; }
+
+    /* ================= 编辑器（仅 edit=1 / editor 通道打开时显示） ================= */
+    #paint-pane {
+      display: none;
+      width: 292px;
+      min-width: 292px;
+      border-right: 1px solid var(--skin-border);
+      padding: 14px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      gap: 10px;
+    }
+    body.editing #paint-pane { display: flex; flex-direction: column; }
+    .pane-title { font-size: 12px; font-weight: 600; color: var(--skin-text); }
+    .pane-hint { font-size: 10.5px; color: var(--skin-muted); }
+    #paint-wrap {
+      width: 256px; height: 256px; margin: 0 auto;
+      border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--skin-border);
+      background:
+        linear-gradient(45deg, #1b2330 25%, transparent 25%, transparent 75%, #1b2330 75%),
+        linear-gradient(45deg, #1b2330 25%, #121a24 25%, #121a24 75%, #1b2330 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+    }
+    #paint { width: 256px; height: 256px; display: block; image-rendering: pixelated; cursor: crosshair; }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    button, select, input[type=color] {
+      font: inherit; font-size: 11.5px;
+      color: var(--skin-text);
+      background: #172230;
+      border: 1px solid var(--skin-border);
+      border-radius: 7px;
+      padding: 5px 9px;
+      cursor: pointer;
+    }
+    button:hover, select:hover { border-color: var(--skin-accent); }
+    button.active { border-color: var(--skin-accent); color: var(--skin-accent); }
+    button.primary { background: var(--skin-accent); color: #062024; border-color: transparent; font-weight: 600; }
+    button:disabled { opacity: .45; cursor: default; }
+    input[type=color] { width: 34px; height: 28px; padding: 2px; }
+    input[type=range] { width: 72px; accent-color: var(--skin-accent); }
+    #swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+    .swatch {
+      height: 22px; border-radius: 5px; border: 1px solid var(--skin-border);
+      cursor: pointer;
+    }
+    #status { min-height: 16px; font-size: 10.5px; color: var(--skin-muted); }
+    .sep { height: 1px; background: var(--skin-border); margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="paint-pane">
+      <div class="row" style="justify-content: space-between">
+        <span class="pane-title" id="paint-title">皮肤展开图</span>
+        <span class="pane-hint" id="paint-size">64 × 64</span>
+      </div>
+
+      <div id="paint-wrap"><canvas id="paint" width="64" height="64"></canvas></div>
+
+      <div class="row">
+        <button id="tool-brush" class="active" data-tool="brush">画笔</button>
+        <button id="tool-eraser" data-tool="eraser">橡皮</button>
+        <button id="tool-picker" data-tool="picker">取色</button>
+        <input id="color" type="color" value="#3fc6c1" />
+        <input id="size" type="range" min="1" max="4" value="1" step="1" title="笔刷大小" />
+      </div>
+
+      <div class="row">
+        <button id="undo">撤销</button>
+        <button id="redo">重做</button>
+        <button id="import">导入</button>
+        <button id="export">导出</button>
+        <input id="file" type="file" accept="image/png" hidden />
+      </div>
+
+      <div id="swatches"></div>
+
+      <div class="row">
+        <label class="toggle"><input id="cape" type="checkbox" checked /><span id="cape-label">显示披风</span></label>
+        <select id="model">
+          <option value="classic">经典模型</option>
+          <option value="slim">纤细模型</option>
+        </select>
+      </div>
+
+      <div class="sep"></div>
+      <div class="pane-hint">显示部件</div>
+      <div class="row" id="part-checks">
+        <label class="toggle"><input type="checkbox" data-part="head" checked /><span>头部</span></label>
+        <label class="toggle"><input type="checkbox" data-part="body" checked /><span>身体</span></label>
+        <label class="toggle"><input type="checkbox" data-part="rightArm" checked /><span>右臂</span></label>
+        <label class="toggle"><input type="checkbox" data-part="leftArm" checked /><span>左臂</span></label>
+        <label class="toggle"><input type="checkbox" data-part="rightLeg" checked /><span>右腿</span></label>
+        <label class="toggle"><input type="checkbox" data-part="leftLeg" checked /><span>左腿</span></label>
+        <label class="toggle"><input type="checkbox" data-part="outer" checked /><span>外层</span></label>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <button id="upload">上传到账号</button>
+        <button id="apply" class="primary">应用到账号</button>
+        <button id="close">关闭</button>
+        <label class="toggle"><input id="rotate" type="checkbox" checked /><span id="rotate-label">自动旋转</span></label>
+      </div>
+
+      <div id="status"></div>
+    </aside>
+
+    <div id="stage">
+      <canvas id="skin"></canvas>
+      <div id="name" class="chip"><span id="name-prefix">皮肤预览 · </span><b id="name-value">—</b></div>
+      <div id="source" class="chip">内置 Steve / Alex</div>
+      <div id="controls">
+        <label class="toggle"><input id="rotate-floating" type="checkbox" checked />
+          <span id="rotate-floating-label">自动旋转</span></label>
+      </div>
+      <div id="hint">拖拽旋转 · 滚轮缩放</div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+
+  <script id="part-script">
+    (() => {
+      const pushParts = () => {
+        const state = { outer: document.querySelector('[data-part="outer"]').checked };
+        document.querySelectorAll('[data-part]').forEach(box => {
+          if (box.dataset.part !== 'outer') state[box.dataset.part] = box.checked;
+        });
+        if (window.__mofuPush) window.__mofuPush('skin/parts', state);
+      };
+      document.querySelectorAll('[data-part]').forEach(box => box.addEventListener('change', pushParts));
+      document.getElementById('upload').addEventListener('click', () => {
+        const dataUrl = document.getElementById('paint').toDataURL('image/png');
+        const slim = document.getElementById('model').value === 'slim';
+        if (window.chrome?.webview) {
+          window.chrome.webview.postMessage(JSON.stringify({ type: 'skin/upload', dataUrl, slim }));
+        }
+      });
+    })();
+  </script>
+  <script>
+    setInterval(() => {
+      const s = document.getElementById('skin');
+      const st = document.getElementById('stage');
+      const d = document.getElementById('dbg');
+      if (d) d.textContent = stage x canvas x cls:;
+    }, 1000);
+  </script></body>
+</html>

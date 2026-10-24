@@ -1,0 +1,942 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:views="clr-namespace:Mofumofu.Launcher.Views"
+             xmlns:acrylic="using:Fluid.Avalonia.Acrylic"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.SettingsView">
+    <UserControl.Styles>
+        <!-- ===== 侧栏导航 ===== -->
+        <Style Selector="Button.settings-nav">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="FontSize" Value="13.5" />
+        </Style>
+        <Style Selector="Button.settings-nav:pointerover">
+            <!-- 悬停 = 高亮描边框，不做整块填充 -->
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        </Style>
+        <Style Selector="Button.settings-nav:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.settings-nav.active">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.settings-nav.active:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.settings-nav.active:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Button.settings-nav.dim">
+            <Setter Property="Opacity" Value="0.38" />
+        </Style>
+        <Style Selector="Border.nav-icon">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.settings-nav.active Border.nav-icon">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        </Style>
+
+        <!-- ===== 分区卡片 ===== -->
+        <Style Selector="Border.setting-group">
+            <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="18,14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style Selector="TextBlock.group-title">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="Border.setting-row">
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="0,10" />
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Border.setting-row:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.setting-row:last-child">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0,10,0,8" />
+        </Style>
+        <Style Selector="Border.setting-row > Grid > StackPanel">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.row-label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.row-hint">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoDimBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.value-text">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ===== 搜索标题 ===== -->
+        <Style Selector="StackPanel.section-head">
+            <Setter Property="Margin" Value="2,2,0,12" />
+            <Setter Property="Spacing" Value="3" />
+        </Style>
+        <Style Selector="TextBlock.section-heading">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-desc">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+
+        <!-- ===== 小控件 ===== -->
+        <Style Selector="Button.small">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="CornerRadius" Value="7" />
+        </Style>
+        <Style Selector="Button.danger-text">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoDangerBrush}" />
+            <Setter Property="CornerRadius" Value="7" />
+        </Style>
+        <Style Selector="Button.danger-text:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoDangerBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.divider">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource NekoBorderBrush}" />
+        </Style>
+
+        <!-- ===== 标签 / 输入控件 ===== -->
+        <Style Selector="Border.tag">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.tag.accent">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        </Style>
+        <Style Selector="TextBlock.tag-text">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Width" Value="200" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="OnContent" Value="{DynamicResource L.Common.Enabled}" />
+            <Setter Property="OffContent" Value="{DynamicResource L.Common.Disabled}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Slider.ctl">
+            <Setter Property="Width" Value="210" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ===== 主题色色板 ===== -->
+        <Style Selector="Border.accent-swatch">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="CornerRadius" Value="13" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.accent-swatch:pointerover">
+            <Setter Property="Opacity" Value="0.82" />
+        </Style>
+        <Style Selector="Border.accent-swatch.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="Button.accent-custom">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.accent-custom:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="Button.accent-custom.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        <controls:PageHeader Title="{DynamicResource L.Settings.Page.Title}">
+            <controls:PageHeader.Actions>
+                <TextBox x:Name="SearchBox" Width="300" Height="36" Classes="search"
+                         PlaceholderText="{DynamicResource L.Settings.Search.Placeholder}"
+                         TextChanged="OnSearchTextChanged" />
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <Grid Grid.Row="1" ColumnDefinitions="236,*" Margin="0,2,0,0">
+
+            <!-- ============ 左侧导航 ============ -->
+<acrylic:AcrylicSurface Grid.Column="0" CornerRadius="18" Padding="12,14"
+                    Margin="0,0,16,0" VerticalAlignment="Stretch"
+                    BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Row="1" Spacing="4">
+                        <Button x:Name="TabGame" Classes="settings-nav active" Click="OnTabGameClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="nav-icon">
+                                    <controls:IconParkIcon Kind="IconFluentCube" Width="15" Height="15"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                           Text="{DynamicResource L.Settings.Nav.Game}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabGeneral" Classes="settings-nav" Click="OnTabGeneralClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="nav-icon">
+                                    <controls:IconParkIcon Kind="IconFluentSettings" Width="15" Height="15"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                           Text="{DynamicResource L.Settings.Nav.General}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabAppearance" Classes="settings-nav" Click="OnTabAppearanceClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="nav-icon">
+                                    <controls:IconParkIcon Kind="IconFluentPaint" Width="15" Height="15"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                           Text="{DynamicResource L.Settings.Nav.Appearance}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabNetwork" Classes="settings-nav" Click="OnTabNetworkClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="nav-icon">
+                                    <controls:IconParkIcon Kind="IconFluentDownload" Width="15" Height="15"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                           Text="{DynamicResource L.Settings.Nav.Network}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabAbout" Classes="settings-nav" Click="OnTabAboutClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="nav-icon">
+                                    <controls:IconParkIcon Kind="IconFluentInfo" Width="15" Height="15"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                           Text="{DynamicResource L.Settings.Nav.About}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Spacing="10" Margin="6,12,6,2">
+                        <Border Classes="divider" />
+                        <TextBlock Text="Mofumofu Launcher" Classes="caption" Margin="4,0,0,0" />
+                    </StackPanel>
+                </Grid>
+            </acrylic:AcrylicSurface>
+
+            <!-- ============ 右侧设置内容 ============ -->
+            <ScrollViewer Grid.Column="1" x:Name="ContentScroll"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="TabsHost" Margin="2,0,10,24" MaxWidth="1000"
+                            HorizontalAlignment="Stretch">
+                    <StackPanel x:Name="SearchHeader" IsVisible="False" Classes="section-head">
+                        <TextBlock Text="{DynamicResource L.Settings.Search.Results}" Classes="section-heading" />
+                        <TextBlock x:Name="SearchSummary" Classes="section-desc" />
+                    </StackPanel>
+
+                    <!-- ================= 游戏 ================= -->
+                    <StackPanel x:Name="GamePanel" Tag="游戏 game 目录 folder directory java 内存 memory 启动 launch 版本 version">
+
+                        <acrylic:AcrylicSurface Tag="游戏目录 game directory folder 目录 minecraft 路径 path 更改 change 打开 open 恢复默认 reset 文件夹 folder" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentFolder" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Game.Directory.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource NekoFieldBrush}"
+                                                VerticalAlignment="Center">
+                                            <controls:IconParkIcon Kind="IconFolder" Width="15" Height="15" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="10,0,12,0" Spacing="1"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="GameDirPathText" FontSize="12.5"
+                                                       FontFamily="Consolas, Microsoft YaHei"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock x:Name="GameDirStatusText" Classes="row-hint" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4"
+                                                    VerticalAlignment="Center">
+                                            <Button Classes="ghost small" Content="{DynamicResource L.Settings.Game.Directory.Change}" Click="OnChangeGameDirClick" />
+                                            <Button Classes="ghost small" Content="{DynamicResource L.Common.Open}" Click="OnOpenGameDirClick" />
+                                            <Button Classes="danger-text" Content="{DynamicResource L.Settings.Game.Directory.Reset}" Click="OnResetGameDirClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="版本隔离 version isolation 实例 instance mods 存档 saves 独立 separate">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.Isolation}" Classes="row-label" />
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.IsolationHint}" Classes="row-hint" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="VersionIsolationToggle"
+                                                      IsCheckedChanged="OnVersionIsolationChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <acrylic:AcrylicSurface Tag="java 运行时 runtime jdk jre 路径 path 自动检索 auto-detect 添加 add 默认 default 移除 remove 版本 version" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentCode" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Game.Java.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.Java.Saved}" Classes="row-label" />
+                                            <TextBlock x:Name="JavaStatusText" Classes="row-hint" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center">
+                                            <Button x:Name="JavaDetectButton" Classes="ghost small"
+                                                    Content="{DynamicResource L.Settings.Game.Java.AutoDetect}"
+                                                    Click="OnAutoDetectJavaClick" />
+                                            <Button Classes="ghost small" Content="{DynamicResource L.Common.Add}" Click="OnAddJavaClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <ItemsControl x:Name="JavaList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="setting-row">
+                                                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                                    <StackPanel Spacing="1" Margin="0,0,10,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Path}" FontSize="12.5"
+                                                                   FontFamily="Consolas, Microsoft YaHei"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Detail}" Classes="row-hint" />
+                                                    </StackPanel>
+                                                    <Border Grid.Column="1" Classes="tag" Margin="0,0,6,0"
+                                                            IsVisible="{Binding HasVersion}">
+                                                        <TextBlock Text="{Binding Version}" Classes="tag-text" />
+                                                    </Border>
+                                                    <Border Grid.Column="2" Classes="tag accent" Margin="0,0,8,0"
+                                                            IsVisible="{Binding IsDefault}">
+                                                        <TextBlock Text="{DynamicResource L.Settings.Game.Java.DefaultTag}" Classes="tag-text"
+                                                                   Foreground="{DynamicResource NekoAccentBrush}" />
+                                                    </Border>
+                                                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2"
+                                                                VerticalAlignment="Center">
+                                                        <Button Classes="ghost small"
+                                                                Content="{DynamicResource L.Settings.Game.Java.SetDefault}"
+                                                                Tag="{Binding Path}" IsVisible="{Binding CanSetDefault}"
+                                                                Click="OnSetDefaultJavaClick" />
+                                                        <Button Classes="danger-text" Content="{DynamicResource L.Common.Remove}"
+                                                                Tag="{Binding Path}" Click="OnRemoveJavaClick" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <acrylic:AcrylicSurface Tag="内存 memory 最大 max 分配 allocate 2048 16384" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconMemory" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Game.Memory.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="最大内存 max memory 分配 allocate MB 内存 memory">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.Memory.Max}" Classes="row-label" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="MaxMemoryValue" Text="8192 MB" Classes="value-text" />
+                                            <Slider x:Name="MaxMemorySlider" Classes="ctl"
+                                                    Minimum="2048" Maximum="16384" Value="8192"
+                                                    TickFrequency="1024" IsSnapToTickEnabled="True"
+                                                    ValueChanged="OnMaxMemoryChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+                    </StackPanel>
+
+                    <!-- ================= 通用 ================= -->
+                    <StackPanel x:Name="GeneralPanel" IsVisible="False" Tag="通用 general 行为 behavior 语言 language 窗口 window">
+
+                        <acrylic:AcrylicSurface Tag="窗口 window 关闭 close 托盘 tray 最小化 minimize 单实例 single instance 启动 startup 行为 behavior" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentDesktop" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.General.Window.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="关闭窗口 close window 行为 behavior 托盘 tray 退出 exit 询问 ask">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.General.Window.CloseAction}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="CloseActionCombo"
+                                                  SelectionChanged="OnCloseActionChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.General.Window.CloseActionMinimize}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.General.Window.CloseActionExit}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.General.Window.CloseActionAsk}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="单实例 single instance 运行 run 重复启动 relaunch">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.General.Window.SingleInstance}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="SingleInstanceToggle"
+                                                      IsCheckedChanged="OnSingleInstanceChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <acrylic:AcrylicSurface Tag="语言 language 界面 interface 简体 chinese 繁体 英文 english 日语 japanese" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentGlobe" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.General.Language.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="界面语言 interface language 中文 chinese 英文 english 日语 japanese language 旗帜 flag">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.General.Language.Select}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ItemsControl Grid.Column="1" x:Name="LanguageCards" HorizontalAlignment="Right"
+                                                      MaxWidth="560">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <!-- 卡片放不下自动换行堆叠 -->
+                                                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6"
+                                                               HorizontalAlignment="Right" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Classes="language-card" Click="OnLanguageCardClick" Tag="{Binding Code}"
+                                                            ToolTip.Tip="{Binding Name}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                                            <Border Width="21" Height="14" CornerRadius="2" ClipToBounds="True"
+                                                                    BorderBrush="#55FFFFFF" BorderThickness="0.5"
+                                                                    VerticalAlignment="Center">
+                                                                <Image Source="{Binding FlagImage}" Width="21" Height="14" />
+                                                            </Border>
+                                                            <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                    </StackPanel>
+
+                    <!-- ================= 界面 ================= -->
+                    <StackPanel x:Name="AppearancePanel" IsVisible="False"
+                                Tag="界面 appearance 外观 theme 主题 theme 颜色 color 窗口 window 开始栏 start bar">
+
+                        <acrylic:AcrylicSurface Tag="主题 theme 深色 dark 浅色 light 跟随系统 system 主题色 accent 强调色 accent 青绿 teal 蓝 blue 绿 green 橙 orange 颜色 color" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentPaint" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Appearance.Theme.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="UI 主题 theme 深色 dark 浅色 light 跟随系统 system">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Theme.Ui}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="ThemeCombo" SelectedIndex="0"
+                                                  SelectionChanged="OnThemeChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.Theme.Dark}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.Theme.Light}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.Theme.System}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row"
+                                        Tag="图标 icon 配色 palette 主题色 theme 多彩 colorful">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.IconPalette}"
+                                                       Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="IconPaletteCombo"
+                                                  SelectedIndex="1"
+                                                  SelectionChanged="OnIconPaletteChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.IconPalette.Theme}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.IconPalette.Colorful}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+
+                                <Border Classes="setting-row" Tag="主题色 accent 强调色 accent 青绿 teal 蔚蓝 blue 新绿 green 暖橙 orange 樱粉 pink 紫藤 purple 自定义 custom accent">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Accent.Title}" Classes="row-label" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <StackPanel x:Name="AccentSwatchHost" Orientation="Horizontal" Spacing="6"
+                                                        VerticalAlignment="Center" />
+                                            <Button x:Name="CustomAccentButton" Classes="accent-custom"
+                                                    Click="OnCustomAccentClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Border x:Name="CustomAccentDot" Width="14" Height="14"
+                                                            CornerRadius="7"
+                                                            Background="{DynamicResource NekoFieldHoverBrush}"
+                                                            VerticalAlignment="Center" />
+                                                    <TextBlock Text="{DynamicResource L.Settings.Appearance.Accent.Custom}"
+                                                               FontSize="12" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="主题色跟随背景 accent follows background wallpaper accent background">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.AccentFollow.Title}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="AccentFollowToggle"
+                                                      IsCheckedChanged="OnAccentFollowChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <views:WallpaperPicker Classes="setting-group"
+                                               Tag="壁纸 wallpaper 图片 image 照片 photo 视频 video 轮播 slideshow 幻灯片 背景 background 静音 mute 失焦 unfocused 间隔 interval 随机 shuffle" />
+
+                        <acrylic:AcrylicSurface Tag="窗口 window 面板 panel 毛玻璃 blur 模糊 blur 直角 square corners 圆角 corner radius 不透明度 opacity 透明度 transparency" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentDesktop" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Appearance.Window.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="面板毛玻璃 panel blur 模糊 blur">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Window.Blur}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="PanelBlurToggle" IsChecked="True"
+                                                      IsCheckedChanged="OnPanelBlurChanged" />
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row"
+                                        Tag="卓越视效 premium visuals 高光 highlight 阴影 shadow 折射 refraction 渐进模糊 progressive blur">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Window.PremiumVisuals}"
+                                                       Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="PremiumVisualsToggle"
+                                                      IsCheckedChanged="OnPremiumVisualsChanged" />
+                                    </Grid>
+                                </Border>
+
+                                <Border Classes="setting-row" Tag="窗口不透明度 window opacity 透明度 transparency 窗口 window">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Window.Opacity}" Classes="row-label" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="WindowOpacityValue" Text="100%" Classes="value-text" />
+                                            <Slider x:Name="WindowOpacitySlider" Classes="ctl"
+                                                    Minimum="40" Maximum="100" Value="100"
+                                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                                    ValueChanged="OnWindowOpacityChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="背景不透明度 background opacity 背景 background 壁纸 wallpaper">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Window.BackgroundOpacity}" Classes="row-label" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="BackgroundOpacityValue" Text="80%" Classes="value-text" />
+                                            <Slider x:Name="BackgroundOpacitySlider" Classes="ctl"
+                                                    Minimum="0" Maximum="100" Value="80"
+                                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                                    ValueChanged="OnBackgroundOpacityChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="直角 square corners 圆角 radius 模式 mode">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.Window.SquareCorners}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="SquareCornerToggle"
+                                                      IsCheckedChanged="OnSquareCornersChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <acrylic:AcrylicSurface Tag="开始栏 start bar 任务栏 taskbar 位置 position 底部 bottom 左侧 left 右侧 right 顶部 top 自动隐藏 auto-hide" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconGrid" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Appearance.StartBar.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="开始栏位置 start bar position 底部 bottom 左侧 left 右侧 right 顶部 top 任务栏 taskbar">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.StartBar.Placement}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="StartBarPlacementCombo" SelectedIndex="0"
+                                                  SelectionChanged="OnStartBarPlacementChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.StartBar.Bottom}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.StartBar.Left}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.StartBar.Right}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Appearance.StartBar.Top}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="自动隐藏 auto-hide 开始栏 start bar 任务栏 taskbar">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Appearance.StartBar.AutoHide}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="StartBarAutoHideToggle"
+                                                      IsCheckedChanged="OnStartBarAutoHideChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+                    </StackPanel>
+
+                    <!-- ================= 下载与网络 ================= -->
+                    <StackPanel x:Name="NetworkPanel" IsVisible="False"
+                                Tag="下载 download 网络 network 源 source 镜像 mirror 并行 parallel curseforge api 前置 dependency 依赖 dependency">
+
+                        <acrylic:AcrylicSurface Tag="下载 download 源 source 镜像 mirror 官方 official 自动 auto 选择 select 并行 parallel 线程 thread 数量 count" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentDownload" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Network.Download.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="下载源 download source 主源 primary 官方 official 镜像 mirror 自定义 custom">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Download.Source}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="DownloadSourceCombo"
+                                                  SelectionChanged="OnDownloadSourceChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceMirror}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceOfficial}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceCustom}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="回退源 fallback 备用 backup 下载源 source">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Download.Fallback}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" x:Name="DownloadFallbackCombo"
+                                                  SelectionChanged="OnDownloadFallbackChanged">
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceNone}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceMirror}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceOfficial}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Settings.Network.Download.SourceCustom}" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" x:Name="CustomSourceRow" IsVisible="False"
+                                        Tag="自定义源 custom source 地址 url 镜像 mirror">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{DynamicResource L.Settings.Network.Download.CustomName}" Classes="row-label" />
+                                        <TextBox x:Name="CustomSourceNameBox" Height="32"
+                                                 LostFocus="OnCustomSourceChanged" />
+                                        <TextBlock Text="{DynamicResource L.Settings.Network.Download.CustomUrl}" Classes="caption" />
+                                        <TextBox x:Name="CustomSourceUrlBox" Height="32"
+                                                 PlaceholderText="https://example.com"
+                                                 LostFocus="OnCustomSourceChanged" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Classes="setting-row" Tag="测速 speed test latency 延迟 ping 最快 fastest">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Download.SpeedTest}" Classes="row-label" />
+                                            <TextBlock x:Name="SourceLatencyText" Classes="caption" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <Button x:Name="SourceTestButton"
+                                                    Content="{DynamicResource L.Settings.Network.Download.SpeedTestRun}"
+                                                    Click="OnTestDownloadSourcesClick" />
+                                            <Button Content="{DynamicResource L.Settings.Network.Download.SpeedTestFastest}"
+                                                    Click="OnApplyFastestSourceClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="并行下载数 parallel downloads 线程 thread 数量 count">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Download.Parallel}" Classes="row-label" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="ParallelValue" Classes="value-text" />
+                                            <Slider x:Name="ParallelSlider" Classes="ctl"
+                                                    Minimum="1" Maximum="128" Value="32"
+                                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                                    ValueChanged="OnParallelChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+
+                        <acrylic:AcrylicSurface Tag="curseforge api key 密钥 key 前置 dependency 依赖 dependency 模组 mod 自动安装 auto install" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentPuzzle" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.Network.Content.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Classes="setting-row" Tag="curseforge api key 密钥 key modrinth">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Content.CurseForge}" Classes="row-label" />
+                                        </StackPanel>
+                                        <TextBox Grid.Column="1" x:Name="CurseForgeKeyBox" Width="250" Height="32"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{DynamicResource L.Settings.Network.Content.CurseForgePlaceholder}"
+                                                 LostFocus="OnCurseForgeKeyLostFocus" />
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="自动安装前置 auto dependencies 依赖 dependency 模组 mod">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Network.Content.AutoDeps}" Classes="row-label" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="AutoDependenciesToggle" IsChecked="True"
+                                                      IsCheckedChanged="OnAutoDependenciesChanged" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+                    </StackPanel>
+
+                    <!-- ================= 关于 ================= -->
+                    <StackPanel x:Name="AboutPanel" IsVisible="False"
+                                Tag="关于 about 版本 version 应用 app 许可 license mit 开源 open source 贡献者 contributor 作者 author 技术栈 stack avalonia sukiui .net">
+
+                        <acrylic:AcrylicSurface Tag="关于 about 版本 version 应用 app 技术栈 stack avalonia sukiui dotnet" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentInfo" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Settings.About.Title}" Classes="group-title"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Padding="18" Margin="0,6,0,2" CornerRadius="8">
+                                    <Border.Background>
+                                        <!-- 初音绿 → 克莱因蓝 -->
+                                        <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                                            <GradientStop Color="#39C5BB" Offset="0" />
+                                            <GradientStop Color="#002FA7" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <Image Source="avares://Mofumofu.Launcher/Assets/mascot-neko.png"
+                                               Width="64" Height="64" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="3"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource L.Settings.About.AppName}" FontSize="17"
+                                                       FontWeight="SemiBold" Foreground="White" />
+                                            <TextBlock x:Name="AboutVersionText" FontSize="12" Foreground="#CCFFFFFF" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="自动检查更新 auto check update">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.About.AutoCheck}" Classes="row-label" />
+                                            <TextBlock Text="{DynamicResource L.Settings.About.AutoCheckHint}" Classes="row-hint" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" x:Name="AutoCheckUpdateToggle"
+                                                      VerticalAlignment="Center" Tapped="OnAutoCheckUpdateChanged" />
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="检查更新 check update 版本 version">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.About.Update}" Classes="row-label" />
+                                            <TextBlock x:Name="AboutUpdateHint" Classes="row-hint" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <Button Classes="primary" Height="32" Padding="14,0" x:Name="AboutUpdateButton"
+                                                    Content="{DynamicResource L.Settings.About.UpdateButton}" Click="OnCheckUpdateClick" />
+                                            <Button Classes="ghost" Height="32" Padding="14,0"
+                                                    Content="{DynamicResource L.Settings.About.HomeButton}" Click="OnOpenProjectHomeClick" />
+                                            <Button Classes="ghost" Height="32" Padding="14,0"
+                                                    Content="{DynamicResource L.Settings.About.SiteButton}" Click="OnOpenProjectSiteClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="开源 open source 许可 license mit 第三方 third party">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.About.License}" Classes="row-label" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="ghost" Height="32" Padding="14,0"
+                                                Content="{DynamicResource L.Settings.About.LicenseButton}" Click="OnShowLicenseClick" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </acrylic:AcrylicSurface>
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

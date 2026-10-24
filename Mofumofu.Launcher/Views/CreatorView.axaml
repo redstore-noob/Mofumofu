@@ -1,0 +1,293 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.CreatorView">
+    <Grid>
+        <!-- ============ 工具列表页 ============ -->
+        <Grid x:Name="ListView" RowDefinitions="Auto,*">
+            <controls:PageHeader Grid.Row="0"
+                                 Title="{DynamicResource L.Creator.Page.Title}"
+>
+                <controls:PageHeader.Actions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="ghost" Height="34" Click="OnOpenWorkspaceClick">
+                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                <controls:IconParkIcon Kind="IconFolder" Width="14" Height="14" />
+                                <TextBlock Text="{DynamicResource L.Creator.List.OpenWorkspace}" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </controls:PageHeader.Actions>
+            </controls:PageHeader>
+
+            <ScrollViewer Grid.Row="1"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14" Margin="0,0,0,18">
+                    <!-- 顶部横幅 -->
+                    <suki:GlassCard CornerRadius="12" Padding="20">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="{DynamicResource L.Creator.List.Banner.Title}" FontSize="23" FontWeight="Bold"
+                                           Foreground="{DynamicResource NekoTextBrush}" />
+                                <TextBlock Classes="muted"
+                                           MaxWidth="660"
+                                           Text="{DynamicResource L.Creator.List.Banner.Desc}"
+                                           TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,7,0,0">
+                                    <Border CornerRadius="8" Padding="10,4"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <TextBlock x:Name="ToolCountChip" Text="{DynamicResource L.Creator.List.Chip.Tools}" FontSize="11"
+                                                   Foreground="{DynamicResource NekoAccentBrush}" />
+                                    </Border>
+                                    <Border CornerRadius="8" Padding="10,4" Background="{DynamicResource NekoFieldBrush}">
+                                        <TextBlock Text="{DynamicResource L.Creator.List.Chip.Local}" FontSize="11"
+                                                   Foreground="{DynamicResource NekoMutedBrush}" />
+                                    </Border>
+                                    <Border CornerRadius="8" Padding="10,4" Background="{DynamicResource NekoFieldBrush}">
+                                        <TextBlock Text="{DynamicResource L.Creator.List.Chip.Embedded}" FontSize="11"
+                                                   Foreground="{DynamicResource NekoMutedBrush}" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Border Grid.Column="1" Width="92" Height="92" CornerRadius="20"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource NekoAccentSoftBrush}">
+                                <controls:IconParkIcon Kind="IconCreator" Width="42" Height="42" />
+                            </Border>
+                        </Grid>
+                    </suki:GlassCard>
+
+                    <!-- 工具标题行 -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="{DynamicResource L.Creator.List.Section.Title}" Classes="section-title" />
+                            <TextBlock Text="{DynamicResource L.Creator.List.Section.Desc}"
+                                       Classes="caption" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" x:Name="ToolGridHint" Text="{DynamicResource L.Creator.List.Section.GridHint}" Classes="caption"
+                                   VerticalAlignment="Bottom" />
+                    </Grid>
+
+                    <!-- 8 个工具卡片：代码里按 MockData.CreatorTools 生成 -->
+                    <primitives:UniformGrid x:Name="ToolGrid"
+                                            Columns="4"
+                                            Rows="2"
+                                            ColumnSpacing="10"
+                                            RowSpacing="10" />
+
+                    <!-- 底部提示 -->
+                    <suki:GlassCard CornerRadius="12" Padding="18">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="{DynamicResource L.Creator.List.Tips.Title}" Classes="section-title" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                                               Text="{DynamicResource L.Creator.List.Tips.One}" />
+                                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                                               Text="{DynamicResource L.Creator.List.Tips.Two}" />
+                                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                                               Text="{DynamicResource L.Creator.List.Tips.Three}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                                    <Button Classes="ghost" Height="32" Content="{DynamicResource L.Creator.List.Action.Instances}"
+                                            Click="OnOpenInstancesClick" />
+                                    <Button Classes="ghost" Height="32" Content="{DynamicResource L.Creator.List.Action.Plugins}"
+                                            Click="OnOpenPluginsClick" />
+                                    <Button Classes="ghost" Height="32" Content="{DynamicResource L.Creator.Log.Export}"
+                                            Click="OnExportLogClick" />
+                                </StackPanel>
+                            </StackPanel>
+                            <Border Grid.Column="1" Width="46" Height="46" CornerRadius="12"
+                                    VerticalAlignment="Top"
+                                    Background="{DynamicResource NekoFieldBrush}">
+                                <controls:IconParkIcon Kind="IconStar" Width="20" Height="20" />
+                            </Border>
+                        </Grid>
+                    </suki:GlassCard>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ============ 工具子页（页面内导航，不再是弹窗/独立窗口） ============ -->
+        <Grid x:Name="ToolView" IsVisible="False" RowDefinitions="Auto,*">
+            <Border Grid.Row="0" Padding="0,0,0,13"
+                    BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource NekoBorderBrush}">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                    <Button x:Name="ToolBackButton" Classes="icon" Width="34" Height="34"
+                            Click="OnToolBackClick">
+                        <controls:IconParkIcon Kind="IconArrowLeft" Width="15" Height="15" />
+                    </Button>
+
+                    <Border x:Name="ToolIconTile" Grid.Column="1" Width="38" Height="38"
+                            CornerRadius="10" Margin="10,0,0,0"
+                            Background="{DynamicResource NekoAccentSoftBrush}">
+                        <controls:IconParkIcon x:Name="ToolIcon" Width="19" Height="19"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="2" Spacing="1" Margin="11,0,0,0"
+                                VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{DynamicResource L.Creator.Page.Title}" Classes="caption" VerticalAlignment="Center" />
+                            <TextBlock Text="/" Classes="caption" VerticalAlignment="Center" />
+                            <TextBlock x:Name="ToolTitle" Text="{DynamicResource L.Creator.Header.Tool}" FontSize="14.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource NekoTextBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="ToolSubtitle" Classes="caption" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ToolHeaderActions" Grid.Column="3"
+                                Orientation="Horizontal" Spacing="8"
+                                VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <!-- 普通工具页（代码里按工具 id 构建并缓存） -->
+                <ContentControl x:Name="ToolBody" />
+
+                <!-- 3D 文字生成器：左侧 Avalonia 参数面板（跟随主题），右侧内嵌 WebView2 预览 -->
+                <Grid x:Name="CubeTextPanel" IsVisible="False"
+                      ColumnDefinitions="330,*" Margin="0,13,0,0">
+                    <ScrollViewer Grid.Column="0"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Padding="0,0,10,0">
+                        <StackPanel Spacing="11" Margin="0,0,0,14">
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.Text}" Classes="caption" />
+                                <TextBox x:Name="CubeTextInput" Text="Mofumofu" Height="84"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top" FontSize="13" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.Font}" Classes="caption" />
+                                <ComboBox x:Name="CubeFontCombo" HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,2">
+                                <CheckBox x:Name="CubeBoldCheck" Content="{DynamicResource L.Creator.Cube.Bold}" IsChecked="True" FontSize="12" />
+                                <CheckBox x:Name="CubeAutoRotateCheck" Grid.Column="1" Content="{DynamicResource L.Creator.Cube.AutoRotate}"
+                                          FontSize="12" Margin="14,0,0,0" />
+                                <CheckBox x:Name="CubeTransparentCheck" Grid.Column="2" Content="{DynamicResource L.Creator.Cube.Transparent}"
+                                          FontSize="12" />
+                            </Grid>
+
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{DynamicResource L.Creator.Cube.FontSize}" Classes="caption" />
+                                    <TextBlock x:Name="CubeFontSizeValue" Grid.Column="1" Classes="caption" Text="128" />
+                                </Grid>
+                                <Slider x:Name="CubeFontSizeSlider" Minimum="48" Maximum="256"
+                                        TickFrequency="8" IsSnapToTickEnabled="True" Value="128" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{DynamicResource L.Creator.Cube.Resolution}" Classes="caption" />
+                                    <TextBlock x:Name="CubeResolutionValue" Grid.Column="1" Classes="caption" Text="5" />
+                                </Grid>
+                                <Slider x:Name="CubeResolutionSlider" Minimum="2" Maximum="10"
+                                        TickFrequency="1" IsSnapToTickEnabled="True" Value="5" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{DynamicResource L.Creator.Cube.Depth}" Classes="caption" />
+                                    <TextBlock x:Name="CubeDepthValue" Grid.Column="1" Classes="caption" Text="1.0" />
+                                </Grid>
+                                <Slider x:Name="CubeDepthSlider" Minimum="0.2" Maximum="3"
+                                        TickFrequency="0.1" IsSnapToTickEnabled="True" Value="1" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{DynamicResource L.Creator.Cube.Spacing}" Classes="caption" />
+                                    <TextBlock x:Name="CubeSpacingValue" Grid.Column="1" Classes="caption" Text="0.06" />
+                                </Grid>
+                                <Slider x:Name="CubeSpacingSlider" Minimum="0" Maximum="0.4"
+                                        TickFrequency="0.02" IsSnapToTickEnabled="True" Value="0.06" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.ColorMode}" Classes="caption" />
+                                <ComboBox x:Name="CubeColorModeCombo" HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,2">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.ColorA}" Classes="caption" VerticalAlignment="Center" />
+                                <TextBox x:Name="CubeColorAText" Grid.Column="1" Text="#38BDF8"
+                                         FontSize="12" Height="30" Margin="10,0" />
+                                <Border x:Name="CubeColorASwatch" Grid.Column="2" Width="30" Height="30"
+                                        CornerRadius="7"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource NekoBorderBrush}" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,2">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.ColorB}" Classes="caption" VerticalAlignment="Center" />
+                                <TextBox x:Name="CubeColorBText" Grid.Column="1" Text="#A855F7"
+                                         FontSize="12" Height="30" Margin="10,0" />
+                                <Border x:Name="CubeColorBSwatch" Grid.Column="2" Width="30" Height="30"
+                                        CornerRadius="7"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource NekoBorderBrush}" />
+                            </Grid>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="{DynamicResource L.Creator.Cube.Texture}" Classes="caption" />
+                                <ComboBox x:Name="CubeTextureCombo" HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <CheckBox x:Name="CubeOutlineCheck" Content="{DynamicResource L.Creator.Cube.Outline}" IsChecked="True" FontSize="12" />
+                                <TextBox x:Name="CubeOutlineColorText" Grid.Column="1" Text="#0F172A"
+                                         FontSize="12" Height="30" Margin="10,0" />
+                                <Border x:Name="CubeOutlineSwatch" Grid.Column="2" Width="30" Height="30"
+                                        CornerRadius="7"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource NekoBorderBrush}" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,4,0,0">
+                                <Button Classes="ghost" Height="32" Content="{DynamicResource L.Creator.Cube.ResetCamera}"
+                                        Click="OnCubeResetClick" HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center" />
+                                <Button Grid.Column="1" Classes="primary" Height="32" Content="{DynamicResource L.Creator.Cube.ExportPng}"
+                                        Click="OnCubeExportClick" HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- WebView2 锚点：必须放在 ScrollViewer 之外，滚动时才能正确裁剪 -->
+                    <Border x:Name="CubeTextHost" Grid.Column="1" Margin="12,0,0,0"
+                            CornerRadius="12"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource NekoBorderBrush}"
+                            Background="{DynamicResource NekoFieldSoftBrush}"
+                            ClipToBounds="True">
+                        <Grid>
+                            <TextBlock Text="{DynamicResource L.Creator.Cube.PreviewPlaceholder}"
+                                       Classes="caption"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

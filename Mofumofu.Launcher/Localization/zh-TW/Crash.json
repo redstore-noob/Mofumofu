@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "遊戲當機分析",
+  "Crash.Section.Findings": "分析結論（{0} 條）",
+  "Crash.Section.ModIssues": "模組依賴 / 衝突明細",
+  "Crash.Severity.Critical": "嚴重",
+  "Crash.Severity.Warning": "可疑",
+  "Crash.Severity.Info": "資訊",
+  "Crash.Description": "當機场景",
+  "Crash.Exception": "首個異常",
+  "Crash.Report.Path": "當機報告",
+  "Crash.Meta.Instance": "實例",
+  "Crash.Meta.Version": "版本",
+  "Crash.Meta.Loader": "加載器",
+  "Crash.Meta.Memory": "記憶體",
+  "Crash.Meta.ExitCode": "退出碼",
+  "Crash.Action.Copy": "複製诊斷",
+  "Crash.Action.Copied": "已複製 ✓",
+  "Crash.Action.OpenReport": "打開當機報告",
+  "Crash.Action.OpenHsErr": "打開 JVM 錯誤日誌",
+  "Crash.Hint.Close": "點擊彈出視窗外任意位置關闭"
+}

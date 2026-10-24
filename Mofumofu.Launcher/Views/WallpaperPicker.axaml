@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="520"
+             x:Class="Mofumofu.Launcher.Views.WallpaperPicker">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.wp-caption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.wp-label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border CornerRadius="18" Padding="18,14" Margin="0,0,0,12"
+            Background="{DynamicResource NekoCardBrush}"
+            BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="12">
+            <!-- 标题 + 开关 -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Border Width="30" Height="30" CornerRadius="9"
+                            Background="{DynamicResource NekoAccentSoftBrush}">
+                        <controls:IconParkIcon Kind="IconFluentImage" Width="15" Height="15"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{DynamicResource L.Wallpaper.Title}" FontSize="14.5"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" x:Name="EnabledSwitch"
+                              OnContent="{DynamicResource L.Common.Enabled}"
+                              OffContent="{DynamicResource L.Common.Disabled}"
+                              IsCheckedChanged="OnEnabledChanged" />
+            </Grid>
+
+            <!-- 模式 + 选文件 -->
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <TextBlock Text="{DynamicResource L.Wallpaper.Mode}" Classes="wp-caption" Margin="0,0,10,0" />
+                <ComboBox Grid.Column="1" x:Name="ModeCombo" Width="170"
+                          SelectionChanged="OnModeChanged">
+                    <ComboBoxItem Content="{DynamicResource L.Wallpaper.Mode.Image}" Tag="image" />
+                    <ComboBoxItem Content="{DynamicResource L.Wallpaper.Mode.Slideshow}" Tag="slideshow" />
+                    <ComboBoxItem Content="{DynamicResource L.Wallpaper.Mode.None}" Tag="none" />
+                </ComboBox>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="PickImageButton" Classes="ghost small"
+                            Content="{DynamicResource L.Wallpaper.PickImage}" Click="OnPickImageClick" />
+                    <Button x:Name="AddImagesButton" Classes="ghost small"
+                            Content="{DynamicResource L.Wallpaper.AddImages}" Click="OnAddImagesClick" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 图片预览 -->
+            <Border x:Name="ImagePanel" Height="170" CornerRadius="12" ClipToBounds="True"
+                    Background="{DynamicResource NekoFieldSoftBrush}">
+                <Panel>
+                    <Image x:Name="ImagePreview" Stretch="UniformToFill" />
+                    <TextBlock x:Name="ImageEmptyText" Classes="wp-caption"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Text="{DynamicResource L.Wallpaper.ImageEmpty}" />
+                </Panel>
+            </Border>
+
+            <!-- 轮播 -->
+            <StackPanel x:Name="SlideshowPanel" Spacing="10" IsVisible="False">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Text="{DynamicResource L.Wallpaper.Interval}" Classes="wp-caption"
+                               Margin="0,0,12,0" />
+                    <Slider Grid.Column="1" x:Name="IntervalSlider" Minimum="5" Maximum="120"
+                            TickFrequency="5" IsSnapToTickEnabled="True"
+                            ValueChanged="OnIntervalChanged" />
+                    <TextBlock Grid.Column="2" x:Name="IntervalValue" Classes="wp-caption"
+                               Width="64" TextAlignment="Right" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{DynamicResource L.Wallpaper.Shuffle}" Classes="wp-label" />
+                    <ToggleSwitch Grid.Column="1" x:Name="ShuffleSwitch" OnContent="" OffContent=""
+                                  IsCheckedChanged="OnShuffleChanged" />
+                </Grid>
+
+                <ItemsControl x:Name="SlideshowList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="148" Height="92" Margin="0,0,8,8"
+                                    CornerRadius="10" ClipToBounds="True"
+                                    Background="{DynamicResource NekoFieldSoftBrush}">
+                                <Panel>
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                    <Button Classes="icon" Width="24" Height="24"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="4" Content="×" FontSize="14"
+                                            Tag="{Binding Path}" Click="OnRemoveSlideClick" />
+                                </Panel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="SlideshowEmptyText" Classes="wp-caption"
+                           Text="{DynamicResource L.Wallpaper.SlideshowEmpty}" />
+            </StackPanel>
+
+            <!-- 暂停行为 + 状态 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <ToggleSwitch x:Name="PauseSwitch" OnContent="" OffContent=""
+                                  IsCheckedChanged="OnPauseChanged" />
+                    <TextBlock Text="{DynamicResource L.Wallpaper.PauseWhenInactive}" Classes="wp-label" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" x:Name="StatusText" Classes="wp-caption"
+                           MaxWidth="420" TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <!-- 背景效果：模糊 / 压暗 -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="{DynamicResource L.Wallpaper.Blur}" Classes="wp-caption" Margin="0,0,12,0" />
+                <Slider Grid.Column="1" x:Name="BlurSlider" Minimum="0" Maximum="100"
+                        TickFrequency="5" IsSnapToTickEnabled="True"
+                        ValueChanged="OnBlurChanged" />
+                <TextBlock Grid.Column="2" x:Name="BlurValue" Classes="wp-caption"
+                           Width="52" TextAlignment="Right" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="{DynamicResource L.Wallpaper.Dim}" Classes="wp-caption" Margin="0,0,12,0" />
+                <Slider Grid.Column="1" x:Name="DimSlider" Minimum="0" Maximum="100"
+                        TickFrequency="5" IsSnapToTickEnabled="True"
+                        ValueChanged="OnDimChanged" />
+                <TextBlock Grid.Column="2" x:Name="DimValue" Classes="wp-caption"
+                           Width="52" TextAlignment="Right" />
+            </Grid>
+
+        </StackPanel>
+    </Border>
+</UserControl>

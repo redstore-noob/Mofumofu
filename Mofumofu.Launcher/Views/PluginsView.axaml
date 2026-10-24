@@ -1,0 +1,186 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.PluginsView">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Pages.Plugins.Title}">
+            <controls:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Height="34" Click="OnOpenStoreClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFluentBox" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Pages.Plugins.Store}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="primary" Height="34" Click="OnInstallPluginClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconPlus" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Pages.Plugins.Install}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ghost" Height="34" Click="OnOpenPluginFolderClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFolder" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Pages.Plugins.OpenFolder}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="icon" Width="34" Height="34"
+                            ToolTip.Tip="{DynamicResource L.Pages.Plugins.Reload}"
+                            Click="OnReloadPluginsClick">
+                        <controls:IconParkIcon Kind="IconRefresh" Width="14" Height="14" />
+                    </Button>
+                </StackPanel>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <TextBox x:Name="PluginSearch" Height="36" FontSize="12.5"
+                     PlaceholderText="{DynamicResource L.Pages.Plugins.SearchPlaceholder}"
+                     TextChanged="OnPluginSearchChanged" />
+            <TextBlock x:Name="PluginCountText" Grid.Column="1" Classes="caption"
+                       VerticalAlignment="Center" Margin="12,0,0,0" />
+        </Grid>
+
+        <!-- 常驻风险提示条：插件与启动器同权限运行 -->
+        <Border Grid.Row="2" Margin="0,0,0,10" CornerRadius="10" Padding="14,9"
+                Background="{DynamicResource NekoWarningSoftBrush}"
+                BorderBrush="{DynamicResource NekoWarningBrush}" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" Spacing="9">
+                <controls:IconParkIcon Kind="IconWarning" Width="15" Height="15"
+                                       VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource L.Pages.Plugins.RiskBanner}" FontSize="12"
+                           Foreground="{DynamicResource NekoWarningBrush}"
+                           TextWrapping="Wrap" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3" ColumnDefinitions="320,12,*">
+            <Border Grid.Column="0" x:Name="PluginListCard" Classes="card" CornerRadius="12" Padding="6">
+                <Grid>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PluginList" Spacing="0" />
+                    </ScrollViewer>
+                    <TextBlock x:Name="EmptyText" Classes="muted" IsVisible="False"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Text="{DynamicResource L.Pages.Plugins.Empty}" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" x:Name="PluginInfoCard" Classes="card" CornerRadius="12" Padding="22">
+                <Grid>
+                    <TextBlock x:Name="InfoEmpty" Classes="muted"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Text="{DynamicResource L.Pages.Plugins.SelectHint}" />
+                    <TabControl x:Name="InfoDetail" IsVisible="False" Margin="0,10,0,0">
+                        <TabItem Header="{DynamicResource L.Pages.Plugins.Tab.Overview}">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left" Margin="2,14,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <Border x:Name="InfoIconHost" Width="52" Height="52" CornerRadius="14"
+                                                Background="{DynamicResource NekoFieldSoftBrush}"
+                                                VerticalAlignment="Center">
+                                            <controls:IconParkIcon Kind="IconFluentPuzzle" Width="24" Height="24"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center" Spacing="3">
+                                            <TextBlock x:Name="InfoName" FontSize="17" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource NekoTextBrush}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock x:Name="InfoMeta" Classes="caption" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="InfoDescription" FontSize="12.5"
+                                               Foreground="{DynamicResource NekoMutedBrush}"
+                                               TextWrapping="Wrap" />
+
+                                    <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
+
+                                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Text="{DynamicResource L.Pages.Plugins.Info.Id}" Classes="caption"
+                                                   VerticalAlignment="Top" Margin="0,2,12,0" />
+                                        <TextBlock x:Name="InfoId" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Grid.Row="1" Text="{DynamicResource L.Pages.Plugins.Info.Version}"
+                                                   Classes="caption" Margin="0,10,12,0" />
+                                        <TextBlock x:Name="InfoVersion" Grid.Row="1" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}" Margin="0,10,0,0" />
+                                        <TextBlock Grid.Row="2" Text="{DynamicResource L.Pages.Plugins.Info.Author}"
+                                                   Classes="caption" Margin="0,10,12,0" />
+                                        <TextBlock x:Name="InfoAuthor" Grid.Row="2" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}" Margin="0,10,0,0" />
+                                        <TextBlock Grid.Row="3" Text="{DynamicResource L.Pages.Plugins.Info.Directory}"
+                                                   Classes="caption" Margin="0,10,12,0" />
+                                        <TextBlock x:Name="InfoDirectory" Grid.Row="3" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}"
+                                                   Margin="0,10,0,0" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Row="4" Text="{DynamicResource L.Pages.Plugins.Info.Type}"
+                                                   Classes="caption" Margin="0,10,12,0" />
+                                        <TextBlock x:Name="InfoType" Grid.Row="4" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}" Margin="0,10,0,0" />
+                                        <TextBlock Grid.Row="5" Text="{DynamicResource L.Pages.Plugins.Info.Status}"
+                                                   Classes="caption" Margin="0,10,12,0" VerticalAlignment="Top" />
+                                        <TextBlock x:Name="InfoState" Grid.Row="5" Grid.Column="1" FontSize="12.5"
+                                                   Foreground="{DynamicResource NekoTextBrush}"
+                                                   Margin="0,10,0,0" TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="InfoEnableButton" Classes="primary" Height="32" Click="OnInfoEnableClick" />
+                                        <Button x:Name="InfoOpenFolder" Classes="ghost" Height="32" Click="OnInfoOpenFolderClick">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                                <controls:IconParkIcon Kind="IconFolder" Width="14" Height="14" />
+                                                <TextBlock Text="{DynamicResource L.Pages.Plugins.OpenFolder}" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="ghost" Height="32" Click="OnCheckUpdateClick">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                                <controls:IconParkIcon Kind="IconRefresh" Width="14" Height="14" />
+                                                <TextBlock Text="{DynamicResource L.Pages.Plugins.Button.CheckUpdate}" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="danger" Height="32" Click="OnUninstallClick">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                                <controls:IconParkIcon Kind="IconClose" Width="14" Height="14" />
+                                                <TextBlock Text="{DynamicResource L.Pages.Plugins.Button.Uninstall}" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="{DynamicResource L.Pages.Plugins.Tab.Permissions}">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Left" Margin="2,14,0,0">
+                                    <TextBlock Text="{DynamicResource L.Pages.Plugins.TrustHint}" Classes="caption"
+                                               TextWrapping="Wrap" />
+                                    <StackPanel x:Name="InfoPermissionList" Spacing="4" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="{DynamicResource L.Pages.Plugins.Tab.Settings}">
+                            <!-- 插件设置项：等 API 支持插件声明设置页后在这里渲染插件的配置 UI -->
+                            <TextBlock Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       Text="{DynamicResource L.Pages.Plugins.Settings.None}" />
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

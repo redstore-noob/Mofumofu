@@ -1,0 +1,370 @@
+<Window x:Class="NekoSolo.MainWindow"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns:hc="https://handyorg.github.io/handycontrol"
+           xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+           xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+           xmlns:controls="clr-namespace:NekoSolo.Controls"
+           mc:Ignorable="d"
+           Title="NekoSolo"
+           Width="1120" Height="700"
+           MinWidth="940" MinHeight="620"
+           WindowStartupLocation="CenterScreen"
+           WindowStyle="None"
+           ResizeMode="CanResize"
+           Background="{StaticResource NekoWindowBackgroundBrush}"
+           d:DesignWidth="1120" d:DesignHeight="700">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <!-- 背景光晕 -->
+        <Border Background="{StaticResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
+
+        <Grid><Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+
+            <!-- ================= 自绘标题栏 ================= -->
+            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="OnTitleBarMouseDown">
+                <controls:NekoStackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <Border Width="16" Height="16" CornerRadius="5" Background="{StaticResource NekoAccentBrush}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="N" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource NekoAccentOnBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="NekoSolo" FontSize="13" FontWeight="SemiBold" Margin="9,0,0,0"
+                               VerticalAlignment="Center" Foreground="{StaticResource NekoTextBrush}" />
+                    <TextBlock x:Name="TitlePackText" FontSize="12.5" Margin="8,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource NekoDimBrush}" TextTrimming="CharacterEllipsis"
+                               MaxWidth="420" />
+                </controls:NekoStackPanel>
+
+                <controls:NekoStackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,8,0">
+                    <Button Style="{StaticResource NekoIconButton}" Click="OnMinimizeClick">
+                        <Path Data="M3,8 L13,8" Stroke="{StaticResource NekoMutedBrush}" StrokeThickness="1.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+                    <Button Style="{StaticResource NekoIconButton}" Click="OnMaximizeClick" Margin="2,0,0,0">
+                        <Path Data="M3,3 L13,3 L13,13 L3,13 Z" Stroke="{StaticResource NekoMutedBrush}"
+                              StrokeThickness="1.3" />
+                    </Button>
+                    <Button Style="{StaticResource NekoIconButton}" Click="OnCloseClick" Margin="2,0,0,0">
+                        <Path Data="M3,3 L13,13 M13,3 L3,13" Stroke="{StaticResource NekoMutedBrush}"
+                              StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+                </controls:NekoStackPanel>
+            </Grid>
+
+            <!-- ================= 主体 ================= -->
+            <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="256" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+
+                <!-- ===== 左侧栏 ===== -->
+                <Border Grid.Column="0" Background="#FF0B1017"
+                        BorderBrush="{StaticResource NekoBorderSoftBrush}" BorderThickness="0,0,1,0">
+                    <Grid Margin="20,18,20,16"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+
+                        <!-- 包信息 -->
+                        <controls:NekoStackPanel Grid.Row="0" Spacing="12">
+                            <Border Width="76" Height="76" CornerRadius="16" Background="{StaticResource NekoFieldBrush}"
+                                    BorderBrush="{StaticResource NekoBorderBrush}" BorderThickness="1"
+                                    HorizontalAlignment="Left">
+                                <Grid>
+                                    <TextBlock Text="🐾" FontSize="32" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" Opacity="0.55" />
+                                    <Image x:Name="PackIconImage" Stretch="UniformToFill" />
+                                </Grid>
+                            </Border>
+
+                            <controls:NekoStackPanel Spacing="5">
+                                <TextBlock x:Name="PackNameText" Style="{StaticResource NekoH2}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="PackAuthorText" Style="{StaticResource NekoCaption}" />
+                            </controls:NekoStackPanel>
+
+                            <WrapPanel>
+                                <Border Style="{StaticResource NekoChip}" Margin="0,0,6,6">
+                                    <TextBlock x:Name="PackVersionChip" FontSize="11.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource NekoAccentBrush}" />
+                                </Border>
+                                <Border Style="{StaticResource NekoChip}" Margin="0,0,6,6"
+                                        Background="{StaticResource NekoFieldBrush}">
+                                    <TextBlock x:Name="McChip" FontSize="11.5"
+                                               Foreground="{StaticResource NekoMutedBrush}" />
+                                </Border>
+                                <Border Style="{StaticResource NekoChip}" Margin="0,0,0,6"
+                                        Background="{StaticResource NekoFieldBrush}">
+                                    <TextBlock x:Name="LoaderChip" FontSize="11.5"
+                                               Foreground="{StaticResource NekoMutedBrush}" />
+                                </Border>
+                            </WrapPanel>
+                        </controls:NekoStackPanel>
+
+                        <!-- 步骤 -->
+                        <controls:NekoStackPanel x:Name="SidebarStepHost" Grid.Row="1" Margin="0,22,0,0" Spacing="2" />
+
+                        <!-- 底部 -->
+                        <controls:NekoStackPanel Grid.Row="2" Spacing="3">
+                            <Button x:Name="AboutLinkButton" Style="{StaticResource NekoGhostButton}" Height="30"
+                                    Padding="10,0" HorizontalAlignment="Left" Margin="0,0,0,8"
+                                    Click="OnAboutLinkClick" />
+                            <TextBlock x:Name="PoweredByText" FontSize="11" Foreground="{StaticResource NekoDimBrush}" />
+                            <TextBlock x:Name="VersionText" FontSize="11" Foreground="{StaticResource NekoDimBrush}"
+                                       Opacity="0.7" />
+                        </controls:NekoStackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ===== 右侧内容 ===== -->
+                <Grid Grid.Column="1">
+
+                    <!-- ===== 欢迎 / 安装设置 ===== -->
+                    <Grid x:Name="WelcomePanel" Margin="28,20,28,20"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <controls:NekoStackPanel Grid.Row="0" Spacing="7">
+                            <TextBlock x:Name="WelcomeTitle" Style="{StaticResource NekoH1}" />
+                            <TextBlock x:Name="WelcomeDesc" Style="{StaticResource NekoCaption}" MaxWidth="620"
+                                       HorizontalAlignment="Left" />
+                        </controls:NekoStackPanel>
+
+                        <Border Grid.Row="1" Style="{StaticResource NekoCard}" Margin="0,18,0,0" Padding="16,14">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <controls:NekoStackPanel Grid.Column="0" Spacing="3">
+                                    <TextBlock x:Name="InfoMcLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                    <TextBlock x:Name="InfoMcValue" Style="{StaticResource NekoBody}"
+                                               FontWeight="SemiBold" />
+                                </controls:NekoStackPanel>
+                                <controls:NekoStackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock x:Name="InfoLoaderLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                    <TextBlock x:Name="InfoLoaderValue" Style="{StaticResource NekoBody}"
+                                               FontWeight="SemiBold" />
+                                </controls:NekoStackPanel>
+                                <controls:NekoStackPanel Grid.Column="2" Spacing="3">
+                                    <TextBlock x:Name="InfoVersionLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                    <TextBlock x:Name="InfoVersionValue" Style="{StaticResource NekoBody}"
+                                               FontWeight="SemiBold" />
+                                </controls:NekoStackPanel>
+                                <controls:NekoStackPanel Grid.Column="3" Spacing="3">
+                                    <TextBlock x:Name="InfoAuthorLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                    <TextBlock x:Name="InfoAuthorValue" Style="{StaticResource NekoBody}"
+                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                </controls:NekoStackPanel>
+                            </Grid>
+                        </Border>
+
+                        <controls:NekoStackPanel Grid.Row="2" Margin="0,16,0,0">
+                            <Border x:Name="PayloadWarning" Visibility="Collapsed" Margin="0,0,0,12"
+                                    Background="{StaticResource NekoWarningSoftBrush}" CornerRadius="9"
+                                    Padding="14,10" BorderThickness="1"
+                                    BorderBrush="{StaticResource NekoWarningBrush}">
+                                <controls:NekoStackPanel Orientation="Horizontal" Spacing="9">
+                                    <Path Data="M12,3 L23,21 L1,21 Z" Stroke="{StaticResource NekoWarningBrush}"
+                                          StrokeThickness="1.8" Width="16" Height="16" Stretch="Uniform"
+                                          VerticalAlignment="Center" />
+                                    <TextBlock x:Name="PayloadWarningText" FontSize="12"
+                                               Foreground="{StaticResource NekoWarningBrush}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </controls:NekoStackPanel>
+                            </Border>
+                            <Grid Margin="0,0,0,12">
+                                <controls:NekoStackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="ReleaseButton" Style="{StaticResource NekoGhostButton}"
+                                            Click="OnFetchReleaseClick" />
+                                    <TextBlock x:Name="ReleaseStatus" Style="{StaticResource NekoCaption}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </controls:NekoStackPanel>
+                            </Grid>
+                            <Border x:Name="ContentsCard" Style="{StaticResource NekoCard}" Padding="14,10"
+                                    Margin="0,0,0,12">
+                                <controls:NekoStackPanel Spacing="3">
+                                    <TextBlock x:Name="ContentsTitle" Style="{StaticResource NekoLabel}" Margin="0" />
+                                    <TextBlock x:Name="ContentsText" Style="{StaticResource NekoCaption}" />
+                                </controls:NekoStackPanel>
+                            </Border>
+                            <TextBlock x:Name="TargetLabel" Style="{StaticResource NekoLabel}" />
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBox x:Name="TargetBox" Style="{StaticResource NekoTextBox}" />
+                                <Button x:Name="BrowseButton" Grid.Column="1" Style="{StaticResource NekoGhostButton}"
+                                        Height="36" Padding="14,0" Margin="8,0,0,0" Click="OnBrowseClick" />
+                            </Grid>
+                            <TextBlock x:Name="TargetHint" Style="{StaticResource NekoCaption}" Margin="0,6,0,0" />
+
+                            <controls:NekoStackPanel Margin="0,14,0,0" Spacing="9">
+                                <CheckBox x:Name="ShortcutCheck" Style="{StaticResource NekoCheckBox}" IsChecked="True" />
+                                <CheckBox x:Name="LaunchCheck" Style="{StaticResource NekoCheckBox}" IsChecked="True" />
+                                <CheckBox x:Name="PortableCheck" Style="{StaticResource NekoCheckBox}" IsChecked="False" />
+                            </controls:NekoStackPanel>
+                        </controls:NekoStackPanel>
+
+                        <Grid Grid.Row="3" Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <controls:NekoStackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="SizeText" Style="{StaticResource NekoCaption}" />
+                                <TextBlock x:Name="DiskText" Style="{StaticResource NekoCaption}"
+                                           Foreground="{StaticResource NekoDimBrush}" />
+                            </controls:NekoStackPanel>
+                            <controls:NekoStackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                        VerticalAlignment="Center">
+                                <Button x:Name="CancelWelcomeButton" Style="{StaticResource NekoGhostButton}"
+                                        Click="OnCloseClick" />
+                                <Button x:Name="StartButton" Style="{StaticResource NekoPrimaryButton}"
+                                        Click="OnStartClick" />
+                            </controls:NekoStackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ===== 安装进度 ===== -->
+                    <Grid x:Name="ProgressPanel" Margin="28,20,28,20" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <controls:NekoStackPanel Grid.Row="0" Spacing="6">
+                            <TextBlock x:Name="ProgressTitle" Style="{StaticResource NekoH1}" />
+                            <TextBlock x:Name="StageText" Style="{StaticResource NekoCaption}" />
+                        </controls:NekoStackPanel>
+
+                        <Grid Grid.Row="1" Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ProgressBar x:Name="InstallBar" Style="{StaticResource NekoProgressBar}"
+                                         VerticalAlignment="Center" Maximum="1" />
+                            <TextBlock x:Name="PercentText" Grid.Column="1" Margin="12,0,0,0" FontSize="13"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource NekoAccentBrush}" />
+                        </Grid>
+
+                        <controls:NekoStackPanel x:Name="ProgressStepHost" Grid.Row="2" Margin="0,16,0,0" Spacing="7" />
+
+                        <Border Grid.Row="3" Style="{StaticResource NekoCard}" Padding="0" Margin="0,14,0,0">
+                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="14,10,14,6"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LogHeader" Style="{StaticResource NekoCaption}" />
+                                    <TextBlock x:Name="LogCountText" Grid.Column="1" Style="{StaticResource NekoCaption}"
+                                               Foreground="{StaticResource NekoDimBrush}" />
+                                </Grid>
+                                <ScrollViewer x:Name="LogScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                              MaxHeight="230">
+                                    <TextBlock x:Name="LogText" Style="{StaticResource NekoMono}" TextWrapping="Wrap"
+                                               Margin="14,0,14,12" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="4" Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ElapsedText" Style="{StaticResource NekoCaption}"
+                                       VerticalAlignment="Center" />
+                            <Button x:Name="CancelInstallButton" Grid.Column="1"
+                                    Style="{StaticResource NekoDangerButton}" Click="OnCancelInstallClick" />
+                        </Grid>
+                    </Grid>
+
+                    <!-- ===== 完成 / 失败 ===== -->
+                    <Grid x:Name="DonePanel" Visibility="Collapsed">
+                        <Border Style="{StaticResource NekoCard}" MaxWidth="560" Padding="30,28"
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <controls:NekoStackPanel Spacing="14">
+                                <Border x:Name="DoneBadge" Width="56" Height="56" CornerRadius="28"
+                                        HorizontalAlignment="Left"
+                                        Background="{StaticResource NekoSuccessSoftBrush}">
+                                    <Path x:Name="DoneIcon" Stretch="Uniform" Width="24" Height="24"
+                                          Data="M2,12 L9,19 L22,5" Stroke="{StaticResource NekoSuccessBrush}"
+                                          StrokeThickness="2.4" StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                                </Border>
+
+                                <TextBlock x:Name="DoneTitle" Style="{StaticResource NekoH1}" />
+                                <TextBlock x:Name="DoneDesc" Style="{StaticResource NekoCaption}" MaxWidth="480"
+                                           HorizontalAlignment="Left" />
+
+                                <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <controls:NekoStackPanel Grid.Column="0" Spacing="3">
+                                        <TextBlock x:Name="DoneFilesLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                        <TextBlock x:Name="DoneFilesValue" Style="{StaticResource NekoBody}"
+                                                   FontWeight="SemiBold" />
+                                    </controls:NekoStackPanel>
+                                    <controls:NekoStackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock x:Name="DoneSizeLabel" Style="{StaticResource NekoLabel}" Margin="0" />
+                                        <TextBlock x:Name="DoneSizeValue" Style="{StaticResource NekoBody}"
+                                                   FontWeight="SemiBold" />
+                                    </controls:NekoStackPanel>
+                                    <controls:NekoStackPanel Grid.Column="2" Spacing="3">
+                                        <TextBlock x:Name="DoneElapsedLabel" Style="{StaticResource NekoLabel}"
+                                                   Margin="0" />
+                                        <TextBlock x:Name="DoneElapsedValue" Style="{StaticResource NekoBody}"
+                                                   FontWeight="SemiBold" />
+                                    </controls:NekoStackPanel>
+                                </Grid>
+
+                                <controls:NekoStackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                                    <Button x:Name="DoneLaunchButton" Style="{StaticResource NekoPrimaryButton}"
+                                            Click="OnLaunchGameClick" />
+                                    <Button x:Name="DoneOpenButton" Style="{StaticResource NekoGhostButton}"
+                                            Click="OnOpenFolderClick" />
+                                    <Button x:Name="DoneRetryButton" Style="{StaticResource NekoGhostButton}"
+                                            Click="OnRetryClick" Visibility="Collapsed" />
+                                    <Button x:Name="DoneCloseButton" Style="{StaticResource NekoGhostButton}"
+                                            Click="OnCloseClick" />
+                                </controls:NekoStackPanel>
+                            </controls:NekoStackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- ===== 关于 ===== -->
+                    <Grid x:Name="AboutPanel" Visibility="Collapsed" Margin="28,20,28,20"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <controls:NekoStackPanel Grid.Row="0" Spacing="7">
+                            <TextBlock x:Name="AboutTitle" Style="{StaticResource NekoH1}" />
+                            <TextBlock x:Name="AboutIntro" Style="{StaticResource NekoCaption}" MaxWidth="620"
+                                       HorizontalAlignment="Left" />
+                        </controls:NekoStackPanel>
+
+                        <controls:NekoStackPanel Grid.Row="1" Margin="0,18,0,0" Spacing="12">
+                            <Border Style="{StaticResource NekoCard}">
+                                <controls:NekoStackPanel Spacing="10">
+                                    <TextBlock x:Name="AboutCreatorHeader" Style="{StaticResource NekoH2}"
+                                               FontSize="13.5" />
+                                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Pack" Style="{StaticResource NekoCaption}" Margin="0,0,14,6" />
+                                        <TextBlock x:Name="AboutPackValue" Grid.Column="1" Style="{StaticResource NekoBody}"
+                                                   Margin="0,0,0,6" />
+                                        <TextBlock Grid.Row="1" Text="Version" Style="{StaticResource NekoCaption}"
+                                                   Margin="0,0,14,6" />
+                                        <TextBlock x:Name="AboutVersionValue" Grid.Row="1" Grid.Column="1"
+                                                   Style="{StaticResource NekoBody}" Margin="0,0,0,6" />
+                                        <TextBlock Grid.Row="2" Text="Author" Style="{StaticResource NekoCaption}"
+                                                   Margin="0,0,14,6" />
+                                        <TextBlock x:Name="AboutAuthorValue" Grid.Row="2" Grid.Column="1"
+                                                   Style="{StaticResource NekoBody}" Margin="0,0,0,6" />
+                                        <TextBlock Grid.Row="3" Text="Loader" Style="{StaticResource NekoCaption}"
+                                                   Margin="0,0,14,0" />
+                                        <TextBlock x:Name="AboutLoaderValue" Grid.Row="3" Grid.Column="1"
+                                                   Style="{StaticResource NekoBody}" />
+                                    </Grid>
+                                </controls:NekoStackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource NekoCard}">
+                                <controls:NekoStackPanel Spacing="6">
+                                    <TextBlock x:Name="AboutFormatHeader" Style="{StaticResource NekoH2}"
+                                               FontSize="13.5" />
+                                    <TextBlock x:Name="AboutFormatValue" Style="{StaticResource NekoCaption}" />
+                                </controls:NekoStackPanel>
+                            </Border>
+                        </controls:NekoStackPanel>
+
+                        <Grid Grid.Row="2" Margin="0,14,0,0">
+                            <controls:NekoStackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left">
+                                <Button x:Name="AboutOpenButton" Style="{StaticResource NekoGhostButton}"
+                                        Click="OnOpenFolderClick" />
+                                <Button x:Name="AboutLogButton" Style="{StaticResource NekoGhostButton}"
+                                        Click="OnExportLogClick" />
+                                <Button x:Name="AboutConfigButton" Style="{StaticResource NekoGhostButton}"
+                                        Click="OnViewConfigClick" />
+                                <Button x:Name="AboutCopyButton" Style="{StaticResource NekoGhostButton}"
+                                        Click="OnCopyInfoClick" />
+                            </controls:NekoStackPanel>
+                            <Button x:Name="AboutBackButton" Style="{StaticResource NekoGhostButton}"
+                                    HorizontalAlignment="Right" Click="OnAboutBackClick" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

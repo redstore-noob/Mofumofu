@@ -1,0 +1,29 @@
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/
+.refs/
+.screenshots/
+.video_agent/
+.zcode/
+promo/
+*.log
+
+# WebView 页面源码依赖（构建产物在 Mofumofu.Launcher/WebAssets，随仓库交付）
+web/node_modules/
+
+# 本地验收截图产物（保留 docs/reference/neko-ui 下的原版参照图）
+docs/reference/native-shots*/
+docs/reference/native-*.png
+
+# 临时文件
+*.tmp
+*.tsbuildinfo
+
+# agent 协作临时目录（构建日志 / QA 截图 / 临时测试工程）
+.dsh-tmp/

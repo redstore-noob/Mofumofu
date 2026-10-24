@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "Анализ сбоя игры",
+  "Crash.Section.Findings": "Выводы ({0})",
+  "Crash.Section.ModIssues": "Зависимости / конфликты модов",
+  "Crash.Severity.Critical": "Критично",
+  "Crash.Severity.Warning": "Подозрительно",
+  "Crash.Severity.Info": "Инфо",
+  "Crash.Description": "Сценарий сбоя",
+  "Crash.Exception": "Первая ошибка",
+  "Crash.Report.Path": "Отчёт о сбое",
+  "Crash.Meta.Instance": "Экземпляр",
+  "Crash.Meta.Version": "Версия",
+  "Crash.Meta.Loader": "Загрузчик",
+  "Crash.Meta.Memory": "Память",
+  "Crash.Meta.ExitCode": "Код выхода",
+  "Crash.Action.Copy": "Копировать диагностику",
+  "Crash.Action.Copied": "Скопировано ✓",
+  "Crash.Action.OpenReport": "Открыть отчёт о сбое",
+  "Crash.Action.OpenHsErr": "Открыть журнал ошибок JVM",
+  "Crash.Hint.Close": "Нажмите в любом месте вне окна, чтобы закрыть"
+}

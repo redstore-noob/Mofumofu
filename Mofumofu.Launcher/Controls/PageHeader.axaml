@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             x:Class="Mofumofu.Launcher.Controls.PageHeader">
+    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,16">
+        <Button x:Name="BackButton"
+                Classes="round"
+                Margin="0,0,12,0"
+                Click="OnBackClick">
+            <controls:IconParkIcon Kind="IconArrowLeft" Width="18" Height="18" />
+        </Button>
+
+        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+            <TextBlock x:Name="TitleText" Classes="page-title" />
+            <TextBlock x:Name="SubtitleText" Classes="muted" IsVisible="False" />
+        </StackPanel>
+
+        <ContentControl x:Name="ActionsHost"
+                        Grid.Column="3"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center" />
+    </Grid>
+</UserControl>

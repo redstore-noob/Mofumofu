@@ -1,0 +1,791 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:views="clr-namespace:Mofumofu.Launcher.Views"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="694"
+             x:Class="Mofumofu.Launcher.Views.InstancesView"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <views:InstanceIconConverter x:Key="InstanceIcon" />
+
+        <!-- 左栏实例行 -->
+        <DataTemplate x:Key="InstanceItemTemplate">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,5">
+                <Border Width="36" Height="36" CornerRadius="8" Background="{DynamicResource NekoFieldBrush}">
+                    <Image Width="26" Height="26"
+                           Source="{Binding Icon, Converter={StaticResource InstanceIcon}}" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="10,0,6,0" Spacing="1"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="{Binding Version}" Classes="caption" />
+                        <TextBlock Text="·" Classes="caption" />
+                        <TextBlock Text="{Binding Loader}" Classes="caption"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding LastPlayed}" Classes="caption"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- 内容标签行（模组/资源包/光影/存档共用） -->
+        <DataTemplate x:Key="ContentRowTemplate">
+            <Border Classes="row">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                    <Border Width="32" Height="32" CornerRadius="8"
+                            Background="{DynamicResource NekoFieldBrush}">
+                        <Grid>
+                            <controls:IconParkIcon Kind="IconFluentBox" Width="15" Height="15"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image Tag="{Binding}" Loaded="OnContentIconLoaded"
+                                   Width="32" Height="32" Stretch="UniformToFill" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0" Spacing="1"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Version}" Classes="caption" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                  IsCheckedChanged="OnContentToggled"
+                                  VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <!-- 世界存档行：目录没有启停概念，操作是 Rewind / 备份 / 导出 / 打开 -->
+        <DataTemplate x:Key="WorldRowTemplate">
+            <Border Classes="row">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                    <Border Width="32" Height="32" CornerRadius="8"
+                            Background="{DynamicResource NekoFieldBrush}">
+                        <Grid>
+                            <controls:IconParkIcon Kind="IconFluentGlobe" Width="15" Height="15"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image Tag="{Binding}" Loaded="OnContentIconLoaded"
+                                   Width="32" Height="32" Stretch="UniformToFill" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0" Spacing="1"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Version}" Classes="caption" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                                VerticalAlignment="Center">
+                        <Button Classes="icon" Width="28" Height="28"
+                                ToolTip.Tip="{DynamicResource L.Instances.Worlds.Rewind}"
+                                Click="OnWorldRewindClick">
+                            <controls:IconParkIcon Kind="IconRestore" Width="12" Height="12" />
+                        </Button>
+                        <Button Classes="icon" Width="28" Height="28"
+                                ToolTip.Tip="{DynamicResource L.Instances.Worlds.Backup}"
+                                Click="OnBackupWorldClick">
+                            <controls:IconParkIcon Kind="IconDisk" Width="12" Height="12" />
+                        </Button>
+                        <Button Classes="icon" Width="28" Height="28"
+                                ToolTip.Tip="{DynamicResource L.Instances.Worlds.Export}"
+                                Click="OnExportWorldClick">
+                            <controls:IconParkIcon Kind="IconDownload" Width="12" Height="12" />
+                        </Button>
+                        <Button Classes="icon" Width="28" Height="28"
+                                ToolTip.Tip="{DynamicResource L.Instances.Worlds.Enter}"
+                                Click="OnWorldOpenClick">
+                            <controls:IconParkIcon Kind="IconFolder" Width="12" Height="12" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <!-- Java 运行时行 -->
+        <DataTemplate x:Key="JavaRowTemplate">
+            <Border Classes="row">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
+                    <Border Width="34" Height="34" CornerRadius="9"
+                            Background="{DynamicResource NekoFieldBrush}">
+                        <controls:IconParkIcon Kind="IconFluentCoffee" Width="16" Height="16"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0" Spacing="1"
+                                VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding DisplayName}" FontSize="12.5"
+                                       FontWeight="SemiBold" />
+                            <Border CornerRadius="6" Padding="6,1"
+                                    Background="{DynamicResource NekoAccentSoftBrush}"
+                                    IsVisible="{Binding IsDefault}">
+                                <TextBlock Text="{DynamicResource L.Instances.Java.Default}" FontSize="10"
+                                           Foreground="{DynamicResource NekoAccentBrush}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding JavaPath}" Classes="caption"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="pill" Content="{DynamicResource L.Instances.Java.Use}"
+                            Tag="{Binding JavaPath}" Click="OnUseJavaClick" />
+                    <Button Grid.Column="3" Classes="pill" Content="{DynamicResource L.Instances.Java.Delete}"
+                            Tag="{Binding JavaPath}" Click="OnDeleteJavaClick" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="Border.stat-card">
+            <Setter Property="Background" Value="{DynamicResource NekoCardSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style Selector="Border.row">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.row:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="ListBoxItem /template/ ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.pill /template/ ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.18" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="{DynamicResource NekoDangerBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoDangerBrush}" />
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <!-- ================= 页头 ================= -->
+        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Instances.Page.Title}"
+>
+            <controls:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="ghost" Height="36" Padding="12,0" Click="OnImportClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconDownload" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Instances.Action.Import}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ghost" Height="36" Padding="12,0" Click="OnRescanClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconRefresh" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Instances.Action.Rescan}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ghost" Height="36" Padding="12,0" Click="OnOpenGameDirClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFolder" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Instances.Action.OpenGameDir}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ghost" Height="36" Padding="12,0" Click="OnRewindClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconRestore" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Instances.Action.Rewind}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <!-- ================= 游戏目录工具栏 ================= -->
+        <Border Grid.Row="1" Classes="card" Padding="10" Margin="0,0,0,12">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
+                <ComboBox x:Name="GameDirCombo" Width="300" Height="38" SelectedIndex="0"
+                          SelectionChanged="OnGameDirChanged">
+                    <ComboBoxItem Content="E:/Mofumofu/.minecraft" />
+                    <ComboBoxItem Content="D:/Games/.minecraft" />
+                    <ComboBoxItem Content="C:/Users/22907/AppData/Roaming/.minecraft" />
+                </ComboBox>
+                <Button Grid.Column="1" Classes="round" Margin="10,0,0,0"
+                        ToolTip.Tip="{DynamicResource L.Instances.Action.NewInstance}"
+                        Click="OnNewInstanceClick">
+                    <controls:IconParkIcon Kind="IconPlus" Width="16" Height="16" />
+                </Button>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10"
+                            VerticalAlignment="Center">
+                    <TextBlock x:Name="ScanStatusText"
+                               Text="{DynamicResource L.Instances.Scan.Placeholder}"
+                               Classes="caption" />
+                    <Border Width="1" Height="22" Background="{DynamicResource NekoBorderBrush}" />
+                    <TextBlock x:Name="DiskUsageText" Text="—" Classes="caption" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= 左栏实例列表 + 右栏详情 ================= -->
+        <Grid Grid.Row="2" ColumnDefinitions="330,*">
+            <suki:GlassCard Grid.Column="0" CornerRadius="12" Padding="12" Margin="0,0,12,0"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid Margin="2,0,2,10" ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock x:Name="InstanceCountText" Text="0 / 0" Classes="caption"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="InstanceSearchBox" Grid.Column="2" Width="150"
+                                 Classes="search" FontSize="12" Padding="10,6"
+                                 PlaceholderText="{DynamicResource L.Instances.Search.Placeholder}"
+                                 TextChanged="OnInstanceSearchChanged" />
+                    </Grid>
+                    <Grid Grid.Row="1">
+                        <ListBox x:Name="InstanceList" Background="Transparent" BorderThickness="0"
+                                 Padding="0" ItemTemplate="{StaticResource InstanceItemTemplate}"
+                                 SelectionChanged="OnInstanceSelectionChanged"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                        <TextBlock x:Name="InstanceEmptyHint"
+                                   Text="{DynamicResource L.Instances.Empty.NoMatch}" Classes="caption"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsVisible="False" IsHitTestVisible="False" />
+                    </Grid>
+                </Grid>
+            </suki:GlassCard>
+
+            <Border x:Name="DetailPanel" Grid.Column="1" Classes="card" Padding="18">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <!-- 启动卡 -->
+                    <Border Grid.Row="0" Classes="card-soft" Padding="14">
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="50" Height="50" CornerRadius="10" Background="{DynamicResource NekoFieldBrush}">
+                                <Image x:Name="DetailIcon" Width="36" Height="36" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="3"
+                                        VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock x:Name="DetailName" Text="—" FontSize="17"
+                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <Border CornerRadius="6" Padding="7,2"
+                                            Background="{DynamicResource NekoAccentSoftBrush}"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource L.Instances.Detail.Current}" FontSize="10"
+                                                   Foreground="{DynamicResource NekoAccentBrush}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock x:Name="DetailSub" Text="—"
+                                           Classes="caption" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                        VerticalAlignment="Center">
+                                <Button Classes="ghost" Height="34" Padding="12,0"
+                                        Click="OnOpenFolderClick">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                VerticalAlignment="Center">
+                                        <controls:IconParkIcon Kind="IconFolder" Width="13" Height="13" />
+                                        <TextBlock Text="{DynamicResource L.Instances.Detail.OpenFolder}" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="DetailLaunchButton" Classes="primary" Height="38"
+                                        Padding="18,0" Click="OnLaunchClick">
+                                    <StackPanel Orientation="Horizontal" Spacing="7"
+                                                VerticalAlignment="Center">
+                                        <controls:IconParkIcon x:Name="DetailLaunchIcon"
+                                                  Kind="IconPlay" Width="14" Height="14" />
+                                        <TextBlock x:Name="DetailLaunchText"
+                                                   Text="{DynamicResource L.Instances.Detail.Launch}"
+                                                   FontSize="13" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                  ColumnDefinitions="*,*,*" Margin="0,14,0,0">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{DynamicResource L.Instances.Detail.Memory}" Classes="caption" />
+                                    <TextBlock x:Name="DetailMemoryValue" Text="—"
+                                               FontSize="12.5" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="1">
+                                    <TextBlock Text="{DynamicResource L.Instances.Detail.Java}" Classes="caption" />
+                                    <TextBlock x:Name="DetailJavaValue" Text="—"
+                                               FontSize="12.5" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="1">
+                                    <TextBlock Text="{DynamicResource L.Instances.Detail.LastPlayed}" Classes="caption" />
+                                    <TextBlock x:Name="DetailLastPlayedValue" Text="—"
+                                               FontSize="12.5" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- 子标签 -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="0,14,0,8">
+                        <Button x:Name="TabOverview" Classes="pill active"
+                                Content="{DynamicResource L.Instances.Tab.Overview}"
+                                Tag="overview" Click="OnTabClick" />
+                        <Button x:Name="TabLaunch" Classes="pill"
+                                Content="{DynamicResource L.Instances.Tab.Launch}"
+                                Tag="launch" Click="OnTabClick" />
+                        <Button x:Name="TabJava" Classes="pill"
+                                Content="{DynamicResource L.Instances.Tab.Java}"
+                                Tag="java" Click="OnTabClick" />
+                        <Button x:Name="TabContent" Classes="pill"
+                                Content="{DynamicResource L.Instances.Tab.Content}"
+                                Tag="content" Click="OnTabClick" />
+                        <Button x:Name="TabGame" Classes="pill"
+                                Content="{DynamicResource L.Instances.Tab.Game}"
+                                Tag="game" Click="OnTabClick" />
+                        <Button x:Name="TabManage" Classes="pill"
+                                Content="{DynamicResource L.Instances.Tab.Manage}"
+                                Tag="manage" Click="OnTabClick" />
+                    </StackPanel>
+
+                    <!-- 子面板 -->
+                    <ScrollViewer x:Name="DetailScroll" Grid.Row="2"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <!-- ===== 概览 ===== -->
+                            <StackPanel x:Name="OverviewPanel" Spacing="12" Margin="0,0,4,8">
+                                <Grid ColumnDefinitions="*,*,*,*">
+                                    <Border Classes="stat-card" Margin="0,0,8,0">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{DynamicResource L.Instances.Stat.Playtime}" Classes="caption" />
+                                            <TextBlock x:Name="StatPlaytime" Text="—"
+                                                       FontSize="20" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Classes="stat-card" Margin="0,0,8,0">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{DynamicResource L.Instances.Stat.Mods}" Classes="caption" />
+                                            <TextBlock x:Name="StatMods" Text="—"
+                                                       FontSize="20" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Classes="stat-card" Margin="0,0,8,0">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{DynamicResource L.Instances.Stat.Worlds}" Classes="caption" />
+                                            <TextBlock x:Name="StatWorlds" Text="—"
+                                                       FontSize="20" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="3" Classes="stat-card">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{DynamicResource L.Instances.Stat.LastLaunch}" Classes="caption" />
+                                            <TextBlock x:Name="StatLastPlayed" Text="—"
+                                                       FontSize="20" FontWeight="Bold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Worlds.Recent}" Classes="section-title"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="WorldCountText" Text="—"
+                                                       Classes="caption" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <ItemsControl x:Name="WorldsList">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Classes="row">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                                              Margin="0,4">
+                                                            <Border Width="34" Height="34" CornerRadius="9"
+                                                                    Background="{DynamicResource NekoFieldBrush}">
+                                                                <controls:IconParkIcon Kind="{Binding IconKey}"
+                                                                          Width="15" Height="15"
+                                                                          HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Margin="10,0"
+                                                                        Spacing="1"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontSize="12.5" />
+                                                                <TextBlock Text="{Binding Version}"
+                                                                           Classes="caption" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{Binding LastPlayed}"
+                                                                       Classes="caption"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,10,0" />
+                                                            <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                                                        Spacing="2" VerticalAlignment="Center">
+                                                                <Button Classes="icon" Width="30" Height="30"
+                                                                        ToolTip.Tip="{DynamicResource L.Instances.Worlds.Rewind}"
+                                                                        Click="OnWorldRewindClick">
+                                                                    <controls:IconParkIcon Kind="IconRestore"
+                                                                              Width="12" Height="12" />
+                                                                </Button>
+                                                                <Button Classes="icon" Width="30" Height="30"
+                                                                        ToolTip.Tip="{DynamicResource L.Instances.Worlds.Enter}"
+                                                                        Tag="{Binding Name}"
+                                                                        Click="OnEnterWorldClick">
+                                                                    <controls:IconParkIcon Kind="IconPlay"
+                                                                              Width="12" Height="12" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== 启动设置 ===== -->
+                            <StackPanel x:Name="LaunchSettingsPanel" IsVisible="False"
+                                        Spacing="12" Margin="0,0,4,8">
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Launch.Memory}" Classes="section-title"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="MemoryValueText" Text="—"
+                                                       Classes="muted" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Slider x:Name="MemorySlider" Minimum="2048" Maximum="16384"
+                                                TickFrequency="1024" IsSnapToTickEnabled="True"
+                                                Value="4096" ValueChanged="OnMemoryChanged" />
+                                        <TextBlock Text="{DynamicResource L.Instances.Launch.MemoryHint}"
+                                                   Classes="caption" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{DynamicResource L.Instances.Launch.JavaTitle}" Classes="section-title" />
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{DynamicResource L.Instances.Launch.JavaPath}" Classes="field-label" />
+                                            <TextBox x:Name="JavaPathBox" FontSize="12"
+                                                     Watermark="{DynamicResource L.Instances.Launch.JavaPath}" />
+                                        </StackPanel>
+                                        <Grid ColumnDefinitions="*,*">
+                                            <StackPanel Spacing="4" Margin="0,0,8,0">
+                                                <TextBlock Text="{DynamicResource L.Instances.Launch.WindowSize}" Classes="field-label" />
+                                                <ComboBox x:Name="WindowSizeCombo" SelectedIndex="2"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBoxItem Content="1280 × 720" />
+                                                    <ComboBoxItem Content="1600 × 900" />
+                                                    <ComboBoxItem Content="1920 × 1080" />
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Launch.Fullscreen}" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="4">
+                                                <TextBlock Text="{DynamicResource L.Instances.Launch.JvmArgs}" Classes="field-label" />
+                                                <TextBox x:Name="JvmArgsBox" FontSize="12"
+                                                         Text="-XX:+UseG1GC -XX:+AlwaysPreTouch" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Spacing="20">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <ToggleSwitch x:Name="FullscreenToggle" />
+                                                <TextBlock Text="{DynamicResource L.Instances.Launch.FullscreenLaunch}" FontSize="12.5"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <ToggleSwitch x:Name="AutoLoginToggle" IsChecked="True" />
+                                                <TextBlock Text="{DynamicResource L.Instances.Launch.AutoLogin}" FontSize="12.5"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    HorizontalAlignment="Right">
+                                            <Button Classes="ghost" Content="{DynamicResource L.Instances.Launch.Reset}"
+                                                    Click="OnResetLaunchSettingsClick" />
+                                            <Button Classes="primary" Content="{DynamicResource L.Instances.Launch.Save}"
+                                                    Click="OnSaveLaunchSettingsClick" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== Java 设置 ===== -->
+                            <StackPanel x:Name="JavaPanel" IsVisible="False" Spacing="12"
+                                        Margin="0,0,4,8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{DynamicResource L.Instances.Java.Title}" Classes="section-title" />
+                                        <TextBlock Text="{DynamicResource L.Instances.Java.Hint}"
+                                                   Classes="caption" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="ghost" Height="32"
+                                            Content="{DynamicResource L.Instances.Java.Add}" Click="OnAddJavaClick" />
+                                </Grid>
+
+                                <Border Classes="card-soft" Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock x:Name="JavaListStatus" Classes="caption"
+                                                   Text="{DynamicResource L.Instances.Java.Detecting}" />
+                                        <ItemsControl x:Name="InstalledJavaList"
+                                                      ItemTemplate="{StaticResource JavaRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{DynamicResource L.Instances.Java.RequirementTitle}" Classes="section-title" />
+                                        <TextBlock x:Name="JavaRequirementText"
+                                                   Text="{DynamicResource L.Instances.Java.RequirementCurrent}"
+                                                   Classes="muted" />
+                                        <TextBlock Text="{DynamicResource L.Instances.Java.RequirementHint}"
+                                                   Classes="caption" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== 内容 ===== -->
+                            <StackPanel x:Name="ContentPanel" IsVisible="False" Spacing="12"
+                                        Margin="0,0,4,8">
+                                <Border Classes="card-soft" Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource L.Instances.Content.Mods}" Classes="section-title" />
+                                                <TextBlock x:Name="ModContentCount" Text="—"
+                                                           Classes="caption" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="pill"
+                                                    Content="{DynamicResource L.Instances.Content.Add}"
+                                                    Tag="Instances.Content.Mods" Click="OnAddContentClick" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ModsList"
+                                                      ItemTemplate="{StaticResource ContentRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource L.Instances.Content.ResourcePacks}" Classes="section-title" />
+                                                <TextBlock x:Name="PackContentCount" Text="—"
+                                                           Classes="caption" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="pill"
+                                                    Content="{DynamicResource L.Instances.Content.Add}"
+                                                    Tag="Instances.Content.ResourcePacks" Click="OnAddContentClick" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ResourcePacksList"
+                                                      ItemTemplate="{StaticResource ContentRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource L.Instances.Content.Shaders}" Classes="section-title" />
+                                                <TextBlock x:Name="ShaderContentCount" Text="—"
+                                                           Classes="caption" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="pill"
+                                                    Content="{DynamicResource L.Instances.Content.Add}"
+                                                    Tag="Instances.Content.Shaders" Click="OnAddContentClick" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ShadersList"
+                                                      ItemTemplate="{StaticResource ContentRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource L.Instances.Content.Worlds}" Classes="section-title" />
+                                                <TextBlock x:Name="WorldContentCount" Text="—"
+                                                           Classes="caption" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="pill"
+                                                    Content="{DynamicResource L.Instances.Content.ImportWorld}"
+                                                    Click="OnImportWorldClick" />
+                                        </Grid>
+                                        <ItemsControl x:Name="WorldsContentList"
+                                                      ItemTemplate="{StaticResource WorldRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== 游戏设置 ===== -->
+                            <StackPanel x:Name="GameSettingsPanel" IsVisible="False" Spacing="12"
+                                        Margin="0,0,4,8">
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="14">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="options.txt" Classes="section-title" />
+                                            <TextBlock Text="{DynamicResource L.Instances.Game.Title}" Classes="caption" />
+                                        </Grid>
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Game.RenderDistance}" Classes="field-label"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="RenderDistanceValue" Grid.Column="1"
+                                                       Text="—" Classes="muted" />
+                                        </Grid>
+                                        <Slider x:Name="RenderDistanceSlider" Minimum="2" Maximum="32"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" Value="12"
+                                                ValueChanged="OnOptionSliderChanged" />
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Game.SimulationDistance}" Classes="field-label"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="SimulationDistanceValue" Grid.Column="1"
+                                                       Text="—" Classes="muted" />
+                                        </Grid>
+                                        <Slider x:Name="SimulationDistanceSlider" Minimum="2" Maximum="32"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" Value="10"
+                                                ValueChanged="OnOptionSliderChanged" />
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Game.Fov}" Classes="field-label"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="FovValue" Grid.Column="1" Text="70°"
+                                                       Classes="muted" />
+                                        </Grid>
+                                        <Slider x:Name="FovSlider" Minimum="30" Maximum="110"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" Value="70"
+                                                ValueChanged="OnOptionSliderChanged" />
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{DynamicResource L.Instances.Game.Sensitivity}" Classes="field-label"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="SensitivityValue" Grid.Column="1"
+                                                       Text="50%" Classes="muted" />
+                                        </Grid>
+                                        <Slider x:Name="SensitivitySlider" Minimum="0" Maximum="100"
+                                                TickFrequency="1" IsSnapToTickEnabled="True" Value="50"
+                                                ValueChanged="OnOptionSliderChanged" />
+
+                                        <Grid ColumnDefinitions="*,*">
+                                            <StackPanel Spacing="4" Margin="0,0,8,0">
+                                                <TextBlock Text="{DynamicResource L.Instances.Game.GuiScale}" Classes="field-label" />
+                                                <ComboBox x:Name="GuiScaleCombo" SelectedIndex="1"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Game.Auto}" />
+                                                    <ComboBoxItem Content="1x" />
+                                                    <ComboBoxItem Content="2x" />
+                                                    <ComboBoxItem Content="3x" />
+                                                    <ComboBoxItem Content="4x" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="4">
+                                                <TextBlock Text="{DynamicResource L.Instances.Game.MaxFps}" Classes="field-label" />
+                                                <ComboBox x:Name="MaxFpsCombo" SelectedIndex="1"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Game.Unlimited}" />
+                                                    <ComboBoxItem Content="60 FPS" />
+                                                    <ComboBoxItem Content="120 FPS" />
+                                                    <ComboBoxItem Content="144 FPS" />
+                                                    <ComboBoxItem Content="240 FPS" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    HorizontalAlignment="Right">
+                                            <Button Classes="ghost" Content="{DynamicResource L.Instances.Game.Reset}"
+                                                    Click="OnResetGameSettingsClick" />
+                                            <Button Classes="primary" Content="{DynamicResource L.Instances.Game.Save}"
+                                                    Click="OnSaveGameSettingsClick" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ===== 管理 ===== -->
+                            <StackPanel x:Name="ManagePanel" IsVisible="False" Spacing="12"
+                                        Margin="0,0,4,8">
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock Text="{DynamicResource L.Instances.Manage.Title}" Classes="section-title" />
+                                        <WrapPanel>
+                                            <Button Classes="ghost" Margin="0,0,8,8"
+                                                    Click="OnRenameInstanceClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <controls:IconParkIcon Kind="IconCreator"
+                                                              Width="14" Height="14" />
+                                                    <TextBlock Text="{DynamicResource L.Instances.Manage.Rename}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="ghost" Margin="0,0,8,8"
+                                                    Click="OnDuplicateInstanceClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <controls:IconParkIcon Kind="IconRestore"
+                                                              Width="14" Height="14" />
+                                                    <TextBlock Text="{DynamicResource L.Instances.Manage.Duplicate}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="ghost" Margin="0,0,8,8"
+                                                    Click="OnOpenFolderClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <controls:IconParkIcon Kind="IconFolder"
+                                                              Width="14" Height="14" />
+                                                    <TextBlock Text="{DynamicResource L.Instances.Manage.OpenFolder}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="ghost" Margin="0,0,8,8"
+                                                    Click="OnExportModpackClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <controls:IconParkIcon Kind="IconDownload"
+                                                              Width="14" Height="14" />
+                                                    <TextBlock Text="{DynamicResource L.Instances.Manage.ExportModpack}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="card-soft" Padding="14">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{DynamicResource L.Instances.Manage.Danger}" Classes="section-title"
+                                                   Foreground="{DynamicResource NekoDangerBrush}" />
+                                        <TextBlock Text="{DynamicResource L.Instances.Manage.DangerHint}"
+                                                   Classes="caption" />
+                                        <Button Classes="danger" HorizontalAlignment="Left"
+                                                Content="{DynamicResource L.Instances.Manage.Delete}"
+                                                Click="OnDeleteInstanceClick" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

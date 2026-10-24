@@ -1,0 +1,293 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============ 与主启动器同一套令牌（深色 + 青绿强调色） ============ -->
+    <Color x:Key="NekoAccentColor">#FF3FC6C1</Color>
+    <SolidColorBrush x:Key="NekoAccentBrush" Color="{StaticResource NekoAccentColor}" />
+    <SolidColorBrush x:Key="NekoAccentHoverBrush" Color="#FF57D8D3" />
+    <SolidColorBrush x:Key="NekoAccentPressedBrush" Color="#FF33BDB8" />
+    <SolidColorBrush x:Key="NekoAccentSoftBrush" Color="#FF1E3A3C" />
+    <SolidColorBrush x:Key="NekoAccentLineBrush" Color="#FF2A6F6C" />
+    <SolidColorBrush x:Key="NekoAccentOnBrush" Color="#FF06121A" />
+
+    <SolidColorBrush x:Key="NekoTextBrush" Color="#FFE9EEF6" />
+    <SolidColorBrush x:Key="NekoMutedBrush" Color="#FF93A0B4" />
+    <SolidColorBrush x:Key="NekoDimBrush" Color="#FF74839A" />
+    <SolidColorBrush x:Key="NekoBorderBrush" Color="#FF26303D" />
+    <SolidColorBrush x:Key="NekoBorderSoftBrush" Color="#FF1B232E" />
+
+    <SolidColorBrush x:Key="NekoBgBrush" Color="#FF0A0E15" />
+    <SolidColorBrush x:Key="NekoSurfaceBrush" Color="#FF0E141C" />
+    <SolidColorBrush x:Key="NekoCardBrush" Color="#FF121A24" />
+    <SolidColorBrush x:Key="NekoCardHoverBrush" Color="#FF17202B" />
+    <SolidColorBrush x:Key="NekoFieldBrush" Color="#FF16202B" />
+    <SolidColorBrush x:Key="NekoTerminalBrush" Color="#FF05090C" />
+    <SolidColorBrush x:Key="NekoTerminalTextBrush" Color="#FF9FE8D5" />
+
+    <SolidColorBrush x:Key="NekoSuccessBrush" Color="#FF4CC38A" />
+    <SolidColorBrush x:Key="NekoSuccessSoftBrush" Color="#FF17342A" />
+    <SolidColorBrush x:Key="NekoWarningBrush" Color="#FFF2AE49" />
+    <SolidColorBrush x:Key="NekoWarningSoftBrush" Color="#FF3A2E18" />
+    <SolidColorBrush x:Key="NekoDangerBrush" Color="#FFE5484D" />
+    <SolidColorBrush x:Key="NekoDangerSoftBrush" Color="#FF3A1B1E" />
+    <SolidColorBrush x:Key="NekoInfoBrush" Color="#FF5AA9E6" />
+
+    <LinearGradientBrush x:Key="NekoWindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF0C1219" Offset="0" />
+        <GradientStop Color="#FF0A0E15" Offset="0.55" />
+        <GradientStop Color="#FF0D1620" Offset="1" />
+    </LinearGradientBrush>
+
+    <RadialGradientBrush x:Key="NekoHeroGlowBrush" Center="0.15,0.05" GradientOrigin="0.15,0.05"
+                         RadiusX="0.9" RadiusY="0.85">
+        <GradientStop Color="#333FC6C1" Offset="0" />
+        <GradientStop Color="#003FC6C1" Offset="1" />
+    </RadialGradientBrush>
+
+    <FontFamily x:Key="NekoMonoFont">Consolas, Cascadia Mono, JetBrains Mono, monospace</FontFamily>
+
+    <!-- ============ 文本 ============ -->
+    <Style x:Key="NekoH1" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="NekoH2" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="NekoBody" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="NekoCaption" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource NekoMutedBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="NekoLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource NekoDimBrush}" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+
+    <Style x:Key="NekoMono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource NekoMonoFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTerminalTextBrush}" />
+    </Style>
+
+    <!-- ============ 卡片 ============ -->
+    <Style x:Key="NekoCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource NekoCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderSoftBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <Style x:Key="NekoChip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ============ 按钮 ============ -->
+    <Style x:Key="NekoPrimaryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentOnBrush}" />
+        <Setter Property="Background" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="22,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="9"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NekoAccentHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NekoAccentPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="NekoGhostButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="9"
+                            BorderBrush="{StaticResource NekoBorderBrush}" BorderThickness="1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NekoCardHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NekoFieldBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="NekoDangerButton" TargetType="Button" BasedOn="{StaticResource NekoGhostButton}">
+        <Setter Property="Foreground" Value="{StaticResource NekoDangerBrush}" />
+    </Style>
+
+    <Style x:Key="NekoIconButton" TargetType="Button">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Foreground" Value="{StaticResource NekoMutedBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NekoFieldBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 输入 / 路径 ============ -->
+    <Style x:Key="NekoTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource NekoFieldBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource NekoAccentLineBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 进度条 ============ -->
+    <Style x:Key="NekoProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Background" Value="{StaticResource NekoFieldBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="4" />
+                        <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="4"
+                                HorizontalAlignment="Left" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 复选框（自定义样式，跟随深色） ============ -->
+    <Style x:Key="NekoCheckBox" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource NekoTextBrush}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Box" Width="16" Height="16" CornerRadius="4"
+                                BorderBrush="{StaticResource NekoBorderBrush}" BorderThickness="1.4"
+                                Background="{StaticResource NekoFieldBrush}" VerticalAlignment="Center">
+                            <Path x:Name="Check" Data="M1,4.6 L4.4,8 L10,1.6" Stroke="{StaticResource NekoAccentOnBrush}"
+                                  StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Visibility="Collapsed" Stretch="None" />
+                        </Border>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource NekoAccentBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource NekoAccentBrush}" />
+                            <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource NekoAccentLineBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ 滚动条（细） ============ -->
+    <Style x:Key="NekoScrollBar" TargetType="ScrollBar">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ============ 阶段时间线项 ============ -->
+    <Style x:Key="NekoStepTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource NekoDimBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+</ResourceDictionary>

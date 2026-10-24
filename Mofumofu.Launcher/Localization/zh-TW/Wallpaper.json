@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "桌布",
+  "Wallpaper.Mode": "模式",
+  "Wallpaper.Mode.Image": "單張圖片",
+  "Wallpaper.Mode.Slideshow": "圖片轮播",
+  "Wallpaper.Mode.None": "關闭桌布",
+  "Wallpaper.PickImage": "選擇圖片",
+  "Wallpaper.AddImages": "添加圖片",
+  "Wallpaper.ImageEmpty": "还没有選擇圖片",
+  "Wallpaper.SlideshowEmpty": "添加圖片後按间隔自動轮播。",
+  "Wallpaper.Interval": "轮播间隔",
+  "Wallpaper.Interval.Value": "{0} 秒",
+  "Wallpaper.Shuffle": "隨机順序",
+  "Wallpaper.PauseWhenInactive": "失去焦點時暂停",
+  "Wallpaper.PickerTitle": "選擇桌布檔案",
+  "Wallpaper.Status.On": "桌布已啟用",
+  "Wallpaper.Status.Off": "桌布已關闭",
+  "Wallpaper.Status.Error": "桌布未生效：{0}",
+  "Wallpaper.Error.NoContent": "桌布檔案不存在或已被刪除",
+  "Wallpaper.Blur": "背景模糊",
+  "Wallpaper.Dim": "背景壓暗"
+}

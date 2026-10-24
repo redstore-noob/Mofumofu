@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "Обои",
+  "Wallpaper.Mode": "Режим",
+  "Wallpaper.Mode.Image": "Одно изображение",
+  "Wallpaper.Mode.Slideshow": "Слайд-шоу",
+  "Wallpaper.Mode.None": "Без обоев",
+  "Wallpaper.PickImage": "Выбрать изображение",
+  "Wallpaper.AddImages": "Добавить изображения",
+  "Wallpaper.ImageEmpty": "Изображения ещё не выбраны",
+  "Wallpaper.SlideshowEmpty": "После добавления изображений они будут сменяться автоматически через заданный интервал.",
+  "Wallpaper.Interval": "Интервал смены",
+  "Wallpaper.Interval.Value": "{0} с",
+  "Wallpaper.Shuffle": "Случайный порядок",
+  "Wallpaper.PauseWhenInactive": "Пауза при потере фокуса",
+  "Wallpaper.PickerTitle": "Выбрать файл обоев",
+  "Wallpaper.Status.On": "Обои включены",
+  "Wallpaper.Status.Off": "Обои выключены",
+  "Wallpaper.Status.Error": "Обои не применены: {0}",
+  "Wallpaper.Error.NoContent": "Файл обоев не существует или был удалён",
+  "Wallpaper.Blur": "Размытие фона",
+  "Wallpaper.Dim": "Затемнение фона"
+}

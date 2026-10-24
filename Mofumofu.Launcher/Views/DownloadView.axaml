@@ -1,0 +1,851 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:acrylic="using:Fluid.Avalonia.Acrylic"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:views="clr-namespace:Mofumofu.Launcher.Views"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="694"
+             x:Class="Mofumofu.Launcher.Views.DownloadView"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <views:DownloadIconConverter x:Key="DownloadIcon" />
+
+        <!-- Minecraft 版本行 -->
+        <DataTemplate x:Key="VersionRowTemplate">
+            <Border Classes="row" Padding="10,7" Margin="0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                    <Border Width="38" Height="38" CornerRadius="9" Background="{DynamicResource NekoFieldBrush}">
+                        <Image Width="27" Height="27"
+                               Source="{Binding Icon, Converter={StaticResource DownloadIcon}}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="2"
+                                VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="SemiBold" />
+                            <Border CornerRadius="6" Padding="6,1"
+                                    Background="{DynamicResource NekoAccentSoftBrush}"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Type}" FontSize="10"
+                                           Foreground="{DynamicResource NekoAccentBrush}" />
+                            </Border>
+                            <Border CornerRadius="6" Padding="6,1"
+                                    Background="{DynamicResource NekoSuccessSoftBrush}"
+                                    VerticalAlignment="Center"
+                                    IsVisible="{Binding Installed}">
+                                <TextBlock Text="{DynamicResource L.Download.Version.Installed}" FontSize="10"
+                                           Foreground="{DynamicResource NekoSuccessBrush}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding ReleaseDate}" Classes="caption" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="ghost" Height="32" Padding="12,0"
+                            VerticalAlignment="Center" Content="{DynamicResource L.Download.Version.Download}"
+                            Tag="{Binding Id}" Click="OnDownloadVersionClick" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Mod / 整合包 / 光影 / 材质行 -->
+        <DataTemplate x:Key="ResourceRowTemplate">
+            <Border Classes="row" Padding="10,8" Margin="0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2">
+                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource NekoFieldBrush}">
+                        <Grid>
+                            <controls:IconParkIcon Kind="{Binding IconKey}" Width="18" Height="18"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image Tag="{Binding}" Loaded="OnResourceIconLoaded"
+                                   Width="40" Height="40" Stretch="UniformToFill" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="2"
+                                VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Author}" Classes="caption"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Description}" Classes="caption"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="1" Margin="0,0,14,0"
+                                VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4"
+                                    HorizontalAlignment="Right">
+                            <controls:IconParkIcon Kind="IconFluentDownload" Width="12" Height="12" />
+                            <TextBlock Text="{Binding Downloads}" FontSize="12" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4"
+                                    HorizontalAlignment="Right">
+                            <controls:IconParkIcon Kind="IconFluentHeart" Width="12" Height="12" />
+                            <TextBlock Text="{Binding Likes}" FontSize="11"
+                                       Foreground="{DynamicResource NekoMutedBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Grid.Column="3" Classes="ghost" Height="32" Padding="12,0"
+                            VerticalAlignment="Center" Content="{DynamicResource L.Download.Resource.Details}"
+                            Tag="{Binding}" Click="OnOpenResourceDetailClick" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- 资源详情页：可安装版本行 -->
+        <DataTemplate x:Key="DetailVersionRowTemplate">
+            <Button Classes="detail-version" Tag="{Binding}" Click="OnDetailVersionClick"
+                    HorizontalContentAlignment="Stretch" Margin="0,0,0,6">
+                <Grid ColumnDefinitions="*,Auto" Margin="2,2">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Meta}" Classes="caption"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                VerticalAlignment="Center">
+                        <Border CornerRadius="6" Padding="6,1"
+                                Background="{DynamicResource NekoFieldSoftBrush}">
+                            <TextBlock Text="{Binding Type}" FontSize="10"
+                                       Foreground="{DynamicResource NekoMutedBrush}" />
+                        </Border>
+                        <TextBlock Text="{Binding Size}" Classes="caption"
+                                   VerticalAlignment="Center" />
+                        <controls:IconParkIcon Kind="IconArrowRight" Width="12" Height="12" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="Border.row">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.row:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.pill /template/ ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.18" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.detail-version">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="Button.detail-version:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+        </Style>
+        <Style Selector="Button.detail-version.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        </Style>
+
+        <!-- 本体安装：加载器 / 版本列表（和资源详情页一致的列表风格） -->
+        <Style Selector="ListBox.install-list">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        <Style Selector="ListBox.install-list ListBoxItem">
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <!-- ================= 页头 ================= -->
+        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Download.Page.Title}"
+>
+            <controls:PageHeader.Actions>
+                <Button Classes="ghost" Height="36" Padding="14,0" Click="OnRefreshClick">
+                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconRefresh" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Action.Refresh}" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+        <!-- 风波过后我会删除，临时增加的一条警告-->
+        <Border Grid.Row="1" Classes="card" Padding="4" Margin="0,8,0,10">
+            <suki:InfoBar
+                Title="警告"
+                Message="下载功能原则上不适用于中华人民共和国中国大陆地区.
+                本消息在中国大陆地区将自动显示，当切换到其他地区时将关闭."
+                Loaded="Control_OnLoaded"
+                x:Name="ChineseMainlandInfoBar" />
+        </Border>
+        <!-- ================= 标签行 ================= -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button x:Name="TabMinecraft" Classes="pill active" Tag="minecraft"
+                        Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconCube" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Minecraft}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabMod" Classes="pill" Tag="mod" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconGrid" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Mod}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabModpack" Classes="pill" Tag="modpack" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconDownload" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Modpack}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabShader" Classes="pill" Tag="shader" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconStar" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Shader}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabResourcePack" Classes="pill" Tag="resourcepack"
+                        Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconCreator" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.ResourcePack}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabJava" Classes="pill" Tag="java" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconMemory" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Java}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabExtension" Classes="pill" Tag="extension" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconPlugin" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Extension}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TabTasks" Classes="pill" Tag="tasks" Click="OnTabClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconClock" Width="14" Height="14" />
+                        <TextBlock Text="{DynamicResource L.Download.Tab.Tasks}" FontSize="13" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <Border Grid.Row="1" Height="1" Background="{DynamicResource NekoBorderBrush}"
+                    Margin="0,8,0,12" />
+        </Grid>
+
+        <!-- ================= 标签面板 ================= -->
+        <Grid Grid.Row="3">
+            <ContentControl x:Name="TabHost"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch">
+                <Grid>
+                    <!-- ===== Minecraft 本体 ===== -->
+                    <Grid x:Name="MinecraftPanel" RowDefinitions="Auto,Auto,*,Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                            <TextBox x:Name="VersionSearchBox" Classes="search" Height="40"
+                                     FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Version.Search}"
+                                     Margin="0,0,14,0" TextChanged="OnVersionSearchChanged" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14"
+                                        VerticalAlignment="Center">
+                                <CheckBox x:Name="ShowReleaseCheck" IsChecked="True" FontSize="12"
+                                          Content="{DynamicResource L.Download.Version.Type.Release}"
+                                          IsCheckedChanged="OnVersionFilterChanged" />
+                                <CheckBox x:Name="ShowSnapshotCheck" FontSize="12"
+                                          Content="{DynamicResource L.Download.Version.Type.Snapshot}"
+                                          IsCheckedChanged="OnVersionFilterChanged" />
+                                <CheckBox x:Name="ShowOldCheck" FontSize="12"
+                                          Content="{DynamicResource L.Download.Version.Type.Old}"
+                                          IsCheckedChanged="OnVersionFilterChanged" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="2,0,0,8">
+                            <TextBlock x:Name="VersionOfflineHint" IsVisible="False"
+                                       Classes="caption" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource NekoWarningBrush}" />
+                            <Button x:Name="VersionRetryButton" IsVisible="False" Classes="ghost"
+                                    Height="28" Padding="12,0" FontSize="11.5"
+                                    Content="{DynamicResource L.Download.Version.Retry}"
+                                    Click="OnRetryVersionsClick" />
+                        </StackPanel>
+                        <Border Grid.Row="2" Classes="card" Padding="8,4">
+                            <Grid>
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="VersionList"
+                                                  ItemTemplate="{StaticResource VersionRowTemplate}" />
+                                </ScrollViewer>
+                                <Border x:Name="VersionLoadingOverlay" IsVisible="False"
+                                        Background="{DynamicResource NekoSurfaceBrush}"
+                                        Opacity="0.82">
+                                    <StackPanel Spacing="12" HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <controls:GradientSpinner Width="34" Height="34"
+                                                                 HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="VersionLoadingText" Classes="caption"
+                                                   Text="{DynamicResource L.Download.Version.Loading}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="2,10,2,0">
+                            <TextBlock x:Name="VersionCountText"
+                                       Text="{DynamicResource L.Download.Version.Loading}"
+                                       Classes="muted" VerticalAlignment="Center" />
+                            <TextBlock x:Name="VersionPageText" Grid.Column="1" Text="1 / 1"
+                                       Classes="caption" VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <Button Grid.Column="2" Classes="icon" Width="30" Height="30"
+                                    ToolTip.Tip="{DynamicResource L.Download.Version.Prev}" Click="OnPrevPageClick">
+                                <controls:IconParkIcon Kind="IconArrowLeft" Width="13"
+                                          Height="13" />
+                            </Button>
+                            <Button Grid.Column="3" Classes="icon" Width="30" Height="30"
+                                    ToolTip.Tip="{DynamicResource L.Download.Version.Next}" Click="OnNextPageClick">
+                                <controls:IconParkIcon Kind="IconArrowRight" Width="13"
+                                          Height="13" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ===== Mod ===== -->
+                    <Grid x:Name="ModPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                            <TextBox x:Name="ModSearchBox" Classes="search" Height="40"
+                                     FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Resource.SearchMod}"
+                                     Margin="0,0,14,0" TextChanged="OnResourceSearchChanged" />
+                            <TextBlock x:Name="ModCountText" Grid.Column="1" Classes="caption"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="ModOfflineHint" Grid.Row="1" IsVisible="False"
+                                   Classes="caption" Margin="2,0,0,8"
+                                   Foreground="{DynamicResource NekoWarningBrush}" />
+                        <Border Grid.Row="2" Classes="card" Padding="8,4">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ModList"
+                                              ItemTemplate="{StaticResource ResourceRowTemplate}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+
+                    <!-- ===== 整合包 ===== -->
+                    <Grid x:Name="ModpackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                            <TextBox x:Name="ModpackSearchBox" Classes="search" Height="40"
+                                     FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Resource.SearchModpack}"
+                                     Margin="0,0,14,0" TextChanged="OnResourceSearchChanged" />
+                            <TextBlock x:Name="ModpackCountText" Grid.Column="1" Classes="caption"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="ModpackOfflineHint" Grid.Row="1" IsVisible="False"
+                                   Classes="caption" Margin="2,0,0,8"
+                                   Foreground="{DynamicResource NekoWarningBrush}" />
+                        <Border Grid.Row="2" Classes="card" Padding="8,4">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ModpackList"
+                                              ItemTemplate="{StaticResource ResourceRowTemplate}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+
+                    <!-- ===== 光影包 ===== -->
+                    <Grid x:Name="ShaderPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                            <TextBox x:Name="ShaderSearchBox" Classes="search" Height="40"
+                                     FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Resource.SearchShader}"
+                                     Margin="0,0,14,0" TextChanged="OnResourceSearchChanged" />
+                            <TextBlock x:Name="ShaderCountText" Grid.Column="1" Classes="caption"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="ShaderOfflineHint" Grid.Row="1" IsVisible="False"
+                                   Classes="caption" Margin="2,0,0,8"
+                                   Foreground="{DynamicResource NekoWarningBrush}" />
+                        <Border Grid.Row="2" Classes="card" Padding="8,4">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ShaderList"
+                                              ItemTemplate="{StaticResource ResourceRowTemplate}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+
+                    <!-- ===== 材质包 ===== -->
+                    <Grid x:Name="ResourcePackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                            <TextBox x:Name="ResourcePackSearchBox" Classes="search" Height="40"
+                                     FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Resource.SearchResourcePack}"
+                                     Margin="0,0,14,0" TextChanged="OnResourceSearchChanged" />
+                            <TextBlock x:Name="ResourcePackCountText" Grid.Column="1"
+                                       Classes="caption" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="ResourcePackOfflineHint" Grid.Row="1" IsVisible="False"
+                                   Classes="caption" Margin="2,0,0,8"
+                                   Foreground="{DynamicResource NekoWarningBrush}" />
+                        <Border Grid.Row="2" Classes="card" Padding="8,4">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ResourcePackList"
+                                              ItemTemplate="{StaticResource ResourceRowTemplate}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+
+                    <!-- ===== Java ===== -->
+                    <ScrollViewer x:Name="JavaPanel" IsVisible="False"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="12" Margin="0,0,4,8">
+                            <Border Classes="card-soft" Padding="16">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Width="46" Height="46" CornerRadius="10"
+                                            Background="{DynamicResource NekoFieldBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentCoffee" Width="21" Height="21"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="14,0" Spacing="2"
+                                                VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock x:Name="GlobalJavaName" Text="—" FontSize="14"
+                                                       FontWeight="SemiBold" />
+                                            <Border CornerRadius="6" Padding="6,1"
+                                                    Background="{DynamicResource NekoAccentSoftBrush}"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource L.Download.Java.GlobalDefault}" FontSize="10"
+                                                           Foreground="{DynamicResource NekoAccentBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:Name="GlobalJavaPath" Text="—"
+                                                   Classes="caption" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                Spacing="8" VerticalAlignment="Center">
+                                        <Button Classes="ghost" Height="32"
+                                                Content="{DynamicResource L.Download.Java.Redetect}"
+                                                Click="OnDetectJavaClick" />
+                                        <Button Classes="ghost" Height="32"
+                                                Content="{DynamicResource L.Download.Java.OpenDir}"
+                                                Click="OnOpenJavaDirClick" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Classes="card-soft" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{DynamicResource L.Download.Java.DownloadTitle}"
+                                                       Classes="section-title" />
+                                            <TextBlock x:Name="JavaPlatformText" Text="—"
+                                                       Classes="caption" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="ghost" Height="30" Padding="10,0"
+                                                Content="{DynamicResource L.Download.Java.RefreshList}"
+                                                Click="OnRefreshJavaCandidatesClick" />
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="220,*" ColumnSpacing="16">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="{DynamicResource L.Download.Java.Vendor}" Classes="caption" />
+                                            <ComboBox x:Name="JavaVendorCombo" HorizontalAlignment="Stretch"
+                                                      SelectionChanged="OnJavaVendorChanged">
+                                                <ComboBoxItem Content="Zulu" Tag="Zulu" />
+                                                <ComboBoxItem Content="Temurin" Tag="Temurin" />
+                                                <ComboBoxItem Content="Oracle" Tag="Oracle" />
+                                            </ComboBox>
+                                            <TextBlock Text="{DynamicResource L.Download.Java.VendorHint}"
+                                                       Classes="caption" TextWrapping="Wrap" />
+                                            <Border Classes="row" Padding="10,8">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{DynamicResource L.Download.Java.AdviceTitle}"
+                                                               FontSize="12" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{DynamicResource L.Download.Java.AdviceBody}"
+                                                               Classes="caption" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                                            <TextBlock Text="{DynamicResource L.Download.Java.Available}"
+                                                       Classes="caption" />
+                                            <ListBox Grid.Row="1" x:Name="JavaCandidateList" Height="176"
+                                                     Background="{DynamicResource NekoFieldSoftBrush}"
+                                                     BorderThickness="0" CornerRadius="10" Padding="4">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Spacing="2" Margin="4,3">
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       FontSize="12.5" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding DetailText}"
+                                                                       Classes="caption" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                                                <TextBlock x:Name="JavaCandidateStatus" Classes="caption"
+                                                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <Button Grid.Column="1" Classes="primary" Height="32"
+                                                        Padding="14,0"
+                                                        Content="{DynamicResource L.Download.Java.DownloadSelected}"
+                                                        Click="OnDownloadJavaCandidateClick" />
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+
+                                    <ProgressBar x:Name="JavaDownloadProgress" IsVisible="False"
+                                                 Minimum="0" Maximum="100" Height="6" />
+                                    <TextBlock x:Name="JavaDownloadStatus" Classes="caption"
+                                               TextWrapping="Wrap" IsVisible="False" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Classes="card-soft" Padding="16">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{DynamicResource L.Download.Java.Installed}" Classes="section-title" />
+                                    <TextBlock x:Name="JavaEmptyHint" IsVisible="False"
+                                               Text="{DynamicResource L.Download.Java.NoRuntimes}"
+                                               Classes="caption" />
+                                    <ItemsControl x:Name="JavaRuntimeList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="row">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="2,3">
+                                                        <Border Width="32" Height="32" CornerRadius="8"
+                                                                Background="{DynamicResource NekoFieldBrush}">
+                                                            <controls:IconParkIcon Kind="IconFluentCoffee"
+                                                                      Width="15" Height="15"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Margin="10,0"
+                                                                    Spacing="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       FontSize="12.5"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding JavaPath}"
+                                                                       Classes="caption"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="2" Classes="pill"
+                                                                Content="{DynamicResource L.Download.Java.Use}"
+                                                                Tag="{Binding}"
+                                                                Click="OnUseInstalledJavaClick" />
+                                                        <Button Grid.Column="3" Classes="pill"
+                                                                Content="{DynamicResource L.Download.Java.Delete}"
+                                                                Tag="{Binding}"
+                                                                Click="OnDeleteInstalledJavaClick" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- ===== 下载任务 ===== -->
+<!-- ===== 插件商店（GitHub 仓库镜像） ===== -->
+                    <ScrollViewer x:Name="ExtensionPanel" IsVisible="False"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="14" Margin="4,4,12,16" MaxWidth="880" HorizontalAlignment="Left">
+                            <TextBlock Text="{DynamicResource L.Download.Extension.Hint}" Classes="caption"
+                                       TextWrapping="Wrap" />
+                            <TextBox x:Name="ExtensionRepoBox" Height="36" FontSize="12.5"
+                                     PlaceholderText="{DynamicResource L.Download.Extension.RepoPlaceholder}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Height="32" Padding="14,0" Click="OnExtensionRepoAddClick">
+                                    <TextBlock Text="{DynamicResource L.Download.Extension.AddRepo}" FontSize="12" />
+                                </Button>
+                                <Button Classes="ghost" Height="32" Padding="14,0" Click="OnExtensionRefreshClick">
+                                    <TextBlock Text="{DynamicResource L.Download.Extension.Refresh}" FontSize="12" />
+                                </Button>
+                            </StackPanel>
+                            <StackPanel x:Name="ExtensionRepoList" Spacing="6" />
+                            <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
+                            <StackPanel x:Name="ExtensionEntryList" Spacing="10" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="TasksPanel" IsVisible="False"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="10" Margin="0,0,4,8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Button Grid.Column="1" Classes="ghost" Height="32"
+                                        Content="{DynamicResource L.Download.Tasks.ClearFinished}"
+                                        Click="OnClearFinishedTasksClick" />
+                            </Grid>
+                            <StackPanel x:Name="DownloadTaskList" Spacing="10" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </ContentControl>
+
+            
+
+            
+        </Grid>
+
+<!-- ===== 资源详情（由列表进入的独立界面，不是弹层） ===== -->
+            <acrylic:AcrylicSurface x:Name="ResourceDetailPanel" IsVisible="False"
+                                     Grid.RowSpan="4" Margin="10,8,10,8" Padding="18,16"
+                                     CornerRadius="18" BlurRadius="8" Vibrancy="1"
+                                     TintColor="#B30C121A" ShadowEnabled="False">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,12">
+                        <Button Classes="icon" Width="34" Height="34" VerticalAlignment="Center"
+                                ToolTip.Tip="{DynamicResource L.Common.Back}"
+                                Click="OnCloseResourceDetailClick">
+                            <controls:IconParkIcon Kind="IconArrowLeft" Width="14" Height="14" />
+                        </Button>
+                        <Border Grid.Column="1" Width="46" Height="46" CornerRadius="10"
+                                Margin="10,0,12,0" Background="{DynamicResource NekoFieldBrush}"
+                                VerticalAlignment="Center">
+                            <Image x:Name="DetailIcon" Width="46" Height="46" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock x:Name="DetailTitleText" FontSize="17" FontWeight="SemiBold" />
+                            <TextBlock x:Name="DetailMetaText" Classes="caption" />
+                            <TextBlock x:Name="DetailDescriptionText" Classes="caption"
+                                       TextTrimming="CharacterEllipsis" MaxLines="2" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="{DynamicResource L.Download.Detail.Target}"
+                                           FontSize="10.5"
+                                           Foreground="{DynamicResource NekoMutedBrush}" />
+                                <ComboBox x:Name="DetailTargetCombo" MinWidth="170" Height="34"
+                                          FontSize="12" />
+                            </StackPanel>
+                            <Button x:Name="DetailInstallButton" Classes="primary" Height="36"
+                                    Padding="16,0" VerticalAlignment="Bottom"
+                                    Content="{DynamicResource L.Download.Detail.Install}"
+                                    Click="OnDetailInstallClick" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1" Height="1" Margin="0,0,0,12"
+                            Background="{DynamicResource NekoBorderBrush}" />
+
+                    <Grid Grid.Row="2" ColumnDefinitions="248,*">
+                        <Border Classes="card-soft" Padding="12" Margin="0,0,12,0">
+                            <Grid RowDefinitions="Auto,Auto,Auto,*">
+                                <TextBlock Text="{DynamicResource L.Download.Detail.GameVersion}"
+                                           Classes="section-title" />
+                                <TextBox x:Name="DetailGameVersionSearch" Grid.Row="1" Height="34"
+                                         Margin="0,8,0,8" FontSize="12"
+                                         PlaceholderText="{DynamicResource L.Download.Version.Search}"
+                                         TextChanged="OnDetailGameVersionSearchChanged" />
+                                <CheckBox x:Name="DetailReleaseOnlyCheck" Grid.Row="2"
+                                          IsChecked="True" FontSize="12"
+                                          Content="{DynamicResource L.Download.Detail.ReleaseOnly}"
+                                          IsCheckedChanged="OnDetailGameVersionFilterChanged" />
+                                <Border Grid.Row="3" Classes="row" Padding="2" Margin="0,6,0,0">
+                                    <ListBox x:Name="DetailGameVersionList" Background="Transparent"
+                                             BorderThickness="0"
+                                             SelectionChanged="OnDetailGameVersionChanged" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="14" Margin="2,0,0,8">
+                                <TextBlock Text="{DynamicResource L.Download.Detail.Loader}"
+                                           Classes="caption" VerticalAlignment="Center" />
+                                <CheckBox x:Name="DetailFabricCheck" IsChecked="True" FontSize="12"
+                                          Content="Fabric" IsCheckedChanged="OnDetailLoaderChanged" />
+                                <CheckBox x:Name="DetailForgeCheck" IsChecked="True" FontSize="12"
+                                          Content="Forge" IsCheckedChanged="OnDetailLoaderChanged" />
+                                <CheckBox x:Name="DetailNeoForgeCheck" IsChecked="True" FontSize="12"
+                                          Content="NeoForge" IsCheckedChanged="OnDetailLoaderChanged" />
+                                <CheckBox x:Name="DetailQuiltCheck" IsChecked="True" FontSize="12"
+                                          Content="Quilt" IsCheckedChanged="OnDetailLoaderChanged" />
+                                <TextBlock x:Name="DetailVersionCountText" Classes="caption"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+
+                            <Border Grid.Row="1" Classes="card" Padding="8,6">
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <ItemsControl x:Name="DetailVersionList"
+                                                      ItemTemplate="{StaticResource DetailVersionRowTemplate}" />
+                                        <Border x:Name="DetailVersionsLoading" IsVisible="False"
+                                                Padding="20">
+                                            <StackPanel Spacing="10" HorizontalAlignment="Center">
+                                                <controls:GradientSpinner Width="30" Height="30"
+                                                                         HorizontalAlignment="Center" />
+                                                <TextBlock Classes="caption"
+                                                           Text="{DynamicResource L.Download.Version.Loading}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <TextBlock x:Name="DetailStatusText" Grid.Row="2" Classes="caption"
+                                       TextWrapping="Wrap" Margin="2,8,2,0" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </acrylic:AcrylicSurface>
+
+<!-- ===== Minecraft 本体安装（由版本列表进入的独立界面） ===== -->
+            <acrylic:AcrylicSurface x:Name="MinecraftInstallPanel" IsVisible="False"
+                                     Grid.RowSpan="4" Margin="10,8,10,8" Padding="18,16"
+                                     CornerRadius="18" BlurRadius="8" Vibrancy="1"
+                                     TintColor="#B30C121A" ShadowEnabled="False">
+                <Grid RowDefinitions="Auto,*">
+
+                    <!-- 顶部信息卡 -->
+                    <Border CornerRadius="16" Padding="16,14"
+                            Background="{DynamicResource NekoCardBrush}"
+                            BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                            <Button Classes="icon" Width="36" Height="36" VerticalAlignment="Center"
+                                    ToolTip.Tip="{DynamicResource L.Common.Back}"
+                                    Click="OnCloseMinecraftInstallClick">
+                                <controls:IconParkIcon Kind="IconArrowLeft" Width="15" Height="15" />
+                            </Button>
+
+                            <Border Grid.Column="1" Width="54" Height="54" CornerRadius="12"
+                                    Margin="14,0,14,0" VerticalAlignment="Center"
+                                    Background="{DynamicResource NekoFieldSoftBrush}">
+                                <Image x:Name="MinecraftInstallIcon" Width="38" Height="38"
+                                       Stretch="Uniform" />
+                            </Border>
+
+                            <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock x:Name="MinecraftInstallTitle" FontSize="19"
+                                           FontWeight="Bold" />
+                                <TextBlock x:Name="MinecraftInstallMeta" Classes="caption" />
+                            </StackPanel>
+
+                            <Button Grid.Column="3" x:Name="MinecraftInstallButton"
+                                    Classes="primary" Height="40" Padding="20,0" CornerRadius="10"
+                                    VerticalAlignment="Center"
+                                    Click="OnMinecraftInstallClick">
+                                <StackPanel Orientation="Horizontal" Spacing="8"
+                                            VerticalAlignment="Center">
+                                    <controls:IconParkIcon Kind="IconFluentDownload"
+                                              Width="15" Height="15" />
+                                    <TextBlock Text="{DynamicResource L.Download.Minecraft.Install}"
+                                               FontSize="13" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- 主体：左右两个列表占满剩余空间 -->
+                    <Grid Grid.Row="1" Margin="0,14,0,0" MaxWidth="1120"
+                          HorizontalAlignment="Stretch" RowDefinitions="*,Auto">
+                        <Border Grid.Row="0" CornerRadius="16" Padding="20,16"
+                                Background="{DynamicResource NekoCardBrush}"
+                                BorderBrush="{DynamicResource NekoBorderBrush}"
+                                BorderThickness="1">
+                            <Grid RowDefinitions="Auto,*,Auto,Auto" RowSpacing="14">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Width="30" Height="30" CornerRadius="9"
+                                            Background="{DynamicResource NekoAccentSoftBrush}">
+                                        <controls:IconParkIcon Kind="IconFluentSettings"
+                                                  Width="15" Height="15"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                               Text="{DynamicResource L.Download.Minecraft.SettingsTitle}"
+                                               FontSize="14.5" FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="18"
+                                      VerticalAlignment="Stretch">
+                                    <Grid RowDefinitions="Auto,*" RowSpacing="6"
+                                          VerticalAlignment="Stretch">
+                                        <TextBlock Text="{DynamicResource L.Download.Minecraft.Loader}"
+                                                   Classes="caption" />
+                                        <ListBox Grid.Row="1" x:Name="MinecraftLoaderCombo"
+                                                 Classes="install-list"
+                                                 VerticalAlignment="Stretch"
+                                                 SelectionChanged="OnMinecraftLoaderChanged" />
+                                    </Grid>
+
+                                    <Grid x:Name="MinecraftLoaderVersionRow" Grid.Column="1"
+                                          RowDefinitions="Auto,*" RowSpacing="6"
+                                          VerticalAlignment="Stretch" IsVisible="False">
+                                        <TextBlock Text="{DynamicResource L.Download.Minecraft.LoaderVersion}"
+                                                   Classes="caption" />
+                                        <Grid Grid.Row="1" VerticalAlignment="Stretch">
+                                            <ListBox x:Name="MinecraftLoaderVersionCombo"
+                                                     Classes="install-list"
+                                                     VerticalAlignment="Stretch"
+                                                     SelectionChanged="OnMinecraftLoaderVersionChanged" />
+                                            <TextBlock x:Name="MinecraftLoaderLoadingText"
+                                                       IsVisible="False" Classes="caption"
+                                                       Text="{DynamicResource L.Download.Minecraft.Loading}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+
+                                <StackPanel Grid.Row="2" Spacing="6">
+                                    <TextBlock Text="{DynamicResource L.Download.Minecraft.Instance}"
+                                               Classes="caption" />
+                                    <TextBox x:Name="MinecraftInstanceNameBox" Height="36"
+                                             FontSize="12.5" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="3" x:Name="MinecraftInstallStatus" Classes="caption"
+                                           TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" CornerRadius="14" Padding="16,14" Margin="0,14,0,0"
+                                Background="{DynamicResource NekoFieldSoftBrush}">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <controls:IconParkIcon Kind="IconFluentInfo"
+                                          Width="16" Height="16" Margin="0,2,0,0"
+                                          VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                           x:Name="MinecraftInstallNotes" Classes="caption"
+                                           TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </acrylic:AcrylicSurface>
+
+    </Grid>
+</UserControl>

@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "游戏崩溃分析",
+  "Crash.Section.Findings": "分析结论（{0} 条）",
+  "Crash.Section.ModIssues": "模组依赖 / 冲突明细",
+  "Crash.Severity.Critical": "严重",
+  "Crash.Severity.Warning": "可疑",
+  "Crash.Severity.Info": "信息",
+  "Crash.Description": "崩溃场景",
+  "Crash.Exception": "首个异常",
+  "Crash.Report.Path": "崩溃报告",
+  "Crash.Meta.Instance": "实例",
+  "Crash.Meta.Version": "版本",
+  "Crash.Meta.Loader": "加载器",
+  "Crash.Meta.Memory": "内存",
+  "Crash.Meta.ExitCode": "退出码",
+  "Crash.Action.Copy": "复制诊断",
+  "Crash.Action.Copied": "已复制 ✓",
+  "Crash.Action.OpenReport": "打开崩溃报告",
+  "Crash.Action.OpenHsErr": "打开 JVM 错误日志",
+  "Crash.Hint.Close": "点击弹窗外任意位置关闭"
+}

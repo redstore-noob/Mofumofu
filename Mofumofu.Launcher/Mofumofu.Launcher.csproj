@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>appicon.ico</ApplicationIcon>
+        <!-- 应用图标为图一（根目录 appicon.ico） -->
+        <Version>0.1.0</Version>
+        <!-- 展示版本：关于页 / 自动更新读取的就是这串（InformationalVersion） -->
+        <InformationalVersion>public beta 0.1.0</InformationalVersion>
+        <AssemblyVersion>0.1.0.0</AssemblyVersion>
+        <FileVersion>0.1.0.0</FileVersion>
+        <!-- 关于页只显示干净版本号，不追加源码提交哈希 -->
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+        <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="12.1.4" />
+        <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
+        <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+        <!-- 运行时解析插件 axaml 样式（IStyleLoad）所需 -->
+        <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="12.1.4" />
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+        <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Fluid.Avalonia.Acrylic" Version="1.4.0" />
+        <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+        <PackageReference Include="NAudio" Version="2.2.1" />
+        <PackageReference Include="SukiUI" Version="7.0.2-nightly20261002.475" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\MofuCore\MofuCore.csproj" />
+        <ProjectReference Include="..\Mofumofu.ExtensionAPI\Mofumofu.ExtensionAPI.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AvaloniaResource Include="Assets\**" />
+        <!-- 语言包：Localization/<lang>/<area>.json（按键值对，动态资源前缀 L.） -->
+        <AvaloniaResource Include="Localization\**\*.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- 局部 WebView2 页面（皮肤预览 / 3D 文字）静态资源：嵌入程序集，单文件发布不需要外挂文件夹 -->
+        <AvaloniaResource Include="WebAssets\**\*" />
+    </ItemGroup>
+    <!-- 开发时经常开着启动器就点构建，exe 被占用会触发 MSB3027/MSB3021；Debug 构建前自动结束旧进程。 -->
+    <Target Name="StopRunningLauncher" BeforeTargets="PrepareForBuild"
+            Condition="'$(Configuration)' == 'Debug'">
+        <Exec Command="cmd /c taskkill /IM Mofumofu.Launcher.exe /F /T"
+              IgnoreExitCode="true"
+              Condition="'$(OS)' == 'Windows_NT'" />
+    </Target>
+
+</Project>

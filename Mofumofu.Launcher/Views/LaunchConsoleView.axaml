@@ -1,0 +1,171 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="694"
+             x:Class="Mofumofu.Launcher.Views.LaunchConsoleView"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <!-- 终端一行日志：时间 · 级别 · 正文 -->
+        <DataTemplate x:Key="LogLineTemplate">
+            <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,1">
+                <TextBlock Text="{Binding Time}" FontSize="11"
+                           Foreground="{DynamicResource NekoDimBrush}"
+                           VerticalAlignment="Top" Margin="0,1,10,0" />
+                <TextBlock Grid.Column="1" Text="{Binding Level}" FontSize="11"
+                           FontWeight="SemiBold" Width="40"
+                           Foreground="{Binding LevelBrush}"
+                           VerticalAlignment="Top" Margin="0,1,8,0" />
+                <TextBlock Grid.Column="2" Text="{Binding Text}" FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{Binding TextBrush}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="TextBox.command">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Menlo" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTerminalTextBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="CheckBox.console">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoDimBrush}" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- ================= 页头 ================= -->
+        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Launch.Page.Title}"
+                             ShowBack="False">
+            <controls:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="ghost" Height="36" Padding="14,0" Click="OnCancelClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconStop" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Launch.Action.Cancel}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="primary" Height="36" Padding="16,0" Click="OnBackClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconHome" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Launch.Action.BackToDesktop}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <Grid Grid.Row="1" RowDefinitions="Auto,12,*">
+            <!-- ================= 阶段时间线 ================= -->
+            <Border Grid.Row="0" Classes="card" Padding="16,12">
+                <StackPanel Spacing="9">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Width="30" Height="30" CornerRadius="8"
+                                Background="{DynamicResource NekoAccentSoftBrush}">
+                            <controls:IconParkIcon Kind="IconPlay" Width="14" Height="14"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0" Spacing="1"
+                                    VerticalAlignment="Center">
+                            <TextBlock x:Name="InstanceText" Text="{DynamicResource L.Launch.DefaultInstance}"
+                                       FontSize="13.5" FontWeight="SemiBold" />
+                            <TextBlock x:Name="PhaseText" Text="{DynamicResource L.Launch.Phase.Preparing}"
+                                       Classes="caption" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14"
+                                    VerticalAlignment="Center">
+                            <TextBlock x:Name="ElapsedText" Text="00:00" FontSize="11.5"
+                                       FontFamily="Consolas, Cascadia Mono, Menlo"
+                                       Classes="caption" VerticalAlignment="Center" />
+                            <TextBlock x:Name="OverallText" Text="0%" FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource NekoAccentBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel x:Name="StageList" Spacing="2" />
+                </StackPanel>
+            </Border>
+
+            <!-- ================= 终端 ================= -->
+            <Border Grid.Row="2" CornerRadius="12" BorderThickness="1"
+                    Background="{DynamicResource NekoTerminalBrush}"
+                    BorderBrush="{DynamicResource NekoBorderBrush}"
+                    ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- 终端标题栏 -->
+                    <Border Grid.Row="0" Padding="14,8"
+                            BorderThickness="0,0,0,1"
+                            BorderBrush="{DynamicResource NekoBorderBrush}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="6"
+                                        VerticalAlignment="Center">
+                                <Border Width="9" Height="9" CornerRadius="5"
+                                        Background="{DynamicResource NekoDangerBrush}" />
+                                <Border Width="9" Height="9" CornerRadius="5"
+                                        Background="{DynamicResource NekoWarningBrush}" />
+                                <Border Width="9" Height="9" CornerRadius="5"
+                                        Background="{DynamicResource NekoSuccessBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" x:Name="TerminalTitleText"
+                                       Text="{DynamicResource L.Launch.Terminal.Title}"
+                                       FontFamily="Consolas, Cascadia Mono, Menlo" FontSize="11.5"
+                                       Foreground="{DynamicResource NekoDimBrush}"
+                                       Margin="12,0" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12"
+                                        VerticalAlignment="Center">
+                                <TextBlock x:Name="TerminalStatusText" Text="{DynamicResource L.Launch.Status.Idle}" FontSize="10.5"
+                                           FontFamily="Consolas, Cascadia Mono, Menlo"
+                                           Foreground="{DynamicResource NekoAccentBrush}"
+                                           VerticalAlignment="Center" />
+                                <CheckBox x:Name="AutoScrollCheck" Classes="console"
+                                          Content="{DynamicResource L.Launch.Terminal.AutoScroll}" IsChecked="True"
+                                          VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 输出区 -->
+                    <ScrollViewer x:Name="LogScroll" Grid.Row="1" Padding="14,10"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="LogList"
+                                      ItemTemplate="{StaticResource LogLineTemplate}"
+                                      FontFamily="Consolas, Cascadia Mono, Menlo" />
+                    </ScrollViewer>
+
+                    <!-- 命令行 -->
+                    <Border Grid.Row="2" Padding="14,6" IsVisible="False"
+                            BorderThickness="0,1,0,0"
+                            BorderBrush="{DynamicResource NekoBorderBrush}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Text="❯" FontFamily="Consolas, Cascadia Mono, Menlo"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource NekoAccentBrush}"
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBox x:Name="CommandInput" Grid.Column="1" Classes="command"
+                                     FontSize="12"
+                                     PlaceholderText="{DynamicResource L.Launch.Command.Placeholder}"
+                                     KeyDown="OnCommandKeyDown"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{DynamicResource L.Launch.Command.Hint}" Classes="caption"
+                                       Foreground="{DynamicResource NekoDimBrush}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

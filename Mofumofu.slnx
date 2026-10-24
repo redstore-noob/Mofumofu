@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="MofuCore/MofuCore.csproj" Id="37cf861c-c0b1-4f31-b53e-a81bc6273aad" />
+  <Project Path="Mofumofu.ExtensionAPI/Mofumofu.ExtensionAPI.csproj" />
+  <Project Path="Mofumofu.Launcher/Mofumofu.Launcher.csproj" />
+  <Project Path="NekoSolo/NekoSolo.csproj" />
+  <Project Path="Mofumofu.Extension.LogshareService/Mofumofu.Extension.LogshareService.csproj" />
+</Solution>

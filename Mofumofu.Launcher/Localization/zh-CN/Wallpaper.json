@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "壁纸",
+  "Wallpaper.Mode": "模式",
+  "Wallpaper.Mode.Image": "单张图片",
+  "Wallpaper.Mode.Slideshow": "图片轮播",
+  "Wallpaper.Mode.None": "关闭壁纸",
+  "Wallpaper.PickImage": "选择图片",
+  "Wallpaper.AddImages": "添加图片",
+  "Wallpaper.ImageEmpty": "还没有选择图片",
+  "Wallpaper.SlideshowEmpty": "添加图片后按间隔自动轮播。",
+  "Wallpaper.Interval": "轮播间隔",
+  "Wallpaper.Interval.Value": "{0} 秒",
+  "Wallpaper.Shuffle": "随机顺序",
+  "Wallpaper.PauseWhenInactive": "失去焦点时暂停",
+  "Wallpaper.PickerTitle": "选择壁纸文件",
+  "Wallpaper.Status.On": "壁纸已启用",
+  "Wallpaper.Status.Off": "壁纸已关闭",
+  "Wallpaper.Status.Error": "壁纸未生效：{0}",
+  "Wallpaper.Error.NoContent": "壁纸文件不存在或已被删除",
+  "Wallpaper.Blur": "背景模糊",
+  "Wallpaper.Dim": "背景压暗"
+}

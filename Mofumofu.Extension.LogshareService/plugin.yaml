@@ -1,0 +1,7 @@
+id: LogshareService
+name: LogShare 崩溃分析
+version: 1.0.0
+author: Mofumofu
+description: 游戏崩溃时自动分析崩溃日志，给出问题与解决方案，并可一键上传分享链接。
+apiVersion: 1.0.0
+permissions: notify, network

@@ -1,0 +1,25 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- 构建后自动打包 .nekoex（extension.dll + info.yaml + description.md + icon.png） -->
+  <Target Name="PackNekoex" AfterTargets="Build">
+    <PropertyGroup>
+      <NekoexStage>$(BaseIntermediateOutputPath)nekoex-stage</NekoexStage>
+      <NekoexOut>$(OutputPath)$(AssemblyName).nekoex</NekoexOut>
+    </PropertyGroup>
+    <ItemGroup>
+      <NekoexRename Include="$(TargetPath)" DestinationFileName="extension.dll" />
+      <NekoexRename Include="plugin.yaml" DestinationFileName="info.yaml" />
+      <NekoexPlain Include="description.md" />
+      <NekoexPlain Include="icon.png" />
+    </ItemGroup>
+    <RemoveDir Directories="$(NekoexStage)" />
+    <MakeDir Directories="$(NekoexStage)" />
+    <Copy SourceFiles="@(NekoexRename)"
+          DestinationFiles="@(NekoexRename -> '$(NekoexStage)\%(DestinationFileName)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(NekoexPlain)" DestinationFolder="$(NekoexStage)" SkipUnchangedFiles="true" />
+    <ZipDirectory SourceDirectory="$(NekoexStage)" DestinationFile="$(NekoexOut)" Overwrite="true" />
+    <Message Importance="high" Text="已打包插件：$(NekoexOut)" />
+  </Target>
+
+</Project>

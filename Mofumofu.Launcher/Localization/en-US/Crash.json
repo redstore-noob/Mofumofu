@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "Crash Analysis",
+  "Crash.Section.Findings": "Findings ({0})",
+  "Crash.Section.ModIssues": "Mod dependency / conflict details",
+  "Crash.Severity.Critical": "Critical",
+  "Crash.Severity.Warning": "Suspect",
+  "Crash.Severity.Info": "Info",
+  "Crash.Description": "Crash scene",
+  "Crash.Exception": "First exception",
+  "Crash.Report.Path": "Crash report",
+  "Crash.Meta.Instance": "Instance",
+  "Crash.Meta.Version": "Version",
+  "Crash.Meta.Loader": "Loader",
+  "Crash.Meta.Memory": "Memory",
+  "Crash.Meta.ExitCode": "Exit code",
+  "Crash.Action.Copy": "Copy diagnostics",
+  "Crash.Action.Copied": "Copied ✓",
+  "Crash.Action.OpenReport": "Open crash report",
+  "Crash.Action.OpenHsErr": "Open JVM error log",
+  "Crash.Hint.Close": "Click outside the dialog to close"
+}

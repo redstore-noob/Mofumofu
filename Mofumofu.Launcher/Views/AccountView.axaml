@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.AccountView">
+    <Grid RowDefinitions="Auto,*">
+        <controls:PageHeader x:Name="Header"
+                             Grid.Row="0"
+                             Title="{DynamicResource L.Account.Title}">
+            <controls:PageHeader.Actions>
+                <Button Classes="primary" Height="36" Padding="14,0" Click="OnAddAccountClick">
+                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconAccount" Width="15" Height="15" />
+                        <TextBlock Text="{DynamicResource L.Account.Add.Title}" FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <Grid Grid.Row="1" ColumnDefinitions="1.3*,1*">
+            <!-- ================= 左栏：账号列表 ================= -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,0,12,0">
+                <TextBlock Text="{DynamicResource L.Account.List.Title}" Classes="muted" Margin="2,0,0,8" />
+                <Border Grid.Row="1" Classes="card" Padding="8" VerticalAlignment="Stretch">
+                    <Grid RowDefinitions="*,Auto">
+                        <ListBox x:Name="AccountList"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="0"
+                                 SelectionChanged="OnAccountSelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="2,1">
+                                        <Grid Width="40" Height="40" VerticalAlignment="Center">
+                                            <Border CornerRadius="10" Background="{Binding AvatarBrush}"
+                                                    IsVisible="{Binding HasFallback}">
+                                                <TextBlock Text="{Binding Initial}"
+                                                           FontSize="16" FontWeight="SemiBold"
+                                                           Foreground="{Binding InitialBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+                                            <Border CornerRadius="10" ClipToBounds="True"
+                                                    Background="{DynamicResource NekoFieldSoftBrush}"
+                                                    IsVisible="{Binding HasHead}">
+                                                <Image Source="{Binding Head}" Width="40" Height="40"
+                                                       Stretch="UniformToFill" />
+                                            </Border>
+                                        </Grid>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0"
+                                                    Spacing="5" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="13.5"
+                                                       FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border CornerRadius="6" Padding="7,2"
+                                                        Background="{Binding TypeBadgeBg}">
+                                                    <TextBlock Text="{Binding TypeLabel}" FontSize="10.5"
+                                                               Foreground="{Binding TypeBadgeFg}" />
+                                                </Border>
+                                                <Border CornerRadius="6" Padding="7,2"
+                                                        Background="{DynamicResource NekoWarningSoftBrush}"
+                                                        IsVisible="{Binding IsDefault}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                                        <controls:IconParkIcon Kind="IconFluentStarFilled"
+                                                                  Width="10" Height="10" />
+                                                        <TextBlock Text="{DynamicResource L.Account.List.DefaultBadge}"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{DynamicResource NekoWarningBrush}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                    Spacing="2" VerticalAlignment="Center">
+                                            <Button Classes="pill" FontSize="11.5" Height="28"
+                                                    Content="{DynamicResource L.Account.List.SetDefault}"
+                                                    IsVisible="{Binding IsNotDefault}"
+                                                    Click="OnSetDefaultClick" />
+                                            <Button Classes="pill" FontSize="11.5" Height="28"
+                                                    Click="OnDeleteAccountClick">
+                                                <TextBlock Text="{DynamicResource L.Common.Delete}" FontSize="11.5"
+                                                           Foreground="{DynamicResource NekoDangerBrush}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ================= 右栏：皮肤展示 + 玩家外观 ================= -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Border Classes="card" VerticalAlignment="Top">
+                    <StackPanel Spacing="12">
+                        <StackPanel x:Name="SkinInfoPanel" Spacing="12">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock x:Name="CurrentAccountName" Text=""
+                                               Classes="section-title" />
+                                </StackPanel>
+                                <Border Grid.Column="1" CornerRadius="6" Padding="8,3"
+                                        Background="{DynamicResource NekoAccentSoftBrush}"
+                                        VerticalAlignment="Center">
+                                    <TextBlock x:Name="CurrentAccountBadge" Text="" FontSize="10.5"
+                                               Foreground="{DynamicResource NekoAccentBrush}" />
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+
+                        <TextBlock Text="{DynamicResource L.Account.Skin.Title}" Classes="muted" />
+
+                        <Border Height="286" CornerRadius="12" Background="{DynamicResource NekoFieldSoftBrush}"
+                                BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
+                                ClipToBounds="True">
+                            <Border x:Name="SkinWebHost" Background="Transparent" CornerRadius="11">
+                                <!-- WebView2 是独立子窗口，不进 Avalonia 渲染树；这层是可见兜底预览 -->
+                                <Grid>
+                                    <Image x:Name="SkinFallbackImage"
+                                           Width="160" Height="160"
+                                           Stretch="Uniform"
+                                           IsVisible="False"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           RenderOptions.BitmapInterpolationMode="None" />
+                                    <TextBlock x:Name="SkinWebPlaceholder"
+                                               Text="{DynamicResource L.Account.Skin.Loading}" Classes="caption"
+                                               IsVisible="False"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </Border>
+
+
+                        <WrapPanel>
+                            <Button Classes="ghost" Height="32" FontSize="11.5" Margin="0,0,8,8"
+                                    Padding="12,0" Click="OnRefreshSkinClick">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <controls:IconParkIcon Kind="IconRefresh" Width="13" Height="13" />
+                                    <TextBlock Text="{DynamicResource L.Account.Skin.Refresh}" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Height="32" FontSize="11.5" Margin="0,0,8,8"
+                                    Padding="12,0" Click="OnEditSkinClick">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <controls:IconParkIcon Kind="IconCreator" Width="13" Height="13" />
+                                    <TextBlock Text="{DynamicResource L.Account.Skin.Edit}" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Height="32" FontSize="11.5" Margin="0,0,8,8"
+                                    Padding="12,0" Click="OnUploadSkinClick">
+                                <StackPanel Spacing="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <controls:IconParkIcon Kind="IconPlus" Width="13" Height="13" />
+                                        <TextBlock Text="{DynamicResource L.Account.Skin.Upload}" FontSize="11.5" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Height="32" FontSize="11.5" Margin="0,0,8,8"
+                                    Padding="12,0" Click="OnLocalSkinClick">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <controls:IconParkIcon Kind="IconFolder" Width="13" Height="13" />
+                                    <TextBlock Text="{DynamicResource L.Account.Skin.Local}" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Height="32" FontSize="11.5" Margin="0,0,8,8"
+                                    Padding="12,0" Click="OnSkinLibraryClick">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <controls:IconParkIcon Kind="IconStar" Width="13" Height="13" />
+                                    <TextBlock Text="{DynamicResource L.Account.Skin.Library}" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+
+                        <Border Classes="divider" />
+
+                        <TextBlock Text="{DynamicResource L.Account.Appearance.Title}" Classes="section-title" />
+                        <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                            <StackPanel Spacing="6" Margin="0,0,12,0">
+                                <TextBlock Text="{DynamicResource L.Account.Cape.Title}" Classes="caption" />
+                                <ToggleSwitch x:Name="CapeSwitch" IsChecked="False"
+                                              OnContent="{DynamicResource L.Account.Cape.Show}"
+                                              OffContent="{DynamicResource L.Account.Cape.Hide}"
+                                              IsCheckedChanged="OnCapeToggled" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Classes="ghost" Height="26" Padding="10,0" FontSize="11"
+                                            Click="OnEditCapeClick"
+                                            Content="{DynamicResource L.Account.Cape.Edit}" />
+                                    <Button x:Name="ResetCapeButton" Classes="ghost" Height="26" Padding="10,0"
+                                            FontSize="11" Click="OnResetCapeClick"
+                                            Content="{DynamicResource L.Account.Cape.Reset}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="6">
+                                <TextBlock Text="{DynamicResource L.Account.Model.Title}" Classes="caption" />
+                                <ComboBox x:Name="SkinModelCombo" HorizontalAlignment="Stretch"
+                                          SelectedIndex="0" SelectionChanged="OnSkinModelChanged">
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Model.Classic}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Model.Slim}" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+
+                    </StackPanel>
+                </Border>
+            </ScrollViewer>
+        </Grid>
+
+    <!-- 皮肤编辑器：内嵌到账户页（不再单独开窗口），布局与 3D 文字生成器一致 -->
+    <Grid x:Name="SkinEditorOverlay" Grid.RowSpan="2" IsVisible="False"
+          Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*">
+            <Border Padding="12,8" BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource NekoBorderBrush}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Button Classes="ghost" Height="32" Padding="12,0"
+                            Click="OnCloseSkinEditorClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <controls:IconParkIcon Kind="IconArrowLeft" Width="14" Height="14" />
+                            <TextBlock Text="{DynamicResource L.Account.Skin.Editor.Back}" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Grid.Column="1" Margin="12,0,0,0"
+                               Text="{DynamicResource L.Account.Skin.Editor.Title}"
+                               Classes="section-title" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                               Text="{DynamicResource L.Account.Skin.Editor.Hint}" />
+                </Grid>
+            </Border>
+            <Border x:Name="SkinEditorHost" Grid.Row="1"
+                    Background="Transparent" ClipToBounds="True" />
+        </Grid>
+    </Grid>
+    </Grid>
+</UserControl>

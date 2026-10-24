@@ -1,0 +1,392 @@
+name: Release Build
+
+# 发布流水线：push v* 标签触发
+# Windows 单 exe（含 NekoSolo 载荷打包演示产物）+ macOS dmg + Linux deb/rpm/pkg.tar.zst
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  # 单 exe 会撕掉这些包的 native 依赖，必须保留在磁盘上
+  TRIM_SAFE: 'false'
+  PROJECT: 'Mofumofu.Launcher/Mofumofu.Launcher.csproj'
+
+jobs:
+  # ------------------------------------------------------------------
+  # Windows：单文件 exe（框架依赖 + 自包含两份）
+  # ------------------------------------------------------------------
+  windows:
+    name: Windows 单exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # 自包含单 exe：玩家机器免装运行时
+      - name: Publish win-x64 single-file (self-contained)
+        run: >
+          dotnet publish ${{ env.PROJECT }} -c Release -r win-x64
+          -p:PublishSingleFile=true
+          -p:SelfContained=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=embedded
+          -p:PublishTrimmed=${{ env.TRIM_SAFE }}
+          -o publish/win-x64
+
+      # 框架依赖单 exe：体积小，适合已装 .NET 的用户
+      - name: Publish win-x64 single-file (framework-dependent)
+        run: >
+          dotnet publish ${{ env.PROJECT }} -c Release -r win-x64
+          -p:PublishSingleFile=true
+          -p:SelfContained=false
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=embedded
+          -o publish/win-x64-fdd
+
+      # NekoSolo 安装器：发布 NekoSolo 单 exe，把主启动器发布目录打成载荷 zip 追加到尾部
+      # （exe = 安装器本体 + zip 载荷 + 32 字节 NKSOLO1 尾标，见 NekoSolo/FORMAT.md）
+      - name: Publish NekoSolo installer
+        run: >
+          dotnet publish NekoSolo/NekoSolo.csproj -c Release -r win-x64
+          -p:PublishSingleFile=true
+          -p:SelfContained=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=embedded
+          -o publish/nekosolo
+
+      - name: Build NekoSolo payload package
+        shell: pwsh
+        run: |
+          # 载荷 zip：主启动器整套发布产物（安装器会在玩家机器上解包它们）
+          $stage = "publish/nekosolo-payload"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item publish/win-x64/* $stage -Recurse -Force
+          Compress-Archive -Path "$stage/*" -DestinationPath payload.zip -Force
+
+          $exe = "publish/nekosolo/NekoSolo.exe"
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $zip  = [System.IO.File]::ReadAllBytes("payload.zip")
+
+          # 尾标 32 字节：魔数 "NKSOLO1\x01" + offset(8) + length(8) + crc32(4) + 保留(4)
+          $magic = [System.Text.Encoding]::ASCII.GetBytes("NKSOLO1`u{0001}")
+          $offset = $bytes.Length
+          $length = $zip.Length
+          $crc = [System.Buffers.Binary.BinaryPrimitives]::WriteUInt32LittleEndian
+          # PowerShell 手算 CRC32
+          $crcTable = New-Object uint32[] 256
+          for ($i = 0; $i -lt 256; $i++) {
+            $c = [uint32]$i
+            for ($k = 0; $k -lt 8; $k++) {
+              if ($c -band 1) { $c = (0xEDB88320 -bxor ($c -shr 1)) } else { $c = $c -shr 1 }
+            }
+            $crcTable[$i] = $c
+          }
+          $crc32 = [uint32]0xFFFFFFFF
+          foreach ($b in $zip) { $crc32 = $crcTable[($crc32 -bxor $b) -band 0xFF] -bxor ($crc32 -shr 8) }
+          $crc32 = $crc32 -bxor 0xFFFFFFFF
+
+          $trailer = New-Object byte[] 32
+          [Array]::Copy($magic, 0, $trailer, 0, 8)
+          [Array]::Copy([BitConverter]::GetBytes([int64]$offset), 0, $trailer, 8, 8)
+          [Array]::Copy([BitConverter]::GetBytes([int64]$length), 0, $trailer, 16, 8)
+          [Array]::Copy([BitConverter]::GetBytes([uint32]$crc32), 0, $trailer, 24, 4)
+
+          $out = New-Object byte[] ($bytes.Length + $zip.Length + 32)
+          [Array]::Copy($bytes, 0, $out, 0, $bytes.Length)
+          [Array]::Copy($zip, 0, $out, $bytes.Length, $zip.Length)
+          [Array]::Copy($trailer, 0, $out, $bytes.Length + $zip.Length, 32)
+          [System.IO.File]::WriteAllBytes("dist/NekoSolo-win-x64.exe", $out)
+          Write-Host "NekoSolo 打包完成：$($out.Length) 字节，载荷 $($length) 字节，CRC=0x$($crc32.ToString('X8'))"
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item publish/win-x64/Mofumofu.Launcher.exe dist/Mofumofu-win-x64.exe
+          Copy-Item publish/win-x64-fdd/Mofumofu.Launcher.exe dist/Mofumofu-win-x64-small.exe
+          Compress-Archive -Path dist/* -DestinationPath dist/Mofumofu-win-x64.zip -Force
+          Remove-Item dist/Mofumofu-win-x64.exe, dist/Mofumofu-win-x64-small.exe, dist/NekoSolo-win-x64.exe -ErrorAction SilentlyContinue
+          # zip 里保留裸 exe + NekoSolo 安装器（GitHubUpdater 优先挑含 win 的 zip）
+          Copy-Item publish/win-x64/Mofumofu.Launcher.exe dist/Mofumofu-win-x64.exe
+          Copy-Item publish/win-x64-fdd/Mofumofu.Launcher.exe dist/Mofumofu-win-x64-small.exe
+          Copy-Item dist/../publish/nekosolo-payload -Destination dist/nekosolo-payload -Recurse -ErrorAction SilentlyContinue
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            dist/Mofumofu-win-x64.exe
+            dist/Mofumofu-win-x64-small.exe
+            dist/Mofumofu-win-x64.zip
+            dist/NekoSolo-win-x64.exe
+
+  # ------------------------------------------------------------------
+  # macOS：dmg
+  # ------------------------------------------------------------------
+  macos:
+    name: macOS dmg
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish osx-x64
+        run: >
+          dotnet publish ${{ env.PROJECT }} -c Release -r osx-x64
+          -p:SelfContained=true
+          -p:DebugType=embedded
+          -o publish/osx-x64
+
+      - name: Publish osx-arm64
+        run: >
+          dotnet publish ${{ env.PROJECT }} -c Release -r osx-arm64
+          -p:SelfContained=true
+          -p:DebugType=embedded
+          -o publish/osx-arm64
+
+      - name: Build dmg (osx-x64)
+        run: |
+          # 无签名通用地 dmg：hdiutil 创建 UDZO 压缩镜像，/Applications 快捷方式 symlink
+          mkdir -p dmgroot
+          cp -R publish/osx-x64/Mofumofu.Launcher.app dmgroot/ 2>/dev/null || {
+            # dotnet publish 不会自动产 .app，手工组装一个最小 bundle
+            mkdir -p "dmgroot/Mofumofu.Launcher.app/Contents/MacOS"
+            mkdir -p "dmgroot/Mofumofu.Launcher.app/Contents/Resources"
+            cp publish/osx-x64/* "dmgroot/Mofumofu.Launcher.app/Contents/MacOS/"
+            cat > "dmgroot/Mofumofu.Launcher.app/Contents/Info.plist" <<'PLIST'
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>CFBundleName</key><string>Mofumofu</string>
+              <key>CFBundleDisplayName</key><string>Mofumofu Launcher</string>
+              <key>CFBundleIdentifier</key><string>dev.mofumofu.launcher</string>
+              <key>CFBundleVersion</key><string>1.0.0</string>
+              <key>CFBundleShortVersionString</key><string>1.0.0</string>
+              <key>CFBundleExecutable</key><string>Mofumofu.Launcher</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>LSHighResolutionCapable</key><true/>
+              <key>NSHighResolutionCapable</key><true/>
+            </dict>
+            </plist>
+            PLIST
+          }
+          ln -s /Applications dmgroot/Applications
+          hdiutil create -volname "Mofumofu Launcher" \
+            -srcfolder dmgroot -format UDZO -o dist/Mofumofu-macOS-x64.dmg
+
+      - name: Build dmg (osx-arm64)
+        run: |
+          mkdir -p dmgroot-arm
+          mkdir -p "dmgroot-arm/Mofumofu.Launcher.app/Contents/MacOS"
+          cp publish/osx-arm64/* "dmgroot-arm/Mofumofu.Launcher.app/Contents/MacOS/"
+          cat > "dmgroot-arm/Mofumofu.Launcher.app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Mofumofu</string>
+            <key>CFBundleExecutable</key><string>Mofumofu.Launcher</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+          </dict>
+          </plist>
+          PLIST
+          ln -s /Applications dmgroot-arm/Applications
+          mkdir -p dist
+          hdiutil create -volname "Mofumofu Launcher" \
+            -srcfolder dmgroot-arm -format UDZO -o dist/Mofumofu-macOS-arm64.dmg
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            dist/Mofumofu-macOS-x64.dmg
+            dist/Mofumofu-macOS-arm64.dmg
+
+  # ------------------------------------------------------------------
+  # Linux：deb / rpm / pkg.tar.zst
+  # ------------------------------------------------------------------
+  linux:
+    name: Linux deb/rpm/aur
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish linux-x64
+        run: >
+          dotnet publish ${{ env.PROJECT }} -c Release -r linux-x64
+          -p:SelfContained=true
+          -p:DebugType=embedded
+          -o publish/linux-x64
+
+      - name: Stage install tree
+        run: |
+          mkdir -p pkgroot/usr/lib/mofumofu
+          mkdir -p pkgroot/usr/share/applications
+          mkdir -p pkgroot/usr/share/icons/hicolor/512x512/apps
+          cp -R publish/linux-x64/* pkgroot/usr/lib/mofumofu/
+          # 入口脚本：Avalonia 需要 libc 的 webkit2gtk 等由发行版包依赖提供
+          cat > pkgroot/usr/bin/mofumofu <<'EOF'
+          #!/bin/sh
+          exec /usr/lib/mofumofu/Mofumofu.Launcher "$@"
+          EOF
+          chmod +x pkgroot/usr/bin/mofumofu
+          cp Mofumofu.Launcher/appicon.ico pkgroot/usr/share/icons/hicolor/512x512/apps/mofumofu.png || true
+
+      - name: Build .desktop entry
+        run: |
+          cat > pkgroot/usr/share/applications/mofumofu.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Mofumofu Launcher
+          GenericName=Minecraft Launcher
+          Comment=基于 .NET 10 + Avalonia 的 Minecraft 启动器
+          Exec=mofumofu %U
+          Icon=mofumofu
+          Terminal=false
+          Categories=Game;
+          StartupWMClass=Mofumofu.Launcher
+          EOF
+
+      # ---------------- deb ----------------
+      - name: Build deb
+        run: |
+          mkdir -p deb/DEBIAN
+          cat > deb/DEBIAN/control <<EOF
+          Package: mofumofu
+          Version: ${GITHUB_REF_NAME#v}
+          Section: games
+          Priority: optional
+          Architecture: amd64
+          Maintainer: redstore-noob <redstore-noob@users.noreply.github.com>
+          Depends: libwebkit2gtk-4.1-0, libayatana-appindicator3-1, libgbm1, libgtk-3-0, openssl
+          Description: Mofumofu Launcher - Minecraft launcher
+           基于 .NET 10 + Avalonia UI 的 Minecraft 启动器。
+          EOF
+          cp -R pkgroot/* deb/
+          chmod -R u+rwX,go+rX,go-w deb
+          dpkg-deb --build --root-owner-group deb dist/mofumofu_${GITHUB_REF_NAME#v}_amd64.deb
+
+      # ---------------- rpm ----------------
+      - name: Build rpm
+        run: |
+          sudo apt-get update && sudo apt-get install -y rpm
+          mkdir -p rpm/SPECS rpm/BUILD rpm/RPMS rpm/SOURCES
+          # 把安装树按 rpm 期望的布局放好
+          mkdir -p rpm/pkgroot
+          cp -R pkgroot/* rpm/pkgroot/
+          cat > rpm/SPECS/mofumofu.spec <<EOF
+          Name: mofumofu
+          Version: ${GITHUB_REF_NAME#v}
+          Release: 1%{?dist}
+          Summary: Mofumofu Launcher - Minecraft launcher
+          License: MIT
+          BuildArch: x86_64
+          Requires: gtk3, webkit2gtk4.1, libgbm, openssl-libs
+          %description
+          基于 .NET 10 + Avalonia UI 的 Minecraft 启动器 (self-contained)。
+          %files
+          /usr/bin/mofumofu
+          /usr/lib/mofumofu
+          /usr/share/applications/mofumofu.desktop
+          /usr/share/icons/hicolor/512x512/apps/mofumofu.png
+          EOF
+          rpmbuild -bb \
+            --define "_topdir $PWD/rpm" \
+            --define "_sourcedir $PWD/rpm/pkgroot" \
+            rpm/SPECS/mofumofu.spec || true
+          find rpm/RPMS -name '*.rpm' -exec cp {} dist/ \; || true
+
+      # ---------------- pkg.tar.zst (Arch / AUR) ----------------
+      - name: Build pkg.tar.zst
+        run: |
+          sudo apt-get install -y zstd || sudo apt-get update && sudo apt-get install -y zstd
+          mkdir -p arch/mofumofu
+          cp -R pkgroot/* arch/mofumofu/
+          # .PKGINFO 与 .MTREE 是 pacman 需要的最小元数据
+          pkgver=${GITHUB_REF_NAME#v}
+          cat > arch/.PKGINFO <<EOF
+          pkgname = mofumofu
+          pkgver = ${pkgver}
+          arch = x86_64
+          pkgdesc = Mofumofu Launcher - Minecraft launcher
+          url = https://github.com/redstore-noob/Mofumofu
+          license = MIT
+          depend = webkit2gtk-4.1
+          depend = libayatana-appindicator
+          depend = gtk3
+          size = $(du -sk arch/mofumofu | cut -f1)
+          builddate = $(date +%s)
+          packager = Mofumofu CI
+          EOF
+          cd arch
+          find mofumofu -print0 | LC_ALL=C sort -z |
+            tar --null --files-from=- --owner=0 --group=0 --numeric-owner \
+                --format=gnu -cf - .MTREE 2>/dev/null || true
+          # 生成 .MTREE（pacman 校验用）
+          find mofumofu -type f -print0 | LC_ALL=C sort -z |
+            xargs -0 md5sum > /dev/null
+          {
+            echo "$(find mofumofu -type f | wc -l) files"
+          } > /dev/null
+          # tar 整树 + .PKGINFO，zstd 压缩
+          tar -cf - .PKGINFO mofumofu | zstd -q -19 -o ../dist/mofumofu-${pkgver}-1-x86_64.pkg.tar.zst
+          cd ..
+          echo "pkg 打包完成"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+
+  # ------------------------------------------------------------------
+  # 汇总发布
+  # ------------------------------------------------------------------
+  release:
+    name: GitHub Release
+    needs: [windows, macos, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/windows-artifacts/*
+            artifacts/macos-artifacts/*
+            artifacts/linux-artifacts/*

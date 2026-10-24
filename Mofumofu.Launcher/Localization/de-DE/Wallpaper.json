@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "Hintergrundbild",
+  "Wallpaper.Mode": "Modus",
+  "Wallpaper.Mode.Image": "Einzelbild",
+  "Wallpaper.Mode.Slideshow": "Diashow",
+  "Wallpaper.Mode.None": "Hintergrundbild aus",
+  "Wallpaper.PickImage": "Bild auswählen",
+  "Wallpaper.AddImages": "Bilder hinzufügen",
+  "Wallpaper.ImageEmpty": "Noch keine Bilder ausgewählt",
+  "Wallpaper.SlideshowEmpty": "Nach dem Hinzufügen von Bildern wechselt die Diashow automatisch im festgelegten Intervall.",
+  "Wallpaper.Interval": "Wechselintervall",
+  "Wallpaper.Interval.Value": "{0} Sekunden",
+  "Wallpaper.Shuffle": "Zufällige Reihenfolge",
+  "Wallpaper.PauseWhenInactive": "Bei Fokusverlust pausieren",
+  "Wallpaper.PickerTitle": "Hintergrundbilddatei auswählen",
+  "Wallpaper.Status.On": "Hintergrundbild aktiv",
+  "Wallpaper.Status.Off": "Hintergrundbild deaktiviert",
+  "Wallpaper.Status.Error": "Hintergrundbild nicht wirksam: {0}",
+  "Wallpaper.Error.NoContent": "Hintergrundbilddatei fehlt oder wurde gelöscht",
+  "Wallpaper.Blur": "Hintergrund weichzeichnen",
+  "Wallpaper.Dim": "Hintergrund abdunkeln"
+}

@@ -1,0 +1,21 @@
+{
+  "Crash.Dialog.Title": "ゲームクラッシュ分析",
+  "Crash.Section.Findings": "分析結果（{0} 件）",
+  "Crash.Section.ModIssues": "MOD の依存 / 競合の詳細",
+  "Crash.Severity.Critical": "重大",
+  "Crash.Severity.Warning": "要確認",
+  "Crash.Severity.Info": "情報",
+  "Crash.Description": "クラッシュシナリオ",
+  "Crash.Exception": "最初の例外",
+  "Crash.Report.Path": "クラッシュレポート",
+  "Crash.Meta.Instance": "インスタンス",
+  "Crash.Meta.Version": "バージョン",
+  "Crash.Meta.Loader": "ローダー",
+  "Crash.Meta.Memory": "メモリ",
+  "Crash.Meta.ExitCode": "終了コード",
+  "Crash.Action.Copy": "診断をコピー",
+  "Crash.Action.Copied": "コピーしました ✓",
+  "Crash.Action.OpenReport": "クラッシュレポートを開く",
+  "Crash.Action.OpenHsErr": "JVM エラーログを開く",
+  "Crash.Hint.Close": "ダイアログ外の任意の場所をクリックすると閉じます"
+}

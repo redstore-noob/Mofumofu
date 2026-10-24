@@ -1,0 +1,22 @@
+{
+  "Wallpaper.Title": "Wallpaper",
+  "Wallpaper.Mode": "Mode",
+  "Wallpaper.Mode.Image": "Single image",
+  "Wallpaper.Mode.Slideshow": "Slideshow",
+  "Wallpaper.Mode.None": "Off",
+  "Wallpaper.PickImage": "Pick image",
+  "Wallpaper.AddImages": "Add images",
+  "Wallpaper.ImageEmpty": "No image selected",
+  "Wallpaper.SlideshowEmpty": "Add images to start the slideshow.",
+  "Wallpaper.Interval": "Interval",
+  "Wallpaper.Interval.Value": "{0}s",
+  "Wallpaper.Shuffle": "Shuffle",
+  "Wallpaper.PauseWhenInactive": "Pause when unfocused",
+  "Wallpaper.PickerTitle": "Pick wallpaper file",
+  "Wallpaper.Status.On": "Wallpaper enabled",
+  "Wallpaper.Status.Off": "Wallpaper off",
+  "Wallpaper.Status.Error": "Wallpaper not applied: {0}",
+  "Wallpaper.Error.NoContent": "Wallpaper file is missing or was deleted",
+  "Wallpaper.Blur": "Background blur",
+  "Wallpaper.Dim": "Background dim"
+}

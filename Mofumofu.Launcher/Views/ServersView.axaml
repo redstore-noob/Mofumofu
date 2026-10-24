@@ -1,0 +1,422 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.ServersView">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <controls:PageHeader x:Name="Header"
+                             Grid.Row="0"
+                             Title="{DynamicResource L.Servers.Page.Title}"
+>
+            <controls:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="ghost" Height="36" Padding="13,0" Click="OnRefreshClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconRefresh" Width="15" Height="15" />
+                            <TextBlock Text="{DynamicResource L.Servers.Action.Refresh}" FontSize="12.5" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ghost" Height="36" Padding="13,0" Click="OnImportClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconFolder" Width="15" Height="15" />
+                            <TextBlock Text="{DynamicResource L.Servers.Action.Import}" FontSize="12.5" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="primary" Height="36" Padding="14,0" Click="OnCreateServerClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconPlus" Width="15" Height="15" />
+                            <TextBlock Text="{DynamicResource L.Servers.Action.NewServer}" FontSize="12.5" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
+
+        <!-- 本机没有服务器实例时的提示 -->
+        <Border x:Name="FallbackHint" Grid.Row="1" IsVisible="False"
+                Classes="card-soft" Padding="12,8" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <controls:IconParkIcon Kind="IconFluentInfo" Width="15" Height="15"
+                          VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource L.Servers.Page.NoLocal}" FontSize="12"
+                           Foreground="{DynamicResource NekoWarningBrush}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- ================= 顶部统计 chips ================= -->
+        <Border Grid.Row="2" Classes="card" Padding="12,10" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border CornerRadius="12" Padding="11,5" Background="{DynamicResource NekoFieldSoftBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource NekoSuccessBrush}"
+                                 VerticalAlignment="Center" />
+                        <TextBlock x:Name="RunningChipText" Text="—" FontSize="11.5" />
+                    </StackPanel>
+                </Border>
+                <Border CornerRadius="12" Padding="11,5" Background="{DynamicResource NekoFieldSoftBrush}">
+                    <TextBlock x:Name="TotalChipText" Text="—" FontSize="11.5" />
+                </Border>
+                <Border CornerRadius="12" Padding="11,5" Background="{DynamicResource NekoFieldSoftBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource NekoDimBrush}"
+                                 VerticalAlignment="Center" />
+                        <TextBlock x:Name="StoppedChipText" Text="—" FontSize="11.5" />
+                    </StackPanel>
+                </Border>
+                <Border CornerRadius="12" Padding="11,5"
+                        Background="{DynamicResource NekoAccentSoftBrush}">
+                    <TextBlock x:Name="PlayersChipText" Text="—" FontSize="11.5"
+                               Foreground="{DynamicResource NekoAccentBrush}" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3" ColumnDefinitions="248,*">
+            <!-- ================= 左栏：服务器列表 ================= -->
+            <Border Grid.Column="0" Classes="card" Padding="10" Margin="0,0,12,0">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid ColumnDefinitions="Auto,*" Margin="2,0,2,8">
+                        <TextBlock x:Name="CountText" Text="3 / 3" Classes="muted"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="ServerSearch" Grid.Column="1" Height="32"
+                                 PlaceholderText="{DynamicResource L.Servers.Search.Placeholder}"
+                                 Classes="search"
+                                 Margin="10,0,0,0"
+                                 TextChanged="OnSearchChanged" />
+                    </Grid>
+                    <ListBox x:Name="ServerList" Grid.Row="1"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             SelectionChanged="OnServerSelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto" Margin="2,2">
+                                    <StackPanel Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SubLine}" Classes="caption"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" CornerRadius="9" Padding="8,3"
+                                            Background="{Binding StatusBg}"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StatusText}" FontSize="10.5"
+                                                   Foreground="{Binding StatusFg}" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- ================= 右栏：服务器详情 ================= -->
+            <Border Grid.Column="1" Classes="card" Padding="10">
+                <Grid ColumnDefinitions="132,*">
+                    <StackPanel x:Name="DetailTabRail" Spacing="4">
+                        <Button x:Name="TabOverview" Tag="overview" Classes="primary" Height="34"
+                                HorizontalContentAlignment="Center" Click="OnDetailTabClick">
+                            <TextBlock Text="{DynamicResource L.Servers.Tab.Overview}" FontSize="12" />
+                        </Button>
+                        <Button x:Name="TabFiles" Tag="files" Classes="ghost" Height="34"
+                                HorizontalContentAlignment="Center" Click="OnDetailTabClick">
+                            <TextBlock Text="{DynamicResource L.Servers.Tab.Files}" FontSize="12" />
+                        </Button>
+                        <Button x:Name="TabBackups" Tag="backups" Classes="ghost" Height="34"
+                                HorizontalContentAlignment="Center" Click="OnDetailTabClick">
+                            <TextBlock Text="{DynamicResource L.Servers.Tab.Backups}" FontSize="12" />
+                        </Button>
+                        <Button x:Name="TabProperties" Tag="properties" Classes="ghost" Height="34"
+                                HorizontalContentAlignment="Center" Click="OnDetailTabClick">
+                            <TextBlock Text="{DynamicResource L.Servers.Tab.Properties}" FontSize="12" />
+                        </Button>
+                        <Button x:Name="TabActions" Tag="actions" Classes="ghost" Height="34"
+                                HorizontalContentAlignment="Center" Click="OnDetailTabClick">
+                            <TextBlock Text="{DynamicResource L.Servers.Tab.Actions}" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+                    <Grid Grid.Column="1" Margin="10,0,0,0">
+                        <ScrollViewer x:Name="OverviewPane" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="DetailBody" Spacing="12">
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="DetailName" Text="—"
+                                           FontSize="17" FontWeight="Bold" />
+                                <TextBlock x:Name="DetailAddress" Text="—"
+                                           Classes="caption" />
+                            </StackPanel>
+                            <Border x:Name="DetailBadge" Grid.Column="1"
+                                    CornerRadius="10" Padding="10,4" Background="{DynamicResource NekoAccentSoftBrush}"
+                                    VerticalAlignment="Center">
+                                <TextBlock x:Name="DetailStatus" Text="—" FontSize="11"
+                                           Foreground="{DynamicResource NekoSuccessBrush}" />
+                            </Border>
+                        </Grid>
+
+                        <TextBlock x:Name="DetailMotd"
+                                   Text="—"
+                                   Classes="muted" TextWrapping="Wrap" />
+
+                        <Border Classes="card-soft" Padding="12">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" >
+                                <TextBlock Text="{DynamicResource L.Servers.Detail.Version}" Classes="caption" Margin="0,0,12,5" />
+                                <TextBlock x:Name="DetailVersion" Grid.Column="1"
+                                           Text="—" FontSize="12"
+                                           Margin="0,0,0,5" />
+                                <TextBlock Grid.Row="1" Text="{DynamicResource L.Servers.Detail.Address}" Classes="caption"
+                                           Margin="0,0,12,5" />
+                                <TextBlock x:Name="DetailAddress2" Grid.Row="1" Grid.Column="1"
+                                           Text="—" FontSize="12"
+                                           Margin="0,0,0,5" />
+                                <TextBlock Grid.Row="2" Text="{DynamicResource L.Servers.Detail.Online}" Classes="caption"
+                                           Margin="0,0,12,0" />
+                                <TextBlock x:Name="DetailPlayers" Grid.Row="2" Grid.Column="1"
+                                           Text="—" FontSize="12" />
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="ToggleButton" Classes="primary" Height="34"
+                                    Padding="14,0" Click="OnToggleServerClick">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <controls:IconParkIcon x:Name="ToggleIcon" Kind="IconPlay"
+                                              Width="14" Height="14" />
+                                    <TextBlock x:Name="ToggleText" Text="{DynamicResource L.Servers.Detail.Start}" FontSize="12" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Height="34" Padding="13,0" Click="OnRestartClick">
+                                <TextBlock Text="{DynamicResource L.Servers.Action.Restart}" FontSize="12" />
+                            </Button>
+                            <Button Classes="ghost" Height="34" Padding="13,0" Click="OnCopyAddressClick">
+                                <TextBlock Text="{DynamicResource L.Servers.Action.CopyAddress}" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+
+                        <TextBlock Text="{DynamicResource L.Servers.Players.Title}" Classes="section-title" />
+                        <WrapPanel x:Name="PlayersPanel" />
+
+                        <!-- 白名单 / OP：运行中走服务器指令，停止时直接改名单文件 -->
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBox x:Name="PlayerNameInput" Width="150" Height="30" FontSize="11.5"
+                                     Classes="search"
+                                     PlaceholderText="{DynamicResource L.Servers.Players.Placeholder}" />
+                            <Button Classes="ghost" Height="30" Padding="9,0" FontSize="11"
+                                    Content="{DynamicResource L.Servers.Players.WhitelistAdd}" Click="OnWhitelistAddClick" />
+                            <Button Classes="ghost" Height="30" Padding="9,0" FontSize="11"
+                                    Content="{DynamicResource L.Servers.Players.WhitelistRemove}" Click="OnWhitelistRemoveClick" />
+                            <Button Classes="ghost" Height="30" Padding="9,0" FontSize="11"
+                                    Content="{DynamicResource L.Servers.Players.OpAdd}" Click="OnOpAddClick" />
+                            <Button Classes="ghost" Height="30" Padding="9,0" FontSize="11"
+                                    Content="{DynamicResource L.Servers.Players.OpRemove}" Click="OnOpRemoveClick" />
+                        </StackPanel>
+
+                        <TextBlock Text="{DynamicResource L.Servers.Console.Title}" Classes="section-title" />
+                        <Border Classes="card-soft" Padding="10" Height="206">
+                            <Grid RowDefinitions="*,Auto">
+                                <ScrollViewer x:Name="ConsoleScroll"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="ConsoleList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,1">
+                                                    <TextBlock Text="{Binding Time}" Classes="caption"
+                                                               FontFamily="Consolas, Microsoft YaHei" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Level}"
+                                                               Margin="8,0,0,0" FontSize="10.5"
+                                                               Foreground="{Binding LevelBrush}"
+                                                               FontFamily="Consolas, Microsoft YaHei" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Text}"
+                                                               Margin="8,0,0,0" FontSize="11"
+                                                               Foreground="{DynamicResource NekoMutedBrush}"
+                                                               FontFamily="Consolas, Microsoft YaHei"
+                                                               TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                                    <TextBox x:Name="ConsoleInput" Height="30" FontSize="11.5"
+                                             FontFamily="Consolas, Microsoft YaHei"
+                                             PlaceholderText="{DynamicResource L.Servers.Console.InputPlaceholder}"
+                                             Background="{DynamicResource NekoFieldSoftBrush}"
+                                             BorderBrush="{DynamicResource NekoBorderBrush}"
+                                             KeyDown="OnConsoleInputKeyDown" />
+                                    <Button Grid.Column="1" Classes="ghost" Height="30"
+                                            Padding="12,0" Margin="8,0,0,0" FontSize="11.5"
+                                            Content="{DynamicResource L.Servers.Console.Send}" Click="OnConsoleSendClick" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel x:Name="BackupSection" Spacing="6">
+                            <TextBlock Text="{DynamicResource L.Servers.Backup.Title}" Classes="section-title" />
+                            <StackPanel x:Name="BackupPanel" Spacing="4" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="ghost" Height="34" Padding="13,0" Click="OnBackupClick">
+                                <TextBlock Text="{DynamicResource L.Servers.Action.BackupWorld}" FontSize="12" />
+                            </Button>
+                            <Button Classes="ghost" Height="34" Padding="13,0" Click="OnOpenFolderClick">
+                                <TextBlock Text="{DynamicResource L.Servers.Action.OpenFolder}" FontSize="12" />
+                            </Button>
+                            <Button Classes="ghost" Height="34" Padding="13,0" Click="OnConfigClick">
+                                <TextBlock Text="{DynamicResource L.Servers.Action.Config}" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                                                </StackPanel>
+                        </ScrollViewer>
+
+                        <Grid x:Name="FilesPane" IsVisible="False" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Button Classes="ghost" Height="30" Padding="10,0"
+                                        Content=".." Click="OnFileUpClick" />
+                                <TextBlock Grid.Column="1" x:Name="FileBreadcrumb" Classes="caption"
+                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Classes="ghost" Height="30" Padding="10,0"
+                                        Content="{DynamicResource L.Servers.Files.Refresh}"
+                                        Click="OnFilesRefreshClick" />
+                            </Grid>
+                            <TextBlock Grid.Row="1" x:Name="FileStatus" Classes="caption" />
+                            <Border Grid.Row="2" Background="{DynamicResource NekoFieldSoftBrush}"
+                                    CornerRadius="10" Padding="6">
+                                <ListBox x:Name="FileList" Background="Transparent"
+                                         BorderThickness="0" Padding="0"
+                                         DoubleTapped="OnFileListDoubleTapped"
+                                         ContextRequested="OnFileListContextRequested">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="*,Auto" Margin="6,4">
+                                                <TextBlock Text="{Binding Name}" FontSize="12"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}"
+                                                           Classes="caption" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </Grid>
+
+                        <Grid x:Name="BackupPane" IsVisible="False" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Height="32" Padding="12,0"
+                                        Content="{DynamicResource L.Servers.Rewind.Create}"
+                                        Click="OnRewindCreateClick" />
+                                <Button Classes="ghost" Height="32" Padding="12,0"
+                                        Content="{DynamicResource L.Servers.Rewind.Refresh}"
+                                        Click="OnRewindRefreshClick" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1" x:Name="RewindHint" Classes="caption"
+                                       TextWrapping="Wrap" />
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="RewindPanel" Spacing="6" />
+                            </ScrollViewer>
+                        </Grid>
+
+                        <Grid x:Name="PropertiesPane" IsVisible="False" RowDefinitions="*,Auto" RowSpacing="8">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="PropertiesPanel" Spacing="8" />
+                            </ScrollViewer>
+                            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+                                <Button Classes="primary" Height="32" Padding="12,0"
+                                        Content="{DynamicResource L.Servers.Properties.Save}"
+                                        Click="OnPropertiesSaveClick" />
+                                <TextBlock Grid.Column="1" x:Name="PropertiesStatus" Classes="caption"
+                                           Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Classes="ghost" Height="32" Padding="12,0"
+                                        Content="{DynamicResource L.Servers.Properties.Reload}"
+                                        Click="OnPropertiesReloadClick" />
+                            </Grid>
+                        </Grid>
+
+                        <StackPanel x:Name="ActionsPane" IsVisible="False" Spacing="12">
+                            <TextBlock Text="{DynamicResource L.Servers.Actions.Title}"
+                                       Classes="section-title" />
+                            <TextBlock Text="{DynamicResource L.Servers.Actions.Hint}"
+                                       Classes="caption" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Height="34" Padding="14,0"
+                                        Content="{DynamicResource L.Servers.Actions.Export}"
+                                        Click="OnExportServerClick" />
+                                <Button Classes="ghost" Height="34" Padding="14,0"
+                                        Foreground="{DynamicResource NekoDangerBrush}"
+                                        Content="{DynamicResource L.Servers.Actions.Delete}"
+                                        Click="OnDeleteServerClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+    <!-- 文本编辑器遮罩层 -->
+    <Grid x:Name="FileEditorOverlay" Grid.RowSpan="4" IsVisible="False"
+          Background="#B3000000" ClipToBounds="True"
+          Focusable="True" KeyDown="OnFileEditorOverlayKeyDown"
+          PointerPressed="OnFileEditorOverlayPointerPressed">
+        <Border x:Name="FileEditorCard" Margin="28"
+                MaxWidth="1200" MaxHeight="820"
+                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                Background="{DynamicResource NekoDialogBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
+                CornerRadius="16" Padding="0">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <Border Padding="14,10" BorderThickness="0,0,0,1"
+                        BorderBrush="{DynamicResource NekoBorderBrush}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                            <TextBlock x:Name="FileEditorTitle" FontSize="14" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="FileEditorSyntax" Classes="caption" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <ToggleButton x:Name="FileWrapToggle" Height="30" Padding="10,0"
+                                          Content="{DynamicResource L.Servers.Files.WordWrap}"
+                                          IsCheckedChanged="OnFileWrapChanged" />
+                            <Button Classes="primary" Height="30" Padding="12,0"
+                                    Content="{DynamicResource L.Servers.Files.Save}"
+                                    Click="OnFileSaveClick" />
+                            <Button Classes="ghost" Height="30" Padding="12,0"
+                                    Content="{DynamicResource L.Servers.Files.Close}"
+                                    Click="OnFileEditorCloseClick" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Grid.Row="1" Background="#0E131B" Padding="0,6,0,6">
+                    <edit:TextEditor x:Name="FileEditor"
+                                     ShowLineNumbers="True"
+                                     FontFamily="Consolas, Microsoft YaHei"
+                                     FontSize="13"
+                                     Background="#0E131B"
+                                     Foreground="#D4D4D4"
+                                     LineNumbersForeground="#6E7681"
+                                     WordWrap="False"
+                                     TextChanged="OnFileEditorTextChanged"
+                                     KeyDown="OnFileEditorKeyDown" />
+                </Border>
+                <Border Grid.Row="2" Padding="14,8"
+                        BorderThickness="0,1,0,0"
+                        BorderBrush="{DynamicResource NekoBorderBrush}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="FileEditorStatus" Classes="caption" />
+                        <TextBlock Grid.Column="1" x:Name="FileEditorCaret" Classes="caption" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+
+    </Grid>
+</UserControl>
