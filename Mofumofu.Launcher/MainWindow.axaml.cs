@@ -1300,6 +1300,10 @@ public partial class MainWindow : SukiWindow
                 Menu = new NativeMenu { Items = { show, exit } },
             };
 
+            // TrayIcon 必须挂在 Application.TrayIcons 上才会真正显示到系统托盘区，
+            // 独立 new 出来的实例不会出现（表现为最小化到托盘后程序“消失”）。
+            TrayIcon.SetIcons(Application.Current!, new TrayIcons { _trayIcon });
+
             _trayIcon.Clicked += (_, _) => RestoreFromTray();
         }
         catch
@@ -1403,7 +1407,11 @@ public partial class MainWindow : SukiWindow
     private void ExitApplication()
     {
         _forceClose = true;
-        _trayIcon?.Dispose();
+        if (_trayIcon is { } icon)
+        {
+            TrayIcon.GetIcons(Application.Current!)?.Remove(icon);
+            icon.Dispose();
+        }
         _trayIcon = null;
         Close();
     }

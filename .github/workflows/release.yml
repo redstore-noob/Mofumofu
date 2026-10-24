@@ -118,6 +118,9 @@ jobs:
       - name: Stage artifacts
         shell: pwsh
         run: |
+          # 单文件 Launcher 本体直接作为独立产物（自包含 = 免装运行时；fdd = 体积小）
+          Copy-Item publish/win-x64/Mofumofu.Launcher.exe dist/Mofumofu-win-x64.exe
+          Copy-Item publish/win-x64-fdd/Mofumofu.Launcher.exe dist/Mofumofu-win-x64-fdd.exe
           # zip 里打包两份 exe（GitHubUpdater 优先挑含 win 的 zip），另附 NekoSolo 安装器
           Compress-Archive -Path publish/win-x64/Mofumofu.Launcher.exe, publish/win-x64-fdd/Mofumofu.Launcher.exe -DestinationPath dist/Mofumofu-win-x64.zip -Force
 
@@ -126,6 +129,8 @@ jobs:
         with:
           name: windows-artifacts
           path: |
+            dist/Mofumofu-win-x64.exe
+            dist/Mofumofu-win-x64-fdd.exe
             dist/Mofumofu-win-x64.zip
             dist/NekoSolo-win-x64.exe
 
