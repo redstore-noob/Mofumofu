@@ -86,33 +86,34 @@ jobs:
           $offset = [int64]$bytes.Length
           $length = [int64]$zip.Length
 
-          # PowerShell 手算 CRC32：全程夹在 uint32 里，避免字面量 0xFFFFFFFF 变 int -1
-          $crcTable = New-Object 'uint32[]' 256
+          # PowerShell 算 CRC32：全程 long 无符号右移，避开 uint32 字面量/转换的有符号坑
+          $crcTable = New-Object 'long[]' 256
           for ($i = 0; $i -lt 256; $i++) {
-            $c = [uint32]$i
+            $c = [long]$i
             for ($k = 0; $k -lt 8; $k++) {
-              if ($c -band 1) { $c = [uint32](([uint32]0xEDB88320) -bxor ($c -shr 1)) } else { $c = [uint32]($c -shr 1) }
+              if (($c -band 1L) -ne 0L) { $c = (0xEDB88320L) -bxor ($c -shr 1L) } else { $c = $c -shr 1L }
             }
             $crcTable[$i] = $c
           }
-          $crc32 = [uint32]0xFFFFFFFFu
+          $crc32 = 0xFFFFFFFFL
           foreach ($b in $zip) {
-            $crc32 = [uint32]($crcTable[([uint32]($crc32 -bxor [uint32]$b)) -band 0xFF] -bxor ([uint32]($crc32 -shr 8)))
+            $crc32 = ($crc32 -shr 8L) -bxor $crcTable[[int](($crc32 -bxor [long]$b) -band 0xFFL)]
           }
-          $crc32 = [uint32]($crc32 -bxor [uint32]0xFFFFFFFFu)
+          $crc32 = $crc32 -bxor 0xFFFFFFFFL
+          $crc32u = [uint32]($crc32 -band 0xFFFFFFFFL)
 
           $trailer = New-Object byte[] 32
           [Array]::Copy($magic, 0, $trailer, 0, 8)
           [Array]::Copy([BitConverter]::GetBytes($offset), 0, $trailer, 8, 8)
           [Array]::Copy([BitConverter]::GetBytes($length), 0, $trailer, 16, 8)
-          [Array]::Copy([BitConverter]::GetBytes($crc32), 0, $trailer, 24, 4)
+          [Array]::Copy([BitConverter]::GetBytes($crc32u), 0, $trailer, 24, 4)
 
           $out = New-Object byte[] ($bytes.Length + $zip.Length + 32)
           [Array]::Copy($bytes, 0, $out, 0, $bytes.Length)
           [Array]::Copy($zip, 0, $out, $bytes.Length, $zip.Length)
           [Array]::Copy($trailer, 0, $out, $bytes.Length + $zip.Length, 32)
           [System.IO.File]::WriteAllBytes("dist/NekoSolo-win-x64.exe", $out)
-          Write-Host "NekoSolo 打包完成：$($out.Length) 字节，载荷 $($length) 字节，CRC=0x$($crc32.ToString('X8'))"
+          Write-Host "NekoSolo 打包完成：$($out.Length) 字节，载荷 $($length) 字节，CRC=0x$($crc32u.ToString('X8'))"
 
       - name: Stage artifacts
         shell: pwsh
@@ -163,7 +164,7 @@ jobs:
         run: |
           APP="dmgroot/Mofumofu.Launcher.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" dist
-          cp publish/osx-x64/* "$APP/Contents/MacOS/"
+          cp -R publish/osx-x64/. "$APP/Contents/MacOS/"
           {
             printf '<?xml version="1.0" encoding="UTF-8"?>\n'
             printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
@@ -187,7 +188,7 @@ jobs:
         run: |
           APP="dmgroot-arm/Mofumofu.Launcher.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" dist
-          cp publish/osx-arm64/* "$APP/Contents/MacOS/"
+          cp -R publish/osx-arm64/. "$APP/Contents/MacOS/"
           {
             printf '<?xml version="1.0" encoding="UTF-8"?>\n'
             printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
@@ -304,6 +305,7 @@ jobs:
           rpmbuild -bb \
             --define "_topdir $PWD/rpm" \
             --define "_sourcedir $PWD/rpm/pkgroot" \
+            --define "_buildroot $PWD/rpm/pkgroot" \
             rpm/SPECS/mofumofu.spec || true
           find rpm/RPMS -name '*.rpm' -exec cp {} dist/ \; || true
 
@@ -329,8 +331,10 @@ jobs:
             printf 'builddate = %s\n' "$(date +%s)"
             printf 'packager = Mofumofu CI\n'
           } > arch/.PKGINFO
-          # tar 整树 + .PKGINFO，zstd 压缩
+          # tar 整树 + .PKGINFO，zstd 压缩（在 arch/ 内打包，产物放回 dist/）
+          cd arch
           tar -cf - .PKGINFO mofumofu | zstd -q -19 -o "../dist/mofumofu-${VERSION}-1-x86_64.pkg.tar.zst"
+          cd ..
           echo "pkg 打包完成"
 
       - name: Upload Linux artifacts
