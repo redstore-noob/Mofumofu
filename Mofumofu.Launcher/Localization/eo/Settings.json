@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "Temokoloro",
   "Settings.Appearance.Accent.Hint": "Emfazkoloro de la lanĉilo; influas la butonojn kaj la emfazojn.",
   "Settings.Appearance.Accent.Teal": "Cejana",
+  "Settings.Appearance.Accent.Klein": "Klejna bluo",
   "Settings.Appearance.Accent.Blue": "Blua",
   "Settings.Appearance.Accent.Green": "Verda",
   "Settings.Appearance.Accent.Orange": "Oranĝa",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "Konservis: aŭtomate kompletigi dependaĵojn dum instalado de moduloj",
   "Settings.Toast.AutoDepsOff": "Konservis: ne plu aŭtomate instali dependajn modulojn",
   "Settings.About.SiteButton": "Prezentpaĝo",
-  "Settings.About.SiteOpened": "Malfermis la prezentpaĝon en la retumilo"
+  "Settings.About.SiteOpened": "Malfermis la prezentpaĝon en la retumilo",
+  "Settings.About.Reset": "Restarigi lanĉilajn agordojn",
+  "Settings.About.ResetHint": "Restarigas etoson, lingvon, fenestron, elŝutajn parametrojn ktp. La unua starta agordado aperos denove ĉe la venonta lanĉo.",
+  "Settings.About.ResetButton": "Restarigi agordojn",
+  "Settings.About.ResetConfirmTitle": "Ĉu restarigi la lanĉilajn agordojn?",
+  "Settings.About.ResetConfirmBody": "Restarigos etoson, lingvon, fenestron, elŝutajn parametrojn, kromprogramŝaltilojn, plej ŝatatajn servilojn kaj hejman aranĝon. Nuna konto- kaj instanco-elekto estos konservita; la unua starta agordado denove ruliĝos ĉe la venonta lanĉo.",
+  "Settings.About.ResetConfirmNotice": "Tiu ago ne estas malfarebla. Ĝi ne forigos kontojn, instancojn, ludservumajn dosierojn aŭ kromprogramajn dosierojn; la startopleta aranĝo plene revenos post restarto.",
+  "Settings.About.ResetConfirmButton": "Konfirmi restarigon",
+  "Settings.About.ResetDone": "Defaŭltaj valoroj restarigitaj; la unua starta agordado aperos denove ĉe la venonta lanĉo"
 }

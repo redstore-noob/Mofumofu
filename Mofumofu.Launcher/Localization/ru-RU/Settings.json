@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "Акцентный цвет",
   "Settings.Appearance.Accent.Hint": "Акцентный цвет лаунчера — влияет на кнопки и подсветку.",
   "Settings.Appearance.Accent.Teal": "Бирюзовый",
+  "Settings.Appearance.Accent.Klein": "Кляйн-синий",
   "Settings.Appearance.Accent.Blue": "Лазурный",
   "Settings.Appearance.Accent.Green": "Свежая зелень",
   "Settings.Appearance.Accent.Orange": "Тёплый оранжевый",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "Сохранено: зависимости модов добавляются автоматически",
   "Settings.Toast.AutoDepsOff": "Сохранено: автоустановка зависимостей отключена",
   "Settings.About.SiteButton": "Сайт проекта",
-  "Settings.About.SiteOpened": "Сайт проекта открыт в браузере"
+  "Settings.About.SiteOpened": "Сайт проекта открыт в браузере",
+  "Settings.About.Reset": "Сбросить настройки лаунчера",
+  "Settings.About.ResetHint": "Сбрасывает тему, язык, окно, параметры загрузки и другие значения. Мастер первого запуска откроется снова при следующем запуске.",
+  "Settings.About.ResetButton": "Сбросить настройки",
+  "Settings.About.ResetConfirmTitle": "Сбросить настройки лаунчера?",
+  "Settings.About.ResetConfirmBody": "Будут восстановлены настройки темы, языка, окна, загрузки, переключателей плагинов, избранных серверов и домашней раскладки. Текущие выбор аккаунта и экземпляра сохраняются; мастер первого запуска запустится снова при следующем запуске.",
+  "Settings.About.ResetConfirmNotice": "Это действие нельзя отменить. Аккаунты, экземпляры, игровые файлы и файлы плагинов не удаляются; панель запуска полностью восстановится после перезапуска.",
+  "Settings.About.ResetConfirmButton": "Подтвердить сброс",
+  "Settings.About.ResetDone": "Настройки восстановлены. Мастер первого запуска откроется снова при следующем запуске"
 }

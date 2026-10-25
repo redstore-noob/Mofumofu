@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MofuCore.Config;
 using MofuCore.Account;
 using MofuCore.Java;
@@ -31,6 +32,8 @@ public sealed class OobeJavaItem
 public partial class OobeWindow : SukiUI.Controls.SukiWindow
 {
     private readonly List<StackPanel> _steps;
+    private readonly Border[] _stepItems;
+    private readonly Border[] _stepBadges;
     private readonly List<OobeJavaItem> _javaItems = [];
     private bool _initializing;
     private int _step;
@@ -48,10 +51,11 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
         InitializeComponent();
 
         _steps = [WelcomePanel, DirectoryPanel, JavaPanel, AccountPanel, FinishPanel];
+        _stepItems = [StepNav0, StepNav1, StepNav2, StepNav3, StepNav4];
+        _stepBadges = [StepBadge0, StepBadge1, StepBadge2, StepBadge3, StepBadge4];
 
-        LanguageCombo.ItemsSource = L.Languages.Select(option => option.Name).ToList();
-        LanguageCombo.SelectedIndex = Math.Max(0, L.Languages.ToList()
-            .FindIndex(option => option.Code == L.CurrentLanguage));
+        // 与设置页共用同一份语言清单，并用卡片完整展示，避免下拉列表看起来缺项。
+        LanguageCards.ItemsSource = L.Languages;
         ThemeCombo.SelectedIndex = LocalSettings.Current.Theme switch
         {
             "system" => 0,
@@ -61,6 +65,8 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
         GameDirectoryBox.Text = YamlRead.GameDirectory;
         _initializing = false;
 
+        UpdateLanguageSelection();
+        Dispatcher.UIThread.Post(UpdateLanguageSelection, DispatcherPriority.Loaded);
         UpdateStep();
         _ = DetectJavaAsync();
 
@@ -74,14 +80,25 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
         };
     }
 
-    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnLanguageCardClick(object? sender, RoutedEventArgs e)
     {
-        if (_initializing) return;
-        string code = LanguageCombo.SelectedIndex >= 0 && LanguageCombo.SelectedIndex < L.Languages.Count
-            ? L.Languages[LanguageCombo.SelectedIndex].Code
-            : L.DefaultLanguage;
+        if (_initializing || sender is not Button { Tag: string code }) return;
+
+        // 保留 system 选项本身；CurrentLanguage 是解析后的语言，不能用来判断选中卡片。
+        LocalSettings.Current.Language = code;
         L.SetLanguage(code);
+        UpdateLanguageSelection();
         UpdateStep();
+    }
+
+    private void UpdateLanguageSelection()
+    {
+        string selectedCode = LocalSettings.Current.Language;
+        foreach (Button card in LanguageCards.GetVisualDescendants().OfType<Button>())
+        {
+            card.Classes.Set("active", string.Equals(card.Tag as string, selectedCode,
+                StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
@@ -286,11 +303,6 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
 
     private void OnNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_step == 0 && LanguageCombo.SelectedIndex < 0)
-        {
-            LanguageCombo.SelectedIndex = 0;
-        }
-
         if (_step >= _steps.Count - 1)
         {
             Finish();
@@ -312,8 +324,14 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
         for (var index = 0; index < _steps.Count; index++)
         {
             _steps[index].IsVisible = index == _step;
+            _stepItems[index].Classes.Set("active", index == _step);
+            _stepItems[index].Classes.Set("complete", index < _step);
+            _stepBadges[index].Classes.Set("active", index == _step);
+            _stepBadges[index].Classes.Set("complete", index < _step);
         }
 
+        StepLabel0.Text = L.T("Oobe.Language", "界面语言") + " / " + L.T("Oobe.Theme", "外观主题");
+        StepProgress.Value = (_step + 1) * 100d / _steps.Count;
         StepText.Text = L.T("Oobe.Step", "第 {0} / {1} 步", _step + 1, _steps.Count);
         BackButton.IsVisible = _step > 0;
         NextButton.Content = _step == _steps.Count - 1
@@ -331,7 +349,9 @@ public partial class OobeWindow : SukiUI.Controls.SukiWindow
 
     private void UpdateSummary()
     {
-        SummaryLanguage.Text = LanguageCombo.SelectedItem?.ToString() ?? L.CurrentLanguage;
+        SummaryLanguage.Text = L.Languages.FirstOrDefault(option =>
+            string.Equals(option.Code, LocalSettings.Current.Language, StringComparison.OrdinalIgnoreCase))
+            ?.Name ?? L.CurrentLanguage;
         SummaryDirectory.Text = string.IsNullOrWhiteSpace(GameDirectoryBox.Text)
             ? YamlRead.GameDirectory
             : GameDirectoryBox.Text!.Trim();

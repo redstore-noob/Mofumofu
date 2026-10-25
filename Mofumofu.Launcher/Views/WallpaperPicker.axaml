@@ -137,6 +137,8 @@
                 <TextBlock Grid.Column="2" x:Name="DimValue" Classes="wp-caption"
                            Width="52" TextAlignment="Right" />
             </Grid>
+            <TextBlock Text="{DynamicResource L.Wallpaper.DimHint}" Classes="wp-caption"
+                       TextWrapping="Wrap" Opacity="0.85" />
 
         </StackPanel>
     </Border>

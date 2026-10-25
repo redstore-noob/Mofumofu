@@ -40,13 +40,16 @@ public static class RewindDialogContent
         bool IsReal);
 
     private const double DialogWidth = 980;
-    private const double TimelineHeight = 320;
-    private const double CardAreaHeight = 140;
-    private const double AxisRowHeight = 40;
-    private const double DayMarkerWidth = 64;
-    private const double MinimumSlotWidth = 150;
-    private const double MaximumSlotWidth = 280;
-    private const double MinimumCardWidth = 126;
+    private const double CardAreaHeight = 120;
+    private const double AxisRowHeight = 48;
+    /// <summary>时间轴总高 = 上卡片区 + 轴行 + 下卡片区，所有子元素共用这一高度才能对齐轴线。</summary>
+    private const double TimelineHeight = CardAreaHeight * 2 + AxisRowHeight;
+    /// <summary>轴心相对时间轴顶部的偏移：节点、当日分隔线和日期标签都以它为准。</summary>
+    private const double AxisCenterY = CardAreaHeight + AxisRowHeight / 2.0;
+    private const double DayMarkerWidth = 78;
+    private const double MinimumSlotWidth = 180;
+    private const double MaximumSlotWidth = 300;
+    private const double MinimumCardWidth = 152;
 
     private static readonly int[] IntervalMinutes = [1, 5, 15, 30];
 
@@ -74,15 +77,38 @@ public static class RewindDialogContent
     private static IBrush InfoBrush => ThemeTokens.Brush("NekoInfoBrush");
     private static IBrush InfoSoftBrush => ThemeTokens.Brush("NekoInfoSoftBrush");
 
-    private static IBrush DotBrush(string color) => color switch
+    private static IBrush DotBrush(string color)
     {
-        "warning" => WarningBrush,
-        "success" => SuccessBrush,
-        "danger" => DangerBrush,
-        "primary" => AccentBrush,
-        "secondary" => MutedBrush,
-        _ => DimBrush,
-    };
+        // 支持 #RRGGBB 自定义标记色：深色主题下过深的颜色（如克莱因蓝原色）提亮一档，点才看得见
+        if (color.StartsWith('#') && Color.TryParse(color, out var custom))
+        {
+            return new SolidColorBrush(ThemeManager.IsLight ? custom : LiftForDark(custom));
+        }
+
+        return color switch
+        {
+            "warning" => WarningBrush,
+            "success" => SuccessBrush,
+            "danger" => DangerBrush,
+            "primary" => AccentBrush,
+            "secondary" => MutedBrush,
+            _ => DimBrush,
+        };
+    }
+
+    /// <summary>深色主题下把过暗的标记色朝白色提亮，直到亮度够用（保持色相）。</summary>
+    private static Color LiftForDark(Color color)
+    {
+        double Luma(Color value) => value.R * 0.299 + value.G * 0.587 + value.B * 0.114;
+
+        var result = color;
+        for (int step = 0; step < 8 && Luma(result) < 110; step++)
+        {
+            result = ThemeTokens.Blend(result, Colors.White, 0.14);
+        }
+
+        return result;
+    }
 
     private static (IBrush Background, IBrush Foreground) ReasonColors(string reasonColor) => reasonColor switch
     {
@@ -415,11 +441,61 @@ public static class RewindDialogContent
         MenuFlyout BuildColorFlyout(SnapshotEntry entry)
         {
             MenuFlyout flyout = new();
+
+            MenuItem BuildItem(string value, string label, IBrush swatch, bool hollow = false)
+            {
+                var dot = new Border
+                {
+                    Width = 11,
+                    Height = 11,
+                    CornerRadius = new CornerRadius(6),
+                    Background = hollow ? Brushes.Transparent : swatch,
+                    BorderBrush = swatch,
+                    BorderThickness = new Thickness(hollow ? 1.4 : 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+
+                var item = new MenuItem
+                {
+                    Header = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Spacing = 9,
+                        Children =
+                        {
+                            dot,
+                            new TextBlock
+                            {
+                                Text = label,
+                                FontSize = 12,
+                                VerticalAlignment = VerticalAlignment.Center,
+                            },
+                        },
+                    },
+                    ToggleType = MenuItemToggleType.Radio,
+                    GroupName = "rewind-mark-color",
+                    IsChecked = string.Equals(entry.Color ?? string.Empty, value, StringComparison.OrdinalIgnoreCase),
+                };
+                item.Click += (_, _) => _ = SetColorAsync(entry, value);
+                return item;
+            }
+
+            flyout.Items.Add(BuildItem(string.Empty, L.T("Rewind.Color.None", "无标记"), DimBrush, hollow: true));
+            flyout.Items.Add(new Separator());
+
             foreach ((string color, string key, string fallback) in ColorChoices)
             {
-                MenuItem item = new() { Header = L.T(key, fallback) };
-                item.Click += (_, _) => _ = SetColorAsync(entry, color);
-                flyout.Items.Add(item);
+                if (color.Length == 0) continue;
+                flyout.Items.Add(BuildItem(color, L.T(key, fallback), DotBrush(color)));
+            }
+
+            flyout.Items.Add(new Separator());
+
+            // 主题色系：和启动器强调色共用一套色板，标记颜色更统一也更好看
+            foreach ((string accentKey, string accentName, string hex) in ThemeManager.AccentOptions)
+            {
+                flyout.Items.Add(BuildItem(hex.ToLowerInvariant(), AccentDisplayName(accentKey, accentName),
+                    DotBrush(hex.ToLowerInvariant())));
             }
 
             return flyout;
@@ -429,21 +505,24 @@ public static class RewindDialogContent
         {
             var marker = new Canvas { Width = DayMarkerWidth, Height = TimelineHeight };
 
-            var dashes = new StackPanel { Spacing = 6, Width = 1 };
-            for (int index = 0; index < 26; index++)
+            // 当日分隔虚线：与时间轴同高，作为「新的一天」的起点
+            var dashes = new StackPanel { Spacing = 7, Width = 1 };
+            for (int index = 0; index < 24; index++)
             {
-                dashes.Children.Add(new Border { Width = 1, Height = 6, Background = BorderBrush });
+                dashes.Children.Add(new Border { Width = 1, Height = 5, Background = BorderBrush });
             }
 
-            Canvas.SetLeft(dashes, 15);
-            Canvas.SetTop(dashes, 6);
+            Canvas.SetLeft(dashes, 19);
+            Canvas.SetTop(dashes, 0);
             marker.Children.Add(dashes);
 
+            // 轴线：与两侧卡槽的轴线严格对齐
             var axis = new Border { Width = DayMarkerWidth, Height = 1, Background = BorderBrush };
             Canvas.SetLeft(axis, 0);
-            Canvas.SetTop(axis, TimelineHeight / 2);
+            Canvas.SetTop(axis, AxisCenterY);
             marker.Children.Add(axis);
 
+            // 轴上方：当天快照份数
             var countBadge = new Border
             {
                 Background = AccentSoftBrush,
@@ -456,10 +535,11 @@ public static class RewindDialogContent
                     Foreground = AccentBrush,
                 },
             };
-            Canvas.SetLeft(countBadge, -18);
-            Canvas.SetTop(countBadge, CardAreaHeight - 32);
+            Canvas.SetLeft(countBadge, 26);
+            Canvas.SetTop(countBadge, AxisCenterY - 24);
             marker.Children.Add(countBadge);
 
+            // 轴下方：日期标签（与下方卡槽留出间距，避免互相压字）
             var dateLabel = new TextBlock
             {
                 Text = FormatDayLabel(date, DateTime.Today),
@@ -467,8 +547,8 @@ public static class RewindDialogContent
                 FontWeight = FontWeight.SemiBold,
                 Foreground = MutedBrush,
             };
-            Canvas.SetLeft(dateLabel, 4);
-            Canvas.SetTop(dateLabel, CardAreaHeight + AxisRowHeight - 16);
+            Canvas.SetLeft(dateLabel, 26);
+            Canvas.SetTop(dateLabel, AxisCenterY + 10);
             marker.Children.Add(dateLabel);
 
             return marker;
@@ -483,12 +563,28 @@ public static class RewindDialogContent
                 RowDefinitions = new RowDefinitions($"{CardAreaHeight},{AxisRowHeight},{CardAreaHeight}"),
             };
 
-            slot.Children.Add(new Border
+            // 轴线必须落在中间的轴行，否则会浮到卡片区中间把卡片切穿
+            var axis = new Border
             {
                 Height = 1,
                 Background = BorderBrush,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Center,
-            });
+            };
+            Grid.SetRow(axis, 1);
+            slot.Children.Add(axis);
+
+            // 节点到卡片的竖直短线：贯穿整个轴行，节点画在上层，卡片因此与节点连成一体
+            var connector = new Border
+            {
+                Width = 1,
+                Height = AxisRowHeight,
+                Background = BorderBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetRow(connector, 1);
+            slot.Children.Add(connector);
 
             Control node = BuildNode(entry, isSelected);
             Grid.SetRow(node, 1);
@@ -496,8 +592,8 @@ public static class RewindDialogContent
 
             Control card = BuildCard(entry, width, isLatest, isSelected);
             Grid.SetRow(card, isTop ? 0 : 2);
+            card.HorizontalAlignment = HorizontalAlignment.Center;
             card.VerticalAlignment = isTop ? VerticalAlignment.Bottom : VerticalAlignment.Top;
-            card.Margin = isTop ? new Thickness(0, 0, 0, 10) : new Thickness(0, 10, 0, 0);
             slot.Children.Add(card);
 
             return slot;
@@ -550,27 +646,29 @@ public static class RewindDialogContent
 
         Control BuildCard(SnapshotEntry entry, double slotWidth, bool isLatest, bool isSelected)
         {
-            double cardWidth = Math.Max(MinimumCardWidth, slotWidth - 20);
+            double cardWidth = Math.Max(MinimumCardWidth, slotWidth - 28);
 
             var colorDot = new Button
             {
-                Width = 14,
-                Height = 14,
+                Width = 16,
+                Height = 16,
                 Padding = new Thickness(0),
                 Background = ThemeTokens.WithAlpha("NekoMutedBrush", 0),
                 BorderThickness = new Thickness(0),
-                CornerRadius = new CornerRadius(7),
+                CornerRadius = new CornerRadius(8),
                 VerticalAlignment = VerticalAlignment.Center,
                 Content = new Border
                 {
-                    Width = 8,
-                    Height = 8,
-                    CornerRadius = new CornerRadius(4),
+                    Width = 10,
+                    Height = 10,
+                    CornerRadius = new CornerRadius(5),
                     Background = DotBrush(entry.Color),
+                    BorderBrush = ThemeTokens.WithAlpha("NekoBorderBrush", 0.9),
+                    BorderThickness = new Thickness(0.8),
                 },
                 Flyout = BuildColorFlyout(entry),
             };
-            ToolTip.SetTip(colorDot, L.T("Rewind.Color.Tooltip", "点击标记颜色"));
+            ToolTip.SetTip(colorDot, L.T("Rewind.Color.Tooltip", "点击选择标记颜色"));
 
             var header = new StackPanel
             {
@@ -591,7 +689,7 @@ public static class RewindDialogContent
             };
 
             (IBrush reasonBackground, IBrush reasonForeground) = ReasonColors(entry.ReasonColor);
-            header.Children.Add(new Border
+            var reasonBadge = new Border
             {
                 Background = reasonBackground,
                 CornerRadius = new CornerRadius(5),
@@ -603,15 +701,23 @@ public static class RewindDialogContent
                     FontSize = 9,
                     Foreground = reasonForeground,
                 },
-            });
+            };
+            header.Children.Add(reasonBadge);
 
+            // 「最新」单独占右列：原来挤在标题行里会被卡片宽度裁掉一半
+            var headRow = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                Children = { header },
+            };
             if (isLatest)
             {
-                header.Children.Add(new Border
+                var latestBadge = new Border
                 {
                     Background = AccentSoftBrush,
                     CornerRadius = new CornerRadius(5),
                     Padding = new Thickness(5, 1),
+                    Margin = new Thickness(4, 0, 0, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock
                     {
@@ -619,10 +725,12 @@ public static class RewindDialogContent
                         FontSize = 9,
                         Foreground = AccentBrush,
                     },
-                });
+                };
+                Grid.SetColumn(latestBadge, 1);
+                headRow.Children.Add(latestBadge);
             }
 
-            var content = new StackPanel { Spacing = 2, Children = { header } };
+            var content = new StackPanel { Spacing = 2, Children = { headRow } };
 
             if (!string.IsNullOrWhiteSpace(entry.Label))
             {
@@ -1122,7 +1230,17 @@ public static class RewindDialogContent
     private static string NormalizeColor(string? color)
     {
         string value = (color ?? string.Empty).Trim().ToLowerInvariant();
-        return value is "" or "primary" or "warning" or "success" or "danger" or "secondary" ? value : string.Empty;
+        if (value is "" or "primary" or "warning" or "success" or "danger" or "secondary") return value;
+
+        // 主题色系标记色以 #RRGGBB 形式保存
+        return value.Length == 7 && value[0] == '#' && value[1..].All(Uri.IsHexDigit) ? value : string.Empty;
+    }
+
+    /// <summary>主题色的本地化名称（回落到 <see cref="ThemeManager"/> 里的中文名）。</summary>
+    private static string AccentDisplayName(string key, string fallback)
+    {
+        string suffix = key.Length == 0 ? key : char.ToUpperInvariant(key[0]) + key[1..];
+        return L.T($"Settings.Appearance.Accent.{suffix}", fallback);
     }
 
     private static int ClosestIntervalIndex(int seconds)

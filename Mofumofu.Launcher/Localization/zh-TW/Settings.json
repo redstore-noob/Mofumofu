@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "主題色",
   "Settings.Appearance.Accent.Hint": "啟動器強調色，影響按鈕與高亮。",
   "Settings.Appearance.Accent.Teal": "青绿",
+  "Settings.Appearance.Accent.Klein": "克萊因藍",
   "Settings.Appearance.Accent.Blue": "蔚藍",
   "Settings.Appearance.Accent.Green": "新绿",
   "Settings.Appearance.Accent.Orange": "暖橙",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "已保存：安裝模組時自動補齊前置",
   "Settings.Toast.AutoDepsOff": "已保存：不再自動安裝前置模組",
   "Settings.About.SiteButton": "宣傳頁",
-  "Settings.About.SiteOpened": "已在瀏覽器打開宣傳頁"
+  "Settings.About.SiteOpened": "已在瀏覽器打開宣傳頁",
+  "Settings.About.Reset": "重置啟動器設定",
+  "Settings.About.ResetHint": "還原主題、語言、視窗、下載參數等預設值；下次啟動會重新顯示首次設定精靈。",
+  "Settings.About.ResetButton": "重置設定",
+  "Settings.About.ResetConfirmTitle": "確認重置啟動器設定？",
+  "Settings.About.ResetConfirmBody": "將還原主題、語言、視窗、下載參數、外掛開關、收藏伺服器和主頁配置等預設值。目前帳號與實例選擇會保留，首次設定精靈會在下次啟動時重新顯示。",
+  "Settings.About.ResetConfirmNotice": "此操作無法復原。不會刪除帳號、實例、遊戲檔案或外掛檔案；開始欄配置會在重新啟動後完整還原。",
+  "Settings.About.ResetConfirmButton": "確認重置",
+  "Settings.About.ResetDone": "已還原預設值；下次啟動時會重新顯示首次設定精靈"
 }

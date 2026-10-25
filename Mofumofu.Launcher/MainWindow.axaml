@@ -35,7 +35,7 @@
         <Border x:Name="PluginWallpaperLayer" IsVisible="False" />
         <Border x:Name="BackdropLayer" Background="{StaticResource NekoBackgroundBrush}" />
         <Border x:Name="HeroGlowLayer" Background="{StaticResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
-        <Border x:Name="WallpaperDimLayer" Background="#000000" IsHitTestVisible="False" IsVisible="False" />
+        <Border x:Name="WallpaperDimLayer" Background="{DynamicResource NekoBackdropDimBrush}" IsHitTestVisible="False" IsVisible="False" />
 
         <Grid RowDefinitions="40,*">
     <!-- ================= 自绘标题栏 ================= -->

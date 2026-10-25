@@ -18,5 +18,6 @@
   "Wallpaper.Status.Error": "壁纸未生效：{0}",
   "Wallpaper.Error.NoContent": "壁纸文件不存在或已被删除",
   "Wallpaper.Blur": "背景模糊",
-  "Wallpaper.Dim": "背景压暗"
+  "Wallpaper.Dim": "背景遮罩",
+  "Wallpaper.DimHint": "深色主题下加深背景，浅色主题下提亮背景；数值越大效果越明显。"
 }

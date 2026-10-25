@@ -44,6 +44,6 @@ public sealed class WallpaperSettings
     /// <summary>背景模糊强度（0-100，默认 20）。</summary>
     public int BlurPercent { get; set; } = 20;
 
-    /// <summary>背景压暗强度（0-100，默认 40）。</summary>
+    /// <summary>背景遮罩强度（0-100，默认 40）：深色主题压黑，浅色主题压白。</summary>
     public int DimPercent { get; set; } = 40;
 }

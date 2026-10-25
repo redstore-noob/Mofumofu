@@ -18,5 +18,6 @@
   "Wallpaper.Status.Error": "壁紙が反映されていません：{0}",
   "Wallpaper.Error.NoContent": "壁紙ファイルが存在しないか削除されました",
   "Wallpaper.Blur": "背景のぼかし",
-  "Wallpaper.Dim": "背景の暗さ"
+  "Wallpaper.Dim": "背景オーバーレイ",
+  "Wallpaper.DimHint": "ダークテーマでは背景を暗く、ライトテーマでは明るくします。値が大きいほど効果が強くなります。"
 }

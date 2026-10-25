@@ -18,5 +18,6 @@
   "Wallpaper.Status.Error": "Hintergrundbild nicht wirksam: {0}",
   "Wallpaper.Error.NoContent": "Hintergrundbilddatei fehlt oder wurde gelöscht",
   "Wallpaper.Blur": "Hintergrund weichzeichnen",
-  "Wallpaper.Dim": "Hintergrund abdunkeln"
+  "Wallpaper.Dim": "Hintergrund-Überlagerung",
+  "Wallpaper.DimHint": "Dunkelt den Hintergrund im dunklen Design ab und hellt ihn im hellen Design auf; höhere Werte wirken stärker."
 }

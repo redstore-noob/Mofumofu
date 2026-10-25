@@ -18,5 +18,6 @@
   "Wallpaper.Status.Error": "Wallpaper not applied: {0}",
   "Wallpaper.Error.NoContent": "Wallpaper file is missing or was deleted",
   "Wallpaper.Blur": "Background blur",
-  "Wallpaper.Dim": "Background dim"
+  "Wallpaper.Dim": "Background overlay",
+  "Wallpaper.DimHint": "Darkens the wallpaper in dark theme and brightens it in light theme; higher values are stronger."
 }

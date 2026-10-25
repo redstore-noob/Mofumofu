@@ -24,25 +24,40 @@ public static class ThemeManager
 
     public static string CurrentTheme { get; private set; } = "dark";
 
-    public static string CurrentAccent { get; private set; } = "teal";
+    public static string CurrentAccent { get; private set; } = "klein";
 
     /// <summary>每次应用主题自增；缓存的页面重新挂到可视树时据此判断要不要补刷颜色。</summary>
     public static int Version { get; private set; }
 
-    /// <summary>强调色候选：Key → (显示名, 主色, 悬停色, 按下色)。</summary>
-    private static readonly Dictionary<string, (string Name, string Primary, string Hover, string Pressed)> Accents = new()
+    /// <summary>
+    /// 强调色定义：<paramref name="DarkPrimary"/> 等为空时深色主题沿用主色；
+    /// 像克莱因蓝这种本身很深、直接放到深色底上会糊掉的颜色，需要一组提亮变体。
+    /// </summary>
+    private sealed record AccentSpec(
+        string Name,
+        string Primary,
+        string Hover,
+        string Pressed,
+        string? DarkPrimary = null,
+        string? DarkHover = null,
+        string? DarkPressed = null);
+
+    /// <summary>强调色候选：Key → 颜色定义（含深色主题变体）。</summary>
+    private static readonly Dictionary<string, AccentSpec> Accents = new()
     {
-        ["teal"] = ("青绿", "#3FC6C1", "#57D8D3", "#33BDB8"),
-        ["blue"] = ("蔚蓝", "#5AA9E6", "#7CBEED", "#4590CE"),
-        ["green"] = ("新绿", "#4CC38A", "#6BD3A3", "#3AA876"),
-        ["orange"] = ("暖橙", "#F2AE49", "#F7C470", "#D8962F"),
-        ["pink"] = ("樱粉", "#E5698F", "#EE8AA9", "#CC5379"),
-        ["purple"] = ("紫藤", "#A78BFA", "#BCA5FF", "#8F6EF0"),
+        ["klein"] = new("克莱因蓝", "#002FA7", "#1B4FCC", "#00247D", "#3B6EF6", "#5C8AFB", "#2A57D8"),
+        ["teal"] = new("青绿", "#3FC6C1", "#57D8D3", "#33BDB8"),
+        ["blue"] = new("蔚蓝", "#5AA9E6", "#7CBEED", "#4590CE"),
+        ["green"] = new("新绿", "#4CC38A", "#6BD3A3", "#3AA876"),
+        ["orange"] = new("暖橙", "#F2AE49", "#F7C470", "#D8962F"),
+        ["pink"] = new("樱粉", "#E5698F", "#EE8AA9", "#CC5379"),
+        ["purple"] = new("紫藤", "#A78BFA", "#BCA5FF", "#8F6EF0"),
     };
 
     /// <summary>预设强调色（Key / 显示名 / 主色），供设置页画色板。</summary>
     public static IReadOnlyList<(string Key, string Name, string Hex)> AccentOptions { get; } =
     [
+        ("klein", "克莱因蓝", "#002FA7"),
         ("teal", "青绿", "#3FC6C1"),
         ("blue", "蔚蓝", "#5AA9E6"),
         ("green", "新绿", "#4CC38A"),
@@ -85,10 +100,10 @@ public static class ThemeManager
 
         var key = NormalizeAccentKey(accentKey);
         CurrentAccent = key;
-        var accent = ResolveAccent(key);
+        var accent = ResolveAccent(key, IsLight);
 
         ApplySukiAccent(key, accent.Primary, accent.Hover);
-        ApplyPalette(BuildPalette(IsLight, accent.Primary, accent.Hover, accent.Pressed, IsCustomAccent(key)));
+        ApplyPalette(BuildPalette(IsLight, accent.Primary, accent.Hover, accent.Pressed));
         Version++;
         ThemeChanged?.Invoke();
     }
@@ -102,10 +117,10 @@ public static class ThemeManager
     {
         var normalized = NormalizeAccentKey(key);
         if (Accents.TryGetValue(normalized, out var preset)) return Color.Parse(preset.Primary);
-        return Color.TryParse(normalized, out var custom) ? custom : Color.Parse(Accents["teal"].Primary);
+        return Color.TryParse(normalized, out var custom) ? custom : Color.Parse(Accents["klein"].Primary);
     }
 
-    /// <summary>把设置里保存的值规范成预设 key 或 #RRGGBB；无法识别时退回默认青绿。</summary>
+    /// <summary>把设置里保存的值规范成预设 key 或 #RRGGBB；无法识别时退回默认克莱因蓝。</summary>
     public static string NormalizeAccentKey(string? raw)
     {
         var text = raw?.Trim() ?? string.Empty;
@@ -117,15 +132,21 @@ public static class ThemeManager
             return HexRgb(Color.FromArgb(255, color.R, color.G, color.B));
         }
 
-        return "teal";
+        return "klein";
     }
 
-    /// <summary>预设色直接查表；自定义色由主色推导悬停/按下色。</summary>
-    private static (string Name, string Primary, string Hover, string Pressed) ResolveAccent(string key)
+    /// <summary>预设色直接查表（深色主题优先用可读变体）；自定义色由主色推导悬停/按下色。</summary>
+    private static (string Name, string Primary, string Hover, string Pressed) ResolveAccent(string key, bool light)
     {
-        if (Accents.TryGetValue(key, out var preset)) return preset;
+        if (Accents.TryGetValue(key, out var preset))
+        {
+            return (preset.Name,
+                light ? preset.Primary : preset.DarkPrimary ?? preset.Primary,
+                light ? preset.Hover : preset.DarkHover ?? preset.Hover,
+                light ? preset.Pressed : preset.DarkPressed ?? preset.Pressed);
+        }
 
-        var color = Color.TryParse(key, out var parsed) ? parsed : Color.Parse(Accents["teal"].Primary);
+        var color = Color.TryParse(key, out var parsed) ? parsed : Color.Parse(Accents["klein"].Primary);
         var opaque = Color.FromArgb(255, color.R, color.G, color.B);
         return (HexRgb(opaque), HexRgb(opaque), HexRgb(Blend(opaque, Colors.White, 0.16)),
             HexRgb(Blend(opaque, Colors.Black, 0.16)));
@@ -157,16 +178,14 @@ public static class ThemeManager
 
     /// <summary>把强调色与当前底色的关系算成完整令牌表。</summary>
     private static Dictionary<string, string[]> BuildPalette(bool light, string accent, string accentHover,
-        string accentPressed, bool customAccent = false)
+        string accentPressed)
     {
         var accentColor = Color.Parse(accent);
         var surfaceBase = Color.Parse(light ? "#F2F5F8" : "#0A0E15");
-        // 自定义色深浅不可控：按亮度决定强调色上的文字用深色还是浅色，避免白底白字
-        var onAccent = customAccent
-            ? (accentColor.R * 0.299 + accentColor.G * 0.587 + accentColor.B * 0.114 > 140
-                ? "#06121A"
-                : "#FFFFFF")
-            : light ? "#FFFFFF" : "#06121A";
+        // 强调色上的文字一律按亮度取深/浅：深色强调色（如克莱因蓝）配深字会直接糊掉
+        var onAccent = accentColor.R * 0.299 + accentColor.G * 0.587 + accentColor.B * 0.114 > 140
+            ? "#06121A"
+            : "#FFFFFF";
 
         string Soft(double ratio) => Hex(Blend(accentColor, surfaceBase, ratio));
 
@@ -205,7 +224,8 @@ public static class ThemeManager
                 ["NekoDialogBrush"] = ["#FAF8FBFF"],
                 ["NekoDialogSolidBrush"] = ["#FFFFFF"],
                 ["NekoOverlayBrush"] = ["#330B1119"],
-                ["NekoScrimBrush"] = ["#330B1119"],
+                ["NekoScrimBrush"] = ["#FFFFFFFF"],
+                ["NekoBackdropDimBrush"] = ["#FFFFFFFF"],
                 ["NekoNavIdleBrush"] = ["#6A7A8E"],
                 ["NekoBackgroundBrush"] = ["#F4F7FA", "#EEF4F9", "#F7FAFD"],
                 ["NekoHeroGlowBrush"] = [Hex(accentColor, 0x1F), "#00EAF2F7", "#00F4F7FA"],
@@ -238,7 +258,8 @@ public static class ThemeManager
                 ["NekoDialogBrush"] = ["#F20C121A"],
                 ["NekoDialogSolidBrush"] = ["#121A24"],
                 ["NekoOverlayBrush"] = ["#66101822"],
-                ["NekoScrimBrush"] = ["#55000000"],
+                ["NekoScrimBrush"] = ["#FF000000"],
+                ["NekoBackdropDimBrush"] = ["#FF000000"],
                 ["NekoNavIdleBrush"] = ["#9AA9BC"],
                 ["NekoBackgroundBrush"] = ["#0A0E15", "#0C1520", "#0A1018"],
                 ["NekoHeroGlowBrush"] = [Hex(accentColor, 0x1F), "#00121822", "#000A0E15"],

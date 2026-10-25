@@ -68,7 +68,7 @@ public sealed class LocalSettings
     public int WindowOpacity { get; set; } = 100;
     public int BackgroundOpacity { get; set; } = 80;
     public bool AccentFollowBackground { get; set; }
-    public string AccentColor { get; set; } = "teal";
+    public string AccentColor { get; set; } = "klein";
 
     /// <summary>自定义主题色弹窗里「最近使用」的颜色（#RRGGBB，最多 8 个）。</summary>
     public List<string> RecentAccentColors { get; set; } = new();
@@ -181,6 +181,20 @@ public sealed class LocalSettings
         {
             // 设置写失败不影响运行
         }
+    }
+
+    /// <summary>
+    /// 重置启动器偏好与个性化配置；保留当前账号/实例选择，OOBE 完成状态恢复默认，
+    /// 让首次设置向导在下次启动时重新弹出。不删除账号、实例、游戏文件或插件文件。
+    /// </summary>
+    public static void ResetToDefaults()
+    {
+        Current = new LocalSettings
+        {
+            SelectedInstanceId = Current.SelectedInstanceId,
+            SelectedAccountName = Current.SelectedAccountName,
+        };
+        Save();
     }
 }
 

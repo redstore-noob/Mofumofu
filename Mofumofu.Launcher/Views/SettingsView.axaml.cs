@@ -462,12 +462,7 @@ public partial class SettingsView : UserControl
         if (!YamlRead.SaveDefaultVersionIsolation(enabled))
         {
             Shell.Toast(L.T("Settings.Toast.SaveFailed", "保存失败"));
-            return;
         }
-
-        SaveAndToast(enabled
-            ? L.T("Settings.Toast.IsolationOn", "已保存：版本隔离开启，各实例的 mods 与存档相互独立")
-            : L.T("Settings.Toast.IsolationOff", "已保存：版本隔离关闭，所有实例共享 mods 与存档"));
     }
 
     // ==================== 游戏：Java ====================
@@ -1773,6 +1768,72 @@ public partial class SettingsView : UserControl
         buttons.Children.Add(restart);
         content.Children.Add(buttons);
         Shell.Dialog(content, L.T("Settings.About.Update.InstallTitle", "安装更新"));
+    }
+
+    private void OnResetSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        var content = new StackPanel { Spacing = 14, Width = 450 };
+        content.Children.Add(new TextBlock
+        {
+            Text = L.T("Settings.About.ResetConfirmBody",
+                "将恢复主题、语言、窗口、下载参数、插件开关、收藏服务器和主页布局等默认设置。当前账号与实例选择会保留，首次设置向导会在下次启动时重新弹出。"),
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(new Border
+        {
+            Background = ThemeTokens.Brush("NekoDangerSoftBrush"),
+            BorderBrush = ThemeTokens.Brush("NekoDangerBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12, 10),
+            Child = new TextBlock
+            {
+                Text = L.T("Settings.About.ResetConfirmNotice",
+                    "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。"),
+                Foreground = ThemeTokens.Brush("NekoDangerBrush"),
+                TextWrapping = TextWrapping.Wrap,
+            },
+        });
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        var cancel = new Button
+        {
+            Content = L.T("Common.Cancel", "取消"),
+            Classes = { "ghost" },
+            Height = 32,
+            Padding = new Thickness(14, 0),
+        };
+        cancel.Click += (_, _) => DismissDialog(cancel);
+        var confirm = new Button
+        {
+            Content = L.T("Settings.About.ResetConfirmButton", "确认重置"),
+            Classes = { "Danger" },
+            Height = 32,
+            Padding = new Thickness(14, 0),
+        };
+        confirm.Click += (_, _) =>
+        {
+            DismissDialog(confirm);
+            ResetLauncherSettings();
+        };
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(confirm);
+        content.Children.Add(buttons);
+
+        Shell.Dialog(content, L.T("Settings.About.ResetConfirmTitle", "确认重置启动器设置？"));
+    }
+
+    private void ResetLauncherSettings()
+    {
+        // 默认值已经由 ResetToDefaults 落盘；这里直接强制退出，避免关闭询问/托盘拦截，
+        // 下次启动会按 OobeCompleted=false 重新进入首次设置向导。
+        LocalSettings.ResetToDefaults();
+        Shell.Exit();
     }
 
     private static void DismissDialog(Avalonia.Controls.Control control) =>

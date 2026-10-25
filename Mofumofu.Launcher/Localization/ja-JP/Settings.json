@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "テーマカラー",
   "Settings.Appearance.Accent.Hint": "ランチャーのアクセントカラー。ボタンとハイライトに反映されます。",
   "Settings.Appearance.Accent.Teal": "青緑",
+  "Settings.Appearance.Accent.Klein": "クライン・ブルー",
   "Settings.Appearance.Accent.Blue": "ブルー",
   "Settings.Appearance.Accent.Green": "グリーン",
   "Settings.Appearance.Accent.Orange": "オレンジ",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "保存しました：MOD インストール時に前提 MOD を自動補完します",
   "Settings.Toast.AutoDepsOff": "保存しました：前提 MOD を自動インストールしません",
   "Settings.About.SiteButton": "紹介ページ",
-  "Settings.About.SiteOpened": "ブラウザで紹介ページを開きました"
+  "Settings.About.SiteOpened": "ブラウザで紹介ページを開きました",
+  "Settings.About.Reset": "ランチャー設定をリセット",
+  "Settings.About.ResetHint": "テーマ、言語、ウィンドウ、ダウンロード設定などを初期値に戻します。次回起動時に初回セットアップが再表示されます。",
+  "Settings.About.ResetButton": "設定をリセット",
+  "Settings.About.ResetConfirmTitle": "ランチャー設定をリセットしますか？",
+  "Settings.About.ResetConfirmBody": "テーマ、言語、ウィンドウ、ダウンロード設定、プラグインの有効状態、お気に入りサーバー、ホームレイアウトなどを初期値に戻します。現在のアカウントとインスタンス選択は保持され、初回セットアップは次回起動時に再実行されます。",
+  "Settings.About.ResetConfirmNotice": "この操作は取り消せません。アカウント、インスタンス、ゲームファイル、プラグインファイルは削除されません。スタートバーの配置は再起動後に完全に戻ります。",
+  "Settings.About.ResetConfirmButton": "リセットを確認",
+  "Settings.About.ResetDone": "初期値に戻しました。次回起動時に初回セットアップが再表示されます"
 }

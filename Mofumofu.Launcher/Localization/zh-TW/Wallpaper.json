@@ -18,5 +18,6 @@
   "Wallpaper.Status.Error": "桌布未生效：{0}",
   "Wallpaper.Error.NoContent": "桌布檔案不存在或已被刪除",
   "Wallpaper.Blur": "背景模糊",
-  "Wallpaper.Dim": "背景壓暗"
+  "Wallpaper.Dim": "背景遮罩",
+  "Wallpaper.DimHint": "深色主題下加深背景，淺色主題下提亮背景；數值越大效果越明顯。"
 }

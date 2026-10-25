@@ -542,7 +542,7 @@
                     <StackPanel x:Name="AppearancePanel" IsVisible="False"
                                 Tag="界面 appearance 外观 theme 主题 theme 颜色 color 窗口 window 开始栏 start bar">
 
-                        <acrylic:AcrylicSurface Tag="主题 theme 深色 dark 浅色 light 跟随系统 system 主题色 accent 强调色 accent 青绿 teal 蓝 blue 绿 green 橙 orange 颜色 color" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+                        <acrylic:AcrylicSurface Tag="主题 theme 深色 dark 浅色 light 跟随系统 system 主题色 accent 强调色 accent 青绿 teal 克莱因蓝 klein 蓝 blue 绿 green 橙 orange 颜色 color" Classes="setting-group" CornerRadius="18" Padding="18,14" Margin="0,0,0,12" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
                             <StackPanel>
                                 <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
                                     <Border Width="30" Height="30" CornerRadius="9"
@@ -583,7 +583,7 @@
                                     </Grid>
                                 </Border>
 
-                                <Border Classes="setting-row" Tag="主题色 accent 强调色 accent 青绿 teal 蔚蓝 blue 新绿 green 暖橙 orange 樱粉 pink 紫藤 purple 自定义 custom accent">
+                                <Border Classes="setting-row" Tag="主题色 accent 强调色 accent 青绿 teal 蔚蓝 blue 新绿 green 暖橙 orange 樱粉 pink 紫藤 purple 克莱因蓝 klein 自定义 custom accent">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Spacing="2" Margin="0,0,16,0">
                                             <TextBlock Text="{DynamicResource L.Settings.Appearance.Accent.Title}" Classes="row-label" />
@@ -929,6 +929,19 @@
                                         </StackPanel>
                                         <Button Grid.Column="1" Classes="ghost" Height="32" Padding="14,0"
                                                 Content="{DynamicResource L.Settings.About.LicenseButton}" Click="OnShowLicenseClick" />
+                                    </Grid>
+                                </Border>
+                                <Border Classes="setting-row" Tag="重置启动器设置 reset launcher settings 恢复默认 factory defaults">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.About.Reset}" Classes="row-label" />
+                                            <TextBlock Text="{DynamicResource L.Settings.About.ResetHint}" Classes="row-hint"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="Danger" Height="32" Padding="14,0"
+                                                VerticalAlignment="Center"
+                                                Content="{DynamicResource L.Settings.About.ResetButton}"
+                                                Click="OnResetSettingsClick" />
                                     </Grid>
                                 </Border>
                             </StackPanel>

@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "主题色",
   "Settings.Appearance.Accent.Hint": "启动器强调色，影响按钮与高亮。",
   "Settings.Appearance.Accent.Teal": "青绿",
+  "Settings.Appearance.Accent.Klein": "克莱因蓝",
   "Settings.Appearance.Accent.Blue": "蔚蓝",
   "Settings.Appearance.Accent.Green": "新绿",
   "Settings.Appearance.Accent.Orange": "暖橙",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "已保存：安装模组时自动补齐前置",
   "Settings.Toast.AutoDepsOff": "已保存：不再自动安装前置模组",
   "Settings.About.SiteButton": "宣传页",
-  "Settings.About.SiteOpened": "已在浏览器打开宣传页"
+  "Settings.About.SiteOpened": "已在浏览器打开宣传页",
+  "Settings.About.Reset": "重置启动器设置",
+  "Settings.About.ResetHint": "恢复主题、语言、窗口、下载参数等默认设置；下次启动会重新弹出首次设置向导。",
+  "Settings.About.ResetButton": "重置设置",
+  "Settings.About.ResetConfirmTitle": "确认重置启动器设置？",
+  "Settings.About.ResetConfirmBody": "将恢复主题、语言、窗口、下载参数、插件开关、收藏服务器和主页布局等默认设置。当前账号与实例选择会保留，首次设置向导会在下次启动时重新弹出。",
+  "Settings.About.ResetConfirmNotice": "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。",
+  "Settings.About.ResetConfirmButton": "确认重置",
+  "Settings.About.ResetDone": "已恢复默认设置；下次启动时会重新弹出首次设置向导"
 }

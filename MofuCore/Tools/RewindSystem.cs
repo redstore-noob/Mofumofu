@@ -1541,7 +1541,15 @@ public class RewindSystem
     private static string NormalizeColor(string? color)
     {
         string normalized = (color ?? string.Empty).Trim().ToLowerInvariant();
-        return AllowedColors.Contains(normalized) ? normalized : string.Empty;
+        if (AllowedColors.Contains(normalized)) return normalized;
+
+        // 允许 #RRGGBB 自定义标记色（启动器主题色板与快照标记共用一套色值）
+        if (normalized.Length == 7 && normalized[0] == '#' && normalized[1..].All(Uri.IsHexDigit))
+        {
+            return normalized;
+        }
+
+        return string.Empty;
     }
 
     private static string DayLabel(DateTime date, DateTime today)

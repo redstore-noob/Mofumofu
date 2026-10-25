@@ -4,190 +4,366 @@
                  xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
                  x:Class="Mofumofu.Launcher.Views.OobeWindow"
                  Title="Mofumofu Launcher"
-                 Width="880" Height="640"
-                 MinWidth="760" MinHeight="560"
+                 Width="980" Height="680"
+                 MinWidth="900" MinHeight="600"
                  CanResize="False"
+                 Background="{DynamicResource NekoSurfaceBrush}"
                  WindowStartupLocation="CenterScreen">
-    <Grid RowDefinitions="Auto,*,Auto">
-        <!-- 顶部：Logo / 标题 / 步骤 -->
-        <Border Grid.Row="0" Padding="26,20,26,14">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <Image Width="46" Height="46" VerticalAlignment="Center"
-                       Source="avares://Mofumofu.Launcher/Assets/mascot-neko.png" />
-                <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="2" VerticalAlignment="Center">
-                    <TextBlock Text="{DynamicResource L.Oobe.Title}" FontSize="20" FontWeight="Bold" />
-                    <TextBlock Text="{DynamicResource L.Oobe.Subtitle}" Classes="caption" />
-                </StackPanel>
-                <Button Grid.Column="2" Classes="ghost" Height="30" Padding="10,0"
-                        Content="{DynamicResource L.Oobe.Skip}" Click="OnSkipClick" />
-            </Grid>
-        </Border>
+    <suki:SukiWindow.Styles>
+        <Style Selector="Border.oobe-step">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10,11" />
+        </Style>
+        <Style Selector="Border.oobe-step.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge.active TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge.complete">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step-badge.complete TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.oobe-step.active TextBlock.oobe-step-label">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Button.language-card.oobe-language">
+            <Setter Property="MinWidth" Value="136" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Border.oobe-summary">
+            <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+    </suki:SukiWindow.Styles>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto">
-            <Grid Margin="28,6,28,0">
-                <!-- 1. 欢迎 -->
-                <StackPanel x:Name="WelcomePanel" Spacing="16">
-                    <TextBlock Text="{DynamicResource L.Oobe.WelcomeTitle}" Classes="section-title" />
-                    <TextBlock Text="{DynamicResource L.Oobe.WelcomeBody}" Classes="caption"
-                               TextWrapping="Wrap" />
-                    <Border Classes="card-soft" Padding="18,16">
-                        <StackPanel Spacing="14">
-                            <Grid ColumnDefinitions="220,*">
-                                <TextBlock Text="{DynamicResource L.Oobe.Language}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="1" x:Name="LanguageCombo" HorizontalAlignment="Stretch"
-                                          SelectionChanged="OnLanguageChanged" />
-                            </Grid>
-                            <Grid ColumnDefinitions="220,*">
-                                <TextBlock Text="{DynamicResource L.Oobe.Theme}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="1" x:Name="ThemeCombo" HorizontalAlignment="Stretch"
-                                          SelectionChanged="OnThemeChanged">
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.System}" Tag="system" />
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.Dark}" Tag="dark" />
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.Light}" Tag="light" />
-                                </ComboBox>
-                            </Grid>
-                        </StackPanel>
+    <Grid ColumnDefinitions="282,*">
+        <!-- 左侧：品牌与配置进度 -->
+        <Border Grid.Column="0" Padding="26,28,22,24"
+                Background="{DynamicResource NekoCardBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+                    <Image Width="50" Height="50" VerticalAlignment="Center"
+                           Source="avares://Mofumofu.Launcher/Assets/mascot-neko.png" />
+                    <StackPanel Grid.Column="1" Margin="13,0,0,0" Spacing="3" VerticalAlignment="Center">
+                        <TextBlock Text="{DynamicResource L.Oobe.Title}" FontSize="18" FontWeight="Bold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{DynamicResource L.Oobe.Subtitle}" Classes="caption"
+                                   FontSize="11" TextWrapping="Wrap" MaxWidth="164" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="5" Margin="0,24">
+                    <Border x:Name="StepNav0" Classes="oobe-step">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border x:Name="StepBadge0" Classes="oobe-step-badge" Width="32" Height="32" CornerRadius="16">
+                                <TextBlock Text="01" FontSize="11" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" x:Name="StepLabel0" Classes="oobe-step-label"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </Grid>
                     </Border>
-                </StackPanel>
-
-                <!-- 2. 游戏目录 -->
-                <StackPanel x:Name="DirectoryPanel" Spacing="16" IsVisible="False">
-                    <TextBlock Text="{DynamicResource L.Oobe.DirectoryTitle}" Classes="section-title" />
-                    <TextBlock Text="{DynamicResource L.Oobe.DirectoryBody}" Classes="caption"
-                               TextWrapping="Wrap" />
-                    <Border Classes="card-soft" Padding="18,16">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="{DynamicResource L.Oobe.DirectoryLabel}" Classes="caption" />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <TextBox x:Name="GameDirectoryBox" Height="34" />
-                                <Button Grid.Column="1" Classes="ghost" Height="34" Padding="12,0"
-                                        Content="{DynamicResource L.Oobe.Browse}" Click="OnBrowseDirectoryClick" />
-                            </Grid>
-                        </StackPanel>
+                    <Border x:Name="StepNav1" Classes="oobe-step">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border x:Name="StepBadge1" Classes="oobe-step-badge" Width="32" Height="32" CornerRadius="16">
+                                <TextBlock Text="02" FontSize="11" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource L.Oobe.DirectoryTitle}" Classes="oobe-step-label"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </Grid>
                     </Border>
-                </StackPanel>
-
-                <!-- 3. Java -->
-                <StackPanel x:Name="JavaPanel" Spacing="16" IsVisible="False">
-                    <TextBlock Text="{DynamicResource L.Oobe.JavaTitle}" Classes="section-title" />
-                    <TextBlock Text="{DynamicResource L.Oobe.JavaBody}" Classes="caption"
-                               TextWrapping="Wrap" />
-                    <Border Classes="card-soft" Padding="18,16">
-                        <StackPanel Spacing="10">
-                            <Grid ColumnDefinitions="220,*">
-                                <TextBlock Text="{DynamicResource L.Oobe.JavaLabel}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="1" x:Name="JavaCombo" HorizontalAlignment="Stretch" />
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Classes="ghost" Height="30" Padding="10,0"
-                                        Content="{DynamicResource L.Oobe.JavaDetect}" Click="OnDetectJavaClick" />
-                                <TextBlock x:Name="JavaStatusText" Classes="caption"
-                                           VerticalAlignment="Center" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <TextBlock Text="{DynamicResource L.Oobe.JavaLater}" Classes="caption"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
+                    <Border x:Name="StepNav2" Classes="oobe-step">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border x:Name="StepBadge2" Classes="oobe-step-badge" Width="32" Height="32" CornerRadius="16">
+                                <TextBlock Text="03" FontSize="11" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource L.Oobe.JavaTitle}" Classes="oobe-step-label"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </Grid>
                     </Border>
-                </StackPanel>
-
-                <!-- 4. 账号 -->
-                <StackPanel x:Name="AccountPanel" Spacing="16" IsVisible="False">
-                    <TextBlock Text="{DynamicResource L.Oobe.AccountTitle}" Classes="section-title" />
-                    <TextBlock Text="{DynamicResource L.Oobe.AccountBody}" Classes="caption"
-                               TextWrapping="Wrap" />
-                    <Border Classes="card-soft" Padding="18,16">
-                        <StackPanel Spacing="12">
-                            <Grid ColumnDefinitions="160,*">
-                                <TextBlock Text="{DynamicResource L.Oobe.AccountType}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="1" x:Name="AccountTypeCombo" HorizontalAlignment="Stretch"
-                                          SelectedIndex="0" SelectionChanged="OnAccountTypeChanged">
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Offline}" Tag="offline" />
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Microsoft}" Tag="microsoft" />
-                                    <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Authlib}" Tag="authlib" />
-                                </ComboBox>
-                            </Grid>
-
-                            <!-- 离线 -->
-                            <StackPanel x:Name="OfflineAccountPanel" Spacing="8">
-                                <TextBlock Text="{DynamicResource L.Oobe.AccountLabel}" Classes="caption" />
-                                <TextBox x:Name="OfflineNameBox" Height="34" MaxLength="16"
-                                         PlaceholderText="{DynamicResource L.Oobe.AccountPlaceholder}" />
-                                <TextBlock Text="{DynamicResource L.Oobe.AccountHint}" Classes="caption"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <!-- Microsoft -->
-                            <StackPanel x:Name="MicrosoftAccountPanel" Spacing="8" IsVisible="False">
-                                <TextBlock Text="{DynamicResource L.Oobe.Account.MicrosoftHint}" Classes="caption"
-                                           TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="MicrosoftLoginButton" Classes="primary" Height="34" Padding="14,0"
-                                            Content="{DynamicResource L.Oobe.Account.MicrosoftLogin}"
-                                            Click="OnMicrosoftLoginClick" />
-                                    <TextBlock x:Name="MicrosoftStatusText" Classes="caption"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- 外置登录 -->
-                            <StackPanel x:Name="AuthlibAccountPanel" Spacing="8" IsVisible="False">
-                                <TextBlock Text="{DynamicResource L.Oobe.Account.AuthlibHint}" Classes="caption"
-                                           TextWrapping="Wrap" />
-                                <TextBox x:Name="AuthlibServerBox" Height="34"
-                                         PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibServer}" />
-                                <TextBox x:Name="AuthlibUsernameBox" Height="34"
-                                         PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibUsername}" />
-                                <TextBox x:Name="AuthlibPasswordBox" Height="34" PasswordChar="●"
-                                         PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibPassword}" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="AuthlibLoginButton" Classes="primary" Height="34" Padding="14,0"
-                                            Content="{DynamicResource L.Oobe.Account.AuthlibLogin}"
-                                            Click="OnAuthlibLoginClick" />
-                                    <TextBlock x:Name="AuthlibStatusText" Classes="caption"
-                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </StackPanel>
-                        </StackPanel>
+                    <Border x:Name="StepNav3" Classes="oobe-step">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border x:Name="StepBadge3" Classes="oobe-step-badge" Width="32" Height="32" CornerRadius="16">
+                                <TextBlock Text="04" FontSize="11" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource L.Oobe.AccountTitle}" Classes="oobe-step-label"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </Grid>
                     </Border>
-                </StackPanel>
-
-                <!-- 5. 完成 -->
-                <StackPanel x:Name="FinishPanel" Spacing="16" IsVisible="False">
-                    <TextBlock Text="{DynamicResource L.Oobe.FinishTitle}" Classes="section-title" />
-                    <TextBlock Text="{DynamicResource L.Oobe.FinishBody}" Classes="caption"
-                               TextWrapping="Wrap" />
-                    <Border Classes="card-soft" Padding="18,16">
-                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
-                            <TextBlock Text="{DynamicResource L.Oobe.SummaryLanguage}" Classes="caption" />
-                            <TextBlock Grid.Column="1" x:Name="SummaryLanguage" />
-                            <TextBlock Grid.Row="1" Text="{DynamicResource L.Oobe.SummaryDirectory}" Classes="caption" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="SummaryDirectory"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Row="2" Text="{DynamicResource L.Oobe.SummaryJava}" Classes="caption" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SummaryJava"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Row="3" Text="{DynamicResource L.Oobe.SummaryAccount}" Classes="caption" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SummaryAccount" />
+                    <Border x:Name="StepNav4" Classes="oobe-step">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border x:Name="StepBadge4" Classes="oobe-step-badge" Width="32" Height="32" CornerRadius="16">
+                                <TextBlock Text="05" FontSize="11" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource L.Oobe.FinishTitle}" Classes="oobe-step-label"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                 </StackPanel>
-            </Grid>
-        </ScrollViewer>
 
-        <!-- 底部导航 -->
-        <Border Grid.Row="2" Padding="26,14,26,20"
-                BorderThickness="0,1,0,0" BorderBrush="{DynamicResource NekoBorderBrush}">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock x:Name="StepText" Classes="caption" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button x:Name="BackButton" Classes="ghost" Height="36" Padding="16,0"
-                            Content="{DynamicResource L.Oobe.Back}" Click="OnBackClick"
-                            IsVisible="False" />
-                    <Button x:Name="NextButton" Classes="primary" Height="36" Padding="18,0"
-                            Content="{DynamicResource L.Oobe.Next}" Click="OnNextClick" />
+                <StackPanel Grid.Row="2" Spacing="12">
+                    <StackPanel Spacing="7">
+                        <TextBlock x:Name="StepText" Classes="caption" FontSize="11" />
+                        <ProgressBar x:Name="StepProgress" Minimum="0" Maximum="100" Height="4" />
+                    </StackPanel>
+                    <Button Classes="ghost" Height="32" Padding="12,0" HorizontalAlignment="Left"
+                            Content="{DynamicResource L.Oobe.Skip}" Click="OnSkipClick" />
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- 右侧：当前步骤配置 -->
+        <Grid Grid.Column="1" RowDefinitions="*,Auto">
+            <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <Grid Margin="34,30,34,22">
+                    <!-- 1. 语言与主题：完整语言卡片，不再收进下拉列表 -->
+                    <StackPanel x:Name="WelcomePanel" MaxWidth="680" HorizontalAlignment="Center" Spacing="18">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{DynamicResource L.Oobe.WelcomeTitle}" FontSize="25" FontWeight="Bold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{DynamicResource L.Oobe.WelcomeBody}" Classes="caption"
+                                       FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Border Classes="card-soft" Padding="20,18">
+                            <StackPanel Spacing="18">
+                                <StackPanel Spacing="11">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <Border Width="30" Height="30" CornerRadius="9"
+                                                Background="{DynamicResource NekoAccentSoftBrush}">
+                                            <controls:IconParkIcon Kind="IconFluentGlobe" Width="15" Height="15"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{DynamicResource L.Oobe.Language}"
+                                                   Margin="10,0,0,0" FontSize="14" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                    <ItemsControl x:Name="LanguageCards">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Classes="language-card oobe-language" Click="OnLanguageCardClick"
+                                                        Tag="{Binding Code}" ToolTip.Tip="{Binding Name}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                        <Border Width="24" Height="16" CornerRadius="2" ClipToBounds="True"
+                                                                BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="0.5"
+                                                                VerticalAlignment="Center">
+                                                            <Image Source="{Binding FlagImage}" Width="24" Height="16" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+                                    <TextBlock Text="{DynamicResource L.Oobe.Theme}" VerticalAlignment="Center"
+                                               FontSize="13" FontWeight="SemiBold" />
+                                    <ComboBox Grid.Column="1" x:Name="ThemeCombo" Height="36"
+                                              HorizontalAlignment="Stretch" SelectionChanged="OnThemeChanged">
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.System}" Tag="system" />
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.Dark}" Tag="dark" />
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Theme.Light}" Tag="light" />
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 2. 游戏目录 -->
+                    <StackPanel x:Name="DirectoryPanel" MaxWidth="680" HorizontalAlignment="Center"
+                                Spacing="18" IsVisible="False">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{DynamicResource L.Oobe.DirectoryTitle}" FontSize="25" FontWeight="Bold" />
+                            <TextBlock Text="{DynamicResource L.Oobe.DirectoryBody}" Classes="caption"
+                                       FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Border Classes="card-soft" Padding="20,18">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="{DynamicResource L.Oobe.DirectoryLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBox x:Name="GameDirectoryBox" Height="38" VerticalContentAlignment="Center" />
+                                    <Button Grid.Column="1" Classes="ghost" Height="38" Padding="14,0"
+                                            Content="{DynamicResource L.Oobe.Browse}" Click="OnBrowseDirectoryClick" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 3. Java -->
+                    <StackPanel x:Name="JavaPanel" MaxWidth="680" HorizontalAlignment="Center"
+                                Spacing="18" IsVisible="False">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{DynamicResource L.Oobe.JavaTitle}" FontSize="25" FontWeight="Bold" />
+                            <TextBlock Text="{DynamicResource L.Oobe.JavaBody}" Classes="caption"
+                                       FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Border Classes="card-soft" Padding="20,18">
+                            <StackPanel Spacing="13">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{DynamicResource L.Oobe.JavaLabel}" FontSize="13" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="JavaCombo" Height="38" HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                                <Button Classes="ghost" Height="34" Padding="12,0" HorizontalAlignment="Left"
+                                        Content="{DynamicResource L.Oobe.JavaDetect}" Click="OnDetectJavaClick" />
+                                <TextBlock x:Name="JavaStatusText" Classes="caption" TextWrapping="Wrap" />
+                                <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
+                                <TextBlock Text="{DynamicResource L.Oobe.JavaLater}" Classes="caption"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 4. 账号 -->
+                    <StackPanel x:Name="AccountPanel" MaxWidth="680" HorizontalAlignment="Center"
+                                Spacing="18" IsVisible="False">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{DynamicResource L.Oobe.AccountTitle}" FontSize="25" FontWeight="Bold" />
+                            <TextBlock Text="{DynamicResource L.Oobe.AccountBody}" Classes="caption"
+                                       FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Border Classes="card-soft" Padding="20,18">
+                            <StackPanel Spacing="14">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+                                    <TextBlock Text="{DynamicResource L.Oobe.AccountType}" VerticalAlignment="Center"
+                                               FontSize="13" FontWeight="SemiBold" />
+                                    <ComboBox Grid.Column="1" x:Name="AccountTypeCombo" Height="36"
+                                              HorizontalAlignment="Stretch" SelectedIndex="0"
+                                              SelectionChanged="OnAccountTypeChanged">
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Offline}" Tag="offline" />
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Microsoft}" Tag="microsoft" />
+                                        <ComboBoxItem Content="{DynamicResource L.Oobe.Account.Type.Authlib}" Tag="authlib" />
+                                    </ComboBox>
+                                </Grid>
+
+                                <StackPanel x:Name="OfflineAccountPanel" Spacing="8">
+                                    <TextBlock Text="{DynamicResource L.Oobe.AccountLabel}" Classes="caption" />
+                                    <TextBox x:Name="OfflineNameBox" Height="38" MaxLength="16"
+                                             PlaceholderText="{DynamicResource L.Oobe.AccountPlaceholder}" />
+                                    <TextBlock Text="{DynamicResource L.Oobe.AccountHint}" Classes="caption"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="MicrosoftAccountPanel" Spacing="10" IsVisible="False">
+                                    <TextBlock Text="{DynamicResource L.Oobe.Account.MicrosoftHint}" Classes="caption"
+                                               TextWrapping="Wrap" />
+                                    <Button x:Name="MicrosoftLoginButton" Classes="primary" Height="36" Padding="14,0"
+                                            HorizontalAlignment="Left"
+                                            Content="{DynamicResource L.Oobe.Account.MicrosoftLogin}"
+                                            Click="OnMicrosoftLoginClick" />
+                                    <TextBlock x:Name="MicrosoftStatusText" Classes="caption" TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="AuthlibAccountPanel" Spacing="9" IsVisible="False">
+                                    <TextBlock Text="{DynamicResource L.Oobe.Account.AuthlibHint}" Classes="caption"
+                                               TextWrapping="Wrap" />
+                                    <TextBox x:Name="AuthlibServerBox" Height="36"
+                                             PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibServer}" />
+                                    <TextBox x:Name="AuthlibUsernameBox" Height="36"
+                                             PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibUsername}" />
+                                    <TextBox x:Name="AuthlibPasswordBox" Height="36" PasswordChar="●"
+                                             PlaceholderText="{DynamicResource L.Oobe.Account.AuthlibPassword}" />
+                                    <Button x:Name="AuthlibLoginButton" Classes="primary" Height="36" Padding="14,0"
+                                            HorizontalAlignment="Left"
+                                            Content="{DynamicResource L.Oobe.Account.AuthlibLogin}"
+                                            Click="OnAuthlibLoginClick" />
+                                    <TextBlock x:Name="AuthlibStatusText" Classes="caption" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 5. 完成 -->
+                    <StackPanel x:Name="FinishPanel" MaxWidth="680" HorizontalAlignment="Center"
+                                Spacing="18" IsVisible="False">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{DynamicResource L.Oobe.FinishTitle}" FontSize="25" FontWeight="Bold" />
+                            <TextBlock Text="{DynamicResource L.Oobe.FinishBody}" Classes="caption"
+                                       FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                            <Border Classes="oobe-summary">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{DynamicResource L.Oobe.SummaryLanguage}" Classes="caption" FontSize="11" />
+                                    <TextBlock x:Name="SummaryLanguage" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="oobe-summary">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{DynamicResource L.Oobe.SummaryDirectory}" Classes="caption" FontSize="11" />
+                                    <TextBlock x:Name="SummaryDirectory" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Classes="oobe-summary">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{DynamicResource L.Oobe.SummaryJava}" Classes="caption" FontSize="11" />
+                                    <TextBlock x:Name="SummaryJava" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1" Classes="oobe-summary">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{DynamicResource L.Oobe.SummaryAccount}" Classes="caption" FontSize="11" />
+                                    <TextBlock x:Name="SummaryAccount" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- 右侧底部导航 -->
+            <Border Grid.Row="1" Padding="30,16,32,22"
+                    BorderThickness="0,1,0,0" BorderBrush="{DynamicResource NekoBorderBrush}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Button x:Name="BackButton" Classes="ghost" Height="38" Padding="18,0"
+                            Content="{DynamicResource L.Oobe.Back}" Click="OnBackClick" IsVisible="False" />
+                    <Button x:Name="NextButton" Grid.Column="2" Classes="primary" Height="38" Padding="22,0"
+                            MinWidth="104" Content="{DynamicResource L.Oobe.Next}" Click="OnNextClick" />
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </suki:SukiWindow>

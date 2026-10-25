@@ -6,13 +6,13 @@
              这里是唯一允许出现颜色字面量的地方：初值是深色主题，实际取值由
              Services/ThemeManager 在换主题/换强调色时统一改写（就地改 brush 的 Color）。
              视图里一律用 {DynamicResource NekoXxxBrush}，不要写死颜色。 -->
-        <SolidColorBrush x:Key="NekoAccentBrush" Color="#3FC6C1" />
-        <SolidColorBrush x:Key="NekoAccentHoverBrush" Color="#57D8D3" />
-        <SolidColorBrush x:Key="NekoAccentPressedBrush" Color="#33BDB8" />
-        <SolidColorBrush x:Key="NekoAccentSoftBrush" Color="#1E3A3C" />
-        <SolidColorBrush x:Key="NekoAccentSoftHoverBrush" Color="#265053" />
-        <SolidColorBrush x:Key="NekoAccentOnBrush" Color="#06121A" />
-        <SolidColorBrush x:Key="NekoAccentLineBrush" Color="#2A6F6C" />
+        <SolidColorBrush x:Key="NekoAccentBrush" Color="#3B6EF6" />
+        <SolidColorBrush x:Key="NekoAccentHoverBrush" Color="#5C8AFB" />
+        <SolidColorBrush x:Key="NekoAccentPressedBrush" Color="#2A57D8" />
+        <SolidColorBrush x:Key="NekoAccentSoftBrush" Color="#131F3D" />
+        <SolidColorBrush x:Key="NekoAccentSoftHoverBrush" Color="#182954" />
+        <SolidColorBrush x:Key="NekoAccentOnBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="NekoAccentLineBrush" Color="#254390" />
 
         <SolidColorBrush x:Key="NekoTextBrush" Color="#E9EEF6" />
         <SolidColorBrush x:Key="NekoMutedBrush" Color="#93A0B4" />
@@ -45,7 +45,9 @@
         <SolidColorBrush x:Key="NekoOverlayBrush" Color="#66101822" />
         <SolidColorBrush x:Key="NekoDialogBrush" Color="#F20C121A" />
         <SolidColorBrush x:Key="NekoDialogSolidBrush" Color="#121A24" />
-        <SolidColorBrush x:Key="NekoScrimBrush" Color="#55000000" />
+        <SolidColorBrush x:Key="NekoScrimBrush" Color="#FF000000" />
+        <!-- 壁纸遮罩：深色模式压黑、浅色模式压白，透明度由「背景遮罩」滑块控制 -->
+        <SolidColorBrush x:Key="NekoBackdropDimBrush" Color="#FF000000" />
         <SolidColorBrush x:Key="NekoTerminalBrush" Color="#05090C" />
         <SolidColorBrush x:Key="NekoTerminalTextBrush" Color="#9FE8D5" />
 
@@ -56,7 +58,7 @@
         </LinearGradientBrush>
 
         <LinearGradientBrush x:Key="NekoHeroGlowBrush" StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Color="#1F3FC6C1" Offset="0" />
+            <GradientStop Color="#1F3B6EF6" Offset="0" />
             <GradientStop Color="#00121822" Offset="0.6" />
             <GradientStop Color="#000A0E15" Offset="1" />
         </LinearGradientBrush>
@@ -103,6 +105,10 @@
     <!-- 弹窗（SukiDialog）用不透明底板：默认玻璃材质在内容留白多时会透出下层页面 -->
     <Style Selector="suki|SukiDialog">
         <Setter Property="Background" Value="{DynamicResource NekoDialogSolidBrush}" />
+    </Style>
+    <!-- SukiDialogHost 遮罩走 NekoScrimBrush：浅色压白，深色压黑 -->
+    <Style Selector="suki|SukiDialogHost /template/ Border#PART_DialogBackground">
+        <Setter Property="Background" Value="{DynamicResource NekoScrimBrush}" />
     </Style>
     <!-- ================= 交互反馈（统一去掉点击黑框） ================= -->
     <!-- 焦点框默认值：不画焦点虚线框 -->
@@ -451,6 +457,16 @@
     </Style>
     <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+    <!-- SukiUI Danger 语义按钮：把全局 hover 的透明背景覆盖回 Suki 语义色 -->
+    <Style Selector="Button.Danger:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource SukiDangerForeground}" />
+    </Style>
+    <Style Selector="Button.Danger:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SukiDangerMediumColor}" />
+    </Style>
+    <Style Selector="Button.Danger:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SukiDangerDarkColor}" />
     </Style>
 
     <!-- BETA 徽章：标题栏版本阶段标记 -->

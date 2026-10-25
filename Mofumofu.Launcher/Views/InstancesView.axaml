@@ -410,8 +410,9 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Text="{DynamicResource L.Instances.Worlds.Recent}" Classes="section-title"
                                                        VerticalAlignment="Center" />
-                                            <TextBlock x:Name="WorldCountText" Text="—"
-                                                       Classes="caption" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="WorldCountText" Text="—" Grid.Column="1"
+                                                       Classes="caption" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right" />
                                         </Grid>
                                         <ItemsControl x:Name="WorldsList">
                                             <ItemsControl.ItemTemplate>
@@ -472,8 +473,9 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Text="{DynamicResource L.Instances.Launch.Memory}" Classes="section-title"
                                                        VerticalAlignment="Center" />
-                                            <TextBlock x:Name="MemoryValueText" Text="—"
-                                                       Classes="muted" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="MemoryValueText" Text="—" Grid.Column="1"
+                                                       Classes="muted" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right" />
                                         </Grid>
                                         <Slider x:Name="MemorySlider" Minimum="2048" Maximum="16384"
                                                 TickFrequency="1024" IsSnapToTickEnabled="True"
@@ -647,8 +649,12 @@
                                 <Border Classes="card-soft" Padding="14">
                                     <StackPanel Spacing="14">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Text="options.txt" Classes="section-title" />
-                                            <TextBlock Text="{DynamicResource L.Instances.Game.Title}" Classes="caption" />
+                                            <TextBlock Text="options.txt" Classes="section-title"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{DynamicResource L.Instances.Game.Title}"
+                                                       Classes="caption" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right" />
                                         </Grid>
 
                                         <Grid ColumnDefinitions="*,Auto">

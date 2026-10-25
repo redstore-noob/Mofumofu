@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "Accent color",
   "Settings.Appearance.Accent.Hint": "Accent used for buttons and highlights.",
   "Settings.Appearance.Accent.Teal": "Teal",
+  "Settings.Appearance.Accent.Klein": "Klein Blue",
   "Settings.Appearance.Accent.Blue": "Blue",
   "Settings.Appearance.Accent.Green": "Green",
   "Settings.Appearance.Accent.Orange": "Orange",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "Saved: dependencies are installed automatically",
   "Settings.Toast.AutoDepsOff": "Saved: automatic dependency install disabled",
   "Settings.About.SiteButton": "Website",
-  "Settings.About.SiteOpened": "Project website opened in your browser"
+  "Settings.About.SiteOpened": "Project website opened in your browser",
+  "Settings.About.Reset": "Reset launcher settings",
+  "Settings.About.ResetHint": "Restores theme, language, window, download and other defaults; first-run setup opens again next launch.",
+  "Settings.About.ResetButton": "Reset settings",
+  "Settings.About.ResetConfirmTitle": "Reset launcher settings?",
+  "Settings.About.ResetConfirmBody": "This restores defaults for theme, language, window, download options, plugin switches, favorite servers and home layout. Your current account and instance selection are kept; first-run setup opens again next launch.",
+  "Settings.About.ResetConfirmNotice": "This cannot be undone. Accounts, instances, game files and plugin files are not deleted; the start bar layout is fully restored after a restart.",
+  "Settings.About.ResetConfirmButton": "Confirm reset",
+  "Settings.About.ResetDone": "Defaults restored. First-run setup will open again next launch"
 }

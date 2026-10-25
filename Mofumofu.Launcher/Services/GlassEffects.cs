@@ -13,12 +13,19 @@ namespace Mofumofu.Launcher.Services;
 /// <summary>统一控制所有 AcrylicSurface 的毛玻璃开关。</summary>
 public static class GlassEffects
 {
-    private static readonly Color OnTint = Color.Parse("#B30C121A");
-    private static readonly Color OffTint = Color.Parse("#F20C121A");
+    private static readonly Color DarkOnTint = Color.Parse("#B30C121A");
+    private static readonly Color DarkOffTint = Color.Parse("#F20C121A");
+    private static readonly Color LightOnTint = Color.Parse("#D9FFFFFF");
+    private static readonly Color LightOffTint = Color.Parse("#F5FFFFFF");
 
     private static bool _suspended;
 
     public static bool Enabled { get; private set; } = true;
+
+    /// <summary>浅色主题使用白色半透明玻璃，避免深色底与浅色文字令牌混在一起。</summary>
+    public static Color PanelTint => ThemeManager.IsLight
+        ? Enabled ? LightOnTint : LightOffTint
+        : Enabled ? DarkOnTint : DarkOffTint;
 
     /// <summary>卓越视效：开启后恢复高光、阴影、折射、渐进模糊等额外渲染。</summary>
     public static bool PremiumVisuals { get; set; }
@@ -73,7 +80,7 @@ public static class GlassEffects
         {
             surface.BlurRadius = active ? (premium ? 16 : 8) : 0;
             surface.Vibrancy = active ? (premium ? 1.25 : 1.0) : 1;
-            surface.TintColor = Enabled ? OnTint : OffTint;
+            surface.TintColor = PanelTint;
 
             // 默认只保留一次背景模糊；卓越视效才恢复逐帧叠加效果
             surface.RefractionAmount = premium ? 0.35 : 0;

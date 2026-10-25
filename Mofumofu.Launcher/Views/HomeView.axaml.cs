@@ -266,7 +266,7 @@ public partial class HomeView : UserControl
                 CornerRadius = new CornerRadius(16),
                 BlurRadius = 8,
                 Vibrancy = 1.0,
-                TintColor = Color.Parse("#B30C121A"),
+                TintColor = GlassEffects.PanelTint,
                 ShadowEnabled = false,
                 Child = inner,
             };

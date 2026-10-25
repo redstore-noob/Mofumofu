@@ -71,6 +71,7 @@
   "Settings.Appearance.Accent.Title": "Akzentfarbe",
   "Settings.Appearance.Accent.Hint": "Die Akzentfarbe des Launchers; beeinflusst Schaltflächen und Hervorhebungen.",
   "Settings.Appearance.Accent.Teal": "Blaugrün",
+  "Settings.Appearance.Accent.Klein": "Kleinblau",
   "Settings.Appearance.Accent.Blue": "Azurblau",
   "Settings.Appearance.Accent.Green": "Frischgrün",
   "Settings.Appearance.Accent.Orange": "Warmorange",
@@ -200,5 +201,13 @@
   "Settings.Toast.AutoDepsOn": "Gespeichert: fehlende Voraussetzungen werden bei der Mod-Installation automatisch ergänzt",
   "Settings.Toast.AutoDepsOff": "Gespeichert: Voraussetzungen werden nicht mehr automatisch installiert",
   "Settings.About.SiteButton": "Vorstellungsseite",
-  "Settings.About.SiteOpened": "Vorstellungsseite im Browser geöffnet"
+  "Settings.About.SiteOpened": "Vorstellungsseite im Browser geöffnet",
+  "Settings.About.Reset": "Launcher-Einstellungen zurücksetzen",
+  "Settings.About.ResetHint": "Setzt Design, Sprache, Fenster, Download-Einstellungen und weitere Werte zurück. Der Erststart-Assistent wird beim nächsten Start erneut geöffnet.",
+  "Settings.About.ResetButton": "Einstellungen zurücksetzen",
+  "Settings.About.ResetConfirmTitle": "Launcher-Einstellungen zurücksetzen?",
+  "Settings.About.ResetConfirmBody": "Setzt Design, Sprache, Fenster, Download-Einstellungen, Plugin-Schalter, Favoritenserver und Startlayout zurück. Die aktuelle Konto- und Instanzauswahl bleibt erhalten; der Erststart-Assistent läuft beim nächsten Start erneut.",
+  "Settings.About.ResetConfirmNotice": "Diese Aktion kann nicht rückgängig gemacht werden. Konten, Instanzen, Spieldateien und Plugin-Dateien werden nicht gelöscht; die Startleisten-Anordnung wird nach einem Neustart vollständig wiederhergestellt.",
+  "Settings.About.ResetConfirmButton": "Zurücksetzen bestätigen",
+  "Settings.About.ResetDone": "Standardwerte wiederhergestellt. Der Erststart-Assistent wird beim nächsten Start erneut geöffnet"
 }

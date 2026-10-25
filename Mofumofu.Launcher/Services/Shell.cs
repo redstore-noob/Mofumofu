@@ -14,6 +14,7 @@ public static class Shell
     public static event Action<string>? ToastRequested;
     public static event Action<string, object>? DialogRequested;
     public static event Action<string>? ToolRequested;
+    public static event Action? ExitRequested;
 
     public static void Go(string pageId) => PageRequested?.Invoke(pageId);
 
@@ -21,6 +22,9 @@ public static class Shell
     public static void GoTool(string toolId) => ToolRequested?.Invoke(toolId);
 
     public static void Toast(string message) => ToastRequested?.Invoke(message);
+
+    /// <summary>强制退出启动器（绕过关闭询问/托盘），用于重置设置后直接进入下次启动流程。</summary>
+    public static void Exit() => ExitRequested?.Invoke();
 
     public static void Dialog(object content) => Dialog(content, "提示");
 

@@ -69,6 +69,7 @@ public partial class MainWindow : SukiWindow
         Shell.ToastRequested += ShowToast;
         Shell.DialogRequested += ShowDialog;
         Shell.ToolRequested += OpenCreatorTool;
+        Shell.ExitRequested += ExitApplication;
         PageComposer.Changed += OnPluginContentChanged;
         GameState.Changed += SyncLaunchState;
         LaunchBarRefresh.Requested += OnLaunchBarRefreshRequested;
@@ -1677,6 +1678,7 @@ public partial class MainWindow : SukiWindow
         Shell.ToastRequested -= ShowToast;
         Shell.DialogRequested -= ShowDialog;
         Shell.ToolRequested -= OpenCreatorTool;
+        Shell.ExitRequested -= ExitApplication;
         PageComposer.Changed -= OnPluginContentChanged;
         GameState.Changed -= SyncLaunchState;
         LaunchBarRefresh.Requested -= OnLaunchBarRefreshRequested;
