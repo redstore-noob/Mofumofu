@@ -11,6 +11,7 @@
 .screenshots/
 .video_agent/
 .zcode/
+.workbuddy/
 promo/
 *.log
 
