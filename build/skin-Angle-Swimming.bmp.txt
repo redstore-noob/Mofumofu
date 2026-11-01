@@ -1,1 +1,0 @@
-GL=OpenGL ES 3.0 (ANGLE 2.1.1 git hash: 1c89805903c1) depthType=36161 depthWrite=True depthBits=16 error=NoError

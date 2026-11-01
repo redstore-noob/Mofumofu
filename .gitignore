@@ -28,3 +28,4 @@ docs/reference/native-*.png
 
 # agent 协作临时目录（构建日志 / QA 截图 / 临时测试工程）
 .dsh-tmp/
+/build/
