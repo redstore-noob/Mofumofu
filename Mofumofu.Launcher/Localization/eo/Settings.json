@@ -142,7 +142,7 @@
   "Settings.About.TechLine": "Teknikaro: Avalonia {0} · SukiUI {1} · .NET {2}",
   "Settings.About.Update": "Kontroli ĝisdatigojn",
   "Settings.About.AutoCheck": "Aŭtomate kontroli ĝisdatigojn",
-  "Settings.About.AutoCheckHint": "Post lanĉo demandas rete pri novaj versioj ĉe GitHub Releases; nur sciigas sur la paĝo Pri, sen aŭtomata elŝuto",
+  "Settings.About.AutoCheckHint": "Aŭtomataj ĝisdatigokontroloj estas malŝaltitaj; vi povas kontroli permane",
   "Settings.About.Checking": "Kontrolo de ĝisdatigoj…",
   "Settings.About.UpdateFound": "Nova versio trovita: {0}",
   "Settings.About.Update.CurrentLine": "Nuna versio {0} → nova versio {1}",

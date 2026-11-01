@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <!-- CI 只注入当前 tag；分支构建和本地构建统一显示快照版本。 -->
+    <MofuDisplayVersion>Mofu_Snapshot</MofuDisplayVersion>
+    <MofuDisplayVersion Condition="'$(GITHUB_ACTIONS)' == 'true' and '$(MOFU_BUILD_TAG)' != ''">$(MOFU_BUILD_TAG)</MofuDisplayVersion>
+    <!-- CLR / 文件版本必须为数字，展示版本则保留完整 tag（含前缀和预发布后缀）。 -->
+    <MofuNumericVersion>$([System.Text.RegularExpressions.Regex]::Match('$(MofuDisplayVersion)', '^v?([0-9]+\.[0-9]+\.[0-9]+)').Groups[1].Value)</MofuNumericVersion>
+    <MofuNumericVersion Condition="'$(MofuNumericVersion)' == ''">0.0.0</MofuNumericVersion>
+    <Version>$(MofuNumericVersion)</Version>
+    <AssemblyVersion>$(MofuNumericVersion).0</AssemblyVersion>
+    <FileVersion>$(MofuNumericVersion).0</FileVersion>
+    <InformationalVersion>$(MofuDisplayVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

@@ -901,10 +901,8 @@ public partial class MainWindow : Window
     {
         string raw = typeof(MainWindow).Assembly
                          .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                     ?? typeof(MainWindow).Assembly.GetName().Version?.ToString()
-                     ?? "1.0.0";
-        int plus = raw.IndexOf('+');
-        return plus > 0 ? raw[..plus] : raw;
+                     ?? "Mofu_Snapshot";
+        return raw;
     }
 
     private static string FormatSize(long bytes)

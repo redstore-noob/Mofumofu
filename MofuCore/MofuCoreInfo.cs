@@ -7,5 +7,5 @@ public static class MofuCoreInfo
 {
     public static string Version { get; } =
         typeof(MofuCoreInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion ?? "0.1.0";
+            ?.InformationalVersion ?? "Mofu_Snapshot";
 }

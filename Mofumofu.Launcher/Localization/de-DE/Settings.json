@@ -142,7 +142,7 @@
   "Settings.About.TechLine": "Tech-Stack: Avalonia {0} · SukiUI {1} · .NET {2}",
   "Settings.About.Update": "Nach Updates suchen",
   "Settings.About.AutoCheck": "Automatisch nach Updates suchen",
-  "Settings.About.AutoCheckHint": "Prüft nach dem Start online auf GitHub Releases nach neuen Versionen; es wird nur auf der Über-Seite hingewiesen, nicht automatisch geladen",
+  "Settings.About.AutoCheckHint": "Automatische Updateprüfungen sind deaktiviert; manuelle Prüfungen sind möglich",
   "Settings.About.Checking": "Update wird gesucht…",
   "Settings.About.UpdateFound": "Neue Version {0} gefunden",
   "Settings.About.Update.CurrentLine": "Aktuelle Version {0} → neue Version {1}",

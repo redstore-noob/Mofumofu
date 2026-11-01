@@ -105,8 +105,8 @@ public sealed class LocalSettings
     /// <summary>安装模组时自动补齐缺失的前置模组。</summary>
     public bool AutoInstallDependencies { get; set; } = true;
 
-    /// <summary>启动后联网检查 GitHub Releases 是否有新版本（只在关于页提示，不自动下载）。</summary>
-    public bool AutoCheckUpdates { get; set; } = true;
+    /// <summary>自动更新检查已禁用；兼容旧配置，但忽略其中保存的开启值。</summary>
+    public bool AutoCheckUpdates { get => false; set { } }
 
     /// <summary>是否已完成首次启动引导（OOBE）。</summary>
     public bool OobeCompleted { get; set; }

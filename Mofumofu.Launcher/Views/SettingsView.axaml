@@ -897,7 +897,7 @@
                                             <TextBlock Text="{DynamicResource L.Settings.About.AutoCheckHint}" Classes="row-hint" />
                                         </StackPanel>
                                         <ToggleSwitch Grid.Column="1" x:Name="AutoCheckUpdateToggle"
-                                                      VerticalAlignment="Center" Tapped="OnAutoCheckUpdateChanged" />
+                                                      VerticalAlignment="Center" IsEnabled="False" />
                                     </Grid>
                                 </Border>
                                 <Border Classes="setting-row" Tag="检查更新 check update 版本 version">

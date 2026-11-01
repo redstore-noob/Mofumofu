@@ -1579,7 +1579,7 @@ public partial class SettingsView : UserControl
         var assembly = typeof(SettingsView).Assembly;
         var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         if (!string.IsNullOrWhiteSpace(informational)) return informational;
-        return assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+        return "Mofu_Snapshot";
     }
 
     private static string LauncherFileVersion() =>
@@ -1611,14 +1611,6 @@ public partial class SettingsView : UserControl
     private bool _checkingUpdate;
     private GitHubUpdater.ReleaseInfo? _pendingUpdateRelease;
 
-    private void OnAutoCheckUpdateChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-
-        LocalSettings.Current.AutoCheckUpdates = AutoCheckUpdateToggle.IsChecked == true;
-        LocalSettings.Save();
-    }
-
     private async void OnCheckUpdateClick(object? sender, RoutedEventArgs e)
     {
         if (_checkingUpdate) return;
@@ -1630,7 +1622,7 @@ public partial class SettingsView : UserControl
             GitHubUpdater.ReleaseInfo release = await GitHubUpdater.GetLatestAsync().ConfigureAwait(true);
             if (!GitHubUpdater.IsNewer(release.Tag))
             {
-                string current = GitHubUpdater.CurrentVersion().ToString(3);
+                string current = LauncherVersion();
                 AboutUpdateHint.Text = L.T("Settings.About.UpdateLatest", "当前已是最新版本 {0}", current);
                 Shell.Toast(L.T("Settings.About.UpdateLatest", "当前已是最新版本 {0}", current));
                 return;
@@ -1662,7 +1654,7 @@ public partial class SettingsView : UserControl
         content.Children.Add(new TextBlock
         {
             Text = L.T("Settings.About.Update.CurrentLine", "当前版本 {0} → 新版本 {1}",
-                GitHubUpdater.CurrentVersion().ToString(3), release.Tag.TrimStart('v', 'V')),
+                LauncherVersion(), release.Tag.TrimStart('v', 'V')),
             FontSize = 13,
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.Wrap,

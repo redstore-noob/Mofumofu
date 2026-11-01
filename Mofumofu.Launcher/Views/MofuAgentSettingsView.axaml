@@ -1,0 +1,483 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="720"
+             x:Class="Mofumofu.Launcher.Views.MofuAgentSettingsView"
+             Background="Transparent">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.setting-title">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.setting-hint">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoDimBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoDimBrush}" />
+        </Style>
+        <Style Selector="TextBox.agent-field">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="9,5" />
+        </Style>
+        <Style Selector="ComboBox.agent-field">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+
+        <!-- 供应商主从列表 -->
+        <Style Selector="Border.provider-row">
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.provider-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+        </Style>
+        <Style Selector="Border.provider-row.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
+        </Style>
+
+        <!-- 模型标签 -->
+        <Style Selector="Border.model-chip">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="7,2,2,2" />
+            <Setter Property="Margin" Value="0,0,5,5" />
+        </Style>
+
+        <Style Selector="Border.field-soft">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style Selector="TextBlock.agent-mono">
+            <Setter Property="FontFamily" Value="Cascadia Mono,Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        </Style>
+
+        <Style Selector="Button.agent-mini">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        </Style>
+        <Style Selector="Button.agent-mini:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoControlHoverBrush}" />
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource NekoTextBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- 页头 -->
+        <Grid ColumnDefinitions="Auto,*,Auto" Height="58" Margin="0,0,0,14">
+            <Button Classes="round" Width="34" Height="34" VerticalAlignment="Top" Margin="0,3,0,0"
+                    Click="OnBack" ToolTip.Tip="返回 MofuAgent">
+                <controls:IconParkIcon Kind="IconArrowLeft" Width="16" Height="16" />
+            </Button>
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="MofuAgent 设置" Classes="page-title" />
+                <TextBlock Classes="muted" Text="供应商、模型、上下文与工具权限" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="ghost" Height="32" Padding="12,0" VerticalAlignment="Center"
+                    Click="OnBack">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <controls:IconParkIcon Kind="IconFluentChat" Width="14" Height="14" />
+                    <TextBlock Text="返回对话" FontSize="11.5" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="164,*" ColumnSpacing="12">
+            <!-- 分区导航 -->
+            <Border Classes="card" CornerRadius="12" Padding="10">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="muted" Text="设置" Margin="6,2,0,8" />
+                    <Button x:Name="TabProvider" Classes="pill active" Height="32" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="供应商"
+                            Click="OnSettingsTab" Tag="provider" />
+                    <Button x:Name="TabGeneration" Classes="pill" Height="32" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="生成"
+                            Click="OnSettingsTab" Tag="generation" />
+                    <Button x:Name="TabContext" Classes="pill" Height="32" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="上下文"
+                            Click="OnSettingsTab" Tag="context" />
+                    <Button x:Name="TabTools" Classes="pill" Height="32" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="工具"
+                            Click="OnSettingsTab" Tag="tools" />
+                    <Button x:Name="TabData" Classes="pill" Height="32" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="数据"
+                            Click="OnSettingsTab" Tag="data" />
+                    <Border Classes="divider" Margin="0,8" />
+                    <TextBlock x:Name="SettingsPathText" Classes="caption" Margin="6,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- 内容 -->
+            <Border Grid.Column="1" Classes="card" CornerRadius="12" Padding="16,14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Panel>
+                        <!-- 供应商：预设工具栏 + 主从编辑台 -->
+                        <StackPanel x:Name="PaneProvider" Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="setting-title" Text="供应商" />
+                                    <TextBlock Classes="setting-hint"
+                                               Text="一条供应商 = 协议 + 地址 + Key。预设只是模板，任何 OpenAI 兼容服务都能接。" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                                            VerticalAlignment="Center">
+                                    <Button x:Name="SaveProviderButton" Classes="ghost" Height="30" Padding="11,0"
+                                            Content="保存" FontSize="11.5" Click="OnSaveProvider" />
+                                    <Button x:Name="TestProviderButton" Classes="primary" Height="30" Padding="11,0"
+                                            Content="测试连接" FontSize="11.5" Click="OnTestProvider" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,248,Auto,*,Auto" ColumnSpacing="6">
+                                <TextBlock Classes="field-label" Text="从预设添加" VerticalAlignment="Center" />
+                                <ComboBox x:Name="PresetCombo" Grid.Column="1" Classes="agent-field"
+                                          PlaceholderText="选择常用服务" SelectionChanged="OnPresetChanged" />
+                                <Button Grid.Column="2" Classes="ghost" Height="30" Padding="9,0"
+                                        Content="添加" FontSize="11" Click="OnAddPreset" />
+                                <TextBlock x:Name="PresetHint" Grid.Column="3" Classes="caption" FontSize="10.5"
+                                           Margin="8,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button x:Name="AddProviderButton" Grid.Column="4" Classes="ghost" Height="30"
+                                        Padding="10,0" Click="OnAddProvider">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:IconParkIcon Kind="IconPlus" Width="12" Height="12" />
+                                        <TextBlock Text="新建自定义" FontSize="11.5" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="222,*" ColumnSpacing="12">
+                                <!-- 主列表 -->
+                                <Border Classes="card-soft" Padding="8" VerticalAlignment="Top">
+                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="field-label" Text="已配置" Margin="4,0,0,0"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="ProviderCountText" Grid.Column="1"
+                                                       Classes="agent-mono" Text="0 条" />
+                                        </Grid>
+
+                                        <ScrollViewer Grid.Row="1" Height="322" VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel x:Name="ProviderListPanel" Spacing="2" />
+                                        </ScrollViewer>
+
+                                        <TextBlock Grid.Row="2" Classes="caption" FontSize="10"
+                                                   Text="点击编辑，双击设为当前" Margin="4,2,0,0" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- 编辑台 -->
+                                <StackPanel Grid.Column="1" Spacing="8">
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Classes="field-label" Text="名称" />
+                                            <TextBox x:Name="ProviderNameBox" Classes="agent-field"
+                                                     Watermark="我的中转站" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Classes="field-label" Text="协议" />
+                                            <ComboBox x:Name="ProviderKindCombo" Classes="agent-field"
+                                                      SelectionChanged="OnProviderKindChanged" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="field-label" Text="Base URL" />
+                                        <TextBox x:Name="BaseUrlBox" Classes="agent-field"
+                                                 Watermark="https://api.example.com/v1" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="field-label" Text="API Key" />
+                                            <Button Grid.Column="1" Classes="agent-mini" Height="20" Padding="6,0"
+                                                    Content="显示" Click="OnToggleKeyVisibility" />
+                                        </Grid>
+                                        <TextBox x:Name="ApiKeyBox" Classes="agent-field" PasswordChar="●"
+                                                 Watermark="sk-..." />
+                                        <TextBlock Classes="setting-hint"
+                                                   Text="AES-256-GCM 加密后存本机；主密钥跟随系统账户保护。Ollama / LM Studio 可随便填。" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="5">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="field-label" Text="模型（第一个为默认，点 × 移除）" />
+                                            <TextBlock x:Name="ModelCountText" Grid.Column="1" Classes="agent-mono" />
+                                        </Grid>
+                                        <Border Classes="field-soft" CornerRadius="8" Padding="7,6,4,2"
+                                                MinHeight="42">
+                                            <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Disabled">
+                                                <WrapPanel x:Name="ModelChipsPanel" />
+                                            </ScrollViewer>
+                                        </Border>
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                            <TextBox x:Name="NewModelBox" Classes="agent-field" Height="30"
+                                                     Watermark="输入模型 id，回车添加" KeyDown="OnNewModelKeyDown" />
+                                            <Button Grid.Column="1" Classes="ghost" Height="30" Padding="9,0"
+                                                    Content="添加" FontSize="11" Click="OnAddModel" />
+                                            <Button x:Name="FetchModelsButton" Grid.Column="2" Classes="ghost"
+                                                    Height="30" Padding="9,0" FontSize="11" Click="OnFetchModels">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <controls:IconParkIcon Kind="IconRefresh" Width="11" Height="11" />
+                                                    <TextBlock Text="拉取模型" FontSize="11" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <TextBlock x:Name="ProviderTestResult" Classes="caption"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="10">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Classes="field-label" Text="上下文窗口（0 = 自动推断）" />
+                                            <TextBox x:Name="ProviderContextBox" Classes="agent-field"
+                                                     Watermark="0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Classes="field-label" Text="工具调用" />
+                                            <ToggleSwitch x:Name="SupportsToolsSwitch" OnContent=""
+                                                          OffContent="" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Classes="ghost" Height="32" Padding="10,0"
+                                                Content="设为当前" FontSize="11" VerticalAlignment="Bottom"
+                                                Click="OnSetActiveProvider" />
+                                    </Grid>
+
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="field-label"
+                                                   Text="额外请求头（每行 Name: Value，可留空）" />
+                                        <TextBox x:Name="HeadersBox" Classes="agent-field" AcceptsReturn="True"
+                                                 MinHeight="48" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock x:Name="ProviderHintText" Classes="caption"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Classes="ghost" Height="28" Padding="9,0"
+                                                Content="删除此供应商" FontSize="11" Click="OnDeleteProvider" />
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- 生成 -->
+                        <StackPanel x:Name="PaneGeneration" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="setting-title" Text="生成" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="做工具调用建议温度 ≤ 0.5，太高的温度容易生成不合法的参数。" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="温度" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="GenTempText" Grid.Column="1" Classes="muted" Text="0.35" />
+                            </Grid>
+                            <Slider x:Name="GenTempSlider" Minimum="0" Maximum="2" Value="0.35" Height="22"
+                                    ValueChanged="OnGenTempChanged" />
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Top P" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="GenTopPText" Grid.Column="1" Classes="muted" Text="1.00" />
+                            </Grid>
+                            <Slider x:Name="GenTopPSlider" Minimum="0.1" Maximum="1" Value="1" Height="22"
+                                    ValueChanged="OnGenTopPChanged" />
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="field-label" Text="最大输出 token" />
+                                    <TextBox x:Name="GenMaxTokensBox" Classes="agent-field" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Classes="field-label" Text="单轮工具调用上限" />
+                                    <TextBox x:Name="GenMaxRoundsBox" Classes="agent-field" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="流式输出" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="关掉后等整段返回再显示" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="StreamingSwitch" Grid.Column="1" OnContent="" OffContent="" />
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="系统提示词" />
+                                <TextBox x:Name="SystemPromptBox" Classes="agent-field" AcceptsReturn="True"
+                                         TextWrapping="Wrap" MinHeight="220"
+                                         FontFamily="Cascadia Mono,Consolas,monospace" FontSize="11.5" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="运行时还会自动附加：当前时间、游戏目录、选中实例、可用工具清单。" />
+                            </StackPanel>
+
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存生成设置"
+                                    FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveGeneration" />
+                        </StackPanel>
+
+                        <!-- 上下文 -->
+                        <StackPanel x:Name="PaneContext" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="setting-title" Text="上下文" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="窗口大小要和你选的模型一致；填小了会提前触发压缩。" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="上下文窗口（token）" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox x:Name="WindowPresetCombo" Classes="agent-field" Width="180"
+                                              SelectionChanged="OnWindowPresetChanged" />
+                                    <TextBox x:Name="WindowCustomBox" Classes="agent-field" Width="150" />
+                                    <Button Classes="ghost" Height="32" Padding="10,0" Content="应用"
+                                            FontSize="11.5" Click="OnApplyWindow" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="自动压缩" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="超过阈值时把较早消息折叠成摘要" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoCompactSwitch" Grid.Column="1" OnContent="" OffContent="" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="触发比例" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompactAtText" Grid.Column="1" Classes="muted" Text="78%" />
+                            </Grid>
+                            <Slider x:Name="CompactAtSlider" Minimum="0.4" Maximum="0.95" Value="0.78" Height="22"
+                                    ValueChanged="OnCompactAtChanged" />
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="压缩后保留最近消息条数" />
+                                <TextBox x:Name="KeepRecentBox" Classes="agent-field" Width="160"
+                                         HorizontalAlignment="Left" />
+                            </StackPanel>
+
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存上下文设置"
+                                    FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveContext" />
+                        </StackPanel>
+
+                        <!-- 工具 -->
+                        <StackPanel x:Name="PaneTools" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="setting-title" Text="工具" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="模型只能看到这里打开的工具；写操作会先弹确认卡。" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="启用工具调用" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="总开关，关掉后纯聊天" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ToolsEnabledSwitch" Grid.Column="1" OnContent="" OffContent="" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="允许操作启动器" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="启动游戏、跳页面、弹提示等 launcher.* 工具" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LauncherToolsSwitch" Grid.Column="1" OnContent="" OffContent="" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="写操作前确认" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="启动游戏这类动作先问一句" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ConfirmWritesSwitch" Grid.Column="1" OnContent="" OffContent="" />
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="工具超时（秒）" />
+                                <TextBox x:Name="ToolTimeoutBox" Classes="agent-field" Width="160"
+                                         HorizontalAlignment="Left" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="field-label" Text="逐个开关" />
+                                <StackPanel x:Name="ToolListPanel" Spacing="4" />
+                            </StackPanel>
+
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存工具设置"
+                                    FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveTools" />
+                        </StackPanel>
+
+                        <!-- 数据 -->
+                        <StackPanel x:Name="PaneData" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="setting-title" Text="数据" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="会话按 JSON 存在本机；导出后可读的 Markdown。" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="存储目录" />
+                                <TextBox x:Name="DataPathBox" Classes="agent-field" IsReadOnly="True" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="ghost" Height="30" Padding="12,0" Content="打开目录"
+                                        FontSize="11.5" Click="OnOpenDataFolder" />
+                                <Button Classes="ghost" Height="30" Padding="12,0" Content="清空全部会话"
+                                        FontSize="11.5" Click="OnClearAllSessions" />
+                            </StackPanel>
+
+                            <Border Classes="divider" />
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="加密密钥" />
+                                <TextBlock x:Name="KeyPathText" Classes="caption" TextWrapping="Wrap" />
+                                <TextBlock Classes="setting-hint"
+                                           Text="API Key 用 AES-256-GCM 加密；主密钥跟随系统账户保护，不在配置目录里。" />
+                                <Button x:Name="ResetKeyButton" Classes="ghost" Height="28" Padding="10,0"
+                                        Content="重置加密密钥" FontSize="11" HorizontalAlignment="Left"
+                                        Click="OnResetKey" />
+                            </StackPanel>
+
+                            <Border Classes="divider" />
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="field-label" Text="本地记忆（模型通过 memory.remember 写入）" />
+                                <ScrollViewer Height="170" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="MemoryPanel" Spacing="4" />
+                                </ScrollViewer>
+                                <Button Classes="ghost" Height="28" Padding="10,0" Content="清空记忆"
+                                        FontSize="11.5" HorizontalAlignment="Left" Click="OnClearMemory" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Panel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

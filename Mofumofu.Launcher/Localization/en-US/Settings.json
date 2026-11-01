@@ -142,7 +142,7 @@
   "Settings.About.TechLine": "Stack: Avalonia {0} · SukiUI {1} · .NET {2}",
   "Settings.About.Update": "Check for updates",
   "Settings.About.AutoCheck": "Check for updates automatically",
-  "Settings.About.AutoCheckHint": "Query GitHub Releases on startup and notify here; nothing is downloaded automatically",
+  "Settings.About.AutoCheckHint": "Automatic update checks are disabled; you can check manually",
   "Settings.About.Checking": "Checking for updates…",
   "Settings.About.UpdateFound": "New version {0} available",
   "Settings.About.Update.CurrentLine": "Current {0} → new {1}",

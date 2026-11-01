@@ -39,6 +39,7 @@ public partial class MainWindow : Window
         ("online", "联机", "IconGlobe", "房间与公网联机"),
         ("servers", "服务器", "IconServer", "本机托管与收藏"),
         ("plugins", "插件", "IconPlugin", "扩展与权限"),
+        ("mofuagent", "MofuAgent", "IconRobot", "内置智能体 · 会操作启动器"),
         ("settings", "设置", "IconSettings", "启动器选项"),
     };
 
@@ -73,6 +74,8 @@ public partial class MainWindow : Window
         LaunchBarRefresh.Requested += OnLaunchBarRefreshRequested;
 
         _mainInstance = this;
+
+        AttachAgentPreviewCapture();
 
         RebuildTaskbar();
 
@@ -135,6 +138,8 @@ public partial class MainWindow : Window
         "online" => new OnlineView(),
         "servers" => new ServersView(),
         "plugins" => new PluginsView(),
+        "mofuagent" => new MofuAgentView(),
+        "mofuagent-settings" => new MofuAgentSettingsView(),
         "creator" => new CreatorView(),
         "launchconsole" => new LaunchConsoleView(),
         "settings" => new SettingsView(),
@@ -1678,4 +1683,107 @@ public partial class MainWindow : Window
         WallpaperService.Instance.Changed -= OnWallpaperChanged;
         base.OnClosed(e);
     }
+    /// <summary>
+    /// 验收用：设置 MOFU_AGENT_SHOT=xxx.png 后，启动器会自动切到 MofuAgent 页并把页面渲染成 PNG。
+    /// MOFU_AGENT_SHOT_MODE 支持 chat（跑一段本地模拟对话）/ settings（打开设置抽屉）/ empty。
+    /// 只在该环境变量存在时生效，正常使用不会进入。
+    /// </summary>
+    private static void WaitForAgentReady(MofuAgentView view, Action action, int attempt = 0)
+    {
+        if (view.IsReady || attempt > 30)
+        {
+            action();
+            return;
+        }
+
+        DispatcherTimer.RunOnce(() => WaitForAgentReady(view, action, attempt + 1),
+            TimeSpan.FromMilliseconds(100));
+    }
+
+    private void AttachAgentPreviewCapture()
+    {
+        string? shotPath = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT");
+        if (string.IsNullOrWhiteSpace(shotPath)) return;
+
+        string mode = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_MODE") ?? "chat";
+
+        string? pageId = mode.StartsWith("page:", StringComparison.Ordinal) ? mode[5..]
+            : mode is "settings" or "settings-new" or "settings-data" ? "mofuagent-settings"
+            : "mofuagent";
+
+        DispatcherTimer.RunOnce(() =>
+        {
+            Navigate(pageId);
+            if (PageHost.Content is not Control host) return;
+            var view = host.GetVisualDescendants().OfType<MofuAgentView>().FirstOrDefault();
+
+            if (view is not null && mode is "chat" or "ask" or "empty")
+            {
+                WaitForAgentReady(view, () =>
+                {
+                    if (mode == "chat") _ = view.SeedPreviewConversationAsync();
+                    else if (mode == "ask") view.SeedPreviewAsk();
+                    else view.StartNewConversationForPreview();
+                });
+            }
+
+            var settingsView = host.GetVisualDescendants().OfType<MofuAgentSettingsView>().FirstOrDefault();
+            if (settingsView is not null && mode == "settings-new")
+            {
+                DispatcherTimer.RunOnce(settingsView.AddProviderForPreview,
+                    TimeSpan.FromMilliseconds(250));
+            }
+            else if (settingsView is not null && mode == "settings-data")
+            {
+                DispatcherTimer.RunOnce(settingsView.ShowDataForPreview,
+                    TimeSpan.FromMilliseconds(250));
+            }
+
+            bool wholeWindow = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_TARGET") == "window";
+
+            DispatcherTimer.RunOnce(() =>
+            {
+                try
+                {
+                    Control target = wholeWindow ? RootPanel : PageHost;
+                    Thickness savedMargin = PageHost.Margin;
+                    if (!wholeWindow) PageHost.Margin = default;
+                    double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+                    var size = new PixelSize(
+                        Math.Max(1, (int)Math.Round(target.Bounds.Width * scaling)),
+                        Math.Max(1, (int)Math.Round(target.Bounds.Height * scaling)));
+                    using var bitmap = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
+                    bitmap.Render(target);
+                    PageHost.Margin = savedMargin;
+                    string? directory = Path.GetDirectoryName(shotPath);
+                    if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                    bitmap.Save(shotPath);
+
+                    // 附一张顶部区域的 1:1 裁剪图，方便核对标题与右侧按钮的对齐
+                    var cropRect = new PixelRect(
+                        (int)(size.Width * 0.45), 0,
+                        Math.Max(1, (int)(size.Width * 0.55)),
+                        Math.Max(1, (int)(size.Height * 0.34)));
+                    using var cropBitmap = new RenderTargetBitmap(
+                        new PixelSize(cropRect.Width, cropRect.Height), new Vector(96 * scaling, 96 * scaling));
+                    using (var context = cropBitmap.CreateDrawingContext())
+                    {
+                        context.DrawImage(bitmap,
+                            new Rect(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height),
+                            new Rect(0, 0, cropRect.Width, cropRect.Height));
+                    }
+
+                    cropBitmap.Save(Path.Combine(Path.GetDirectoryName(shotPath) ?? ".",
+                        "crop_" + Path.GetFileName(shotPath)));
+                }
+                catch (Exception error)
+                {
+                    Console.Error.WriteLine("[agent-preview] " + error);
+                }
+
+                if (Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_EXIT") == "1") Close();
+            }, TimeSpan.FromMilliseconds(mode is "chat" or "ask" ? 4200 : 1200));
+        }, TimeSpan.FromMilliseconds(900));
+    }
+
 }

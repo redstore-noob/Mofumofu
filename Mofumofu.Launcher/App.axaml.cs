@@ -76,30 +76,6 @@ public partial class App : Application
         desktop.MainWindow = window;
         WallpaperService.AttachToMainWindow(window);
         window.Show();
-        _ = AutoCheckUpdateAsync();
-    }
-
-    /// <summary>启动后静默检查一次 GitHub Releases 新版本；失败完全无声，不打扰启动。</summary>
-    private static async System.Threading.Tasks.Task AutoCheckUpdateAsync()
-    {
-        try
-        {
-            if (!LocalSettings.Current.AutoCheckUpdates) return;
-            await System.Threading.Tasks.Task.Delay(8000).ConfigureAwait(false);
-            var release = await Services.GitHubUpdater.GetLatestAsync().ConfigureAwait(false);
-            if (Services.GitHubUpdater.IsNewer(release.Tag))
-            {
-                string tag = release.Tag.TrimStart('v', 'V');
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    Shell.Toast(Localization.Localization.T(
-                        "Settings.About.Update.NewToast",
-                        "发现新版本 {0}，可在 设置 → 关于 中更新", tag)));
-            }
-        }
-        catch
-        {
-            // 网络不通 / API 限流等一律静默
-        }
     }
 
 }

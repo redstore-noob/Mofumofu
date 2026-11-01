@@ -142,7 +142,7 @@
   "Settings.About.TechLine": "技術棧：Avalonia {0} · SukiUI {1} · .NET {2}",
   "Settings.About.Update": "檢查更新",
   "Settings.About.AutoCheck": "自動檢查更新",
-  "Settings.About.AutoCheckHint": "啟動後聯網查詢 GitHub Releases 的新版本，僅在關於頁提示，不自動下載",
+  "Settings.About.AutoCheckHint": "自動檢查更新已停用，可手動檢查更新",
   "Settings.About.Checking": "正在檢查更新…",
   "Settings.About.UpdateFound": "發現新版本 {0}",
   "Settings.About.Update.CurrentLine": "當前版本 {0} → 新版本 {1}",
