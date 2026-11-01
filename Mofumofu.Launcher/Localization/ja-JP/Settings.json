@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "ブラウザでプロジェクトホームを開きました",
   "Settings.About.HomeOpenFailed": "プロジェクトホームを開けませんでした：{0}",
   "Settings.About.License": "オープンソースライセンス",
-  "Settings.About.LicenseHint": "本プロジェクトは MIT ライセンスで公開されています。サードパーティコンポーネントのライセンスはダイアログをご覧ください。",
+  "Settings.About.LicenseHint": "本プロジェクトは Apache License 2.0 で公開されています。サードパーティコンポーネントのライセンスはダイアログをご覧ください。",
   "Settings.About.LicenseButton": "ライセンスを表示",
   "Settings.About.LicenseThirdParty": "サードパーティコンポーネントのライセンス：\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter フォント — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "ゲームフォルダを変更しました：{0}",

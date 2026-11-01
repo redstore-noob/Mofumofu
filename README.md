@@ -6,6 +6,7 @@
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
 ![C#](https://img.shields.io/badge/C%23-13-239120?logo=csharp&logoColor=white)
 ![Avalonia](https://img.shields.io/badge/Avalonia-UI-9037A8?logo=avaloniaui&logoColor=white)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?logo=apache)](LICENSE)
 
 ## 免责声明
 > [!CAUTION]
@@ -34,6 +35,27 @@ dotnet build Mofumofu.slnx -c Release
 ## 相关文档
 [免责声明](docs/免责声明.md)
 [插件开发文档](docs/Extension_Guide/overview.md)
+
+## 开源许可
+本项目基于 [Apache License 2.0](LICENSE) 发布，Copyright 2026 Mofumofu。
+
+```
+Copyright 2026 Mofumofu
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+再分发时请保留 [LICENSE](LICENSE) 全文与上述版权声明；如修改了源码，请在修改的文件中注明变更。
 
 ## 项目相关链接💥
 ![点击前往地狱♿️](img/qrcode.png)  

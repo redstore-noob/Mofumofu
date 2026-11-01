@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "Projektseite im Browser geöffnet",
   "Settings.About.HomeOpenFailed": "Projektseite konnte nicht geöffnet werden: {0}",
   "Settings.About.License": "Open-Source-Lizenzen",
-  "Settings.About.LicenseHint": "Dieses Projekt wird unter der MIT-Lizenz veröffentlicht; Lizenzen von Drittkomponenten siehe Dialog.",
+  "Settings.About.LicenseHint": "Dieses Projekt wird unter der Apache-Lizenz 2.0 veröffentlicht; Lizenzen von Drittkomponenten siehe Dialog.",
   "Settings.About.LicenseButton": "Lizenzen ansehen",
   "Settings.About.LicenseThirdParty": "Lizenzen von Drittkomponenten:\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter-Schrift — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "Spielverzeichnis geändert: {0}",

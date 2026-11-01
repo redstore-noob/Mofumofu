@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "已在瀏覽器打開項目主頁",
   "Settings.About.HomeOpenFailed": "打開項目主頁失败：{0}",
   "Settings.About.License": "開源許可",
-  "Settings.About.LicenseHint": "本項目基於 MIT 許可發布；第三方组件許可見彈出視窗。",
+  "Settings.About.LicenseHint": "本項目基於 Apache License 2.0 發布；第三方组件許可見彈出視窗。",
   "Settings.About.LicenseButton": "查看許可",
   "Settings.About.LicenseThirdParty": "第三方组件許可：\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter 字型 — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "已更改遊戲目錄：{0}",

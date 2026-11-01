@@ -251,8 +251,11 @@ jobs:
           mkdir -p pkgroot/usr/bin pkgroot/usr/lib/mofumofu
           mkdir -p pkgroot/usr/share/applications
           mkdir -p pkgroot/usr/share/icons/hicolor/512x512/apps
+          mkdir -p pkgroot/usr/share/doc/mofumofu
           mkdir -p dist
           cp -R publish/linux-x64/* pkgroot/usr/lib/mofumofu/
+          # Apache License 2.0 第 4 条：分发时必须随附许可全文
+          cp LICENSE pkgroot/usr/share/doc/mofumofu/LICENSE
           # 入口脚本：Avalonia 需要 libc 的 webkit2gtk 等由发行版包依赖提供
           printf '#!/bin/sh\nexec /usr/lib/mofumofu/Mofumofu.Launcher "$@"\n' > pkgroot/usr/bin/mofumofu
           chmod +x pkgroot/usr/bin/mofumofu
@@ -309,7 +312,7 @@ jobs:
             printf 'Version: %s\n' "$VERSION"
             printf 'Release: 1%%{?dist}\n'
             printf 'Summary: Mofumofu Launcher - Minecraft launcher\n'
-            printf 'License: MIT\n'
+            printf 'License: Apache-2.0\n'
             printf 'BuildArch: x86_64\n'
             printf '%%description\n'
             printf 'Minecraft launcher based on .NET 10 + Avalonia UI (self-contained).\n'
@@ -318,6 +321,7 @@ jobs:
             printf '/usr/lib/mofumofu\n'
             printf '/usr/share/applications/mofumofu.desktop\n'
             printf '/usr/share/icons/hicolor/512x512/apps/mofumofu.png\n'
+            printf '/usr/share/doc/mofumofu/LICENSE\n'
           } > rpm/SPECS/mofumofu.spec
           rpmbuild -bb \
             --define "_topdir $PWD/rpm" \
@@ -341,7 +345,7 @@ jobs:
             printf 'arch = x86_64\n'
             printf 'pkgdesc = Mofumofu Launcher - Minecraft launcher\n'
             printf 'url = https://github.com/redstore-noob/Mofumofu\n'
-            printf 'license = MIT\n'
+            printf 'license = Apache-2.0\n'
             printf 'depend = webkit2gtk-4.1\n'
             printf 'depend = libayatana-appindicator\n'
             printf 'depend = gtk3\n'

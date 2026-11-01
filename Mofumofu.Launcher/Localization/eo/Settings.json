@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "Malfermis la hejmpaĝon de la projekto en la retumilo",
   "Settings.About.HomeOpenFailed": "Malsukcesis malfermi la hejmpaĝon de la projekto: {0}",
   "Settings.About.License": "Malfermkoda licenco",
-  "Settings.About.LicenseHint": "Tiu ĉi projekto eldoniĝas laŭ la licenco MIT; vidu la licencojn de triapartaj komponantoj en la fenestro.",
+  "Settings.About.LicenseHint": "Tiu ĉi projekto eldoniĝas laŭ la permesilo Apache License 2.0; vidu la permesilojn de triapartaj komponantoj en la fenestro.",
   "Settings.About.LicenseButton": "Vidi la licencon",
   "Settings.About.LicenseThirdParty": "Licencoj de triapartaj komponantoj:\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter-tiparo — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "Ŝanĝis la ludan dosierujon: {0}",

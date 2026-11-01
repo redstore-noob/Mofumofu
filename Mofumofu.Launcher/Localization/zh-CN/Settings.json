@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "已在浏览器打开项目主页",
   "Settings.About.HomeOpenFailed": "打开项目主页失败：{0}",
   "Settings.About.License": "开源许可",
-  "Settings.About.LicenseHint": "本项目基于 MIT 许可发布；第三方组件许可见弹窗。",
+  "Settings.About.LicenseHint": "本项目基于 Apache License 2.0 发布；第三方组件许可见弹窗。",
   "Settings.About.LicenseButton": "查看许可",
   "Settings.About.LicenseThirdParty": "第三方组件许可：\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter 字体 — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "已更改游戏目录：{0}",

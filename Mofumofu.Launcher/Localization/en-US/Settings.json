@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "Project homepage opened in your browser",
   "Settings.About.HomeOpenFailed": "Failed to open the project homepage: {0}",
   "Settings.About.License": "Open-source license",
-  "Settings.About.LicenseHint": "Released under the MIT license; third-party component licenses are shown in a dialog.",
+  "Settings.About.LicenseHint": "Released under the Apache License 2.0; third-party component licenses are shown in a dialog.",
   "Settings.About.LicenseButton": "View licenses",
   "Settings.About.LicenseThirdParty": "Third-party components:\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Inter font — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "Game folder changed: {0}",

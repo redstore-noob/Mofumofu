@@ -164,7 +164,7 @@
   "Settings.About.HomeOpened": "Главная страница проекта открыта в браузере",
   "Settings.About.HomeOpenFailed": "Не удалось открыть главную страницу проекта: {0}",
   "Settings.About.License": "Лицензия",
-  "Settings.About.LicenseHint": "Проект распространяется по лицензии MIT; лицензии сторонних компонентов — в диалоге.",
+  "Settings.About.LicenseHint": "Проект распространяется по лицензии Apache License 2.0; лицензии сторонних компонентов — в диалоге.",
   "Settings.About.LicenseButton": "Посмотреть лицензии",
   "Settings.About.LicenseThirdParty": "Лицензии сторонних компонентов:\n· Avalonia UI 12.1.4 — MIT License\n· SukiUI 7 — MIT License\n· .NET 10 Runtime — MIT License\n· Material Design Icons — Apache License 2.0\n· Шрифт Inter — SIL Open Font License 1.1",
   "Settings.Toast.GameDirChanged": "Игровая папка изменена: {0}",

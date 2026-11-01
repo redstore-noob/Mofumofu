@@ -12,4 +12,15 @@
     <InformationalVersion>$(MofuDisplayVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- 全仓库统一的开源许可与作者信息：Apache License 2.0 -->
+    <Authors>Mofumofu</Authors>
+    <Company>Mofumofu</Company>
+    <Copyright>Copyright 2026 Mofumofu</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/redstore-noob/Mofumofu</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/redstore-noob/Mofumofu</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
 </Project>
