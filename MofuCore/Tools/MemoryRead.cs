@@ -81,6 +81,7 @@ public class MemoryRead
 
         (long totalBytes, long availableBytes) = ReadPhysicalMemory();
         usage.MemoryTotalBytes = totalBytes;
+        availableBytes = Math.Max(0, availableBytes);
         usage.MemoryAvailableBytes = availableBytes;
         usage.MemoryUsedBytes = totalBytes > availableBytes ? totalBytes - availableBytes : 0;
         usage.MemoryTotalGb = totalBytes / 1024d / 1024d / 1024d;
@@ -295,7 +296,7 @@ public class MemoryRead
         return total > 0;
     }
 
-    private static (long TotalBytes, long AvailableBytes) ReadPhysicalMemory()
+    public static (long TotalBytes, long AvailableBytes) ReadPhysicalMemory()
     {
         try
         {
@@ -314,7 +315,7 @@ public class MemoryRead
 
             // 其它平台兜底：用 GC 可见的可用内存作为总量，可用量无法取得
             long availableMemory = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
-            return availableMemory > 0 ? (availableMemory, 0) : (0, 0);
+            return availableMemory > 0 ? (availableMemory, -1) : (0, -1);
         }
         catch (Exception e)
         {

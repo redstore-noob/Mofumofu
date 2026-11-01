@@ -477,11 +477,15 @@
                                                        Classes="muted" VerticalAlignment="Center"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
-                                        <Slider x:Name="MemorySlider" Minimum="2048" Maximum="16384"
-                                                TickFrequency="1024" IsSnapToTickEnabled="True"
+                                        <ComboBox x:Name="InstanceMemoryMode" SelectedIndex="0" SelectionChanged="OnInstanceMemoryModeChanged" HorizontalAlignment="Stretch">
+                                            <ComboBoxItem Content="{DynamicResource L.Memory.Inherit}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Memory.Automatic}" />
+                                            <ComboBoxItem Content="{DynamicResource L.Memory.Manual}" />
+                                        </ComboBox>
+                                        <Slider x:Name="MemorySlider" Minimum="1024" Maximum="16384"
+                                                TickFrequency="256" IsSnapToTickEnabled="True"
                                                 Value="4096" ValueChanged="OnMemoryChanged" />
-                                        <TextBlock Text="{DynamicResource L.Instances.Launch.MemoryHint}"
-                                                   Classes="caption" />
+                                        <TextBlock x:Name="InstanceMemoryPreview" TextWrapping="Wrap" Classes="caption" />
                                     </StackPanel>
                                 </Border>
 
@@ -507,7 +511,7 @@
                                             <StackPanel Grid.Column="1" Spacing="4">
                                                 <TextBlock Text="{DynamicResource L.Instances.Launch.JvmArgs}" Classes="field-label" />
                                                 <TextBox x:Name="JvmArgsBox" FontSize="12"
-                                                         Text="-XX:+UseG1GC -XX:+AlwaysPreTouch" />
+                                                          Text="" />
                                             </StackPanel>
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" Spacing="20">

@@ -1,0 +1,13 @@
+{
+  "Memory.Automatic": "自動分配記憶體",
+  "Memory.Manual": "手動分配記憶體",
+  "Memory.Inherit": "繼承全域記憶體設定",
+  "Memory.Save": "儲存記憶體設定",
+  "Memory.Saved": "已儲存記憶體設定",
+  "Memory.SaveFailed": "儲存記憶體設定失敗",
+  "Memory.Preview": "預計堆積記憶體 {0}–{1} MiB · 系統總記憶體 {2:0.##} GiB · 目前可用 {3:0.##} GiB",
+  "Memory.Hint": "自動模式在啟動時重新計算，並為系統與 Java 非堆積記憶體預留空間。手動模式保留設定值。",
+  "Memory.Unknown": "部分系統記憶體資訊無法取得，自動分配使用保守估算。",
+  "Memory.Pressure": "設定上限超過目前可用記憶體，可能導致系統分頁或啟動失敗。",
+  "Memory.BelowRecommendation": "目前自動上限低於此規模的建議值 {0} MiB，可能記憶體不足；請關閉其他應用程式後重新評估，或減少模組。"
+}

@@ -429,6 +429,12 @@
                                                Text="{DynamicResource L.Settings.Game.Memory.Title}" Classes="group-title"
                                                VerticalAlignment="Center" />
                                 </Grid>
+                                <Border Classes="setting-row" Tag="自动 automatic 内存 memory">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{DynamicResource L.Memory.Automatic}" Classes="row-label" VerticalAlignment="Center" />
+                                        <ToggleSwitch x:Name="AutomaticMemoryToggle" Grid.Column="1" IsCheckedChanged="OnAutomaticMemoryChanged" />
+                                    </Grid>
+                                </Border>
                                 <Border Classes="setting-row" Tag="最大内存 max memory 分配 allocate MB 内存 memory">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Spacing="2" Margin="0,0,16,0">
@@ -436,14 +442,16 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
                                                     VerticalAlignment="Center">
-                                            <TextBlock x:Name="MaxMemoryValue" Text="8192 MB" Classes="value-text" />
+                                            <TextBlock x:Name="MaxMemoryValue" Text="4096 MiB" Classes="value-text" />
                                             <Slider x:Name="MaxMemorySlider" Classes="ctl"
-                                                    Minimum="2048" Maximum="16384" Value="8192"
-                                                    TickFrequency="1024" IsSnapToTickEnabled="True"
+                                                    Minimum="1024" Maximum="16384" Value="4096"
+                                                    TickFrequency="256" IsSnapToTickEnabled="True"
                                                     ValueChanged="OnMaxMemoryChanged" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <TextBlock x:Name="MemoryPreviewText" Classes="caption" TextWrapping="Wrap" Margin="0,8,0,8" />
+                                <Button Classes="primary" Content="{DynamicResource L.Memory.Save}" HorizontalAlignment="Right" Click="OnSaveMemoryClick" />
                             </StackPanel>
                         </suki:GlassCard>
                     </StackPanel>

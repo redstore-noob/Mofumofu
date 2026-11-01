@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Text;
 using System.Text.Json;
+using MofuCore.Launch;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -25,8 +26,8 @@ public class YamlRead
     private const int MinimumWindowHeight = 240;
     private const int DefaultGameWindowWidth = 854;
     private const int DefaultGameWindowHeight = 480;
-    private const int MinimumMemoryMb = 512;
-    private const int DefaultMinimumMemoryMb = 2048;
+    private const int MinimumMemoryMb = MemoryAllocation.MinimumMb;
+    private const int DefaultMinimumMemoryMb = MemoryAllocation.MinimumMb;
     private const int DefaultMaximumMemoryMb = 4096;
 
     private static readonly object __syncRoot = new();
@@ -119,6 +120,15 @@ public class YamlRead
         foreach (YamlDomain domain in Enum.GetValues<YamlDomain>())
         {
             YamlFileStore store = Store(domain);
+            if (domain == YamlDomain.Game && string.IsNullOrWhiteSpace(store.Get(Keys.GameAutomaticMemory)))
+            {
+                bool newConfiguration = string.IsNullOrWhiteSpace(store.Get(Keys.GameMaximumMemoryMb));
+                store.Update(document =>
+                {
+                    document[Keys.GameAutomaticMemory] = FormatBool(newConfiguration);
+                    return true;
+                });
+            }
             store.EnsureDefaults(__defaults[domain]);
         }
     }
@@ -505,8 +515,11 @@ public class YamlRead
             AdditionalEnvironmentVariables = ReadArguments(Keys.GameEnvironmentVariables),
             LaunchFullscreen = ReadBool(Keys.GameFullscreen, false),
             SnapshotBeforeLaunch = ReadBool(Keys.GameSnapshotBeforeLaunch, false),
-            MinimumMemoryMb = ReadInt(Keys.GameMinimumMemoryMb, DefaultMinimumMemoryMb, MinimumMemoryMb),
-            MaximumMemoryMb = ReadInt(Keys.GameMaximumMemoryMb, DefaultMaximumMemoryMb, MinimumMemoryMb),
+            AutomaticMemory = ReadBool(Keys.GameAutomaticMemory,
+                string.IsNullOrWhiteSpace(GetValue(YamlDomain.Game, Keys.GameMaximumMemoryMb))),
+            MinimumMemoryMb = Math.Clamp(ReadInt(Keys.GameMinimumMemoryMb, DefaultMinimumMemoryMb, MinimumMemoryMb),
+                MinimumMemoryMb, MemoryAllocation.NormalizeMaximum(ReadInt(Keys.GameMaximumMemoryMb, DefaultMaximumMemoryMb, 1))),
+            MaximumMemoryMb = MemoryAllocation.NormalizeMaximum(ReadInt(Keys.GameMaximumMemoryMb, DefaultMaximumMemoryMb, 1)),
         };
     }
 
@@ -529,8 +542,8 @@ public class YamlRead
             return false;
         }
 
-        int minimumMemory = Math.Max(MinimumMemoryMb, settings.MinimumMemoryMb);
-        int maximumMemory = Math.Max(minimumMemory, settings.MaximumMemoryMb);
+        int maximumMemory = MemoryAllocation.NormalizeMaximum(settings.MaximumMemoryMb);
+        int minimumMemory = Math.Clamp(settings.MinimumMemoryMb, MinimumMemoryMb, maximumMemory);
         string javaExecutable = settings.JavaExecutable.Trim();
         List<string> jvmArguments = NormalizeArguments(settings.AdditionalJvmArguments);
         List<string> gameArguments = NormalizeArguments(settings.AdditionalGameArguments);
@@ -551,6 +564,7 @@ public class YamlRead
             document[Keys.GameSnapshotBeforeLaunch] = FormatBool(settings.SnapshotBeforeLaunch);
             document[Keys.GameMinimumMemoryMb] = minimumMemory.ToString();
             document[Keys.GameMaximumMemoryMb] = maximumMemory.ToString();
+            document[Keys.GameAutomaticMemory] = FormatBool(settings.AutomaticMemory);
             return true;
         });
     }
@@ -686,6 +700,7 @@ public class YamlRead
         public const string GameSnapshotBeforeLaunch = "globalLaunchSnapshotBeforeLaunch";
         public const string GameMinimumMemoryMb = "globalLaunchMinimumMemoryMb";
         public const string GameMaximumMemoryMb = "globalLaunchMaximumMemoryMb";
+        public const string GameAutomaticMemory = "globalLaunchAutomaticMemory";
 
         /// <summary>Java 路径的"自动选择"占位值。</summary>
         public const string AutomaticJavaValue = "$auto";
@@ -928,7 +943,9 @@ public class GlobalLaunchSettings
 
     public bool SnapshotBeforeLaunch { get; set; }
 
-    public int MinimumMemoryMb { get; set; } = 2048;
+    public bool AutomaticMemory { get; set; } = true;
+
+    public int MinimumMemoryMb { get; set; } = MemoryAllocation.MinimumMb;
 
     public int MaximumMemoryMb { get; set; } = 4096;
 }
@@ -938,6 +955,9 @@ public class GlobalLaunchSettings
 /// </summary>
 public class InstanceJavaConfig
 {
+    /// <summary>null 继承全局；旧配置已有最大内存时继续按手动处理。</summary>
+    public bool? AutomaticMemory { get; set; }
+
     public string JavaExecutable { get; set; } = string.Empty;
 
     public int MinMemoryMB { get; set; }

@@ -809,9 +809,19 @@ internal static class LaunchRequestResolver
             }
         }
 
-        int minimumMemory = Math.Max(512, settings.MinimumMemoryMb);
-        int maximumMemory = instance.MemoryMb > 0 ? instance.MemoryMb : settings.MaximumMemoryMb;
-        if (maximumMemory < minimumMemory) maximumMemory = minimumMemory;
+        InstanceJavaConfig instanceConfig = YamlRead.LoadInstanceJavaConfig(
+            Path.Combine(minecraftDirectory, "versions", versionLabel));
+        int modCount = instance.ModCount;
+        try
+        {
+            string modsDirectory = Path.Combine(gameDirectory, "mods");
+            if (Directory.Exists(modsDirectory))
+                modCount = Directory.EnumerateFiles(modsDirectory, "*.jar").Count();
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        var memory = MofuCore.Launch.MemoryAllocation.Resolve(settings, instanceConfig, modCount,
+            !string.Equals(instance.Loader, "Vanilla", StringComparison.OrdinalIgnoreCase));
 
         string username = LocalSettings.Current.SelectedAccountName?.Trim() ?? string.Empty;
         if (!GameLaunch.IsValidOfflineUsername(username)) username = "Mofumofu";
@@ -824,8 +834,8 @@ internal static class LaunchRequestResolver
             Account = OfflineAccount.Create(username),
             JavaExecutable = javaExecutable,
             JavaRuntimeDirectory = JavaDownload.GetRuntimeDirectory(minecraftDirectory),
-            MinimumMemoryMb = minimumMemory,
-            MaximumMemoryMb = maximumMemory,
+            MinimumMemoryMb = memory.MinimumMb,
+            MaximumMemoryMb = memory.MaximumMb,
             WindowWidth = settings.WindowWidth,
             WindowHeight = settings.WindowHeight,
             ProcessPriority = settings.ProcessPriority,

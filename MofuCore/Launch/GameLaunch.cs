@@ -575,7 +575,7 @@ public sealed class MinecraftLaunchOptions
     /// <summary>可选的 Minecraft runtime 根目录；会递归查找并选择版本要求的 Java。</summary>
     public string JavaRuntimeDirectory { get; set; } = string.Empty;
 
-    public int MinimumMemoryMb { get; set; } = 512;
+    public int MinimumMemoryMb { get; set; } = MemoryAllocation.MinimumMb;
     public int MaximumMemoryMb { get; set; } = 4096;
     public int WindowWidth { get; set; }
     public int WindowHeight { get; set; }

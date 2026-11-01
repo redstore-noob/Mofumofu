@@ -23,6 +23,7 @@ using Avalonia.VisualTree;
 using MofuCore.Config;
 using MofuCore.Download.Minecraft;
 using MofuCore.Java;
+using MofuCore.Launch;
 using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Services.Wallpaper;
@@ -140,9 +141,12 @@ public partial class SettingsView : UserControl
 
         StartBarAutoHideToggle.IsChecked = settings.StartBarAutoHide;
 
-        var memoryMb = ReadMaximumMemoryMb();
-        MaxMemorySlider.Value = memoryMb;
-        MaxMemoryValue.Text = $"{memoryMb} MB";
+        var memorySettings = YamlRead.LoadGlobalLaunchSettings();
+        var memory = MemoryAllocation.Resolve(memorySettings);
+        MaxMemorySlider.Maximum = MemoryAllocation.SliderMaximum(memory.TotalMb, memorySettings.MaximumMemoryMb);
+        MaxMemorySlider.Value = memorySettings.MaximumMemoryMb;
+        AutomaticMemoryToggle.IsChecked = memorySettings.AutomaticMemory;
+        UpdateMemoryPreview();
 
         RefreshJavaList();
 
@@ -629,41 +633,53 @@ public partial class SettingsView : UserControl
 
     // ==================== 游戏：内存 ====================
 
-    private static int ReadMaximumMemoryMb()
+    private void UpdateMemoryPreview()
     {
-        try
-        {
-            return Math.Clamp(YamlRead.LoadGlobalLaunchSettings().MaximumMemoryMb, 2048, 16384);
-        }
-        catch
-        {
-            return 8192;
-        }
+        if (MaxMemoryValue is null || MemoryPreviewText is null || AutomaticMemoryToggle is null) return;
+        bool automatic = AutomaticMemoryToggle.IsChecked == true;
+        MaxMemorySlider.IsEnabled = !automatic;
+        int mb = (int)Math.Round(MaxMemorySlider.Value);
+        var settings = YamlRead.LoadGlobalLaunchSettings();
+        settings.AutomaticMemory = automatic;
+        settings.MaximumMemoryMb = mb;
+        var memory = MemoryAllocation.Resolve(settings);
+        MaxMemoryValue.Text = $"{memory.MaximumMb} MiB";
+        MemoryPreviewText.Text = MemoryPresentation.Describe(memory);
     }
 
     private void OnMaxMemoryChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
-        var mb = (int)Math.Round(e.NewValue);
-        MaxMemoryValue.Text = $"{mb} MB";
-        if (_loading) return;
+        if (!_loading) UpdateMemoryPreview();
+    }
 
+    private void OnAutomaticMemoryChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!_loading) UpdateMemoryPreview();
+    }
+
+    private void OnSaveMemoryClick(object? sender, RoutedEventArgs e)
+    {
+        int mb = (int)Math.Round(MaxMemorySlider.Value);
         try
         {
             var launch = YamlRead.LoadGlobalLaunchSettings();
+            launch.AutomaticMemory = AutomaticMemoryToggle.IsChecked == true;
             launch.MaximumMemoryMb = mb;
+            launch.MinimumMemoryMb = Math.Min(launch.MinimumMemoryMb, mb);
             if (!YamlRead.SaveGlobalLaunchSettings(launch))
             {
-                Shell.Toast(L.T("Settings.Game.Memory.SaveFailed", "保存最大内存失败"));
+                Shell.Toast(L.T("Memory.SaveFailed", "保存内存设置失败"));
                 return;
             }
         }
         catch (Exception ex)
         {
-            Shell.Toast(L.T("Settings.Game.Memory.SaveFailed", "保存最大内存失败：{0}", ex.Message));
+            Shell.Toast(L.T("Memory.SaveFailed", "保存内存设置失败") + "：" + ex.Message);
             return;
         }
 
-        Shell.Toast(L.T("Settings.Toast.MemoryMax", "已保存：最大内存 {0} MB", mb));
+        UpdateMemoryPreview();
+        Shell.Toast(L.T("Memory.Saved", "已保存内存设置"));
     }
 
     // ==================== 通用：窗口 / 单实例 / S 模式 / 语言 ====================

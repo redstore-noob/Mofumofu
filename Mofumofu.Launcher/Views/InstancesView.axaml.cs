@@ -103,6 +103,7 @@ public partial class InstancesView : UserControl
     private List<InstanceInfo> _instances = [];
     private bool _installing;
     private string _gameDirectory = string.Empty;
+    private bool _loadingMemory;
 
     public InstancesView()
     {
@@ -115,8 +116,6 @@ public partial class InstancesView : UserControl
             _instances.Count, CountAccounts(),
             local ? L.T("Instances.Scan.JustNow", "刚刚") : L.T("Instances.Scan.NotScanned", "尚未扫描"));
         DiskUsageText.Text = L.T("Instances.Scan.DiskUsage", "磁盘占用 {0}", FormatSize(GetDirectorySize(_gameDirectory)));
-        int initialMemoryMb = YamlRead.LoadGlobalLaunchSettings().MaximumMemoryMb;
-        MemoryValueText.Text = L.T("Instances.Launch.MemoryValue", "{0} MB · {1} GB", initialMemoryMb, initialMemoryMb / 1024.0);
         JavaListStatus.Text = L.T("Instances.Java.Detecting", "正在检测本机 Java 运行时…");
         GameDirCombo.Items.Clear();
         GameDirCombo.Items.Add(new ComboBoxItem { Content = _gameDirectory });
@@ -505,8 +504,11 @@ public partial class InstancesView : UserControl
             requiredJava?.ToString(CultureInfo.InvariantCulture) ?? "?",
             $"{info.Version} · {info.Loader}");
 
-        MemorySlider.Value = info.MemoryMb;
+        LoadInstanceMemory(info);
         JavaPathBox.Text = info.JavaPath;
+        var launchSettings = YamlRead.LoadGlobalLaunchSettings();
+        JvmArgsBox.Text = string.Join(' ', launchSettings.AdditionalJvmArguments);
+        FullscreenToggle.IsChecked = launchSettings.LaunchFullscreen;
 
         LoadContentLists(info);
         LoadOptions(info);
@@ -1226,20 +1228,58 @@ public partial class InstancesView : UserControl
 
     private void OnMemoryChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
-        if (MemoryValueText is null) return;
+        if (!_loadingMemory) UpdateInstanceMemoryPreview();
+    }
 
-        var mb = (int)Math.Round(e.NewValue);
-        MemoryValueText.Text = L.T("Instances.Launch.MemoryValue", "{0} MB · {1} GB", mb, mb / 1024.0);
-        if (DetailMemoryValue is not null)
+    private void LoadInstanceMemory(InstanceInfo info)
+    {
+        _loadingMemory = true;
+        try
         {
-            DetailMemoryValue.Text = L.T("Instances.Detail.MemoryValue", "{0} MB", mb);
+            var global = YamlRead.LoadGlobalLaunchSettings();
+            var config = YamlRead.LoadInstanceJavaConfig(InstanceRoot(info.Id));
+            var memory = MemoryAllocation.Resolve(global, config, info.ModCount, info.Loader != "Vanilla");
+            int manual = config.MaxMemoryMB > 0 ? MemoryAllocation.NormalizeMaximum(config.MaxMemoryMB) : global.MaximumMemoryMb;
+            MemorySlider.Maximum = MemoryAllocation.SliderMaximum(memory.TotalMb, manual);
+            MemorySlider.Value = manual;
+            InstanceMemoryMode.SelectedIndex = config.AutomaticMemory == true ? 1
+                : config.AutomaticMemory == false || config.MaxMemoryMB > 0 ? 2 : 0;
+            DetailMemoryValue.Text = $"{memory.MaximumMb} MiB";
         }
+        finally { _loadingMemory = false; }
+        UpdateInstanceMemoryPreview();
+    }
+
+    private InstanceJavaConfig MemoryDraft()
+    {
+        return new InstanceJavaConfig
+        {
+            AutomaticMemory = InstanceMemoryMode.SelectedIndex switch { 1 => true, 2 => false, _ => null },
+            MaxMemoryMB = InstanceMemoryMode.SelectedIndex == 2 ? (int)Math.Round(MemorySlider.Value) : 0,
+        };
+    }
+
+    private void OnInstanceMemoryModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_loadingMemory) UpdateInstanceMemoryPreview();
+    }
+
+    private void UpdateInstanceMemoryPreview()
+    {
+        if (_current is null || MemoryValueText is null || InstanceMemoryPreview is null || InstanceMemoryMode is null) return;
+        MemorySlider.IsEnabled = InstanceMemoryMode.SelectedIndex == 2;
+        var memory = MemoryAllocation.Resolve(YamlRead.LoadGlobalLaunchSettings(), MemoryDraft(),
+            _current.ModCount, _current.Loader != "Vanilla");
+        MemoryValueText.Text = $"{memory.MaximumMb} MiB · {memory.MaximumMb / 1024d:0.##} GiB";
+        InstanceMemoryPreview.Text = MemoryPresentation.Describe(memory);
     }
 
     private void OnResetLaunchSettingsClick(object? sender, RoutedEventArgs e)
     {
         GlobalLaunchSettings settings = YamlRead.LoadGlobalLaunchSettings();
+        InstanceMemoryMode.SelectedIndex = 0;
         MemorySlider.Value = settings.MaximumMemoryMb;
+        UpdateInstanceMemoryPreview();
         JavaPathBox.Text = string.Empty;
         JvmArgsBox.Text = "-XX:+UseG1GC -XX:+AlwaysPreTouch";
         WindowSizeCombo.SelectedIndex = 2;
@@ -1252,11 +1292,19 @@ public partial class InstancesView : UserControl
     {
         try
         {
+            if (_current is null) return;
             GlobalLaunchSettings settings = YamlRead.LoadGlobalLaunchSettings();
-            int mb = (int)Math.Round(MemorySlider.Value);
-            settings.MaximumMemoryMb = mb;
-            settings.MinimumMemoryMb = Math.Min(
-                settings.MinimumMemoryMb > 0 ? settings.MinimumMemoryMb : 2048, mb);
+            var config = YamlRead.LoadInstanceJavaConfig(InstanceRoot(_current.Id));
+            var draft = MemoryDraft();
+            config.AutomaticMemory = draft.AutomaticMemory;
+            config.MaxMemoryMB = draft.MaxMemoryMB;
+            config.MinMemoryMB = 0;
+            if (!YamlRead.SaveInstanceJavaConfig(InstanceRoot(_current.Id), config))
+            {
+                Shell.Toast(L.T("Memory.SaveFailed", "保存内存设置失败"));
+                return;
+            }
+            int mb = MemoryAllocation.Resolve(settings, config, _current.ModCount, _current.Loader != "Vanilla").MaximumMb;
             settings.LaunchFullscreen = FullscreenToggle.IsChecked == true;
             settings.JavaExecutable = (JavaPathBox.Text ?? string.Empty).Trim();
             settings.AdditionalJvmArguments = (JvmArgsBox.Text ?? string.Empty)

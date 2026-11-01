@@ -1,0 +1,13 @@
+{
+  "Memory.Automatic": "Allocate memory automatically",
+  "Memory.Manual": "Allocate memory manually",
+  "Memory.Inherit": "Use global memory settings",
+  "Memory.Save": "Save memory settings",
+  "Memory.Saved": "Memory settings saved",
+  "Memory.SaveFailed": "Failed to save memory settings",
+  "Memory.Preview": "Estimated heap {0}–{1} MiB · Total RAM {2:0.##} GiB · Available {3:0.##} GiB",
+  "Memory.Hint": "Automatic mode recalculates at launch and reserves space for the system and Java non-heap memory. Manual mode preserves your chosen limit.",
+  "Memory.Unknown": "Some system memory information is unavailable. Automatic allocation uses a conservative estimate.",
+  "Memory.Pressure": "The selected limit exceeds currently available memory and may cause swapping or launch failures.",
+  "Memory.BelowRecommendation": "The automatic limit is below the suggested {0} MiB for this workload. Memory may be insufficient; close other apps and reassess, or reduce the mod count."
+}
