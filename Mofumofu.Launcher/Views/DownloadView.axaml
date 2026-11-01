@@ -1,9 +1,8 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
-             xmlns:acrylic="using:Fluid.Avalonia.Acrylic"
              xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
              xmlns:views="clr-namespace:Mofumofu.Launcher.Views"
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="694"
@@ -617,10 +616,9 @@
         </Grid>
 
 <!-- ===== 资源详情（由列表进入的独立界面，不是弹层） ===== -->
-            <acrylic:AcrylicSurface x:Name="ResourceDetailPanel" IsVisible="False"
+            <suki:GlassCard x:Name="ResourceDetailPanel" IsVisible="False"
                                      Grid.RowSpan="4" Margin="10,8,10,8" Padding="18,16"
-                                     CornerRadius="18" BlurRadius="8" Vibrancy="1"
-                                     TintColor="#B30C121A" ShadowEnabled="False">
+                                     CornerRadius="18">
                 <Grid RowDefinitions="Auto,Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,12">
                         <Button Classes="icon" Width="34" Height="34" VerticalAlignment="Center"
@@ -719,13 +717,12 @@
                         </Grid>
                     </Grid>
                 </Grid>
-            </acrylic:AcrylicSurface>
+            </suki:GlassCard>
 
 <!-- ===== Minecraft 本体安装（由版本列表进入的独立界面） ===== -->
-            <acrylic:AcrylicSurface x:Name="MinecraftInstallPanel" IsVisible="False"
+            <suki:GlassCard x:Name="MinecraftInstallPanel" IsVisible="False"
                                      Grid.RowSpan="4" Margin="10,8,10,8" Padding="18,16"
-                                     CornerRadius="18" BlurRadius="8" Vibrancy="1"
-                                     TintColor="#B30C121A" ShadowEnabled="False">
+                                     CornerRadius="18">
                 <Grid RowDefinitions="Auto,*">
 
                     <!-- 顶部信息卡 -->
@@ -845,7 +842,7 @@
                         </Border>
                     </Grid>
                 </Grid>
-            </acrylic:AcrylicSurface>
+            </suki:GlassCard>
 
     </Grid>
 </UserControl>

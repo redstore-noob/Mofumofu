@@ -1,7 +1,9 @@
-using Mofumofu.Launcher.Controls;
+﻿using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
@@ -88,6 +90,13 @@ public partial class HomeView : UserControl
     private int _resizeStartH;
     private string _drawerQuery = string.Empty;
 
+    /// <summary>正在播放删除动画的组件 id：防止连点 / 重复触发导致动画被打断。</summary>
+    private readonly HashSet<string> _removingIds = new();
+
+    private const int LiftMs = 150;
+    private const int LandMs = 220;
+    private const int DeleteMs = 240;
+
     public HomeView()
     {
         InitializeComponent();
@@ -152,6 +161,9 @@ public partial class HomeView : UserControl
                 IsVisible = false,
                 RenderTransformOrigin = RelativePoint.Center,
             };
+
+            // 默认过渡：抬起/落位/删除都靠它把「瞬时改属性」变成平滑动画
+            SetWidgetTransitions(host, LiftMs, new CubicEaseOut());
 
             var card = BuildCard(definition);
             host.Children.Add(card);
@@ -258,18 +270,26 @@ public partial class HomeView : UserControl
             var inner = definition.Build();
             if (inner is Border border)
             {
+                // 外观交给外层 GlassCard：内层退化成纯内容容器，去掉底色和描边，
+                // 否则会和 Suki 玻璃的边框叠成「卡中卡」。
                 border.Background = Brushes.Transparent;
+                border.BorderThickness = new Thickness(0);
             }
 
-            return new Fluid.Avalonia.Acrylic.AcrylicSurface
+            // 外层玻璃壳用 SukiUI 的 GlassCard（模糊由内部的 SukiBlurBackground 负责，
+            // 开关由 GlassEffects 统一控制）。内层 WidgetChrome.Card 已被置为透明无描边，只做内容容器。
+            // IsAnimated 关掉：主页组件会随数据刷新反复重建，入场动画纯属浪费。
+            var glass = new SukiUI.Controls.GlassCard
             {
                 CornerRadius = new CornerRadius(16),
-                BlurRadius = 8,
-                Vibrancy = 1.0,
-                TintColor = GlassEffects.PanelTint,
-                ShadowEnabled = false,
-                Child = inner,
+                Padding = new Thickness(0),
+                IsAnimated = false,
+                Content = inner,
             };
+            // 组件会随主题 / 数据刷新反复重建，GlassEffects.Refresh 不一定再跑；
+            // 不补这一下，模板底板会按 Suki 的 GlassOpacity（深色 0.18）画得很浅。
+            glass.Loaded += (_, _) => GlassEffects.ApplyToCard(glass);
+            return glass;
         }
         catch (Exception ex)
         {
@@ -343,6 +363,149 @@ public partial class HomeView : UserControl
 
         ApplyDragVisualBrushes(false);
         RefreshDrawer();
+    }
+
+    // ================= 动画 =================
+
+    /// <summary>
+    /// 给控件换上「本次动画要用」的过渡曲线。幂等：每次播放前按需要重设，
+    /// 避免上一次删除用的 EaseIn 残留到下一次抬起的 EaseOut 上。
+    /// </summary>
+    private static void SetWidgetTransitions(Control target, int milliseconds, Easing easing)
+    {
+        var duration = TimeSpan.FromMilliseconds(milliseconds);
+        target.Transitions = new Transitions
+        {
+            new DoubleTransition { Property = Visual.OpacityProperty, Duration = duration, Easing = easing },
+            new TransformOperationsTransition
+            {
+                Property = Visual.RenderTransformProperty, Duration = duration, Easing = easing,
+            },
+        };
+    }
+
+    /// <summary>
+    /// 瞬时把控件摆到起点，再在下一次渲染过渡到终点。
+    /// 一次性动画（落位 / 坍缩 / 脉冲）都走这里：先改起点不会被过渡成「反向动画」。
+    /// </summary>
+    private static void PlayMotion(Control target, string from, string to, int milliseconds, Easing easing,
+        double? fromOpacity = null, double? toOpacity = null)
+    {
+        if (!UiAnimations.Enabled)
+        {
+            target.RenderTransform = ParseTransform(to);
+            if (toOpacity is { } final) target.Opacity = final;
+            return;
+        }
+
+        var opacity = target.Opacity;
+        target.Transitions = null;
+        target.Opacity = fromOpacity ?? opacity;
+        target.RenderTransform = ParseTransform(from);
+        SetWidgetTransitions(target, milliseconds, easing);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            target.Opacity = toOpacity ?? target.Opacity;
+            target.RenderTransform = ParseTransform(to);
+        }, DispatcherPriority.Render);
+    }
+
+    /// <summary>解析变换字符串；解析不了就退化成「无形变」，别让装饰性动画把删除弄崩。</summary>
+    private static TransformOperations ParseTransform(string value)
+    {
+        try
+        {
+            return TransformOperations.Parse(value);
+        }
+        catch (Exception)
+        {
+            return TransformOperations.Parse("translate(0px, 0px) scale(1)");
+        }
+    }
+
+    private static string Transform(double x, double y, double scale, double rotate = 0)
+    {
+        var text = $"translate({Number(x)}px, {Number(y)}px) scale({Number(scale)})";
+        return rotate == 0 ? text : text + $" rotate({Number(rotate)}deg)";
+    }
+
+    /// <summary>TransformOperations 按 InvariantCulture 解析，小数点不能跟着系统语言走。</summary>
+    private static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>落位动画：从改动前的坐标滑到吸附后的格子位置，并轻轻压实一下。</summary>
+    private void PlayLandAnimation(WidgetHost widget, double fromLeft, double fromTop)
+    {
+        Control host = widget.Host;
+        var dx = fromLeft - Canvas.GetLeft(host);
+        var dy = fromTop - Canvas.GetTop(host);
+        if (double.IsNaN(dx) || double.IsNaN(dy) || double.IsInfinity(dx) || double.IsInfinity(dy))
+        {
+            dx = 0;
+            dy = 0;
+        }
+
+        // 原地放下也给一点回弹，否则看起来像什么都没发生
+        var from = Math.Abs(dx) < 0.5 && Math.Abs(dy) < 0.5
+            ? Transform(0, 0, 1.025)
+            : Transform(dx, dy, 0.985);
+
+        PlayMotion(host, from, Transform(0, 0, 1), LandMs, new CubicEaseOut(), toOpacity: 1);
+    }
+
+    /// <summary>删除区中心（格子板坐标系）：优先用底部提示条的实时位置。</summary>
+    private Point? DeleteZoneCenterInBoard()
+    {
+        if (DeleteHint.IsVisible && DeleteHint.Bounds.Width > 0
+            && DeleteHint.TranslatePoint(
+                new Point(DeleteHint.Bounds.Width / 2, DeleteHint.Bounds.Height / 2), WidgetBoard) is { } hint)
+        {
+            return hint;
+        }
+
+        return this.TranslatePoint(
+            new Point(BoardScroll.Bounds.Width / 2, Math.Max(0, BoardScroll.Bounds.Height - 46)), WidgetBoard);
+    }
+
+    /// <summary>被删组件朝删除区吸过去的位移：让「删掉」有明确方向，而不是原地消失。</summary>
+    private (double Dx, double Dy) DeleteZonePull(WidgetHost widget)
+    {
+        var host = widget.Host;
+        var width = host.Width > 0 ? host.Width : host.Bounds.Width;
+        var height = host.Height > 0 ? host.Height : host.Bounds.Height;
+        var center = new Point(Canvas.GetLeft(host) + width / 2, Canvas.GetTop(host) + height / 2);
+
+        if (DeleteZoneCenterInBoard() is not { } target) return (0, 34);
+
+        return ((target.X - center.X) * 0.72, (target.Y - center.Y) * 0.72);
+    }
+
+    /// <summary>组件落进删除区时，删除区「吞一下」。</summary>
+    private async void PulseDeleteZone()
+    {
+        if (!UiAnimations.Enabled || !DeleteHint.IsVisible) return;
+
+        DeleteHint.RenderTransformOrigin = RelativePoint.Center;
+        PlayMotion(DeleteHint, Transform(0, 0, 1.04), Transform(0, 0, 1.16), 110, new CubicEaseOut());
+        await Task.Delay(110);
+        PlayMotion(DeleteHint, Transform(0, 0, 1.16), Transform(0, 0, 1), 180, new CubicEaseOut());
+    }
+
+    /// <summary>拖到删除区上方：提示条鼓起、幽灵卡收紧，让「要删掉了」这一瞬间有反馈。</summary>
+    private void SetDeleteZoneHover(bool over)
+    {
+        DeleteHint.RenderTransformOrigin = RelativePoint.Center;
+        DragGhost.RenderTransformOrigin = RelativePoint.Center;
+
+        PlayMotion(DeleteHint,
+            Transform(0, 0, over ? 1 : 1.08),
+            Transform(0, 0, over ? 1.08 : 1),
+            150, new CubicEaseOut());
+
+        PlayMotion(DragGhost,
+            Transform(0, 0, over ? 1 : 0.9),
+            Transform(0, 0, over ? 0.9 : 1),
+            150, new CubicEaseOut());
     }
 
     // ================= 布局 =================
@@ -474,30 +637,18 @@ public partial class HomeView : UserControl
         }
 
         DesktopWidgetPage page = _widgetPages[index];
-        var content = new StackPanel { Spacing = 12, Width = 360 };
-        content.Children.Add(new TextBlock
-        {
-            Text = L.T("Home.Page.DeleteConfirm", "确定删除「{0}」吗？页面里的组件摆放会被移除。", index + 1),
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var content = MofuDialog.Stack();
+        content.Children.Add(MofuDialog.Message(
+            L.T("Home.Page.DeleteConfirm", "确定删除「{0}」吗？页面里的组件摆放会被移除。", index + 1)));
 
-        var buttons = new StackPanel
+        // content 本身就在弹窗视觉树里，拿它关闭即可，不用再拎某个按钮
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button { Content = L.T("Common.Cancel", "取消"), Classes = { "ghost" }, Height = 30 };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-        var confirm = new Button { Content = L.T("Common.Ok", "确定"), Classes = { "primary" }, Height = 30 };
-        confirm.Click += (_, _) =>
-        {
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             DeleteWidgetPage(index);
-        };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
+        });
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
         Shell.Dialog(content, L.T("Home.Page.Delete", "删除页面"));
     }
 
@@ -524,7 +675,7 @@ public partial class HomeView : UserControl
     }
 
     private static void DismissDialog(Control control) =>
-        control.FindAncestorOfType<SukiDialogHost>(true)?.Manager?.DismissDialog();
+        control.FindAncestorOfType<MofuDialogHost>(true)?.Manager?.DismissDialog();
 
     private void LayoutBoard()
     {
@@ -737,7 +888,8 @@ public partial class HomeView : UserControl
         DragGhostIcon.Kind = widget.Definition.IconKey;
         DragGhostText.Text = widget.Definition.Title;
         DragGhostHint.Text = L.T("Home.Drag.DropAnywhere", "拖到桌面任意位置放置");
-        DragGhost.Opacity = 1;
+        DragGhost.RenderTransformOrigin = RelativePoint.Center;
+        PlayMotion(DragGhost, Transform(0, -4, 0.92), Transform(0, 0, 1), 160, new CubicEaseOut(), 0, 1);
         DragOverlay.IsVisible = true;
         DeleteHint.IsVisible = false;
 
@@ -784,15 +936,19 @@ public partial class HomeView : UserControl
         }
 
         widget.Host.Opacity = 0.35;
-        widget.Host.RenderTransform = TransformOperations.Parse("scale(0.965)");
+        SetWidgetTransitions(widget.Host, LiftMs, new CubicEaseOut());
+        widget.Host.RenderTransform = ParseTransform(Transform(0, 0, 0.965));
         // 捕获指针：拖到开始栏/组件盒（HomeView 之外）也能收到移动与松手
         _pressPointer?.Capture(widget.Host);
         DragGhostIcon.Kind = widget.Definition.IconKey;
         DragGhostText.Text = widget.Definition.Title;
         DragGhostHint.Text = L.T("Home.Drag.Hint", "拖到格子放下 · 拖到开始栏移除");
-        DragGhost.Opacity = 1;
+        DragGhost.RenderTransformOrigin = RelativePoint.Center;
+        PlayMotion(DragGhost, Transform(0, -4, 0.92), Transform(0, 0, 1), 160, new CubicEaseOut(), 0, 1);
         DragOverlay.IsVisible = true;
         DeleteHint.IsVisible = true;
+        DeleteHint.RenderTransformOrigin = RelativePoint.Center;
+        PlayMotion(DeleteHint, Transform(0, 12, 0.92), Transform(0, 0, 1), 200, new CubicEaseOut(), 0, 1);
         DeleteHintText.Text = L.T("Home.Drag.MoveHint", "拖到开始栏或组件盒可移除");
         ApplyDragVisualBrushes(false);
 
@@ -818,7 +974,15 @@ public partial class HomeView : UserControl
         Canvas.SetLeft(DragGhost, point.X + 16);
         Canvas.SetTop(DragGhost, point.Y + 14);
 
+        var wasOverDelete = _overDelete;
         _overDelete = !_dragFromLibrary && ComputeOverDelete(point);
+        if (wasOverDelete != _overDelete) SetDeleteZoneHover(_overDelete);
+        if (!_dragFromLibrary)
+        {
+            // 悬在删除区上方时，原位那张卡进一步淡掉，暗示「这一张马上要被删掉」
+            _dragHost.Host.Opacity = _overDelete ? 0.12 : 0.35;
+        }
+
         var boardPoint = this.TranslatePoint(point, WidgetBoard);
 
         if (boardPoint is { } local)
@@ -882,7 +1046,13 @@ public partial class HomeView : UserControl
         var targetY = _targetY;
         var fromLibrary = _dragFromLibrary;
 
-        ResetDragVisuals(widget);
+        var intoDeleteZone = wasOverDelete && !fromLibrary;
+        // 吸附方向要先量：ResetDragVisuals 会把提示条收起来，之后就量不到删除区位置了
+        (double Dx, double Dy) pull = intoDeleteZone ? DeleteZonePull(widget) : default;
+        if (intoDeleteZone) PulseDeleteZone();
+
+        // 删除要保留「抬起时」的缩小半透明，从那一帧直接被吸走；其他情况先恢复正常外观
+        ResetDragVisuals(widget, resetHost: !intoDeleteZone);
 
         if (fromLibrary)
         {
@@ -891,23 +1061,24 @@ public partial class HomeView : UserControl
             return;
         }
 
-        if (wasOverDelete)
+        if (intoDeleteZone)
         {
-            RemoveWidget(widget);
+            _ = RemoveWidgetAsync(widget, pull, Transform(0, 0, 0.965), 0.7);
             return;
         }
 
         PlaceWidget(widget.Definition.Id, targetX, targetY);
     }
 
-    private void ResetDragVisuals(WidgetHost widget)
+    private void ResetDragVisuals(WidgetHost widget, bool resetHost = true)
     {
         _pressPointer?.Capture(null);
         _pressPointer = null;
-        if (!_dragFromLibrary)
+        if (resetHost && !_dragFromLibrary)
         {
+            SetWidgetTransitions(widget.Host, LiftMs, new CubicEaseOut());
             widget.Host.Opacity = 1;
-            widget.Host.RenderTransform = TransformOperations.Parse("scale(1)");
+            widget.Host.RenderTransform = ParseTransform(Transform(0, 0, 1));
         }
 
         _dragging = false;
@@ -1042,6 +1213,8 @@ public partial class HomeView : UserControl
     private void PlaceWidget(string id, int x, int y)
     {
         if (!_placements.TryGetValue(id, out var placement)) return;
+        var widget = _widgets.FirstOrDefault(item => item.Definition.Id == id);
+        if (widget is null) return;
 
         if (!Fits(id, x, y, placement.W, placement.H))
         {
@@ -1058,32 +1231,67 @@ public partial class HomeView : UserControl
 
         placement.X = x;
         placement.Y = y;
+
+        // 落位动画的起点要趁 LayoutBoard 之前取：拖动时宿主还停在旧格子上
+        var fromLeft = Canvas.GetLeft(widget.Host);
+        var fromTop = Canvas.GetTop(widget.Host);
         SaveLayout();
         LayoutBoard();
+        PlayLandAnimation(widget, fromLeft, fromTop);
     }
 
-    private async void RemoveWidget(WidgetHost widget)
+    private void RemoveWidget(WidgetHost widget) =>
+        _ = RemoveWidgetAsync(widget, (0, 36), Transform(0, 0, 1), 1);
+
+    /// <summary>
+    /// 删除动画：往删除区（或下方）吸过去，同时缩小、淡出。
+    /// <paramref name="pull"/> 为吸过去的位移，<paramref name="fromState"/> / <paramref name="fromOpacity"/>
+    /// 是动画起始帧（从删除区松手时，起点用「抬起」那张缩小半透明的卡）。
+    /// </summary>
+    private async Task RemoveWidgetAsync(WidgetHost widget, (double Dx, double Dy) pull,
+        string fromState, double fromOpacity)
     {
-        if (!_placements.ContainsKey(widget.Definition.Id)) return;
+        string id = widget.Definition.Id;
+        if (!_placements.ContainsKey(id)) return;
+        if (!_removingIds.Add(id)) return;
 
-        widget.Host.Opacity = 0;
-        widget.Host.RenderTransform = TransformOperations.Parse("scale(0.9)");
-        await System.Threading.Tasks.Task.Delay(170);
-
-        if (!_placements.Remove(widget.Definition.Id))
+        Control host = widget.Host;
+        try
         {
-            widget.Host.Opacity = 1;
-            widget.Host.RenderTransform = TransformOperations.Parse("scale(1)");
-            return;
-        }
+            PlayMotion(host,
+                fromState,
+                Transform(pull.Dx, pull.Dy, 0.12, -7),
+                DeleteMs,
+                new CubicEaseIn(),
+                fromOpacity,
+                0);
 
-        widget.Host.IsVisible = false;
-        widget.Host.Opacity = 1;
-        widget.Host.RenderTransform = TransformOperations.Parse("scale(1)");
-        SaveLayout();
-        LayoutBoard();
-        RefreshDrawer();
-        Shell.Toast(L.T("Home.Toast.Removed", "已移除「{0}」", widget.Definition.Title));
+            if (UiAnimations.Enabled) await Task.Delay(DeleteMs);
+
+            if (!_placements.Remove(id))
+            {
+                // 动画期间状态被改回去了（例如切页）：把外观还原，别留一张缩小的卡
+                host.IsVisible = true;
+                SetWidgetTransitions(host, LiftMs, new CubicEaseOut());
+                host.RenderTransform = ParseTransform(Transform(0, 0, 1));
+                host.Opacity = 1;
+                return;
+            }
+
+            host.IsVisible = false;
+            host.Transitions = null;
+            host.RenderTransform = ParseTransform(Transform(0, 0, 1));
+            host.Opacity = 1;
+
+            SaveLayout();
+            LayoutBoard();
+            RefreshDrawer();
+            Shell.Toast(L.T("Home.Toast.Removed", "已移除「{0}」", widget.Definition.Title));
+        }
+        finally
+        {
+            _removingIds.Remove(id);
+        }
     }
 
     private void AddWidget(WidgetHost widget)
@@ -1135,7 +1343,14 @@ public partial class HomeView : UserControl
 
         SaveLayout();
         LayoutBoard();
-        UiAnimations.FadeSlideIn(widget.Host, 0.94, 10, 200);
+        // 摆放动画：从略小略低的位置弹起来，像把组件「按」到桌面上
+        PlayMotion(widget.Host,
+            Transform(0, 14, 0.88),
+            Transform(0, 0, 1),
+            260,
+            new CubicEaseOut(),
+            0,
+            1);
         RefreshDrawer();
         Shell.Toast(L.T("Home.Toast.Added", "已添加「{0}」", widget.Definition.Title));
     }
@@ -1150,6 +1365,12 @@ public partial class HomeView : UserControl
             .ThenBy(placement => placement.X)
             .ToList();
 
+        // 记住整理前的坐标，整理后每张卡用一段滑行补过去，而不是瞬间跳位
+        var before = _widgets
+            .Where(widget => _placements.ContainsKey(widget.Definition.Id))
+            .ToDictionary(widget => widget.Definition.Id,
+                widget => (Left: Canvas.GetLeft(widget.Host), Top: Canvas.GetTop(widget.Host)));
+
         _placements.Clear();
         foreach (var placement in ordered)
         {
@@ -1163,6 +1384,14 @@ public partial class HomeView : UserControl
 
         SaveLayout();
         LayoutBoard();
+
+        foreach (var widget in _widgets)
+        {
+            if (!before.TryGetValue(widget.Definition.Id, out var from)) continue;
+            if (!_placements.ContainsKey(widget.Definition.Id)) continue;
+            PlayLandAnimation(widget, from.Left, from.Top);
+        }
+
         RefreshDrawer();
         Shell.Toast(L.T("Home.Toast.Arranged", "桌面已整理"));
     }

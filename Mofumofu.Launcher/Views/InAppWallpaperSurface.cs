@@ -16,7 +16,7 @@ namespace Mofumofu.Launcher.Views;
 
 /// <summary>
 /// 主窗口内部的最底层壁纸画布（图片 / 轮播）。
-/// 画在 Avalonia 内容里，AcrylicSurface 之类的库才能采样到壁纸做毛玻璃。
+/// 画在 Avalonia 内容里，GlassCard 之类的控件才能采样到壁纸做毛玻璃。
 /// </summary>
 public sealed class InAppWallpaperSurface : Panel
 {

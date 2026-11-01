@@ -4,7 +4,9 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -39,6 +41,9 @@ public partial class LaunchConsoleView : UserControl
         public ProgressBar Bar { get; init; } = null!;
         public TextBlock PercentText { get; init; } = null!;
         public TextBlock DurationText { get; init; } = null!;
+
+        /// <summary>上一次渲染的状态：只在状态真的变了时播图标动画。</summary>
+        public LaunchStageState LastState { get; set; } = LaunchStageState.Pending;
     }
 
     private const int MaxConsoleLines = 600;
@@ -115,6 +120,7 @@ public partial class LaunchConsoleView : UserControl
                 Height = 20,
                 CornerRadius = new CornerRadius(10),
                 VerticalAlignment = VerticalAlignment.Center,
+                RenderTransformOrigin = RelativePoint.Center,
                 Child = iconText,
             };
 
@@ -147,6 +153,18 @@ public partial class LaunchConsoleView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 Background = ThemeTokens.Brush("NekoBorderBrush"),
                 Foreground = ThemeTokens.Brush("NekoAccentBrush"),
+                // 进度不要一格格跳，数值变化走 260ms 过渡
+                Transitions = UiAnimations.Enabled
+                    ? new Transitions
+                    {
+                        new DoubleTransition
+                        {
+                            Property = RangeBase.ValueProperty,
+                            Duration = TimeSpan.FromMilliseconds(260),
+                            Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                        },
+                    }
+                    : null,
             };
 
             var percentText = new TextBlock
@@ -321,6 +339,9 @@ public partial class LaunchConsoleView : UserControl
     {
         if (!_stageRows.TryGetValue(stage.Id, out StageRow? row)) return;
 
+        var stateChanged = row.LastState != stage.State;
+        row.LastState = stage.State;
+
         (string glyph, IBrush iconForeground, IBrush iconBackground, IBrush titleForeground) = stage.State switch
         {
             LaunchStageState.Running => ("…", ThemeTokens.Brush("NekoAccentBrush"), ThemeTokens.Brush("NekoAccentSoftBrush"), ThemeTokens.Brush("NekoTextBrush")),
@@ -334,6 +355,14 @@ public partial class LaunchConsoleView : UserControl
         row.IconText.Foreground = iconForeground;
         row.IconBox.Background = iconBackground;
         row.TitleText.Foreground = titleForeground;
+
+        // 状态变化时图标弹一下：从「·」变「✓/✕」是最值得强调的一瞬间
+        if (stateChanged && stage.State is LaunchStageState.Succeeded or LaunchStageState.Failed
+                or LaunchStageState.Running)
+        {
+            UiAnimations.Pulse(row.IconBox, stage.State == LaunchStageState.Running ? 1.12 : 1.28, 240);
+        }
+
         row.Bar.Value = Math.Clamp(stage.Progress * 100, 0, 100);
         row.PercentText.Text = stage.State == LaunchStageState.Skipped
             ? "—"
@@ -361,6 +390,12 @@ public partial class LaunchConsoleView : UserControl
         OverallText.Foreground = ThemeTokens.Brush(e.Success ? "NekoSuccessBrush" : "NekoDangerBrush");
         PhaseText.Text = e.Message;
         ElapsedText.Text = FormatElapsed(e.Duration);
+
+        // 终态定格：状态字样弹一下，别让它悄悄变个颜色就完了
+        TerminalStatusText.RenderTransformOrigin = RelativePoint.Center;
+        UiAnimations.Pulse(TerminalStatusText, 1.18, 300);
+        UiAnimations.FadeSlideIn(PhaseText, 0.99, 4, 200);
+
         GameState.Stop();
     }
 

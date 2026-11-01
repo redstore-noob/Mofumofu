@@ -11,7 +11,7 @@
     </Application.Resources>
 
     <Application.Styles>
-        <sukiTheme:SukiTheme />
+            <sukiTheme:SukiTheme></sukiTheme:SukiTheme>
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Simple/AvaloniaEdit.xaml" />
         <StyleInclude Source="avares://Mofumofu.Launcher/Styles/AppStyles.axaml" />
     </Application.Styles>

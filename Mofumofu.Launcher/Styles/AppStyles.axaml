@@ -16,8 +16,8 @@
 
         <SolidColorBrush x:Key="NekoTextBrush" Color="#E9EEF6" />
         <SolidColorBrush x:Key="NekoMutedBrush" Color="#93A0B4" />
-        <SolidColorBrush x:Key="NekoDimBrush" Color="#74839A" />
-        <SolidColorBrush x:Key="NekoBorderBrush" Color="#26303D" />
+        <SolidColorBrush x:Key="NekoDimBrush" Color="#94A3B8" />
+        <SolidColorBrush x:Key="NekoBorderBrush" Color="#34435A" />
 
         <SolidColorBrush x:Key="NekoDangerBrush" Color="#E5484D" />
         <SolidColorBrush x:Key="NekoDangerSoftBrush" Color="#3A1B1E" />
@@ -28,9 +28,10 @@
         <SolidColorBrush x:Key="NekoInfoBrush" Color="#5AA9E6" />
         <SolidColorBrush x:Key="NekoInfoSoftBrush" Color="#16293A" />
 
-        <SolidColorBrush x:Key="NekoCardBrush" Color="#D9121822" />
-        <SolidColorBrush x:Key="NekoCardSoftBrush" Color="#B30E141C" />
-        <SolidColorBrush x:Key="NekoCardHoverBrush" Color="#1A2230" />
+        <SolidColorBrush x:Key="NekoCardBrush" Color="#F21A2332" />
+        <SolidColorBrush x:Key="NekoCardSolidBrush" Color="#1A2332" />
+        <SolidColorBrush x:Key="NekoCardSoftBrush" Color="#F2141C29" />
+        <SolidColorBrush x:Key="NekoCardHoverBrush" Color="#222D3F" />
         <SolidColorBrush x:Key="NekoSurfaceBrush" Color="#0A0E15" />
         <SolidColorBrush x:Key="NekoFieldBrush" Color="#16202B" />
         <SolidColorBrush x:Key="NekoFieldSoftBrush" Color="#0F151E" />
@@ -102,14 +103,9 @@
         <FontFamily x:Key="NekoIconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
     </Styles.Resources>
 
-    <!-- 弹窗（SukiDialog）用不透明底板：默认玻璃材质在内容留白多时会透出下层页面 -->
-    <Style Selector="suki|SukiDialog">
-        <Setter Property="Background" Value="{DynamicResource NekoDialogSolidBrush}" />
-    </Style>
-    <!-- SukiDialogHost 遮罩走 NekoScrimBrush：浅色压白，深色压黑 -->
-    <Style Selector="suki|SukiDialogHost /template/ Border#PART_DialogBackground">
-        <Setter Property="Background" Value="{DynamicResource NekoScrimBrush}" />
-    </Style>
+    <!-- 弹窗外观已由 Controls/MofuDialogHost 自己负责（实心底板 + NekoScrimBrush 遮罩），
+         这里不再需要给 SukiDialog 打补丁。 -->
+
     <!-- ================= 交互反馈（统一去掉点击黑框） ================= -->
     <!-- 焦点框默认值：不画焦点虚线框 -->
     <Style Selector="AdornerLayer">
@@ -174,6 +170,25 @@
     </Style>
 
     <!-- ================= 表面 ================= -->
+    <!-- Suki 模板自己的 GlassOpacity 会再次稀释背景；透明度只交给主题画刷，
+         避免深色卡片底色与描边几乎消失。Control 类用于复选框等内置控件，保留其专用样式。 -->
+    <Style Selector="suki|GlassCard:not(.Control):not(.Discrete)">
+        <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+    </Style>
+    <Style Selector="suki|GlassCard:not(.Control):not(.Discrete) /template/ suki|GlassCardBorder#PART_BorderCard">
+        <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="UseDarkBorder" Value="False" />
+        <Setter Property="LightBorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+    </Style>
+    <Style Selector="suki|GlassCard[IsOpaque=True]:not(.Control):not(.Discrete) /template/ suki|GlassCardBorder#PART_BorderCard">
+        <Setter Property="Background" Value="{DynamicResource NekoCardSolidBrush}" />
+    </Style>
+    <Style Selector="suki|GlassCard[IsInteractive=True]:not(.Control):not(.Discrete):pointerover /template/ suki|GlassCardBorder#PART_BorderCard">
+        <Setter Property="Background" Value="{DynamicResource NekoCardHoverBrush}" />
+        <Setter Property="LightBorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
+    </Style>
     <Style Selector="Border.card">
         <Setter Property="Background" Value="{StaticResource NekoCardBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource NekoBorderBrush}" />
@@ -200,6 +215,12 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16,8" />
+    </Style>
+    <!-- SukiUI 的 Button 模板不把 Background 透传到 ContentPresenter，
+         只设 Button.Background 会让主按钮看起来是个白框——这里显式补一层底色 -->
+    <Style Selector="Button.primary /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
@@ -495,5 +516,143 @@
     </Style>
     <Style Selector="Border.beta-badge TextBlock">
         <Setter Property="Foreground" Value="#1A1206" />
+    </Style>
+
+    <!-- ================= 弹窗内控件（MofuDialogHost 专用） =================
+         放在文件最后：这里的规则要比上面全局那套「悬停 = 描边框 + 放大」优先，
+         弹窗里的控件不跟着页面按钮疯。 -->
+
+    <!-- 关闭键：平时隐形，悬停才浮出一层浅底 -->
+    <Style Selector="Button.dialog-close">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.dialog-close:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.dialog-close:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="Button.dialog-close:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+
+    <!-- 弹窗输入框：浅底 + 10 圆角，悬停淡描边、聚焦亮主题色 -->
+    <Style Selector="TextBox.field">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource NekoAccentBrush}" />
+    </Style>
+    <Style Selector="TextBox.field /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="TextBox.field:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
+    </Style>
+    <Style Selector="TextBox.field:focus /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+
+    <!-- 弹窗按钮：不做悬停放大，高度/圆角跟输入框对齐 -->
+    <Style Selector="Button.dialog-action">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="MinWidth" Value="88" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="RenderTransform" Value="none" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.dialog-action:pointerover">
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.dialog-action:pressed">
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.dialog-action /template/ ContentPresenter">
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!-- 次要按钮：软底无描边，别用 outline 那种“白框框” -->
+    <Style Selector="Button.dialog-secondary">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Button.dialog-secondary /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.dialog-secondary:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.dialog-secondary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.dialog-secondary:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+    </Style>
+
+    <!-- 危险按钮：红底；悬停不再变主题色，只压一点透明度 -->
+    <Style Selector="Button.dialog-danger">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.dialog-danger /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoDangerBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.dialog-danger:pointerover">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.dialog-danger:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoDangerBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.dialog-danger:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoDangerBrush}" />
+    </Style>
+
+    <!-- 表单小标签 -->
+    <Style Selector="TextBlock.field-label">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
     </Style>
 </Styles>

@@ -1,4 +1,4 @@
-using Mofumofu.Launcher.Controls;
+﻿using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -2526,7 +2526,7 @@ public partial class CreatorView : UserControl
     {
         if (source is Visual visual)
         {
-            visual.FindAncestorOfType<SukiDialogHost>(includeSelf: true)?.Manager?.DismissDialog();
+            visual.FindAncestorOfType<MofuDialogHost>(includeSelf: true)?.Manager?.DismissDialog();
         }
     }
 

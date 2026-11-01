@@ -1,4 +1,4 @@
-using Mofumofu.Launcher.Controls;
+﻿using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -652,6 +652,9 @@ public partial class ServersView : UserControl
             grid.Children.Add(actions);
             BackupPanel.Children.Add(grid);
         }
+
+        // 备份列表刷新（用户点「刷新」或刚做完备份）时逐行淡入
+        UiAnimations.Stagger(BackupPanel.Children, step: 45, milliseconds: 180);
     }
 
     private async void OnRestoreBackupClick(object? sender, RoutedEventArgs e)
@@ -908,7 +911,7 @@ public partial class ServersView : UserControl
 
             var nameBox = new TextBox
             {
-                Height = 34,
+                Height = 38,
                 Text = L.T("Servers.Create.DefaultName", "Mofu Server"),
             };
             var coreCombo = new ComboBox
@@ -921,15 +924,17 @@ public partial class ServersView : UserControl
                     "NeoForge",
                 },
                 SelectedIndex = 0,
-                Height = 34,
+                Height = 38,
             };
             var versionCombo = new ComboBox
             {
                 ItemsSource = versions.Take(100).ToList(),
                 SelectedIndex = 0,
-                Height = 34,
+                Height = 38,
             };
-            var portBox = new TextBox { Height = 34, Text = "25565" };
+            var portBox = new TextBox { Height = 38, Text = "25565" };
+            nameBox.Classes.Add("field");
+            portBox.Classes.Add("field");
             var eulaCheck = new CheckBox
             {
                 Content = L.T("Servers.Create.Eula", "我已阅读并同意 Minecraft EULA"),
@@ -951,7 +956,7 @@ public partial class ServersView : UserControl
             var createButton = new Button
             {
                 Content = L.T("Servers.Create.Create", "创建服务器"),
-                Classes = { "primary" },
+                Classes = { "primary", "dialog-action" },
                 HorizontalAlignment = HorizontalAlignment.Left,
             };
 
@@ -1086,7 +1091,7 @@ public partial class ServersView : UserControl
                 }
             };
 
-            Shell.Dialog(panel, L.T("Servers.Create.Title", "新建服务器"));
+            Shell.Dialog(panel, L.T("Servers.Create.Title", "新建服务器"), sender as Control);
         }
         catch (Exception ex)
         {
@@ -1203,7 +1208,7 @@ public partial class ServersView : UserControl
             _ => null,
         };
         UiAnimations.Reset(pane);
-        UiAnimations.FadeSlideIn(pane, 0.995, 5, 160);
+        UiAnimations.FadeSwap(pane, 160);
     }
 
     private static void SetTabActive(Button button, bool active)
@@ -1619,45 +1624,17 @@ public partial class ServersView : UserControl
 
     private void ShowNameDialog(string title, string label, string initial, Action<string> onConfirm)
     {
-        var input = new TextBox
-        {
-            Text = initial,
-            Height = 32,
-            MinWidth = 300,
-        };
+        var input = MofuDialog.Input(initial);
 
-        var content = new StackPanel { Spacing = 10, Width = 380 };
-        content.Children.Add(new TextBlock { Text = label });
-        content.Children.Add(input);
+        var content = MofuDialog.Stack(width: 380);
+        content.Children.Add(MofuDialog.Field(label, input));
 
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-
-        var cancel = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 30,
-            Padding = new Thickness(12, 0),
-        };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-
-        var confirm = new Button
-        {
-            Content = L.T("Common.Ok", "确定"),
-            Classes = { "primary" },
-            Height = 30,
-            Padding = new Thickness(12, 0),
-        };
-        confirm.Click += (_, _) =>
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), () =>
         {
             string value = input.Text?.Trim() ?? string.Empty;
             if (value.Length == 0) return;
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             try
             {
                 onConfirm(value);
@@ -1666,46 +1643,22 @@ public partial class ServersView : UserControl
             {
                 Shell.Toast(error.Message);
             }
-        };
+        });
 
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
         Shell.Dialog(content, title);
         input.Focus();
     }
 
     private void ShowConfirmDialog(string title, string message, Action onConfirm)
     {
-        var content = new StackPanel { Spacing = 12, Width = 400 };
-        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap });
+        var content = MofuDialog.Stack(width: 400);
+        content.Children.Add(MofuDialog.Message(message));
 
-        var buttons = new StackPanel
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-
-        var cancel = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 30,
-            Padding = new Thickness(12, 0),
-        };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-
-        var confirm = new Button
-        {
-            Content = L.T("Common.Ok", "确定"),
-            Classes = { "primary" },
-            Height = 30,
-            Padding = new Thickness(12, 0),
-        };
-        confirm.Click += (_, _) =>
-        {
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             try
             {
                 onConfirm();
@@ -1714,11 +1667,9 @@ public partial class ServersView : UserControl
             {
                 Shell.Toast(error.Message);
             }
-        };
+        });
 
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
         Shell.Dialog(content, title);
     }
 
@@ -2146,39 +2097,14 @@ public partial class ServersView : UserControl
         ServerRow? row = _visibleServers.FirstOrDefault(server => server.ServerId == id);
         string name = row?.Name ?? id;
 
-        var content = new StackPanel { Spacing = 12, Width = 380 };
-        content.Children.Add(new TextBlock
-        {
-            Text = L.T("Servers.Delete.Confirm", "确定要删除服务器「{0}」吗？目录、存档与备份都会被删除，无法恢复。", name),
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var content = MofuDialog.Stack(width: 380);
+        content.Children.Add(MofuDialog.Message(
+            L.T("Servers.Delete.Confirm", "确定要删除服务器「{0}」吗？目录、存档与备份都会被删除，无法恢复。", name)));
 
-        var buttons = new StackPanel
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Danger(L.T("Servers.Delete.Action", "删除"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-
-        var cancel = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 32,
-            Padding = new Thickness(12, 0),
-        };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-
-        var confirm = new Button
-        {
-            Content = L.T("Servers.Delete.Action", "删除"),
-            Classes = { "primary" },
-            Height = 32,
-            Padding = new Thickness(12, 0),
-        };
-        confirm.Click += (_, _) =>
-        {
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             try
             {
                 CoreServer.DeleteServer(id);
@@ -2192,17 +2118,15 @@ public partial class ServersView : UserControl
             {
                 Shell.Toast(L.T("Servers.Delete.Failed", "删除失败：{0}", error.Message));
             }
-        };
+        });
 
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
 
-        Shell.Dialog(content, L.T("Servers.Delete.Title", "删除服务器"));
+        Shell.Dialog(content, L.T("Servers.Delete.Title", "删除服务器"), sender as Control);
     }
 
     private static void DismissDialog(Control control) =>
-        control.FindAncestorOfType<SukiDialogHost>(true)?.Manager?.DismissDialog();
+        control.FindAncestorOfType<MofuDialogHost>(true)?.Manager?.DismissDialog();
 
 }
 

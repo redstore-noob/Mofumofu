@@ -24,6 +24,7 @@ using Avalonia.VisualTree;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Web;
+using Mofumofu.Launcher.Controls;
 using MofuCore.Account;
 using SukiUI.Controls;
 using L = Mofumofu.Launcher.Localization.Localization;
@@ -335,86 +336,30 @@ public partial class AccountView : UserControl
 
     private void OnAddAccountClick(object? sender, RoutedEventArgs e)
     {
-        var nameBox = new TextBox
-        {
-            PlaceholderText = L.T("Account.Add.NicknameHint", "例如：Mofu_Steve"),
-            Width = 300,
-        };
+        var nameBox = MofuDialog.Input(hint: L.T("Account.Add.NicknameHint", "例如：Mofu_Steve"));
 
-        var premiumButton = new Button
-        {
-            Content = L.T("Account.Add.PremiumLogin", "Microsoft 正版登录"),
-            Classes = { "primary" },
-            Height = 36,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-        };
-
-        var offlineButton = new Button
-        {
-            Content = L.T("Account.Add.OfflineConfirm", "添加离线账号"),
-            Classes = { "ghost" },
-            Height = 32,
-            Padding = new Thickness(14, 0, 14, 0),
-        };
-
-        var cancelButton = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 32,
-            Padding = new Thickness(14, 0, 14, 0),
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-
-        var form = new StackPanel
-        {
-            Spacing = 12,
-            Width = 340,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = L.T("Account.Add.Title", "添加账号"),
-                    FontSize = 15,
-                    FontWeight = FontWeight.SemiBold,
-                },
-                new TextBlock
-                {
-                    Text = L.T(
-                        "Account.Add.Hint",
-                        "正版登录会打开启动器内置浏览器，登录完成后回到这里显示处理过程；离线账号直接输入名称即可。"),
-                    FontSize = 11,
-                    Foreground = ThemeTokens.Brush("NekoDimBrush"),
-                    TextWrapping = TextWrapping.Wrap,
-                },
-                premiumButton,
-                new Border
-                {
-                    Height = 1,
-                    Background = ThemeTokens.Brush("NekoBorderBrush"),
-                },
-                new TextBlock
-                {
-                    Text = L.T("Account.Add.OfflineSection", "或添加离线账号"),
-                    FontSize = 11,
-                    Foreground = ThemeTokens.Brush("NekoDimBrush"),
-                },
-                nameBox,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { cancelButton, offlineButton },
-                },
-            },
-        };
-
-        premiumButton.Click += (_, _) =>
+        // 按钮自己要参与关闭流程，先声明再赋值（局部变量不能在自己的初始化器里被闭包引用）
+        Button premiumButton = null!;
+        premiumButton = MofuDialog.Primary(L.T("Account.Add.PremiumLogin", "Microsoft 正版登录"), () =>
         {
             CloseActiveDialog(premiumButton);
             StartPremiumLogin();
-        };
+        });
+        premiumButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        Button cancelButton = null!;
+        cancelButton = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => CloseActiveDialog(cancelButton));
+
+        var offlineButton = MofuDialog.Secondary(L.T("Account.Add.OfflineConfirm", "添加离线账号"), () => { });
+
+        var form = MofuDialog.Stack(width: 340);
+        form.Children.Add(MofuDialog.Message(L.T(
+            "Account.Add.Hint",
+            "正版登录会打开启动器内置浏览器，登录完成后回到这里显示处理过程；离线账号直接输入名称即可。")));
+        form.Children.Add(premiumButton);
+        form.Children.Add(new Border { Height = 1, Background = ThemeTokens.Brush("NekoBorderBrush") });
+        form.Children.Add(MofuDialog.Field(L.T("Account.Add.OfflineSection", "或添加离线账号"), nameBox));
+        form.Children.Add(MofuDialog.Footer(cancelButton, offlineButton));
 
         offlineButton.Click += (_, _) =>
         {
@@ -450,17 +395,15 @@ public partial class AccountView : UserControl
             CloseActiveDialog(offlineButton);
         };
 
-        cancelButton.Click += (_, _) => CloseActiveDialog(cancelButton);
-
-        Shell.Dialog(form);
+        Shell.Dialog(form, L.T("Account.Add.Title", "添加账号"), sender as Control);
     }
 
-    /// <summary>弹窗内容里的按钮：取它所在的 SukiDialogHost 关掉当前弹窗。</summary>
+    /// <summary>弹窗内容里的按钮：取它所在的 MofuDialogHost 关掉当前弹窗。</summary>
     private static void CloseActiveDialog(object? source)
     {
         if (source is Visual visual)
         {
-            var host = visual.FindAncestorOfType<SukiDialogHost>(true);
+            var host = visual.FindAncestorOfType<MofuDialogHost>(true);
 
             host?.Manager?.DismissDialog();
         }

@@ -65,6 +65,8 @@ public sealed class LocalSettings
     public string StartBarPlacement { get; set; } = "bottom";
     public bool StartBarAutoHide { get; set; }
     public bool PanelBlur { get; set; } = true;
+
+    /// <summary>整个窗口的不透明度（40-100）。</summary>
     public int WindowOpacity { get; set; } = 100;
     public int BackgroundOpacity { get; set; } = 80;
     public bool AccentFollowBackground { get; set; }
@@ -78,9 +80,6 @@ public sealed class LocalSettings
 
     /// <summary>图标配色：theme（跟随主题）/ colorful（多彩）。</summary>
     public string IconPalette { get; set; } = "colorful";
-
-    /// <summary>卓越视效：毛玻璃的高光、阴影、折射、渐进模糊等额外效果。默认关闭。</summary>
-    public bool PremiumVisuals { get; set; }
 
     /// <summary>关闭窗口行为：tray（最小化到托盘）/ exit（退出）/ ask（每次询问）。</summary>
     public string CloseAction { get; set; } = "exit";

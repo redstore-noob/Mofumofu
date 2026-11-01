@@ -172,6 +172,7 @@
         <Border x:Name="DeleteHint" IsVisible="False"
                 HorizontalAlignment="Center" VerticalAlignment="Bottom"
                 Margin="0,0,0,92" Padding="16,9" CornerRadius="10"
+                RenderTransformOrigin="0.5,0.5"
                 Background="{DynamicResource NekoDangerSoftBrush}"
                 BorderBrush="{DynamicResource NekoDangerBrush}" BorderThickness="1">
             <TextBlock x:Name="DeleteHintText" Text="{DynamicResource L.Home.Drag.ReleaseToRemove}" FontSize="12"

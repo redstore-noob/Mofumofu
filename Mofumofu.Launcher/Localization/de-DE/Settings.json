@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "Einstellungen",
   "Settings.Page.Subtitle": "Launcher-Optionen",
   "Settings.Search.Placeholder": "Einstellungen durchsuchen…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "Entnimmt die Hauptfarbe der aktuellen Hintergrundbild-Vorschau und wechselt zur nächsten Akzentfarbe.",
   "Settings.Appearance.Window.Title": "Fenster und Flächen",
   "Settings.Appearance.Window.Blur": "Milchglas-Effekt",
-  "Settings.Appearance.Window.PremiumVisuals": "Premium-Optik",
-  "Settings.Toast.PremiumVisualsOn": "Premium-Optik aktiviert",
-  "Settings.Toast.PremiumVisualsOff": "Premium-Optik deaktiviert",
   "Settings.Appearance.Window.BlurHint": "Weichzeichnung des Hintergrunds bei Glasflächen.",
+  "Settings.Appearance.Window.GlassTransparency": "Glas-Transparenz",
+  "Settings.Appearance.Window.GlassTransparencyHint": "Höher lässt mehr Hintergrund durch; niedriger ist deckender und besser lesbar.",
   "Settings.Appearance.Window.Opacity": "Fensterdeckkraft",
   "Settings.Appearance.Window.OpacityHint": "Je niedriger, desto mehr scheint der Desktop durch (40 %–100 %).",
   "Settings.Appearance.Window.BackgroundOpacity": "Hintergrunddeckkraft",

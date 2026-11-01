@@ -25,12 +25,10 @@ using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Services.Wallpaper;
 using Mofumofu.Launcher.Views;
 using Mofumofu.Launcher.Web;
-using SukiUI.Controls;
-using SukiUI.Dialogs;
 
 namespace Mofumofu.Launcher;
 
-public partial class MainWindow : SukiWindow
+public partial class MainWindow : Window
 {
     private static readonly (string Id, string Label, string IconKey, string Hint)[] PageRegistry =
     {
@@ -60,7 +58,7 @@ public partial class MainWindow : SukiWindow
     {
         InitializeComponent();
 
-        DialogHost.Manager = new SukiDialogManager();
+        // 弹窗宿主改成自绘（Controls.MofuDialogHost），Manager 随控件一起创建，不需要外部赋值。
         // WebView2 是独立子窗口，永远盖在 Avalonia 弹窗之上；弹窗期间整体隐藏，关闭后恢复
         DialogHost.Manager.OnDialogShown += (_, _) => WebRegionHost.SuspendAll();
         DialogHost.Manager.OnDialogDismissed += (_, _) => WebRegionHost.ResumeAll();
@@ -99,7 +97,6 @@ public partial class MainWindow : SukiWindow
         L.LanguageChanged += OnLanguageChanged;
         Title = L.T("Shell.AppTitle", "Mofumofu Launcher");
         GlassEffects.SetEnabled(LocalSettings.Current.PanelBlur);
-        GlassEffects.SetPremiumVisuals(LocalSettings.Current.PremiumVisuals);
         WallpaperService.Instance.Changed += OnWallpaperChanged;
         ApplyWallpaperBackdrop();
 
@@ -249,15 +246,8 @@ public partial class MainWindow : SukiWindow
             HeroGlowLayer.IsVisible = !on;
             RootPanel.Background = on ? Brushes.Transparent : surface;
 
-            // SukiWindow 自带 SukiBackground 着色背景层：开壁纸时一起隐藏，否则窗口永远不透明
+            // 窗口自身背景：开壁纸时透明（透出 DWM 的透明层），关壁纸时用面板色兜底
             Background = on ? Brushes.Transparent : surface;
-            foreach (var layer in this.GetVisualDescendants()
-                         .OfType<Control>()
-                         .Where(control => control.GetType().Name == "SukiBackground")
-                         .ToList())
-            {
-                layer.IsVisible = !on;
-            }
 
             var blurOn = LocalSettings.Current.PanelBlur;
             if (inApp)
@@ -969,7 +959,7 @@ public partial class MainWindow : SukiWindow
         ToastStack.Children.Remove(toast);
     }
 
-    private void ShowDialog(string title, object content)
+    private void ShowDialog(string title, object content, Control? anchor)
     {
         if (DialogHost.Manager is null) return;
 
@@ -980,6 +970,7 @@ public partial class MainWindow : SukiWindow
         DialogHost.Manager.CreateDialog()
             .WithTitle(selfTitled ? string.Empty : title)
             .WithContent(content)
+            .From(anchor)
             .Dismiss()
             .ByClickingBackground()
             .TryShow();

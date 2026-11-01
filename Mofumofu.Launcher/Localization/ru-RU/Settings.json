@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "Настройки",
   "Settings.Page.Subtitle": "Параметры лаунчера",
   "Settings.Search.Placeholder": "Поиск по настройкам…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "Берёт основной цвет из превью текущих обоев и переключается на ближайший акцент.",
   "Settings.Appearance.Window.Title": "Окна и панели",
   "Settings.Appearance.Window.Blur": "Размытие панелей",
-  "Settings.Appearance.Window.PremiumVisuals": "Премиум-эффекты",
-  "Settings.Toast.PremiumVisualsOn": "Премиум-эффекты включены",
-  "Settings.Toast.PremiumVisualsOff": "Премиум-эффекты выключены",
   "Settings.Appearance.Window.BlurHint": "Размытие фона под стеклянными панелями.",
+  "Settings.Appearance.Window.GlassTransparency": "Прозрачность стекла",
+  "Settings.Appearance.Window.GlassTransparencyHint": "Выше — сильнее видно обои; ниже — плотнее и лучше читается.",
   "Settings.Appearance.Window.Opacity": "Непрозрачность окна",
   "Settings.Appearance.Window.OpacityHint": "Чем ниже, тем больше просвечивает рабочий стол (40%–100%).",
   "Settings.Appearance.Window.BackgroundOpacity": "Непрозрачность фона",

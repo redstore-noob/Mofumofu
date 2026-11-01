@@ -29,7 +29,7 @@ public sealed class OobeJavaItem
 }
 
 /// <summary>首次启动引导：语言 / 主题 / 游戏目录 / Java / 离线账号。</summary>
-public partial class OobeWindow : SukiUI.Controls.SukiWindow
+public partial class OobeWindow : Window
 {
     private readonly List<StackPanel> _steps;
     private readonly Border[] _stepItems;

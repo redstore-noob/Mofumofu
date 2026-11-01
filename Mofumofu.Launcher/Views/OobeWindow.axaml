@@ -1,6 +1,5 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
                  xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
                  x:Class="Mofumofu.Launcher.Views.OobeWindow"
                  Title="Mofumofu Launcher"
@@ -9,7 +8,7 @@
                  CanResize="False"
                  Background="{DynamicResource NekoSurfaceBrush}"
                  WindowStartupLocation="CenterScreen">
-    <suki:SukiWindow.Styles>
+    <Window.Styles>
         <Style Selector="Border.oobe-step">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="12" />
@@ -56,7 +55,7 @@
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Padding" Value="16,14" />
         </Style>
-    </suki:SukiWindow.Styles>
+    </Window.Styles>
 
     <Grid ColumnDefinitions="282,*">
         <!-- 左侧：品牌与配置进度 -->
@@ -366,4 +365,4 @@
             </Border>
         </Grid>
     </Grid>
-</suki:SukiWindow>
+</Window>

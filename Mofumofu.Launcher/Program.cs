@@ -1,5 +1,4 @@
 using Avalonia;
-using Fluid.Avalonia.Acrylic;
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -73,7 +72,6 @@ class Program
             .WithDeveloperTools()
 #endif
             .WithInterFont()
-            .UseAcrylicPerformanceDefaults()
             .LogToTrace();
 
     /// <summary>

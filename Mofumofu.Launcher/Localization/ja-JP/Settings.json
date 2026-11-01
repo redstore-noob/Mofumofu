@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "設定",
   "Settings.Page.Subtitle": "ランチャーのオプション",
   "Settings.Search.Placeholder": "設定を検索…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "現在の壁紙プレビューから主要色を抽出し、最も近いテーマカラーに切り替えます。",
   "Settings.Appearance.Window.Title": "ウィンドウとパネル",
   "Settings.Appearance.Window.Blur": "パネルのすりガラス効果",
-  "Settings.Appearance.Window.PremiumVisuals": "プレミアムビジュアル",
-  "Settings.Toast.PremiumVisualsOn": "プレミアムビジュアルを有効にしました",
-  "Settings.Toast.PremiumVisualsOff": "プレミアムビジュアルを無効にしました",
   "Settings.Appearance.Window.BlurHint": "ガラスパネルの背景ぼかし効果。",
+  "Settings.Appearance.Window.GlassTransparency": "ガラスの透明度",
+  "Settings.Appearance.Window.GlassTransparencyHint": "高いほど壁紙が透け、低いほど不透明で文字が読みやすくなります。",
   "Settings.Appearance.Window.Opacity": "ウィンドウの不透明度",
   "Settings.Appearance.Window.OpacityHint": "低いほどデスクトップが透けて見えます（40% - 100%）。",
   "Settings.Appearance.Window.BackgroundOpacity": "背景の不透明度",

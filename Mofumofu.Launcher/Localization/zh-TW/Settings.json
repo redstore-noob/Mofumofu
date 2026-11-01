@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "設定",
   "Settings.Page.Subtitle": "啟動器選項",
   "Settings.Search.Placeholder": "搜尋設定…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "從當前桌布預覽圖取主色，切换到最接近的主題色。",
   "Settings.Appearance.Window.Title": "視窗與面闆",
   "Settings.Appearance.Window.Blur": "面闆毛玻璃",
-  "Settings.Appearance.Window.PremiumVisuals": "卓越視效",
-  "Settings.Toast.PremiumVisualsOn": "已開啟卓越視效",
-  "Settings.Toast.PremiumVisualsOff": "已關闭卓越視效",
   "Settings.Appearance.Window.BlurHint": "玻璃面闆的背景模糊效果。",
+  "Settings.Appearance.Window.GlassTransparency": "毛玻璃透明度",
+  "Settings.Appearance.Window.GlassTransparencyHint": "數值越高越透出桌布，越低越實、文字越清楚。",
   "Settings.Appearance.Window.Opacity": "視窗不透明度",
   "Settings.Appearance.Window.OpacityHint": "越低越能透出桌面（40% - 100%）。",
   "Settings.Appearance.Window.BackgroundOpacity": "背景不透明度",

@@ -922,7 +922,7 @@ public partial class InstancesView : UserControl
 
     private void OnRewindClick(object? sender, RoutedEventArgs e)
     {
-        Shell.Dialog(RewindDialogContent.Build(_current?.Name ?? L.T("Instances.Current", "当前实例")), "Rewind");
+        Shell.Dialog(RewindDialogContent.Build(_current?.Name ?? L.T("Instances.Current", "当前实例")), "Rewind", sender as Control);
     }
 
     private void OnGameDirChanged(object? sender, SelectionChangedEventArgs e)
@@ -961,7 +961,7 @@ public partial class InstancesView : UserControl
             {
                 ItemsSource = candidates.Select(version => version.Id).ToList(),
                 SelectedIndex = 0,
-                Height = 34,
+                Height = 38,
             };
             var loaderCombo = new ComboBox
             {
@@ -975,13 +975,14 @@ public partial class InstancesView : UserControl
                     ModLoaderInstaller.DisplayName(ModLoaderKind.OptiFine),
                 },
                 SelectedIndex = 0,
-                Height = 34,
+                Height = 38,
             };
             var nameBox = new TextBox
             {
-                Height = 34,
+                Height = 38,
                 PlaceholderText = L.T("Instances.Create.NameHint", "实例名称（留空自动生成）"),
             };
+            nameBox.Classes.Add("field");
             var statusText = new TextBlock
             {
                 FontSize = 11.5,
@@ -998,7 +999,7 @@ public partial class InstancesView : UserControl
             var installButton = new Button
             {
                 Content = L.T("Instances.Create.Install", "安装实例"),
-                Classes = { "primary" },
+                Classes = { "primary", "dialog-action" },
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             };
 
@@ -1165,7 +1166,7 @@ public partial class InstancesView : UserControl
                 }
             };
 
-            Shell.Dialog(panel, L.T("Instances.Create.Title", "新建实例"));
+            Shell.Dialog(panel, L.T("Instances.Create.Title", "新建实例"), sender as Control);
         }
         catch (Exception ex)
         {
@@ -1391,7 +1392,7 @@ public partial class InstancesView : UserControl
             var installButton = new Button
             {
                 Content = L.T("Instances.Java.Download", "下载并启用"),
-                Classes = { "primary" },
+                Classes = { "primary", "dialog-action" },
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             };
 
@@ -1460,7 +1461,7 @@ public partial class InstancesView : UserControl
                 }
             };
 
-            Shell.Dialog(panel, L.T("Instances.Java.AddTitle", "选择要安装的 Java 主版本"));
+            Shell.Dialog(panel, L.T("Instances.Java.AddTitle", "选择要安装的 Java 主版本"), sender as Control);
         }
         finally
         {
@@ -1597,7 +1598,7 @@ public partial class InstancesView : UserControl
     {
         if (sender is not Button button || ResolveWorldRow(button.DataContext) is not { } world) return;
         // 显式传目录：版本隔离实例的存档在 versions/<id>/saves 下，按名字解析会找不到
-        Shell.Dialog(RewindDialogContent.Build(world.Name, null, world.Directory), "Rewind");
+        Shell.Dialog(RewindDialogContent.Build(world.Name, null, world.Directory), "Rewind", sender as Control);
     }
 
     private void OnWorldOpenClick(object? sender, RoutedEventArgs e)
@@ -1878,29 +1879,20 @@ public partial class InstancesView : UserControl
     {
         if (_current is null) return;
 
-        var nameBox = new TextBox { Text = _current.Id, Height = 34 };
+        var nameBox = MofuDialog.Input(_current.Id);
         var statusText = new TextBlock
         {
             FontSize = 11.5,
             Foreground = ThemeTokens.Brush("NekoMutedBrush"),
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         };
-        var confirm = new Button
-        {
-            Content = L.T("Instances.Manage.Rename", "重命名实例"),
-            Classes = { "primary" },
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-        };
-        var panel = new StackPanel { Spacing = 8, Width = 340 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = L.T("Instances.Manage.NewName", "新的实例名称"),
-            Classes = { "field-label" },
-        });
-        panel.Children.Add(nameBox);
-        panel.Children.Add(confirm);
+
+        var panel = MofuDialog.Stack(width: 340);
+        panel.Children.Add(MofuDialog.Field(L.T("Instances.Manage.NewName", "新的实例名称"), nameBox));
         panel.Children.Add(statusText);
 
-        confirm.Click += (_, _) =>
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(panel));
+        var confirm = MofuDialog.Primary(L.T("Instances.Manage.Rename", "重命名实例"), () =>
         {
             if (_current is null) return;
             try
@@ -1923,46 +1915,39 @@ public partial class InstancesView : UserControl
                 string oldJson = Path.Combine(targetDirectory, _current.Id + ".json");
                 string newJson = Path.Combine(targetDirectory, newName + ".json");
                 if (File.Exists(oldJson)) File.Move(oldJson, newJson);
+                MofuDialog.Close(panel);
                 RefreshInstanceList(newName);
-                statusText.Text = L.T("Instances.Toast.Rename", "重命名实例「{0}」", newName);
                 Shell.Toast(L.T("Instances.Toast.Rename", "重命名实例「{0}」", newName));
             }
             catch (Exception ex)
             {
                 statusText.Text = ex.Message;
             }
-        };
+        });
 
-        Shell.Dialog(panel, L.T("Instances.Manage.Rename", "重命名实例"));
+        panel.Children.Add(MofuDialog.Footer(cancel, confirm));
+
+        Shell.Dialog(panel, L.T("Instances.Manage.Rename", "重命名实例"), sender as Control);
     }
 
     private void OnDuplicateInstanceClick(object? sender, RoutedEventArgs e)
     {
         if (_current is null) return;
 
-        var nameBox = new TextBox { Text = _current.Id + "-copy", Height = 34 };
+        var nameBox = MofuDialog.Input(_current.Id + "-copy");
         var statusText = new TextBlock
         {
             FontSize = 11.5,
             Foreground = ThemeTokens.Brush("NekoMutedBrush"),
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         };
-        var confirm = new Button
-        {
-            Content = L.T("Instances.Manage.Duplicate", "复制实例"),
-            Classes = { "primary" },
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-        };
-        var panel = new StackPanel { Spacing = 8, Width = 340 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = L.T("Instances.Manage.NewName", "新的实例名称"),
-            Classes = { "field-label" },
-        });
-        panel.Children.Add(nameBox);
-        panel.Children.Add(confirm);
+
+        var panel = MofuDialog.Stack(width: 340);
+        panel.Children.Add(MofuDialog.Field(L.T("Instances.Manage.NewName", "新的实例名称"), nameBox));
         panel.Children.Add(statusText);
 
-        confirm.Click += (_, _) =>
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(panel));
+        var confirm = MofuDialog.Primary(L.T("Instances.Manage.Duplicate", "复制实例"), () =>
         {
             if (_current is null) return;
             try
@@ -1982,17 +1967,19 @@ public partial class InstancesView : UserControl
                 string sourceJson = Path.Combine(target, _current.Id + ".json");
                 string targetJson = Path.Combine(target, newName + ".json");
                 if (File.Exists(sourceJson)) File.Move(sourceJson, targetJson);
+                MofuDialog.Close(panel);
                 RefreshInstanceList(newName);
-                statusText.Text = L.T("Instances.Toast.Duplicate", "已复制实例「{0}」", newName);
                 Shell.Toast(L.T("Instances.Toast.Duplicate", "已复制实例「{0}」", newName));
             }
             catch (Exception ex)
             {
                 statusText.Text = ex.Message;
             }
-        };
+        });
 
-        Shell.Dialog(panel, L.T("Instances.Manage.Duplicate", "复制实例"));
+        panel.Children.Add(MofuDialog.Footer(cancel, confirm));
+
+        Shell.Dialog(panel, L.T("Instances.Manage.Duplicate", "复制实例"), sender as Control);
     }
 
     private void OnExportModpackClick(object? sender, RoutedEventArgs e)
@@ -2011,24 +1998,14 @@ public partial class InstancesView : UserControl
             Foreground = ThemeTokens.Brush("NekoMutedBrush"),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         };
-        var confirm = new Button
-        {
-            Content = L.T("Instances.Manage.Delete", "删除实例"),
-            Classes = { "danger" },
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-        };
-        var panel = new StackPanel { Spacing = 10, Width = 360 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = L.T("Instances.Manage.DangerHint",
-                "删除实例会移除 mods、config 与存档目录，此操作不可撤销。"),
-            Classes = { "muted" },
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-        });
-        panel.Children.Add(confirm);
+
+        var panel = MofuDialog.Stack();
+        panel.Children.Add(MofuDialog.Notice(L.T("Instances.Manage.DangerHint",
+            "删除实例会移除 mods、config 与存档目录，此操作不可撤销。")));
         panel.Children.Add(statusText);
 
-        confirm.Click += (_, _) =>
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(panel));
+        var confirm = MofuDialog.Danger(L.T("Instances.Manage.Delete", "删除实例"), () =>
         {
             try
             {
@@ -2038,7 +2015,7 @@ public partial class InstancesView : UserControl
                     Directory.Delete(directory, true);
                 }
 
-                statusText.Text = L.T("Instances.Toast.Deleted", "已删除实例「{0}」", target.Name);
+                MofuDialog.Close(panel);
                 RefreshInstanceList();
                 Shell.Toast(L.T("Instances.Toast.Deleted", "已删除实例「{0}」", target.Name));
             }
@@ -2046,9 +2023,11 @@ public partial class InstancesView : UserControl
             {
                 statusText.Text = ex.Message;
             }
-        };
+        });
 
-        Shell.Dialog(panel, L.T("Instances.Manage.Delete", "删除实例"));
+        panel.Children.Add(MofuDialog.Footer(cancel, confirm));
+
+        Shell.Dialog(panel, L.T("Instances.Manage.Delete", "删除实例"), sender as Control);
     }
 
     // ---------------- 过渡动画 ----------------

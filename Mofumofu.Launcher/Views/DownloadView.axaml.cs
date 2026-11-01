@@ -378,9 +378,20 @@ public partial class DownloadView : UserControl
         }
     }
 
-    private void OnFinishedTasksCleared()
+    private async void OnFinishedTasksCleared()
     {
-        foreach (TaskCard card in _taskCards.Values.Where(c => c.State == DownloadTaskState.Done).ToList())
+        var finished = _taskCards.Values.Where(c => c.State == DownloadTaskState.Done).ToList();
+        if (finished.Count == 0) return;
+
+        // 逐卡淡出后再真正摘掉，避免整列表「唰」地跳一下
+        foreach (TaskCard card in finished)
+        {
+            UiAnimations.FadeSlideOut(card.Root, 0.96, 6, 150);
+        }
+
+        if (UiAnimations.Enabled) await Task.Delay(160);
+
+        foreach (TaskCard card in finished)
         {
             DownloadTaskList.Children.Remove(card.Root);
             _taskCards.Remove(card.TaskId);
@@ -580,6 +591,7 @@ public partial class DownloadView : UserControl
         ApplyTaskStatus(card);
         _taskCards[card.TaskId] = card;
         DownloadTaskList.Children.Add(root);
+        UiAnimations.FadeSlideIn(root, 0.97, 8, 200);
         return card;
     }
 
@@ -587,7 +599,7 @@ public partial class DownloadView : UserControl
     private void ToggleTaskLog(TaskCard card)
     {
         card.LogOpen = !card.LogOpen;
-        card.LogPanel.IsVisible = card.LogOpen;
+        _ = UiAnimations.SetExpandedAsync(card.LogPanel, card.LogOpen, 180);
         card.LogHint.Text = card.LogOpen
             ? L.T("Download.Task.LogHintOpen", "日志 ▾")
             : L.T("Download.Task.LogHint", "日志 ▸");

@@ -1,4 +1,4 @@
-using Mofumofu.Launcher.Controls;
+﻿using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -145,6 +145,8 @@ public static class RewindDialogContent
         RewindScheduler? scheduler = null;
         bool initializingAuto = true;
         bool scrollToLatestPending = true;
+        // 只有「首次进入 / 新建 / 删除 / 改色」需要入场动画；切换选中不该让整条时间轴重新闪
+        bool animatePending = true;
 
         var timeline = new StackPanel
         {
@@ -248,6 +250,12 @@ public static class RewindDialogContent
                 scrollToLatestPending = false;
                 ScrollToLatest();
             }
+
+            if (animatePending)
+            {
+                animatePending = false;
+                UiAnimations.Stagger(timeline.Children, step: 26, milliseconds: 220, offsetY: 10);
+            }
         }
 
         void SelectEntry(SnapshotEntry entry)
@@ -303,6 +311,7 @@ public static class RewindDialogContent
                     label.Length > 0 ? label : null);
                 noteInput.Text = string.Empty;
                 selectedId = null;
+                animatePending = true;
                 await ReloadAsync();
                 Shell.Toast(L.T("Rewind.Toast.Created", "快照已创建"));
             }
@@ -348,6 +357,7 @@ public static class RewindDialogContent
                         selectedId = entries.Count > 0 ? entries[^1].Id : null;
                     }
 
+                    animatePending = true;
                     Render();
                     Shell.Toast(L.T("Rewind.Toast.DeletedMock", "快照已删除"));
                     return;
@@ -359,6 +369,7 @@ public static class RewindDialogContent
                     selectedId = null;
                 }
 
+                animatePending = true;
                 await ReloadAsync();
                 Shell.Toast(L.T("Rewind.Toast.Deleted", "快照已删除"));
             }

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
@@ -597,81 +597,33 @@ public partial class MusicView : UserControl
         var cookie = new TextBox
         {
             PlaceholderText = L.T("Pages.Music.CookieHint", "或粘贴浏览器里的 MUSIC_U / 整段 Cookie"),
-            Width = 320,
             AcceptsReturn = true,
-            Height = 64,
+            Height = 76,
             TextWrapping = TextWrapping.Wrap,
+            VerticalContentAlignment = VerticalAlignment.Top,
         };
+        cookie.Classes.Add("field");
 
-        var browserButton = new Button
-        {
-            Content = L.T("Pages.Music.LoginBrowser", "使用内置浏览器登录"),
-            Classes = { "primary" },
-            Height = 36,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-        };
-        var cookieButton = new Button
-        {
-            Content = L.T("Pages.Music.LoginCookie", "用 Cookie 登录"),
-            Classes = { "ghost" },
-            Height = 34,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-        };
-        var logoutButton = new Button
-        {
-            Content = L.T("Pages.Music.Logout", "退出登录"),
-            Classes = { "ghost" },
-            Height = 34,
-            Padding = new Thickness(16, 0),
-            IsVisible = _client.IsLoggedIn,
-        };
-        var cancelButton = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 34,
-            Padding = new Thickness(16, 0),
-        };
+        var browserButton = MofuDialog.Primary(L.T("Pages.Music.LoginBrowser", "使用内置浏览器登录"), () => { });
+        browserButton.HorizontalAlignment = HorizontalAlignment.Stretch;
 
-        var content = new StackPanel
-        {
-            Spacing = 10,
-            Width = 340,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = L.T("Pages.Music.LoginTitle", "连接网易云音乐"),
-                    FontSize = 15,
-                    FontWeight = FontWeight.SemiBold,
-                },
-                new TextBlock
-                {
-                    Text = L.T("Pages.Music.LoginHint",
-                        "在启动器内置浏览器里完成手机号 / 邮箱 / 扫码登录，登录状态只会保存在本机。"),
-                    Classes = { "caption" },
-                    TextWrapping = TextWrapping.Wrap,
-                },
-                browserButton,
-                new Border { Height = 1, Background = ThemeTokens.Brush("NekoBorderBrush") },
-                new TextBlock
-                {
-                    Text = L.T("Pages.Music.CookieLabel", "已有 Cookie？直接粘贴"),
-                    Classes = { "caption" },
-                },
-                cookie,
-                cookieButton,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 8,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { logoutButton, cancelButton },
-                },
-            },
-        };
+        var cookieButton = MofuDialog.Secondary(L.T("Pages.Music.LoginCookie", "用 Cookie 登录"), () => { });
+        cookieButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        var logoutButton = MofuDialog.Secondary(L.T("Pages.Music.Logout", "退出登录"), () => { });
+        logoutButton.IsVisible = _client.IsLoggedIn;
+
+        Button cancelButton = null!;
+        cancelButton = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => CloseActiveDialog(cancelButton));
+
+        var content = MofuDialog.Stack(width: 340, spacing: 10);
+        content.Children.Add(MofuDialog.Message(L.T("Pages.Music.LoginHint",
+            "在启动器内置浏览器里完成手机号 / 邮箱 / 扫码登录，登录状态只会保存在本机。")));
+        content.Children.Add(browserButton);
+        content.Children.Add(new Border { Height = 1, Background = ThemeTokens.Brush("NekoBorderBrush") });
+        content.Children.Add(MofuDialog.Field(L.T("Pages.Music.CookieLabel", "已有 Cookie？直接粘贴"), cookie));
+        content.Children.Add(cookieButton);
+        content.Children.Add(MofuDialog.Footer(logoutButton, cancelButton));
 
         cancelButton.Click += (_, _) => CloseActiveDialog(cancelButton);
         logoutButton.Click += (_, _) =>
@@ -726,7 +678,7 @@ public partial class MusicView : UserControl
             }
         };
 
-        Shell.Dialog(content, L.T("Pages.Music.Login", "登录网易云"));
+        Shell.Dialog(content, L.T("Pages.Music.Login", "登录网易云"), sender as Control);
     }
 
     /// <summary>
@@ -816,7 +768,7 @@ public partial class MusicView : UserControl
     {
         if (source is Visual visual)
         {
-            SukiDialogHost? host = visual.FindAncestorOfType<SukiDialogHost>(true);
+            MofuDialogHost? host = visual.FindAncestorOfType<MofuDialogHost>(true);
             host?.Manager?.DismissDialog();
         }
     }

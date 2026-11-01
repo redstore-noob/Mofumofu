@@ -1554,6 +1554,9 @@ public sealed class CommandGeneratorPage : UserControl
 
             _historyHost.Children.Add(row);
         }
+
+        // 切换「收藏 / 最近使用」或删掉一条时，整列错峰入场
+        UiAnimations.Stagger(_historyHost.Children, step: 30, milliseconds: 170, offsetY: 6);
     }
 
     private void PushHistory(string command)

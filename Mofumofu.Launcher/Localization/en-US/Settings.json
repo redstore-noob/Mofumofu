@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "Settings",
   "Settings.Page.Subtitle": "Launcher options",
   "Settings.Search.Placeholder": "Search settings…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "Takes the main color from the current wallpaper preview and picks the closest theme accent.",
   "Settings.Appearance.Window.Title": "Window & panels",
   "Settings.Appearance.Window.Blur": "Panel blur",
-  "Settings.Appearance.Window.PremiumVisuals": "Premium visuals",
-  "Settings.Toast.PremiumVisualsOn": "Premium visuals enabled",
-  "Settings.Toast.PremiumVisualsOff": "Premium visuals disabled",
   "Settings.Appearance.Window.BlurHint": "Background blur for glass panels.",
+  "Settings.Appearance.Window.GlassTransparency": "Glass transparency",
+  "Settings.Appearance.Window.GlassTransparencyHint": "Higher shows more of the wallpaper; lower is more solid and easier to read.",
   "Settings.Appearance.Window.Opacity": "Window opacity",
   "Settings.Appearance.Window.OpacityHint": "Lower values let more of the desktop show through (40% - 100%).",
   "Settings.Appearance.Window.BackgroundOpacity": "Background opacity",

@@ -1,4 +1,4 @@
-{
+﻿{
   "Settings.Page.Title": "Agordoj",
   "Settings.Page.Subtitle": "Opcioj de la lanĉilo",
   "Settings.Search.Placeholder": "Serĉi agordojn…",
@@ -90,10 +90,9 @@
   "Settings.Appearance.AccentFollow.Hint": "Prenas la ĉefkoloron el la antaŭvido de la nuna fonbildo kaj ŝanĝas al la plej proksima temokoloro.",
   "Settings.Appearance.Window.Title": "Fenestro kaj paneloj",
   "Settings.Appearance.Window.Blur": "Vitra malklareco de paneloj",
-  "Settings.Appearance.Window.PremiumVisuals": "Altnivelaj vidaĵoj",
-  "Settings.Toast.PremiumVisualsOn": "Altnivelaj vidaĵoj ŝaltitaj",
-  "Settings.Toast.PremiumVisualsOff": "Altnivelaj vidaĵoj malŝaltitaj",
   "Settings.Appearance.Window.BlurHint": "Fonmalklara efekto de la vitraj paneloj.",
+  "Settings.Appearance.Window.GlassTransparency": "Travideco de la glaso",
+  "Settings.Appearance.Window.GlassTransparencyHint": "Pli alta montras pli da fono; pli malalta estas pli solida kaj pli legebla.",
   "Settings.Appearance.Window.Opacity": "Maldiafaneco de la fenestro",
   "Settings.Appearance.Window.OpacityHint": "Ju malpli, des pli videblas la labortablo (40%–100%).",
   "Settings.Appearance.Window.BackgroundOpacity": "Maldiafaneco de la fono",

@@ -1,9 +1,8 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                  xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
                   xmlns:views="clr-namespace:Mofumofu.Launcher.Views"
                   mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="820"
                   x:Class="Mofumofu.Launcher.MainWindow"
@@ -11,25 +10,11 @@
                   Width="1280" Height="820"
                   MinWidth="980" MinHeight="640"
                   WindowStartupLocation="CenterScreen"
-                  IsTitleBarVisible="False"
-                  BackgroundStyle="Flat"
-                  RootCornerRadius="12"
-                  CanFullScreen="False">
-
-    <suki:SukiWindow.Hosts>
-        <Grid>
-            <suki:SukiDialogHost x:Name="DialogHost" />
-            <StackPanel x:Name="ToastStack"
-                        VerticalAlignment="Bottom"
-                        HorizontalAlignment="Left"
-                        Margin="24,0,0,84"
-                        Spacing="8"
-                        IsHitTestVisible="False" />
-        </Grid>
-    </suki:SukiWindow.Hosts>
+                  ExtendClientAreaToDecorationsHint="True"
+                  ExtendClientAreaTitleBarHeightHint="-1">
 
     <Panel x:Name="RootPanel" Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
-        <!-- 主窗口内部壁纸层：供 AcrylicSurface 采样做毛玻璃 -->
+        <!-- 主窗口内部壁纸层：供 GlassCard 模糊背景采样 -->
         <views:InAppWallpaperSurface x:Name="InAppWallpaper" IsVisible="False" />
         <!-- 插件接管壁纸层：IWallpaperEdit.WallpaperTakeOver 的挂载点 -->
         <Border x:Name="PluginWallpaperLayer" IsVisible="False" />
@@ -212,5 +197,16 @@
             <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="9" Height="9"
                     Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeBottomRight" />
         </Grid>
+
+        <!-- ================= 顶层叠加层：弹窗 + Toast（永远在内容之上） ================= -->
+        <Grid>
+            <controls:MofuDialogHost x:Name="DialogHost" />
+            <StackPanel x:Name="ToastStack"
+                        VerticalAlignment="Bottom"
+                        HorizontalAlignment="Left"
+                        Margin="24,0,0,84"
+                        Spacing="8"
+                        IsHitTestVisible="False" />
+        </Grid>
     </Panel>
-</suki:SukiWindow>
+</Window>

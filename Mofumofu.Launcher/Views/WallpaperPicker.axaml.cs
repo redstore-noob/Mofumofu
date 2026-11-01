@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Services.Wallpaper;
 using L = Mofumofu.Launcher.Localization.Localization;
 
@@ -25,6 +26,9 @@ public partial class WallpaperPicker : UserControl
 
     private readonly List<SlideThumb> _slides = [];
     private bool _loading;
+
+    /// <summary>上一次渲染的模式：只在真的变了时播动画，避免拖滑块也反复闪。</summary>
+    private string? _lastMode;
 
     public WallpaperPicker()
     {
@@ -95,12 +99,21 @@ public partial class WallpaperPicker : UserControl
     private void UpdateModeUi(WallpaperSettings settings)
     {
         var mode = settings.Mode;
+        var modeChanged = _lastMode != mode;
+        _lastMode = mode;
 
         ImagePanel.IsVisible = mode == WallpaperModes.Image;
         SlideshowPanel.IsVisible = mode == WallpaperModes.Slideshow;
 
         PickImageButton.IsVisible = mode == WallpaperModes.Image;
         AddImagesButton.IsVisible = mode == WallpaperModes.Slideshow;
+
+        // 两个面板互斥，切换时让接替上来的那个淡入，而不是硬切
+        if (modeChanged)
+        {
+            Control shown = mode == WallpaperModes.Image ? ImagePanel : SlideshowPanel;
+            UiAnimations.FadeSlideIn(shown, 0.99, 8, 200);
+        }
 
         StatusText.Text = WallpaperService.Instance.LastError.Length > 0
             ? L.T("Wallpaper.Status.Error", "壁纸未生效：{0}", WallpaperService.Instance.LastError)
@@ -112,6 +125,7 @@ public partial class WallpaperPicker : UserControl
     private async Task RefreshPreviewsAsync(WallpaperSettings settings)
     {
         var images = settings.Images.Where(WallpaperService.IsImageFile).ToList();
+        var previousCount = _slides.Count;
 
         var first = images.Count > 0 ? await LoadBitmapAsync(images[0]) : null;
         ImagePreview.Source = first;
@@ -129,6 +143,12 @@ public partial class WallpaperPicker : UserControl
         SlideshowList.ItemsSource = _slides;
 
         SlideshowEmptyText.IsVisible = settings.Mode == WallpaperModes.Slideshow && _slides.Count == 0;
+
+        // 增删图片后整列缩略图会重建，给一次淡入把「跳变」抹平
+        if (_slides.Count != previousCount && _slides.Count > 0)
+        {
+            UiAnimations.FadeSlideIn(SlideshowList, 0.99, 6, 180);
+        }
     }
 
     private static Task<Bitmap?> LoadBitmapAsync(string path) => Task.Run(() =>

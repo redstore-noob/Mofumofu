@@ -1,4 +1,4 @@
-using Mofumofu.Launcher.Controls;
+﻿using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -82,6 +82,8 @@ public partial class PluginsView : UserControl
             ? L.T("Pages.Plugins.Empty", "插件目录里还没有插件。")
             : L.T("Pages.Plugins.EmptySearch", "没有匹配的插件。");
 
+        var rows = new List<Control>();
+
         for (int index = 0; index < filtered.Count; index++)
         {
             if (index > 0)
@@ -94,8 +96,13 @@ public partial class PluginsView : UserControl
                 });
             }
 
-            PluginList.Children.Add(BuildRow(filtered[index]));
+            Control row = BuildRow(filtered[index]);
+            PluginList.Children.Add(row);
+            rows.Add(row);
         }
+
+        // 逐行淡入（错峰），搜索 / 刷新时不会整块「啪」地换掉
+        UiAnimations.Stagger(rows, step: 35, milliseconds: 190);
     }
 
     private Control BuildRow(PluginRuntime runtime)
@@ -501,40 +508,19 @@ public partial class PluginsView : UserControl
         });
 
         // 按钮：拒绝 = 完全不加载
-        var buttons = new StackPanel
+        var decline = MofuDialog.Secondary(L.T("Pages.Plugins.Consent.Decline", "拒绝"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        var decline = new Button
-        {
-            Content = L.T("Pages.Plugins.Consent.Decline", "拒绝"),
-            Classes = { "ghost" },
-            Height = 30,
-        };
-        decline.Click += (_, _) =>
-        {
-            DismissDialog(decline);
+            MofuDialog.Close(content);
             Shell.Toast(L.T("Pages.Plugins.Consent.Declined", "已拒绝授权，{0} 不会被加载", manifest.Name));
-        };
-        var agree = new Button
+        });
+        var agree = MofuDialog.Primary(L.T("Pages.Plugins.Consent.Agree", "同意并启用"), () =>
         {
-            Content = L.T("Pages.Plugins.Consent.Agree", "同意并启用"),
-            Classes = { "primary" },
-            Height = 30,
-        };
-        agree.Click += (_, _) =>
-        {
-            DismissDialog(agree);
+            MofuDialog.Close(content);
             PluginConsent.Grant(manifest, dllHash);
             PluginManager.SetEnabled(manifest.Id, true);
             Shell.Toast(L.T("Pages.Plugins.Consent.Granted", "{0} 已授权并启用", manifest.Name));
-        };
-        buttons.Children.Add(decline);
-        buttons.Children.Add(agree);
-        content.Children.Add(buttons);
+        });
+        content.Children.Add(MofuDialog.Footer(decline, agree));
 
         Shell.Dialog(content, L.T("Pages.Plugins.Consent.Title", "插件授权确认"));
     }
@@ -646,25 +632,14 @@ public partial class PluginsView : UserControl
     {
         if (PluginManager.ById(_selectedId) is not { } runtime) return;
 
-        var content = new StackPanel { Spacing = 12, Width = 360 };
-        content.Children.Add(new TextBlock
-        {
-            Text = L.T("Pages.Plugins.Uninstall.Confirm", "确定卸载「{0}」吗？插件文件会从磁盘上删除。", runtime.Manifest.Name),
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var content = MofuDialog.Stack();
+        content.Children.Add(MofuDialog.Message(
+            L.T("Pages.Plugins.Uninstall.Confirm", "确定卸载「{0}」吗？插件文件会从磁盘上删除。", runtime.Manifest.Name)));
 
-        var buttons = new StackPanel
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Danger(L.T("Common.Ok", "确定"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button { Content = L.T("Common.Cancel", "取消"), Classes = { "ghost" }, Height = 30 };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-        var confirm = new Button { Content = L.T("Common.Ok", "确定"), Classes = { "danger" }, Height = 30 };
-        confirm.Click += (_, _) =>
-        {
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             if (NekoexInstaller.Uninstall(runtime.Manifest.Id))
             {
                 _selectedId = string.Empty;
@@ -675,15 +650,14 @@ public partial class PluginsView : UserControl
             {
                 Shell.Toast(L.T("Pages.Plugins.Toast.UninstallFailed", "卸载失败，详见插件日志"));
             }
-        };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
-        Shell.Dialog(content, L.T("Pages.Plugins.Uninstall.Title", "卸载插件"));
+        });
+
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
+        Shell.Dialog(content, L.T("Pages.Plugins.Uninstall.Title", "卸载插件"), sender as Control);
     }
 
     private static void DismissDialog(Control control) =>
-        control.FindAncestorOfType<SukiDialogHost>(true)?.Manager?.DismissDialog();
+        control.FindAncestorOfType<MofuDialogHost>(true)?.Manager?.DismissDialog();
 
     private void OpenPath(string path)
     {

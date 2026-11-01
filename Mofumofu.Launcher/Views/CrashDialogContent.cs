@@ -67,6 +67,9 @@ public static class CrashDialogContent
 
         panel.Children.Add(BuildButtonsRow(result));
 
+        // 卡片错峰入场：一屏结论逐条浮上来，比整块砸出来更容易读
+        UiAnimations.Stagger(panel.Children, step: 32, milliseconds: 200, offsetY: 10);
+
         return new ScrollViewer
         {
             Content = panel,
@@ -267,7 +270,7 @@ public static class CrashDialogContent
         Button copyButton = new()
         {
             Content = L.T("Crash.Action.Copy", "复制诊断"),
-            Classes = { "primary" },
+            Classes = { "primary", "dialog-action" },
         };
         copyButton.Click += async (_, _) =>
         {
@@ -310,7 +313,7 @@ public static class CrashDialogContent
 
     private static Button BuildOpenButton(string text, string path)
     {
-        Button button = new() { Content = text };
+        Button button = new() { Content = text, Classes = { "dialog-secondary", "dialog-action" } };
         button.Click += (_, _) =>
         {
             try

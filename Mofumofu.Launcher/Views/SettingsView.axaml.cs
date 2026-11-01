@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -62,6 +62,9 @@ public partial class SettingsView : UserControl
     private Button[] _tabButtons = Array.Empty<Button>();
     private readonly List<Border> _accentSwatches = new();
 
+    /// <summary>上一次搜索结果的淡入时间：连续敲字时做节流，否则每一键都会闪一下。</summary>
+    private DateTime _lastSearchReveal = DateTime.MinValue;
+
     public SettingsView()
     {
         InitializeComponent();
@@ -111,7 +114,6 @@ public partial class SettingsView : UserControl
             ? 0
             : 1;
         PanelBlurToggle.IsChecked = settings.PanelBlur;
-        PremiumVisualsToggle.IsChecked = settings.PremiumVisuals;
         WindowOpacitySlider.Value = settings.WindowOpacity;
         BackgroundOpacitySlider.Value = settings.BackgroundOpacity;
         WindowOpacityValue.Text = $"{settings.WindowOpacity}%";
@@ -237,7 +239,7 @@ public partial class SettingsView : UserControl
         }
 
         ContentScroll.Offset = new Avalonia.Vector(0, 0);
-        UiAnimations.FadeSlideIn(_tabPanels[index], 0.99, 6, 170);
+        UiAnimations.FadeSwap(_tabPanels[index], 170);
     }
 
     private void OnTabGameClick(object? sender, RoutedEventArgs e) => SelectTab(0);
@@ -312,12 +314,13 @@ public partial class SettingsView : UserControl
                 ? L.T("Settings.Search.Summary", "在全部设置中找到 {0} 项与「{1}」相关的选项", matchCount, query)
                 : L.T("Settings.Search.Empty", "没有找到与「{0}」相关的设置项，换个关键词试试。", query);
 
-            if (!headerWasVisible)
+            if (!headerWasVisible || (DateTime.UtcNow - _lastSearchReveal).TotalMilliseconds > 200)
             {
+                _lastSearchReveal = DateTime.UtcNow;
                 UiAnimations.FadeSlideIn(SearchHeader, 0.99, 4, 140);
                 foreach (var panel in _tabPanels)
                 {
-                    if (panel.IsVisible) UiAnimations.FadeSlideIn(panel, 0.995, 5, 160);
+                    if (panel.IsVisible) UiAnimations.FadeSwap(panel, 160);
                 }
             }
         }
@@ -721,20 +724,6 @@ public partial class SettingsView : UserControl
             : L.T("Settings.Toast.IconPaletteTheme", "图标已切换为跟随主题配色"));
     }
 
-    private void OnPremiumVisualsChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-
-        var enabled = PremiumVisualsToggle.IsChecked == true;
-        LocalSettings.Current.PremiumVisuals = enabled;
-        LocalSettings.Save();
-
-        GlassEffects.SetPremiumVisuals(enabled);
-        Shell.Toast(enabled
-            ? L.T("Settings.Toast.PremiumVisualsOn", "已开启卓越视效")
-            : L.T("Settings.Toast.PremiumVisualsOff", "已关闭卓越视效"));
-    }
-
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loading) return;
@@ -1049,16 +1038,12 @@ public partial class SettingsView : UserControl
         var apply = new Button
         {
             Content = L.T("Common.Apply", "应用"),
-            Classes = { "primary" },
-            Height = 34,
-            Padding = new Thickness(20, 0, 20, 0),
+            Classes = { "primary", "dialog-action" },
         };
         var cancel = new Button
         {
             Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 34,
-            Padding = new Thickness(20, 0, 20, 0),
+            Classes = { "dialog-secondary", "dialog-action" },
         };
 
         apply.Click += (_, _) =>
@@ -1162,12 +1147,12 @@ public partial class SettingsView : UserControl
         LocalSettings.Save();
     }
 
-    /// <summary>弹窗内容里的按钮：取它所在的 SukiDialogHost 关掉当前弹窗。</summary>
+    /// <summary>弹窗内容里的按钮：取它所在的 MofuDialogHost 关掉当前弹窗。</summary>
     private static void CloseActiveDialog(object? source)
     {
         if (source is Visual visual)
         {
-            visual.FindAncestorOfType<SukiDialogHost>(true)?.Manager?.DismissDialog();
+            visual.FindAncestorOfType<MofuDialogHost>(true)?.Manager?.DismissDialog();
         }
     }
 
@@ -1657,13 +1642,15 @@ public partial class SettingsView : UserControl
             ? L.T("Settings.About.Update.NotesEmpty", "该版本没有附更新说明。")
             : release.Notes.Length > 600 ? release.Notes[..600] + "…" : release.Notes;
 
-        var content = new StackPanel { Spacing = 12, Width = 420 };
+        var content = MofuDialog.Stack(width: 420);
         content.Children.Add(new TextBlock
         {
             Text = L.T("Settings.About.Update.CurrentLine", "当前版本 {0} → 新版本 {1}",
                 GitHubUpdater.CurrentVersion().ToString(3), release.Tag.TrimStart('v', 'V')),
+            FontSize = 13,
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeTokens.Brush("NekoTextBrush"),
         });
         content.Children.Add(new ScrollViewer
         {
@@ -1672,36 +1659,24 @@ public partial class SettingsView : UserControl
             Content = new TextBlock { Text = notes, FontSize = 12.5, TextWrapping = TextWrapping.Wrap },
         });
 
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button { Content = L.T("Common.Cancel", "取消"), Classes = { "ghost" }, Height = 30 };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-        var install = new Button
-        {
-            Content = release.AssetUrl is null
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var install = MofuDialog.Primary(
+            release.AssetUrl is null
                 ? L.T("Settings.About.Update.OpenRelease", "打开发布页")
                 : L.T("Settings.About.Update.DownloadNow", "立即更新"),
-            Classes = { "primary" },
-            Height = 30,
-        };
-        install.Click += (_, _) =>
-        {
-            DismissDialog(install);
-            if (release.AssetUrl is null)
+            () =>
             {
-                OpenLinkBrowser.OpenLink($"https://github.com/{GitHubUpdater.Repo}/releases/latest");
-                return;
-            }
+                MofuDialog.Close(content);
+                if (release.AssetUrl is null)
+                {
+                    OpenLinkBrowser.OpenLink($"https://github.com/{GitHubUpdater.Repo}/releases/latest");
+                    return;
+                }
 
-            StartUpdateDownload(release);
-        };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(install);
-        content.Children.Add(buttons);
+                StartUpdateDownload(release);
+            });
+
+        content.Children.Add(MofuDialog.Footer(cancel, install));
         Shell.Dialog(content, L.T("Settings.About.UpdateFound", "发现新版本 {0}", release.Tag.TrimStart('v', 'V')));
     }
 
@@ -1730,31 +1705,15 @@ public partial class SettingsView : UserControl
 
     private void ShowInstallConfirmDialog(string downloadedPath)
     {
-        var content = new StackPanel { Spacing = 12, Width = 380 };
-        content.Children.Add(new TextBlock
-        {
-            Text = L.T("Settings.About.Update.InstallConfirm",
-                "更新包下载完成。重启启动器并安装？安装会自动重启应用。"),
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var content = MofuDialog.Stack(width: 380);
+        content.Children.Add(MofuDialog.Message(
+            L.T("Settings.About.Update.InstallConfirm",
+                "更新包下载完成。重启启动器并安装？安装会自动重启应用。")));
 
-        var buttons = new StackPanel
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var restart = MofuDialog.Primary(L.T("Settings.About.Update.InstallNow", "重启并安装"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button { Content = L.T("Common.Cancel", "取消"), Classes = { "ghost" }, Height = 30 };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-        var restart = new Button
-        {
-            Content = L.T("Settings.About.Update.InstallNow", "重启并安装"),
-            Classes = { "primary" },
-            Height = 30,
-        };
-        restart.Click += (_, _) =>
-        {
-            DismissDialog(restart);
+            MofuDialog.Close(content);
             try
             {
                 GitHubUpdater.Apply(downloadedPath); // 内部会重启并退出当前进程
@@ -1763,69 +1722,29 @@ public partial class SettingsView : UserControl
             {
                 Shell.Toast(L.T("Settings.About.UpdateFailed", "更新失败：{0}", error.Message));
             }
-        };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(restart);
-        content.Children.Add(buttons);
+        });
+
+        content.Children.Add(MofuDialog.Footer(cancel, restart));
         Shell.Dialog(content, L.T("Settings.About.Update.InstallTitle", "安装更新"));
     }
 
     private void OnResetSettingsClick(object? sender, RoutedEventArgs e)
     {
-        var content = new StackPanel { Spacing = 14, Width = 450 };
-        content.Children.Add(new TextBlock
-        {
-            Text = L.T("Settings.About.ResetConfirmBody",
-                "将恢复主题、语言、窗口、下载参数、插件开关、收藏服务器和主页布局等默认设置。当前账号与实例选择会保留，首次设置向导会在下次启动时重新弹出。"),
-            TextWrapping = TextWrapping.Wrap,
-        });
-        content.Children.Add(new Border
-        {
-            Background = ThemeTokens.Brush("NekoDangerSoftBrush"),
-            BorderBrush = ThemeTokens.Brush("NekoDangerBrush"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12, 10),
-            Child = new TextBlock
-            {
-                Text = L.T("Settings.About.ResetConfirmNotice",
-                    "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。"),
-                Foreground = ThemeTokens.Brush("NekoDangerBrush"),
-                TextWrapping = TextWrapping.Wrap,
-            },
-        });
+        var content = MofuDialog.Stack(width: 420);
+        content.Children.Add(MofuDialog.Message(L.T("Settings.About.ResetConfirmBody",
+            "将恢复主题、语言、窗口、下载参数、插件开关、收藏服务器和主页布局等默认设置。当前账号与实例选择会保留，首次设置向导会在下次启动时重新弹出。")));
+        content.Children.Add(MofuDialog.Notice(L.T("Settings.About.ResetConfirmNotice",
+            "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。")));
 
-        var buttons = new StackPanel
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Danger(L.T("Settings.About.ResetConfirmButton", "确认重置"), () =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button
-        {
-            Content = L.T("Common.Cancel", "取消"),
-            Classes = { "ghost" },
-            Height = 32,
-            Padding = new Thickness(14, 0),
-        };
-        cancel.Click += (_, _) => DismissDialog(cancel);
-        var confirm = new Button
-        {
-            Content = L.T("Settings.About.ResetConfirmButton", "确认重置"),
-            Classes = { "Danger" },
-            Height = 32,
-            Padding = new Thickness(14, 0),
-        };
-        confirm.Click += (_, _) =>
-        {
-            DismissDialog(confirm);
+            MofuDialog.Close(content);
             ResetLauncherSettings();
-        };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        content.Children.Add(buttons);
+        });
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
 
-        Shell.Dialog(content, L.T("Settings.About.ResetConfirmTitle", "确认重置启动器设置？"));
+        Shell.Dialog(content, L.T("Settings.About.ResetConfirmTitle", "确认重置启动器设置？"), sender as Control);
     }
 
     private void ResetLauncherSettings()
@@ -1837,7 +1756,7 @@ public partial class SettingsView : UserControl
     }
 
     private static void DismissDialog(Avalonia.Controls.Control control) =>
-        control.FindAncestorOfType<SukiDialogHost>(true)?.Manager?.DismissDialog();
+        control.FindAncestorOfType<MofuDialogHost>(true)?.Manager?.DismissDialog();
 
     private void OnOpenProjectHomeClick(object? sender, RoutedEventArgs e)
     {
@@ -1897,6 +1816,6 @@ public partial class SettingsView : UserControl
                 FontFamily = new FontFamily("Consolas, Microsoft YaHei"),
                 TextWrapping = TextWrapping.Wrap,
             },
-        });
+        }, "提示", sender as Control);
     }
 }

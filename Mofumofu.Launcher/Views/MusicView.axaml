@@ -1,9 +1,9 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
-             xmlns:acrylic="using:Fluid.Avalonia.Acrylic"
+             xmlns:suki="using:SukiUI.Controls"
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.MusicView">
     <UserControl.Resources>
@@ -161,6 +161,19 @@
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <!-- 曲目入场：切换到歌单 / 新加曲目时，每一行轻微上浮淡入 -->
+            <Style.Animations>
+                <Animation Duration="0:0:0.22" Easing="CubicEaseOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="RenderTransform" Value="translateY(6px)" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="RenderTransform" Value="translateY(0px)" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
     </UserControl.Styles>
 
@@ -170,7 +183,7 @@
                              Title="{DynamicResource L.Pages.Music.Title}" />
 
         <!-- ==================== 左：Music 侧栏 ==================== -->
-        <acrylic:AcrylicSurface Grid.Column="0" CornerRadius="22" Padding="16,18" Margin="0,0,12,0" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+        <suki:GlassCard Grid.Column="0" CornerRadius="22" Padding="16,18" Margin="0,0,12,0">
             <Grid RowDefinitions="Auto,*">
                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="8,0,0,16">
                     <controls:IconParkIcon Kind="IconFluentMusic" Width="20" Height="20" VerticalAlignment="Center" />
@@ -238,10 +251,10 @@
                     </Button>
                 </StackPanel>
             </Grid>
-        </acrylic:AcrylicSurface>
+        </suki:GlassCard>
 
         <!-- ==================== 中：正在播放（仅首页三段式使用） ==================== -->
-        <acrylic:AcrylicSurface x:Name="NowPane" Grid.Column="1" CornerRadius="24" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+        <suki:GlassCard x:Name="NowPane" Grid.Column="1" CornerRadius="24">
             <Grid>
                 <Border Background="{DynamicResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
                 <Border Background="{DynamicResource NekoAccentSoftBrush}" Opacity="0.16"
@@ -363,10 +376,10 @@
                     </Grid>
                 </Grid>
             </Grid>
-        </acrylic:AcrylicSurface>
+        </suki:GlassCard>
 
         <!-- ==================== 右：队列（仅首页三段式使用） ==================== -->
-        <acrylic:AcrylicSurface x:Name="QueuePane" Grid.Column="2" CornerRadius="22" Padding="16,18" Margin="12,0,0,0" BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+        <suki:GlassCard x:Name="QueuePane" Grid.Column="2" CornerRadius="22" Padding="16,18" Margin="12,0,0,0">
             <Grid RowDefinitions="Auto,Auto,Auto,*">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="16">
@@ -414,12 +427,11 @@
                     </Border>
                 </Grid>
             </Grid>
-        </acrylic:AcrylicSurface>
+        </suki:GlassCard>
 
         <!-- ==================== 传统列表（云 / 收藏 / 漫游） ==================== -->
-        <acrylic:AcrylicSurface x:Name="ListPane" Grid.Column="1" Grid.ColumnSpan="2"
-                                CornerRadius="22" Padding="20,18" IsVisible="False"
-                                BlurRadius="8" Vibrancy="1" TintColor="#B30C121A" ShadowEnabled="False">
+        <suki:GlassCard x:Name="ListPane" Grid.Column="1" Grid.ColumnSpan="2"
+                                CornerRadius="22" Padding="20,18" IsVisible="False">
             <Grid RowDefinitions="Auto,Auto,*">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="10">
@@ -451,6 +463,6 @@
                                TextWrapping="Wrap" MaxWidth="300" TextAlignment="Center" />
                 </Grid>
             </Grid>
-        </acrylic:AcrylicSurface>
+        </suki:GlassCard>
     </Grid>
 </UserControl>
