@@ -150,6 +150,12 @@ internal static class WidgetChrome
     /// <summary>透明图标按钮（卡片右上角的刷新 / 关闭之类）。</summary>
     public static Button IconButton(string iconKey, string tip, Action onClick, double size = 26)
     {
+        return IconButton(iconKey, tip, _ => onClick(), size);
+    }
+
+    /// <summary>同上，但回调能拿到按钮本身——往弹窗传触发控件（anchor）时用这个。</summary>
+    public static Button IconButton(string iconKey, string tip, Action<Button> onClick, double size = 26)
+    {
         var icon = Icon(iconKey, 12, "NekoMutedBrush");
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         icon.VerticalAlignment = VerticalAlignment.Center;
@@ -167,7 +173,7 @@ internal static class WidgetChrome
             VerticalContentAlignment = VerticalAlignment.Center,
         };
         ToolTip.SetTip(button, tip);
-        button.Click += (_, _) => onClick();
+        button.Click += (_, _) => onClick(button);
         return button;
     }
 

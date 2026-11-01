@@ -135,7 +135,6 @@ public static class MotdRenderer
             LineHeight = Math.Round(settings.FontSize * 1.45),
         };
 
-        if (settings.MaxLines > 0) block.MaxLines = settings.MaxLines;
         if (settings.FontFamily is not null) block.FontFamily = settings.FontFamily;
         if (settings.Foreground is not null) block.Foreground = settings.Foreground;
 
@@ -150,7 +149,7 @@ public static class MotdRenderer
         target.Inlines ??= new InlineCollection();
         target.Inlines.Clear();
 
-        if (settings.MaxLines > 0) target.MaxLines = settings.MaxLines;
+        target.MaxLines = Math.Max(0, settings.MaxLines);
 
         var segments = Parse(motd);
         if (segments.Count == 0) return;

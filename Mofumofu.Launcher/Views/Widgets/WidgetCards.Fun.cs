@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Mofumofu.Launcher.Controls;
@@ -14,7 +16,7 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>内容 / 趣味类小组件卡片：音乐 / RSS / 运势 / 看板娘 / 一言 / 问候 / 倒计时 / 时钟 / 日历 / 截图 / 目标。</summary>
+/// <summary>内容 / 趣味类小组件卡片：音乐 / RSS / 运势 / 一言 / 问候 / 倒计时 / 时钟 / 日历 / 番茄钟 / 每日种子。</summary>
 internal static partial class WidgetCards
 {
     private static readonly string[] WeekdayKeys =
@@ -492,4 +494,234 @@ internal static partial class WidgetCards
             L.T("Home.Goal.EmptyHint", "游玩时长统计还没有接入真实数据，暂时无法计算目标进度"),
             L.T("Home.Goal.Open", "前往实例页"),
             () => Shell.Go("instances"));
+
+    // ================= 番茄钟（25 分钟专注 / 5 分钟休息） =================
+
+    public static Control Pomodoro()
+    {
+        TimeSpan FocusDuration() => TimeSpan.FromMinutes(25);
+        TimeSpan BreakDuration() => TimeSpan.FromMinutes(5);
+
+        var isBreak = false;
+        var running = false;
+        var hasStarted = false;
+        var remaining = FocusDuration();
+        var endsAt = DateTimeOffset.UtcNow;
+
+        TimeSpan CurrentDuration() => isBreak ? BreakDuration() : FocusDuration();
+
+        var phasePill = WidgetChrome.Pill(string.Empty);
+        var phasePillText = (TextBlock)phasePill.Child!;
+        var stateText = WidgetChrome.Caption(string.Empty);
+        stateText.TextAlignment = TextAlignment.Right;
+        var progress = WidgetChrome.Bar(0);
+
+        var toggleIcon = WidgetChrome.Icon("IconPlay", 13, "NekoTextBrush");
+        toggleIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        toggleIcon.VerticalAlignment = VerticalAlignment.Center;
+        var toggleButton = new Button
+        {
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            Background = ThemeTokens.Brush("NekoAccentSoftBrush"),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(16),
+            Content = toggleIcon,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+
+        var controls = WidgetChrome.Row(8, toggleButton);
+        controls.HorizontalAlignment = HorizontalAlignment.Center;
+
+        var body = WidgetChrome.Column(8,
+            WidgetChrome.Line(phasePill, stateText),
+            progress,
+            controls,
+            WidgetChrome.Caption(L.T("Home.Pomodoro.DurationHint", "25 分钟专注 · 5 分钟休息")));
+
+        var (card, valueText) = WidgetChrome.CardWithValue("25:00", null, body, true);
+        valueText.FontFamily = new FontFamily("Consolas, Microsoft YaHei");
+        valueText.FontSize = 26;
+
+        void Render()
+        {
+            var totalSeconds = Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+            valueText.Text = $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
+
+            phasePillText.Text = isBreak
+                ? L.T("Home.Pomodoro.Break", "休息")
+                : L.T("Home.Pomodoro.Focus", "专注");
+            phasePill.Background = ThemeTokens.Brush(isBreak ? "NekoSuccessSoftBrush" : "NekoAccentSoftBrush");
+            phasePillText.Foreground = ThemeTokens.Brush(isBreak ? "NekoSuccessBrush" : "NekoAccentBrush");
+
+            stateText.Text = running
+                ? L.T("Home.Pomodoro.Running", "计时中")
+                : hasStarted
+                    ? L.T("Home.Pomodoro.Paused", "已暂停")
+                    : L.T("Home.Pomodoro.Ready", "准备好了");
+
+            ((IconParkIcon)toggleIcon).Kind = running ? "IconPause" : "IconPlay";
+            ToolTip.SetTip(toggleButton, running
+                ? L.T("Home.Pomodoro.PauseTip", "暂停番茄钟")
+                : L.T("Home.Pomodoro.StartTip", "开始 / 继续番茄钟"));
+
+            var durationSeconds = Math.Max(1, CurrentDuration().TotalSeconds);
+            SetBar(progress, (durationSeconds - remaining.TotalSeconds) / durationSeconds * 100);
+        }
+
+        void AdvancePhase(bool notify)
+        {
+            isBreak = !isBreak;
+            remaining = CurrentDuration();
+            hasStarted = running;
+            if (running) endsAt = DateTimeOffset.UtcNow + remaining;
+
+            if (notify)
+            {
+                Shell.Toast(isBreak
+                    ? L.T("Home.Pomodoro.FocusCompleted", "专注完成，休息 5 分钟吧")
+                    : L.T("Home.Pomodoro.BreakCompleted", "休息结束，开始下一轮专注"));
+            }
+
+            Render();
+        }
+
+        void Toggle()
+        {
+            if (running)
+            {
+                remaining = endsAt - DateTimeOffset.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    AdvancePhase(true);
+                    return;
+                }
+
+                running = false;
+            }
+            else
+            {
+                if (remaining <= TimeSpan.Zero) remaining = CurrentDuration();
+                endsAt = DateTimeOffset.UtcNow + remaining;
+                running = true;
+                hasStarted = true;
+            }
+
+            Render();
+        }
+
+        toggleButton.Click += (_, _) => Toggle();
+        controls.Children.Add(WidgetChrome.IconButton("IconFluentArrowClockwise",
+            L.T("Home.Pomodoro.ResetTip", "重置当前阶段"), () =>
+            {
+                running = false;
+                hasStarted = false;
+                remaining = CurrentDuration();
+                Render();
+            }));
+        controls.Children.Add(WidgetChrome.IconButton("IconMediaNext",
+            L.T("Home.Pomodoro.SkipTip", "跳到下一阶段"), () => AdvancePhase(false)));
+
+        // 以目标时间计算剩余量，UI 卡顿或定时器延迟不会累积成计时误差。
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        timer.Tick += (_, _) =>
+        {
+            if (!running) return;
+            remaining = endsAt - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero) AdvancePhase(true);
+            else Render();
+        };
+        timer.Start();
+        WidgetChrome.OnDetach(card, timer.Stop);
+
+        Render();
+        return card;
+    }
+
+    // ================= 每日种子（本地日期决定，同一天固定） =================
+
+    public static Control DailySeed()
+    {
+        var currentDay = string.Empty;
+        var seed = string.Empty;
+        Border? card = null;
+        TextBlock? valueText = null;
+        var dateText = WidgetChrome.Caption(string.Empty);
+
+        void Refresh()
+        {
+            var today = DateTime.Today;
+            var day = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (day == currentDay) return;
+
+            currentDay = day;
+            seed = ComputeDailySeed(today).ToString(CultureInfo.InvariantCulture);
+            valueText!.Text = seed;
+            dateText.Text = L.T("Home.DailySeed.Date", "本地日期 · {0:yyyy-MM-dd}", today);
+        }
+
+        async void CopySeed()
+        {
+            Refresh();
+            try
+            {
+                var clipboard = TopLevel.GetTopLevel(card)?.Clipboard;
+                if (clipboard is null)
+                {
+                    Shell.Toast(L.T("Home.DailySeed.NoClipboard", "剪贴板不可用"));
+                    return;
+                }
+
+                await clipboard.SetTextAsync(seed);
+                Shell.Toast(L.T("Home.DailySeed.Copied", "已复制今日种子：{0}", seed));
+            }
+            catch
+            {
+                Shell.Toast(L.T("Home.DailySeed.CopyFailed", "复制种子失败，请重试"));
+            }
+        }
+
+        var copyAction = WidgetChrome.IconButton("IconFluentDocument",
+            L.T("Home.DailySeed.Copy", "复制种子"), CopySeed);
+        var body = WidgetChrome.Column(8,
+            dateText,
+            WidgetChrome.Caption(L.T("Home.DailySeed.Hint", "同一天保持不变，可粘贴到创建世界的种子栏")),
+            WidgetChrome.LinkButton(L.T("Home.DailySeed.Copy", "复制种子"), CopySeed, "IconFluentDocument"));
+
+        (card, valueText) = WidgetChrome.CardWithValue(string.Empty, copyAction, body);
+        valueText.FontFamily = new FontFamily("Consolas, Microsoft YaHei");
+        valueText.FontSize = 18;
+
+        // 跨午夜后自动换一颗；回到桌面时也会立即校对日期。
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        timer.Tick += (_, _) =>
+        {
+            if (card.IsEffectivelyVisible) Refresh();
+        };
+        timer.Start();
+        WidgetChrome.OnBecameVisible(card, Refresh);
+        WidgetChrome.OnDetach(card, timer.Stop);
+
+        Refresh();
+        return card;
+    }
+
+    /// <summary>以固定前缀和本地日期做 64 位 FNV-1a，结果直接映射到 MC 的有符号种子空间。</summary>
+    private static long ComputeDailySeed(DateTime date)
+    {
+        var key = "Mofumofu:" + date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (var ch in key)
+            {
+                hash ^= ch;
+                hash *= 1099511628211UL;
+            }
+
+            return (long)hash;
+        }
+    }
 }

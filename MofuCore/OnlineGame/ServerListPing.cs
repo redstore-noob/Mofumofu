@@ -29,6 +29,9 @@ public static class ServerListPing
 {
     private const int TimeoutMs = 4000;
 
+    /// <summary>状态请求包：长度 1 + 包 id 0x00（必须带长度前缀，否则服务端会挂起）。</summary>
+    private static readonly byte[] StatusRequestPacket = [0x01, 0x00];
+
     /// <summary>按地址 ping 一台服务器；host 支持带端口的 "host:port" 写法。</summary>
     public static Task<ServerPingResult> PingAsync(string address, CancellationToken cancellationToken = default)
     {
@@ -39,24 +42,27 @@ public static class ServerListPing
     public static async Task<ServerPingResult> PingAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(host)) return ServerPingResult.Offline;
+        if (port <= 0 || port > 65535) port = 25565;
 
         try
         {
             using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cancellation.CancelAfter(TimeoutMs);
+            var token = cancellation.Token;
 
             using var client = new TcpClient();
-            await client.ConnectAsync(host, port, cancellation.Token).ConfigureAwait(false);
+            client.NoDelay = true;
+            await client.ConnectAsync(host, port, token).ConfigureAwait(false);
 
             using var stream = client.GetStream();
-            stream.Write(BuildHandshake(host, port));
-            stream.Write([(byte)0x00]); // 状态请求（空包）
-            await stream.FlushAsync(cancellation.Token).ConfigureAwait(false);
+            await stream.WriteAsync(BuildHandshake(host, port), token).ConfigureAwait(false);
+            await stream.WriteAsync(StatusRequestPacket, token).ConfigureAwait(false);
+            await stream.FlushAsync(token).ConfigureAwait(false);
 
-            var payload = ReadStatusPayload(stream, cancellation.Token);
+            var payload = await ReadStatusPayloadAsync(stream, token).ConfigureAwait(false);
             return Parse(payload);
         }
-        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or JsonException)
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or JsonException or ArgumentException)
         {
             return ServerPingResult.Offline;
         }
@@ -108,27 +114,27 @@ public static class ServerListPing
     }
 
     /// <summary>读完整一个 status 响应包并取出 JSON 字符串（跳过包 id）。</summary>
-    private static string ReadStatusPayload(NetworkStream stream, CancellationToken cancellationToken)
+    private static async Task<string> ReadStatusPayloadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
-        var length = ReadVarInt(stream, cancellationToken);
+        var length = await ReadVarIntAsync(stream, cancellationToken).ConfigureAwait(false);
         if (length <= 0 || length > 8 * 1024 * 1024) throw new IOException("bad packet length");
 
         var buffer = new byte[length];
         var read = 0;
         while (read < length)
         {
-            var chunk = stream.Read(buffer, read, length - read);
+            var chunk = await stream.ReadAsync(buffer.AsMemory(read, length - read), cancellationToken)
+                .ConfigureAwait(false);
             if (chunk <= 0) throw new IOException("connection closed");
             read += chunk;
         }
-
-        if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException();
 
         var cursor = 0;
         var packetId = ReadVarInt(buffer, ref cursor);
         if (packetId != 0x00) throw new IOException("unexpected packet id");
 
         var jsonLength = ReadVarInt(buffer, ref cursor);
+        if (jsonLength <= 0 || cursor + jsonLength > buffer.Length) throw new IOException("bad json length");
         return Encoding.UTF8.GetString(buffer, cursor, jsonLength);
     }
 
@@ -193,7 +199,7 @@ public static class ServerListPing
         uint v = (uint)value;
         while (v >= 0x80)
         {
-            stream.WriteByte((byte)(v | 0x80));
+            stream.WriteByte((byte)((v & 0x7F) | 0x80));
             v >>= 7;
         }
 
@@ -207,14 +213,15 @@ public static class ServerListPing
         stream.Write(bytes);
     }
 
-    private static int ReadVarInt(NetworkStream stream, CancellationToken cancellationToken)
+    private static async Task<int> ReadVarIntAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         var result = 0;
+        var buffer = new byte[1];
         for (var shift = 0; shift < 35; shift += 7)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var b = stream.ReadByte();
-            if (b < 0) throw new IOException("connection closed");
+            var read = await stream.ReadAsync(buffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
+            if (read <= 0) throw new IOException("connection closed");
+            var b = buffer[0];
             result |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) return result;
         }
