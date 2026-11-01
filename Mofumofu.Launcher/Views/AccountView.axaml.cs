@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -18,21 +18,24 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Web;
-using Mofumofu.Launcher.Controls;
 using MofuCore.Account;
 using SukiUI.Controls;
 using L = Mofumofu.Launcher.Localization.Localization;
+using Mofumofu.Launcher.Controls;
+using NativeSkinModel = Mofumofu.Launcher.Controls.SkinView3D.SkinModel;
+using NativeSkinAnimation = Mofumofu.Launcher.Controls.SkinView3D.SkinAnimation;
 
 namespace Mofumofu.Launcher.Views;
 
 /// <summary>
-/// 账户管理页：账号列表（选中/默认/删除）+ 3D 皮肤预览（局部 WebView2）+ 玩家外观。
+/// 账户管理页：账号列表（选中/默认/删除）+ 原生 OpenGL 皮肤预览 + 玩家外观。
 /// 皮肤贴图按旧版做法获取：Mojang 档案 → 本地缓存 → 客户端内置 Steve/Alex → 页面内置兜底。
 /// </summary>
 public partial class AccountView : UserControl
@@ -41,12 +44,11 @@ public partial class AccountView : UserControl
     private static readonly TimeSpan SkinResolveTimeout = TimeSpan.FromSeconds(4);
 
     private readonly ObservableCollection<AccountRow> _accounts = new();
-    private readonly WebRegionHost _skinHost;
-    private readonly DispatcherTimer _hostSyncTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _skinEditorTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private WebRegionHost? _skinEditorHost;
     private AccountRow? _skinEditorRow;
     private int _skinEditorTicks;
+    private bool _skinEditorClosing;
 
     private CancellationTokenSource? _skinCts;
     private CancellationTokenSource? _loginCts;
@@ -58,15 +60,13 @@ public partial class AccountView : UserControl
     private bool _syncingModel;
     private bool _syncingCape;
     private bool _themeSubscribed;
-    private int _hostSyncTicks;
+    private string? _nativeSkinSource;
+    private string? _nativeCapeSource;
 
     public AccountView()
     {
         InitializeComponent();
 
-        // 3D 皮肤预览走局部 WebView2（本地 skinview3d 页面）
-        _skinHost = new WebRegionHost(SkinWebHost, "skin/index.html", "skin");
-        _hostSyncTimer.Tick += OnHostSyncTick;
         _skinEditorTimer.Tick += OnSkinEditorTick;
 
         AttachedToVisualTree += OnAttached;
@@ -95,9 +95,10 @@ public partial class AccountView : UserControl
         }
 
         ApplyTheme();
-        _hostSyncTicks = 0;
-        _hostSyncTimer.Start();
-        _ = _skinHost.AttachAsync();
+
+        // 页面缓存会保留控件；若离开期间取消了皮肤解析，回来后必须重新开始。
+        if (_ready && _skinCts?.IsCancellationRequested == true)
+            _ = ApplySkinPaletteAsync(SelectedRow);
     }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -108,32 +109,7 @@ public partial class AccountView : UserControl
             _themeSubscribed = false;
         }
 
-        _hostSyncTimer.Stop();
-        _skinHost.Detach();
         _skinCts?.Cancel();
-    }
-
-    /// <summary>页面导航完成后一次性把主题 + 皮肤状态补推给 WebView（页面未就绪时脚本会排队）。</summary>
-    private void OnHostSyncTick(object? sender, EventArgs e)
-    {
-        _hostSyncTicks++;
-
-        if (_skinHost.IsReady)
-        {
-            _hostSyncTimer.Stop();
-            SkinWebPlaceholder.IsVisible = false;
-            ApplyTheme();
-            PushCurrentState();
-
-            return;
-        }
-
-        if (_hostSyncTicks >= 40)
-        {
-            _hostSyncTimer.Stop();
-            SkinWebPlaceholder.Text = L.T("Account.Skin.Unavailable", "3D 皮肤预览不可用（缺少 WebView2 运行时）");
-            SkinWebPlaceholder.IsVisible = true;
-        }
     }
 
     // ---------------- 账号列表 ----------------
@@ -325,6 +301,7 @@ public partial class AccountView : UserControl
             AccountList.SelectedIndex = -1;
             CurrentAccountName.Text = "—";
             CurrentAccountBadge.Text = string.Empty;
+            ClearSkinPreview();
         }
 
         LocalSettings.Save();
@@ -605,21 +582,36 @@ public partial class AccountView : UserControl
 
     // ---------------- 皮肤预览（获取 + 推送） ----------------
 
+    private void ClearSkinPreview()
+    {
+        _skinCts?.Cancel();
+        _skinCts?.Dispose();
+        _skinCts = null;
+        _skinTexture = null;
+        _nativeSkinSource = null;
+        _nativeCapeSource = null;
+        NativeSkinViewer.Clear();
+        UpdateCapeSwitch();
+    }
+
     private async Task ApplySkinPaletteAsync(AccountRow? row, bool forceRefresh = false)
     {
-        if (row is null) return;
-
-        // 切换账号时先只更新名字/模型/披风，保留上一张皮肤，避免 3D 区域出现空窗
-        _skinTexture = null;
-        UpdateCapeSwitch();
-        PushSkinInfo();
+        if (row is null)
+        {
+            ClearSkinPreview();
+            return;
+        }
 
         _skinCts?.Cancel();
+        _skinCts?.Dispose();
         var cts = new CancellationTokenSource();
         _skinCts = cts;
 
+        // 解析期间保留上一张皮肤，但立即切换名称和部件状态。
+        _skinTexture = null;
+        PushSkinInfo();
+
         SkinTexture? texture = null;
-        var timedOut = false;
         try
         {
             // 网络/令牌异常时最多等 4s：超时也走回退（本地缓存 → 客户端内置 → 页面内置 Steve/Alex）
@@ -630,7 +622,6 @@ public partial class AccountView : UserControl
         }
         catch (OperationCanceledException) when (!cts.IsCancellationRequested)
         {
-            timedOut = true;
             SkinLog($"resolve timeout for {row.Name}");
         }
         catch (OperationCanceledException)
@@ -644,6 +635,20 @@ public partial class AccountView : UserControl
 
         if (cts.IsCancellationRequested || !ReferenceEquals(SelectedRow, row)) return;
 
+        if (texture is null)
+        {
+            try
+            {
+                // 网络超时或失败时，原解析链已经取消；用当前页面令牌单独加载内嵌兜底。
+                texture = await SkinTextureService.ResolveEmbeddedAsync(row, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            if (cts.IsCancellationRequested || !ReferenceEquals(SelectedRow, row)) return;
+        }
+
         _skinTexture = texture;
 
         if (_modelChoice is null)
@@ -654,37 +659,35 @@ public partial class AccountView : UserControl
         }
 
         UpdateCapeSwitch();
+        // 修改、换肤和手动刷新都经由这里提交；即使来源字符串相同也重新上传一次贴图。
+        _nativeSkinSource = null;
+        _nativeCapeSource = null;
         PushCurrentState();
 
         await UpdateFallbackPreviewAsync(row, texture);
         SkinLog($"resolved {row.Name}: {(texture is null ? "builtin" : texture.Source)} slim={texture?.Slim}");
     }
 
-    /// <summary>WebView2 画出首帧前的兜底：显示账号皮肤大头。</summary>
+    /// <summary>更新账号列表中的皮肤大头。</summary>
     private async Task UpdateFallbackPreviewAsync(AccountRow row, SkinTexture? texture)
     {
         IImage? head = null;
         try
         {
-            head = await SkinHeadService.LoadHeadAsync(row.Name);
+            // 优先用刚加载的皮肤，避免本地编辑/换肤后仍命中旧 Mojang 头像缓存。
+            if (texture?.SkinDataUrl is { Length: > 0 } dataUrl &&
+                TryDecodeDataUrl(dataUrl) is { } bytes)
+                head = SkinHeadService.ComposeHead(bytes) ?? CreateHeadBitmap(bytes);
+
+            if (head is null)
+                head = await SkinHeadService.LoadHeadAsync(row.Name);
         }
         catch (Exception error)
         {
             SkinLog("fallback head failed", error);
         }
 
-        if (head is null && texture?.SkinDataUrl is { Length: > 0 } dataUrl)
-        {
-            var bytes = TryDecodeDataUrl(dataUrl);
-            if (bytes is not null) head = SkinHeadService.ComposeHead(bytes) ?? CreateHeadBitmap(bytes);
-        }
-
         if (head is not null) row.Head = head;
-
-        if (!ReferenceEquals(SelectedRow, row)) return;
-
-        SkinFallbackImage.Source = head;
-        SkinFallbackImage.IsVisible = head is not null;
     }
 
     private static byte[]? TryDecodeDataUrl(string dataUrl)
@@ -702,34 +705,83 @@ public partial class AccountView : UserControl
         }
     }
 
-    /// <summary>只推账号名/模型/披风开关（不动贴图）：切换账号期间保持上一张皮肤可见。</summary>
+    /// <summary>只更新账号名/模型/披风开关（不动贴图）：切换账号期间保持上一张皮肤可见。</summary>
     private void PushSkinInfo()
     {
         var row = SelectedRow;
         if (row is null) return;
 
-        _skinHost.ApplySkin(row.Name, row.Variant, EffectiveSlim, false);
+        NativeSkinViewer.NameTag = row.Name;
+        NativeSkinViewer.ShowCape = false;
     }
 
-    /// <summary>把当前账号 / 模型 / 披风 / 贴图一次性推给 WebView 页面。</summary>
+    /// <summary>把当前账号、模型、披风及贴图交给原生 OpenGL 查看器。</summary>
     private void PushCurrentState()
     {
         var row = SelectedRow;
-        if (row is null) return;
-
-        var slim = EffectiveSlim;
-        var capeVisible = CapeSwitch.IsChecked == true && _skinTexture?.HasCape == true;
-
-        _skinHost.ApplySkin(row.Name, row.Variant, slim, capeVisible);
-        _skinHost.Post("texture", new
+        if (row is null)
         {
-            name = row.Name,
-            skin = _skinTexture?.SkinDataUrl,
-            cape = _skinTexture?.CapeDataUrl,
-            slim,
-            capeVisible,
-            source = _skinTexture?.Source ?? "pending",
-        });
+            ClearSkinPreview();
+            return;
+        }
+
+        bool slim = EffectiveSlim;
+        string? skinSource = _skinTexture?.SkinDataUrl;
+
+        NativeSkinViewer.NameTag = row.Name;
+        NativeSkinViewer.Model = slim ? NativeSkinModel.Slim : NativeSkinModel.Classic;
+
+        if (!string.Equals(_nativeSkinSource, skinSource, StringComparison.Ordinal))
+        {
+            try
+            {
+                if (skinSource is not { Length: > 0 } ||
+                    TryDecodeDataUrl(skinSource) is not { } skinBytes)
+                    throw new InvalidDataException("皮肤贴图为空或 data URL 无效。");
+
+                NativeSkinViewer.LoadSkin(skinBytes);
+                // 只有解码并提交成功后才记录来源，坏贴图不会污染缓存键。
+                _nativeSkinSource = skinSource;
+            }
+            catch (Exception error)
+            {
+                _nativeSkinSource = null;
+                NativeSkinViewer.ClearSkin();
+                SkinLog($"decode native skin failed for {row.Name}", error);
+            }
+        }
+
+        PushCapeState();
+    }
+
+    private void PushCapeState()
+    {
+        bool capeVisible = CapeSwitch.IsChecked == true && _skinTexture?.HasCape == true;
+        string? capeSource = _skinTexture?.CapeDataUrl;
+        NativeSkinViewer.ShowCape = capeVisible;
+
+        if (!capeVisible || capeSource is not { Length: > 0 })
+        {
+            NativeSkinViewer.ClearCape();
+            _nativeCapeSource = null;
+        }
+        else if (!string.Equals(_nativeCapeSource, capeSource, StringComparison.Ordinal))
+        {
+            try
+            {
+                if (TryDecodeDataUrl(capeSource) is not { } capeBytes)
+                    throw new InvalidDataException("披风 data URL 无效。");
+
+                NativeSkinViewer.LoadCape(capeBytes);
+                _nativeCapeSource = capeSource;
+            }
+            catch (Exception error)
+            {
+                NativeSkinViewer.ClearCape();
+                _nativeCapeSource = null;
+                SkinLog($"decode native cape failed for {SelectedRow?.Name}", error);
+            }
+        }
     }
 
     private void UpdateCapeSwitch()
@@ -820,15 +872,23 @@ public partial class AccountView : UserControl
     {
         if (!UiAnimations.Enabled) return;
 
-        // 3D 区域是 WebView2 子窗口，无法参与 Avalonia 动画，淡入放在信息卡与来源状态上
         UiAnimations.FadeSlideIn(SkinInfoPanel, 0.99, 6, 170);
+        UiAnimations.FadeSlideIn(NativeSkinViewer, 0.99, 6, 170);
+    }
+
+    private void OnSkinAnimationChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_ready || sender is not ComboBox { SelectedItem: ComboBoxItem { Tag: NativeSkinAnimation animation } })
+            return;
+
+        NativeSkinViewer.SetAnimation(animation);
     }
 
     private void OnCapeToggled(object? sender, RoutedEventArgs e)
     {
         if (_syncingCape) return;
 
-        PushCurrentState();
+        PushCapeState();
         if (_ready)
         {
             Shell.Toast(CapeSwitch.IsChecked == true
@@ -854,12 +914,8 @@ public partial class AccountView : UserControl
 
     private void ApplyTheme()
     {
-        var surface = ThemeTokens.Color("NekoFieldSoftBrush");
-        _skinHost.SetBackground(System.Drawing.Color.FromArgb(surface.A, surface.R, surface.G, surface.B));
-        PushTheme();
+        NativeSkinViewer.Background = ThemeTokens.Color("NekoFieldSoftBrush");
     }
-
-    private void PushTheme() => PushThemeTo(_skinHost);
 
     private static void PushThemeTo(WebRegionHost host)
     {
@@ -974,7 +1030,9 @@ public partial class AccountView : UserControl
         if (row is null) return;
 
         _skinEditorRow = row;
+        SkinEditorOverlay.RenderTransformOrigin = RelativePoint.Center;
         SkinEditorOverlay.IsVisible = true;
+        UiAnimations.FadeSlideIn(SkinEditorOverlay, 0.99, 10, 200);
 
         if (_skinEditorHost is null)
         {
@@ -1033,12 +1091,30 @@ public partial class AccountView : UserControl
 
     private void OnCloseSkinEditorClick(object? sender, RoutedEventArgs e) => CloseSkinEditor();
 
-    private void CloseSkinEditor()
+    private async void CloseSkinEditor()
     {
         _skinEditorTimer.Stop();
-        SkinEditorOverlay.IsVisible = false;
-        _skinEditorHost?.Detach();
-        _skinEditorRow = null;
+        if (_skinEditorClosing) return;
+        _skinEditorClosing = true;
+
+        try
+        {
+            // 收起动画：先淡出缩小，再真正隐藏并卸载 WebView（卸载会掉帧，藏起来之后再做）
+            if (SkinEditorOverlay.IsVisible)
+            {
+                UiAnimations.FadeSlideOut(SkinEditorOverlay, 0.99, 8, 150);
+                if (UiAnimations.Enabled) await Task.Delay(160);
+            }
+
+            SkinEditorOverlay.IsVisible = false;
+            UiAnimations.Reset(SkinEditorOverlay);
+            _skinEditorHost?.Detach();
+            _skinEditorRow = null;
+        }
+        finally
+        {
+            _skinEditorClosing = false;
+        }
     }
 
     private async void OnSkinEditorMessage(string message)
@@ -1324,7 +1400,10 @@ public partial class AccountView : UserControl
             _ = LoadCatalogThumbnailAsync(choice, image, fallback);
         }
 
-        Shell.Dialog(content, L.T("Account.Library.DialogTitle", "皮肤库"));
+        // 皮肤库逐张入场，避免一次性铺满整屏
+        UiAnimations.Stagger(panel.Children, step: 26, milliseconds: 180, offsetY: 8);
+
+        Shell.Dialog(content, L.T("Account.Library.DialogTitle", "皮肤库"), sender as Control);
     }
 
     private static async Task LoadCatalogThumbnailAsync(
@@ -1571,7 +1650,7 @@ internal static class SkinTextureService
             {
                 WriteProfileCache(row.Name, fetched);
 
-                return fetched;
+                return WithLocalCape(fetched, row);
             }
 
             if (cached is not null && !string.IsNullOrEmpty(cached.Skin))
@@ -1584,10 +1663,22 @@ internal static class SkinTextureService
         // 3) 离线目录：客户端 jar 里的官方 Steve / Alex 等贴图
         var choice = FindChoice(row.OfflineSkinId);
         var bytes = await ResolveDefaultBytesAsync(choice, cancellationToken);
-        if (bytes is null) return null;
+        if (bytes is null) return await ResolveEmbeddedAsync(row, cancellationToken);
 
         return WithLocalCape(
             new SkinTexture(row.Name, ToDataUrl(bytes), null, choice.Slim, "client-jar"), row);
+    }
+
+    /// <summary>无网络、无缓存、无客户端 jar 时也必须给出完整皮肤，而不是白模。</summary>
+    public static async Task<SkinTexture?> ResolveEmbeddedAsync(
+        AccountRow row, CancellationToken cancellationToken)
+    {
+        var choice = FindChoice(row.OfflineSkinId);
+        var bytes = await ReadEmbeddedDefaultAsync(choice.Slim, cancellationToken);
+        if (bytes is null) return null;
+
+        return WithLocalCape(
+            new SkinTexture(row.Name, ToDataUrl(bytes), null, choice.Slim, "builtin"), row);
     }
 
     /// <summary>账号设置了本地自定义披风时，用它替换纹理结果里的披风（官方披风优先级低于本地披风）。</summary>
@@ -1668,7 +1759,7 @@ internal static class SkinTextureService
         return File.Exists(path) ? TryReadDataUrl(path) : null;
     }
 
-    /// <summary>校验披风文件：PNG、≤4 MiB、宽高比 2:1（64×32 / 92×64 / 128×64 等）。</summary>
+    /// <summary>校验披风文件：PNG、≤4 MiB、宽高比 2:1（64×32 / 128×64 等）。</summary>
     public static bool TryValidateCapeFile(string path, out string error)
     {
         error = string.Empty;
@@ -1701,7 +1792,7 @@ internal static class SkinTextureService
             var size = bitmap.PixelSize;
             if (size.Width != size.Height * 2)
             {
-                error = L.T("Account.Cape.BadSize", "披风纹理的宽高比需要是 2:1（例如 64×32 或 92×64）");
+                error = L.T("Account.Cape.BadSize", "披风纹理的宽高比需要是 2:1（例如 64×32 或 128×64）");
 
                 return false;
             }
@@ -1797,6 +1888,23 @@ internal static class SkinTextureService
         }
 
         return bytes;
+    }
+
+    private static async Task<byte[]?> ReadEmbeddedDefaultAsync(bool slim, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var name = slim ? "alex" : "steve";
+            await using var stream = AssetLoader.Open(new Uri(
+                $"avares://Mofumofu.Launcher/Assets/Skins/{name}.png"));
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
+            return buffer.ToArray();
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     /// <summary>从已安装的客户端 jar 里提取内置贴图路径（新版 wide/slim 子目录 + 旧版扁平路径）。</summary>

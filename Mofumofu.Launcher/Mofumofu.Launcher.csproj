@@ -3,6 +3,7 @@
         <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <ApplicationIcon>appicon.ico</ApplicationIcon>
         <!-- 应用图标为图一（根目录 appicon.ico） -->
@@ -30,6 +31,7 @@
         </PackageReference>
         <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
         <PackageReference Include="NAudio" Version="2.2.1" />
+        <PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />
         <PackageReference Include="SukiUI" Version="7.0.2-nightly20261002.475" />
     </ItemGroup>
 

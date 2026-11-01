@@ -68,6 +68,12 @@ class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            // 优先使用 Windows 默认的 ANGLE/D3D 后端。WGL 的共享纹理路径在部分驱动上
+            // 会在 OpenGlControlBase.BeginDraw 中建立不完整的 FBO，早于控件的渲染回调。
+            .With(new Win32PlatformOptions
+            {
+                RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Wgl, Win32RenderingMode.Software]
+            })
 #if DEBUG
             .WithDeveloperTools()
 #endif

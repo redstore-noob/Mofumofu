@@ -1,0 +1,5 @@
+<opengl:OpenGlControlBase xmlns="https://github.com/avaloniaui"
+                           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                           xmlns:opengl="using:Avalonia.OpenGL.Controls"
+                           x:Class="Mofumofu.Launcher.Controls.SkinView3D.SkinView3D"
+                           Focusable="True" />

@@ -3,8 +3,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             xmlns:skin="clr-namespace:Mofumofu.Launcher.Controls.SkinView3D"
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.AccountView">
+    <UserControl.Styles>
+        <Style Selector="ComboBox#SkinAnimationCombo /template/ Popup#PART_Popup">
+            <Setter Property="ShouldUseOverlayLayer" Value="True" />
+        </Style>
+    </UserControl.Styles>
     <Grid RowDefinitions="Auto,*">
         <controls:PageHeader x:Name="Header"
                              Grid.Row="0"
@@ -118,22 +124,9 @@
                         <Border Height="286" CornerRadius="12" Background="{DynamicResource NekoFieldSoftBrush}"
                                 BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
                                 ClipToBounds="True">
-                            <Border x:Name="SkinWebHost" Background="Transparent" CornerRadius="11">
-                                <!-- WebView2 是独立子窗口，不进 Avalonia 渲染树；这层是可见兜底预览 -->
-                                <Grid>
-                                    <Image x:Name="SkinFallbackImage"
-                                           Width="160" Height="160"
-                                           Stretch="Uniform"
-                                           IsVisible="False"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           RenderOptions.BitmapInterpolationMode="None" />
-                                    <TextBlock x:Name="SkinWebPlaceholder"
-                                               Text="{DynamicResource L.Account.Skin.Loading}" Classes="caption"
-                                               IsVisible="False"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
+                            <skin:SkinView3D x:Name="NativeSkinViewer"
+                                             Animation="Idle"
+                                             Background="Transparent" />
                         </Border>
 
 
@@ -175,6 +168,22 @@
                                     <TextBlock Text="{DynamicResource L.Account.Skin.Library}" FontSize="11.5" />
                                 </StackPanel>
                             </Button>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,8,8">
+                                <TextBlock Text="{DynamicResource L.Account.Skin.Animation.Title}"
+                                           Classes="caption" VerticalAlignment="Center" />
+                                <ComboBox x:Name="SkinAnimationCombo" MinWidth="130"
+                                          SelectedIndex="1" SelectionChanged="OnSkinAnimationChanged">
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.None}" Tag="{x:Static skin:SkinAnimation.None}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Idle}" Tag="{x:Static skin:SkinAnimation.Idle}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Walking}" Tag="{x:Static skin:SkinAnimation.Walking}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Running}" Tag="{x:Static skin:SkinAnimation.Running}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Flying}" Tag="{x:Static skin:SkinAnimation.Flying}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Swimming}" Tag="{x:Static skin:SkinAnimation.Swimming}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Crouching}" Tag="{x:Static skin:SkinAnimation.Crouching}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Hitting}" Tag="{x:Static skin:SkinAnimation.Hitting}" />
+                                    <ComboBoxItem Content="{DynamicResource L.Account.Skin.Animation.Waving}" Tag="{x:Static skin:SkinAnimation.Waving}" />
+                                </ComboBox>
+                            </StackPanel>
                         </WrapPanel>
 
                         <Border Classes="divider" />
