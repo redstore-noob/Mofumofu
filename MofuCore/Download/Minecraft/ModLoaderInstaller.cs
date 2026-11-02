@@ -827,11 +827,16 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         string libraries = Path.Combine(gameDirectory, "libraries");
         if (kind == ModLoaderKind.NeoForge)
         {
-            string patched = Path.Combine(libraries, "net", "neoforged", "minecraft-client-patched");
-            if (FindFile(patched, "*.jar") is null)
+            // NeoForge 从 20.2 起就改用 classifier 形式的 PATCHED 产物
+            // （install_profile.json 的 data.PATCHED.client = [net.neoforged:neoforge:{ver}:client]），
+            // Maven 上从来没有 net/neoforged/minecraft-client-patched 这个 artifact。
+            // 真实产物是 libraries/net/neoforged/neoforge/{ver}/neoforge-{ver}-client.jar
+            // （1.20.1 及更早的 NeoForge 是 net/neoforged/forge/{ver}/forge-{ver}-client.jar）。
+            string? patched = FindPatchedClientJar(libraries);
+            if (patched is null)
             {
                 throw new InvalidOperationException(
-                    "NeoForge 安装器没有生成运行时客户端（minecraft-client-patched），安装不完整。");
+                    "NeoForge 安装器没有生成运行时客户端（*-client.jar），安装不完整。");
             }
             return;
         }
@@ -842,6 +847,45 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             throw new InvalidOperationException(
                 "Forge 安装器没有生成 SRG 重映射客户端（*-srg.jar），安装不完整。");
         }
+    }
+
+    /// <summary>
+    /// 在 libraries/net/neoforged 下找 NeoForge 的 classifier 客户端 jar。
+    /// 按 artifact 分组目录逐个找，避免误命中 installertools 之类同名 jar。
+    /// </summary>
+    private static string? FindPatchedClientJar(string libraries)
+    {
+        string[] artifactRoots =
+        [
+            Path.Combine(libraries, "net", "neoforged", "neoforge"),
+            Path.Combine(libraries, "net", "neoforged", "forge"),
+        ];
+
+        foreach (string root in artifactRoots)
+        {
+            if (!Directory.Exists(root)) continue;
+
+            IEnumerable<string> versions;
+            try
+            {
+                versions = Directory.EnumerateDirectories(root);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            foreach (string versionDirectory in versions)
+            {
+                string artifact = Path.GetFileName(root);
+                string version = Path.GetFileName(versionDirectory);
+                // 只认 {artifact}-{version}-client.jar，排除 sources / universal / installer 等
+                string candidate = Path.Combine(versionDirectory, $"{artifact}-{version}-client.jar");
+                if (File.Exists(candidate)) return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static string? FindFile(string root, string pattern)

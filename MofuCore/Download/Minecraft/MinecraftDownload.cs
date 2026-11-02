@@ -17,10 +17,30 @@ public sealed class DownloadSource
 {
     public string Name { get; init; } = string.Empty;
     public string LauncherMeta { get; init; } = string.Empty;
+
+    /// <summary>清单与资源索引（官方 piston-meta，v1/packages）。</summary>
     public string Meta { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 具体对象（官方 piston-data，v1/objects：客户端 jar、日志配置等）。
+    /// 未单独指定时退回 <see cref="Meta"/>（镜像两者同域）。
+    /// </summary>
+    public string Data { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Fabric 元数据。未单独指定时退回 <see cref="Meta"/> + "/fabric-meta"（镜像约定路径）。
+    /// </summary>
+    public string FabricMeta { get; init; } = string.Empty;
+
     public string Libraries { get; init; } = string.Empty;
     public string Resources { get; init; } = string.Empty;
     public string Maven { get; init; } = string.Empty;
+
+    /// <summary>对象域，缺失时用 Meta 兜底。</summary>
+    public string DataBase => string.IsNullOrWhiteSpace(Data) ? Meta : Data;
+
+    /// <summary>Fabric 元数据域，缺失时用 Meta + "/fabric-meta" 兜底。</summary>
+    public string FabricMetaBase => string.IsNullOrWhiteSpace(FabricMeta) ? Meta + "/fabric-meta" : FabricMeta;
 }
 
 /// <summary>
@@ -33,6 +53,10 @@ public static class DownloadSources
         Name = "Official",
         LauncherMeta = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
         Meta = "https://piston-meta.mojang.com",
+        // 官方把清单（piston-meta）与对象（piston-data）拆成两个域：
+        // v1/packages/* 只在 piston-meta，v1/objects/* 只在 piston-data。
+        Data = "https://piston-data.mojang.com",
+        FabricMeta = "https://meta.fabricmc.net",
         Libraries = "https://libraries.minecraft.net",
         Resources = "https://resources.download.minecraft.net",
         Maven = "https://libraries.minecraft.net",
@@ -104,11 +128,31 @@ public static class DownloadSourceProvider
 
     public static string? ResolveFallback(string officialUrl)
     {
-        DownloadSource? fallback = Fallback;
-        if (fallback is null || string.IsNullOrWhiteSpace(officialUrl))
+        if (string.IsNullOrWhiteSpace(officialUrl))
         {
             return null;
         }
+
+        DownloadSource active = Active;
+        DownloadSource? fallback = Fallback;
+
+        // 没有单独配置回退源时，只要主源不是官方源，就默认回退到官方源。
+        // 镜像不可能覆盖官方全部产物（例如 assets/log_configs 这类对象 BMCLAPI 就没有镜像），
+        // 没有兜底会让一次 404 直接中断整个安装。
+        if (fallback is null)
+        {
+            if (string.Equals(active.Name, DownloadSources.Official.Name, StringComparison.Ordinal))
+            {
+                return null;
+            }
+            fallback = DownloadSources.Official;
+        }
+
+        if (string.Equals(fallback.Name, active.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         return ReplaceBaseUrl(officialUrl, fallback);
     }
 
@@ -251,7 +295,7 @@ public static class DownloadSourceProvider
         }
         if (lower.Contains("meta.fabricmc.net", StringComparison.Ordinal))
         {
-            return rawUrl.Replace("https://meta.fabricmc.net", target.Meta + "/fabric-meta", StringComparison.Ordinal);
+            return rawUrl.Replace("https://meta.fabricmc.net", target.FabricMetaBase, StringComparison.Ordinal);
         }
         if (lower.Contains("maven.fabricmc.net", StringComparison.Ordinal))
         {
@@ -263,7 +307,7 @@ public static class DownloadSourceProvider
         }
         if (lower.Contains("piston-data.mojang.com", StringComparison.Ordinal))
         {
-            return rawUrl.Replace("https://piston-data.mojang.com", target.Meta, StringComparison.Ordinal);
+            return rawUrl.Replace("https://piston-data.mojang.com", target.DataBase, StringComparison.Ordinal);
         }
         if (lower.Contains("launchermeta.mojang.com", StringComparison.Ordinal))
         {
