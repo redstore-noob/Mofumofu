@@ -16,7 +16,7 @@ promo/
 *.log
 
 # WebView 页面源码依赖（构建产物在 Mofumofu.Launcher/WebAssets，随仓库交付）
-web/node_modules/
+node_modules/
 
 # 本地验收截图产物（保留 docs/reference/neko-ui 下的原版参照图）
 docs/reference/native-shots*/
@@ -25,6 +25,32 @@ docs/reference/native-*.png
 # 临时文件
 *.tmp
 *.tsbuildinfo
+*.bak
+*.orig
+*.rej
+*~
+
+# 发布 / 打包产物（与 .github/workflows/release.yml 的输出路径保持一致）
+publish/
+dist/
+payload.zip
+artifacts/
+
+# .NET 构建诊断与测试产物（tests/ 下的检查工程）
+*.binlog
+TestResults/
+*.trx
+*.coverage
+[Cc]overage*/
+
+# NuGet 打包产物
+*.nupkg
+*.snupkg
+
+# Windows 资源管理器 / Office 残渣
+Thumbs.db
+desktop.ini
+~$*
 
 # agent 协作临时目录（构建日志 / QA 截图 / 临时测试工程）
 .dsh-tmp/
