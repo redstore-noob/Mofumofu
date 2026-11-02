@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "已生成 NekoSolo 包：{0}（{1} 個檔案，{2}，{3} ms）",
   "Creator.Solo.Status.EmptyInstance": "實例目錄裡没有可打包的檔案",
   "Creator.Solo.Status.Failed": "生成 NekoSolo 包失败：{0}",
-  "Creator.Solo.Status.Init": "生成含 manifest.json、icon.png 與 overrides/ 的 NekoSolo 載荷 zip（不含安裝器 exe）。",
+  "Creator.Solo.Status.Init": "生成含 manifest.json、icon.png 與 files/、minecraft/、jre/ 的 NekoSolo 載荷 zip（不含安裝器 exe）。",
   "Creator.Solo.Status.NoInstanceDir": "找不到實例目錄，無法生成 NekoSolo 包",
   "Creator.Solo.Status.Writing": "正在写入 NekoSolo 包…{0}/{1}",
   "Creator.Solo.Toast.Done": "NekoSolo 包已生成：{0}",

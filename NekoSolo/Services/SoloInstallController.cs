@@ -54,11 +54,15 @@ public sealed class SoloInstallController
 {
     private readonly string? _executableOverride;
     private readonly string? _packagePath;
+    private readonly Action<string, string> _launch;
 
-    public SoloInstallController(string? executableOverride = null, string? packagePath = null)
+    public SoloInstallController(string? executableOverride = null, string? packagePath = null,
+        Action<string, string>? launch = null)
     {
         _executableOverride = executableOverride;
         _packagePath = packagePath;
+        _launch = launch ?? ((executable, directory) =>
+            Process.Start(new ProcessStartInfo(executable) { WorkingDirectory = directory, UseShellExecute = true }));
     }
 
     public IReadOnlyList<InstallStepItem> Steps { get; } = new List<InstallStepItem>
@@ -89,6 +93,8 @@ public sealed class SoloInstallController
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            options = options with { TargetPath = Path.GetFullPath(options.TargetPath) };
             Directory.CreateDirectory(options.TargetPath);
 
             // 1) 检查安装包
@@ -156,6 +162,16 @@ public sealed class SoloInstallController
                 Log("crc32: OK");
             }
 
+            manifest = Manifest!;
+            using (Stream package = OpenPackageStream(payload))
+            using (var archive = new ZipArchive(package, ZipArchiveMode.Read))
+            {
+                // 只接受包含主启动器的完整包，不能把普通 zip 或仅含实例内容的旧包标为安装成功。
+                if (!archive.Entries.Any(entry =>
+                        string.Equals(entry.FullName, "files/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(entry.FullName, "overrides/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("安装包缺少 files/Mofumofu.Launcher.exe，请使用新版导出器重新打包。");
+            }
             End(InstallStep.Verify);
 
             // 3) 释放启动器
@@ -165,19 +181,15 @@ public sealed class SoloInstallController
             {
                 var extractProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Extract"), string.Empty));
-                long count = SoloPayload.ExtractPrefix(payload, archive, "files/", options.TargetPath, Log,
+                string extractedPrefix = archive.Entries.Any(entry => string.Equals(entry.FullName,
+                    "files/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase)) ? "files/" : "overrides/";
+                long count = SoloPayload.ExtractPrefix(payload, archive, extractedPrefix, options.TargetPath, Log,
                     extractProgress, cancellationToken);
-                if (count == 0)
-                {
-                    // 兼容旧导出器写 overrides/ 的包
-                    count = SoloPayload.ExtractPrefix(payload, archive, "overrides/", options.TargetPath, Log,
-                        extractProgress, cancellationToken);
-                }
 
+                if (count == 0) throw new InvalidOperationException("安装包没有可释放的启动器文件。");
                 fileCount += (int)count;
                 writtenBytes += archive.Entries
-                    .Where(entry => entry.FullName.StartsWith("files/", StringComparison.OrdinalIgnoreCase) ||
-                                    entry.FullName.StartsWith("overrides/", StringComparison.OrdinalIgnoreCase))
+                    .Where(entry => entry.FullName.StartsWith(extractedPrefix, StringComparison.OrdinalIgnoreCase))
                     .Sum(entry => entry.Length);
                 Log($"extract: {count} 个文件 → {options.TargetPath}");
             }
@@ -195,8 +207,7 @@ public sealed class SoloInstallController
             using (Stream payloadStream = OpenPackageStream(payload))
             using (var archive = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: false))
             {
-                string dataRoot = Path.Combine(options.TargetPath, "NyaLauncher-data");
-                string mcTarget = Path.Combine(dataRoot, "minecraft");
+                string mcTarget = Path.Combine(options.TargetPath, ".minecraft");
                 var mcProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Minecraft"), string.Empty));
                 long count = SoloPayload.ExtractPrefix(payload, archive, "minecraft/", mcTarget, Log, mcProgress,
@@ -215,9 +226,12 @@ public sealed class SoloInstallController
                 var jreProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Minecraft"), "jre"));
                 long jreCount = SoloPayload.ExtractPrefix(payload, archive, "jre/",
-                    Path.Combine(dataRoot, "runtime", "jre"), Log, jreProgress, cancellationToken);
+                    Path.Combine(mcTarget, "runtime", "jre"), Log, jreProgress, cancellationToken);
                 fileCount += (int)jreCount;
-                if (jreCount > 0) Log($"java: jre/ → {Path.Combine(dataRoot, "runtime", "jre")} ({jreCount} 个文件)");
+                writtenBytes += archive.Entries.Where(entry =>
+                    entry.FullName.StartsWith("minecraft/", StringComparison.OrdinalIgnoreCase) ||
+                    entry.FullName.StartsWith("jre/", StringComparison.OrdinalIgnoreCase)).Sum(entry => entry.Length);
+                if (jreCount > 0) Log($"java: jre/ → {Path.Combine(mcTarget, "runtime", "jre")} ({jreCount} 个文件)");
             }
 
             End(InstallStep.Minecraft);
@@ -229,6 +243,12 @@ public sealed class SoloInstallController
             Progress(1, SoloStrings.T("Step.Finish"), string.Empty);
             End(InstallStep.Finish);
             Log($"done: {stopwatch.Elapsed.TotalSeconds:0.0}s");
+            if (options.LaunchAfterInstall)
+            {
+                // 启动失败不改变已经完成的安装结果，用户仍可手动重试启动。
+                try { _launch(FindLauncherExe(options.TargetPath, null)!, options.TargetPath); }
+                catch (Exception ex) { Log("launch: " + ex.Message); }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -367,6 +387,8 @@ public sealed class SoloInstallController
     {
         try
         {
+            string expected = Path.Combine(target, "Mofumofu.Launcher.exe");
+            if (File.Exists(expected)) return Path.GetFullPath(expected);
             string soloJson = Path.Combine(target, "solo.json");
             if (File.Exists(soloJson))
             {

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace NekoSolo.Services;
 
 /// <summary>
-/// NekoSolo 安装包清单（manifest.json，格式见 NekoLauncher/NekoSolo/FORMAT.md）。
+/// NekoSolo 安装包清单（manifest.json，格式见 NekoSolo/FORMAT.md）。
 /// 字段名与上一代导出器保持一致，v1/v2/v3 都按同一份读取。
 /// </summary>
 public sealed class SoloManifest

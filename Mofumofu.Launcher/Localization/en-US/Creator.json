@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "NekoSolo package created: {0} ({1} files, {2}, {3} ms)",
   "Creator.Solo.Status.EmptyInstance": "The instance folder contains no files to pack",
   "Creator.Solo.Status.Failed": "Failed to build the NekoSolo package: {0}",
-  "Creator.Solo.Status.Init": "Builds a NekoSolo payload zip with manifest.json, icon.png and overrides/ (no installer exe).",
+  "Creator.Solo.Status.Init": "Builds a NekoSolo payload zip with manifest.json, icon.png and files/ + minecraft/ + jre/ (no installer exe).",
   "Creator.Solo.Status.NoInstanceDir": "Instance folder not found; cannot build the NekoSolo package",
   "Creator.Solo.Status.Writing": "Writing NekoSolo package… {0}/{1}",
   "Creator.Solo.Toast.Done": "NekoSolo package created: {0}",

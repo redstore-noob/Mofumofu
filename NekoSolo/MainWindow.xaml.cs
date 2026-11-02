@@ -36,6 +36,9 @@ public partial class MainWindow : Window
     private readonly Stopwatch _installClock = new();
     private int _logLines;
     private bool _showAbout;
+    private bool _installing;
+    private string _activePanel = "welcome";
+    private string _panelBeforeAbout = "welcome";
 
     public MainWindow()
     {
@@ -370,6 +373,8 @@ public partial class MainWindow : Window
 
     private void ShowPanel(string name)
     {
+        if (name == "about" && _activePanel != "about") _panelBeforeAbout = _activePanel;
+        _activePanel = name;
         WelcomePanel.Visibility = name == "welcome" ? Visibility.Visible : Visibility.Collapsed;
         ProgressPanel.Visibility = name == "progress" ? Visibility.Visible : Visibility.Collapsed;
         DonePanel.Visibility = name == "done" ? Visibility.Visible : Visibility.Collapsed;
@@ -384,16 +389,17 @@ public partial class MainWindow : Window
 
     private void OnAboutLinkClick(object sender, RoutedEventArgs e)
     {
-        if (_showAbout) ShowPanel("welcome");
+        if (_showAbout) ShowPanel(_panelBeforeAbout);
         else ShowAbout();
     }
 
-    private void OnAboutBackClick(object sender, RoutedEventArgs e) => ShowPanel("welcome");
+    private void OnAboutBackClick(object sender, RoutedEventArgs e) => ShowPanel(_panelBeforeAbout);
 
     // ---------------- 安装 ----------------
 
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
+        if (_installing) return;
         string target = TargetBox.Text?.Trim() ?? string.Empty;
         if (target.Length == 0)
         {
@@ -407,7 +413,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        await StartInstallAsync();
+        _installing = true;
+        StartButton.IsEnabled = false;
+        try { await StartInstallAsync(); }
+        finally { _installing = false; StartButton.IsEnabled = true; }
     }
 
     /// <summary>安装前的真实校验：路径、写权限、磁盘空间。</summary>
@@ -496,7 +505,9 @@ public partial class MainWindow : Window
         _elapsedTimer.Start();
         ElapsedText.Text = SoloStrings.F("Progress.Elapsed", "0.0s");
 
-        await _controller.RunAsync(_manifest, options, _installCts.Token);
+        SoloInstallController controller = _controller;
+        CancellationToken token = _installCts.Token;
+        await Task.Run(() => controller.RunAsync(_manifest, options, token));
     }
 
     private async void OnFetchReleaseClick(object sender, RoutedEventArgs e) =>
@@ -575,7 +586,6 @@ public partial class MainWindow : Window
                 });
             });
 
-            _downloadedPackagePath = target;
             using (Stream stream = File.OpenRead(target))
             {
                 SoloManifest? manifest = SoloPayload.ReadManifest(stream);
@@ -586,11 +596,16 @@ public partial class MainWindow : Window
                 }
             }
 
+            _downloadedPackagePath = target;
+            UpdateContents();
             ReleaseStatus.Text = SoloStrings.F("Welcome.ReleaseReady", asset.Name);
             return true;
         }
         catch (Exception ex)
         {
+            try { if (File.Exists(target)) File.Delete(target); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
             ReleaseStatus.Text = SoloStrings.F("Welcome.ReleaseFailed", ex.Message);
             ShowInlineError(ReleaseStatus.Text);
             return false;
@@ -604,7 +619,7 @@ public partial class MainWindow : Window
         PackVersionChip.Text = "v" + _manifest.VersionDisplay;
         McChip.Text = _manifest.McDisplay;
         LoaderChip.Text = _manifest.LoaderDisplay;
-        TitlePackText.Text = " 路 " + _manifest.DisplayName;
+        TitlePackText.Text = " · " + _manifest.DisplayName;
         WelcomeTitle.Text = SoloStrings.F("Welcome.Title", _manifest.DisplayName);
         InfoMcValue.Text = _manifest.McDisplay;
         InfoLoaderValue.Text = _manifest.LoaderDisplay;
@@ -613,7 +628,7 @@ public partial class MainWindow : Window
         AboutPackValue.Text = _manifest.DisplayName;
         AboutVersionValue.Text = _manifest.VersionDisplay;
         AboutAuthorValue.Text = _manifest.AuthorDisplay;
-        AboutLoaderValue.Text = $"{_manifest.LoaderDisplay} 路 MC {_manifest.McDisplay}";
+        AboutLoaderValue.Text = $"{_manifest.LoaderDisplay} · MC {_manifest.McDisplay}";
         UpdateContents();
     }
 
@@ -720,6 +735,7 @@ public partial class MainWindow : Window
 
     private void OnInstallFinished(InstallResult result)
     {
+        if (_controller?.Manifest is { } manifest) _manifest = manifest;
         _installClock.Stop();
         _elapsedTimer.Stop();
         CancelInstallButton.IsEnabled = true;

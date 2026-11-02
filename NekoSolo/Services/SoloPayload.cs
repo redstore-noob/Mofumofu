@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace NekoSolo.Services;
 
 /// <summary>
-/// NekoSolo 载荷读取（格式见 NekoLauncher/NekoSolo/FORMAT.md）：
+/// NekoSolo 载荷读取（格式见 NekoSolo/FORMAT.md）：
 /// exe = 安装器本体字节 + 载荷 zip + 32 字节尾标。
 /// 尾标（小端）：0..8 魔数 "NKSOLO1\x01"、8..16 偏移、16..24 长度、24..28 CRC32、28..32 保留。
 /// </summary>
@@ -48,7 +48,8 @@ public static class SoloPayload
             long offset = BitConverter.ToInt64(trailer, 8);
             long length = BitConverter.ToInt64(trailer, 16);
             uint crc = BitConverter.ToUInt32(trailer, 24);
-            if (offset <= 0 || length <= 0 || offset + length > stream.Length - TrailerSize)
+            if (offset <= 0 || length <= 0 || offset > stream.Length - TrailerSize ||
+                length > stream.Length - TrailerSize - offset)
             {
                 error = SoloStrings.F("Error.BadPayload", "载荷位置越界");
                 return false;
@@ -92,7 +93,7 @@ public static class SoloPayload
             progress?.Report(done / (double)info.Length);
         }
 
-        return (crc ^ 0xFFFFFFFFu) == info.Crc;
+        return remaining == 0 && (crc ^ 0xFFFFFFFFu) == info.Crc;
     }
 
     public static Stream OpenPayloadStream(SoloPayloadInfo info)
@@ -114,10 +115,8 @@ public static class SoloPayload
     public static SoloManifest? ReadManifest(Stream zipStream)
     {
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
-        ZipArchiveEntry? entry = archive.GetEntry("manifest.json")
-                                 ?? archive.Entries.FirstOrDefault(item =>
-                                     string.Equals(Path.GetFileName(item.FullName), "manifest.json",
-                                         StringComparison.OrdinalIgnoreCase));
+        ZipArchiveEntry? entry = archive.Entries.FirstOrDefault(item =>
+            string.Equals(item.FullName, "manifest.json", StringComparison.OrdinalIgnoreCase));
         if (entry is null) return null;
         using StreamReader reader = new(entry.Open(), Encoding.UTF8);
         return SoloManifest.FromJson(reader.ReadToEnd());
@@ -167,8 +166,9 @@ public static class SoloPayload
     private static string SafeCombine(string root, string relative)
     {
         string full = Path.GetFullPath(Path.Combine(root, relative));
-        string rootFull = Path.GetFullPath(root);
-        if (!full.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+        string rootFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        string rootPrefix = Path.EndsInDirectorySeparator(rootFull) ? rootFull : rootFull + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(full, rootFull, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("载荷条目路径越界：" + relative);
@@ -201,9 +201,18 @@ public readonly record struct SoloPayloadInfo(string ExecutablePath, long Offset
 }
 
 /// <summary>把文件里的一段（载荷区）包成只读流，供 ZipArchive 顺序读取。</summary>
-internal sealed class BoundedStream(Stream inner, long length) : Stream
+internal sealed class BoundedStream : Stream
 {
-    private long _remaining = length;
+    private readonly Stream inner;
+    private readonly long length;
+    private long _remaining;
+
+    public BoundedStream(Stream inner, long length)
+    {
+        this.inner = inner;
+        this.length = length;
+        _remaining = length;
+    }
 
     public override bool CanRead => true;
     public override bool CanSeek => false;

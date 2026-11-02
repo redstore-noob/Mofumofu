@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "Пакет NekoSolo создан: {0} (файлов: {1}, {2}, {3} мс)",
   "Creator.Solo.Status.EmptyInstance": "В папке экземпляра нет файлов для упаковки",
   "Creator.Solo.Status.Failed": "Не удалось создать пакет NekoSolo: {0}",
-  "Creator.Solo.Status.Init": "Создаёт zip-пакет NekoSolo с manifest.json, icon.png и overrides/ (без установщика exe).",
+  "Creator.Solo.Status.Init": "Создаёт zip-пакет NekoSolo с manifest.json, icon.png и files/ + minecraft/ + jre/ (без установщика exe).",
   "Creator.Solo.Status.NoInstanceDir": "Папка экземпляра не найдена — пакет NekoSolo не создать",
   "Creator.Solo.Status.Writing": "Запись пакета NekoSolo… {0}/{1}",
   "Creator.Solo.Toast.Done": "Пакет NekoSolo создан: {0}",

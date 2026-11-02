@@ -109,17 +109,16 @@ public static class SoloReleaseClient
         return new SoloReleaseInfo(tag, name, html, published, assets);
     }
 
-    /// <summary>从 Release 资产里挑 NekoSolo 安装包：优先带 nekosolo 的 zip，其次任意 zip。</summary>
+    /// <summary>只选择明确标记的 NekoSolo Windows 安装包，避免误装普通启动器或其他平台的 zip。</summary>
     public static SoloReleaseAsset? SelectPackageAsset(SoloReleaseInfo? release)
     {
         if (release is null) return null;
 
-        static bool IsPackage(SoloReleaseAsset asset, bool requireName) =>
+        static bool IsPackage(SoloReleaseAsset asset) =>
             asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
-            (!requireName || asset.Name.Contains("nekosolo", StringComparison.OrdinalIgnoreCase));
+            asset.Name.Contains("nekosolo", StringComparison.OrdinalIgnoreCase);
 
-        return release.Assets.FirstOrDefault(asset => IsPackage(asset, requireName: true))
-               ?? release.Assets.FirstOrDefault(asset => IsPackage(asset, requireName: false));
+        return release.Assets.FirstOrDefault(IsPackage);
     }
 
     /// <summary>下载资产到本地临时文件，返回路径；带进度回调。</summary>

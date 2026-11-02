@@ -24,12 +24,19 @@ class Program
         };
 
         // 单实例开关来自本地设置（设置页可改，重启后生效）
+        string? soloVersion = Services.SoloInstallation.Initialize();
         LocalSettings.Load();
+        if (soloVersion is not null && string.IsNullOrWhiteSpace(LocalSettings.Current.SelectedInstanceId))
+            LocalSettings.Current.SelectedInstanceId = soloVersion;
 
         Mutex? mutex = null;
         if (LocalSettings.Current.SingleInstance)
         {
-            mutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
+            string mutexName = SingleInstanceMutexName;
+            if (System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "solo.json")))
+                mutexName += "." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(AppContext.BaseDirectory.ToUpperInvariant())));
+            mutex = new Mutex(true, mutexName, out var isFirstInstance);
 
             if (!isFirstInstance)
             {

@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "Generis NekoSolo-pakon: {0} ({1} dosieroj, {2}, {3} ms)",
   "Creator.Solo.Status.EmptyInstance": "Neniu pakebla dosiero en la instanca dosierujo",
   "Creator.Solo.Status.Failed": "Generado de la NekoSolo-pako malsukcesis: {0}",
-  "Creator.Solo.Status.Init": "Generas NekoSolo-ŝarĝon kiel zip kun manifest.json, icon.png kaj overrides/ (sen instalila exe).",
+  "Creator.Solo.Status.Init": "Generas NekoSolo-ŝarĝon kiel zip kun manifest.json, icon.png kaj files/ + minecraft/ + jre/ (sen instalila exe).",
   "Creator.Solo.Status.NoInstanceDir": "La instanca dosierujo ne troveblas; ne eblas generi NekoSolo-pakon",
   "Creator.Solo.Status.Writing": "Skribado de la NekoSolo-pako…{0}/{1}",
   "Creator.Solo.Toast.Done": "NekoSolo-pako generita: {0}",

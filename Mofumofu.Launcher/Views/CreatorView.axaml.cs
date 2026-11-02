@@ -2021,7 +2021,7 @@ public partial class CreatorView : UserControl
                     {
                         WriteIndented = true
                     });
-                    manifest.Text = "# NekoSolo payload layout\n#   manifest.json\n#   icon.png\n#   overrides/<instance files>\n\n" + text2;
+                    manifest.Text = "# NekoSolo payload layout\n#   manifest.json\n#   icon.png\n#   files/<launcher>\n#   minecraft/versions/<versionId>/<instance files>\n#   jre/<optional Java runtime>\n\n" + text2;
                 }
                 else
                 {
@@ -2106,7 +2106,7 @@ public partial class CreatorView : UserControl
         string value = SlugOf(instance.Name);
         string selectedAccountName = LocalSettings.Current.SelectedAccountName;
         Dictionary<string, object> dictionary = new Dictionary<string, object>();
-        dictionary["format"] = 1;
+        dictionary["format"] = 2;
         dictionary["packId"] = value;
         dictionary["packName"] = instance.Name;
         dictionary["packVersion"] = version;
@@ -2115,7 +2115,7 @@ public partial class CreatorView : UserControl
         dictionary["mcVersion"] = instance.Version;
         dictionary["loaderName"] = instance.Loader;
         dictionary["loaderVersion"] = string.Empty;
-        dictionary["versionId"] = value;
+        dictionary["versionId"] = instance.Name;
         dictionary["silent"] = silent;
         dictionary["hasJava"] = hasJava;
         dictionary["iconPath"] = "icon.png";
@@ -2148,84 +2148,49 @@ public partial class CreatorView : UserControl
 
     private async Task<(bool Ok, string Path, int Files, long Size, string Message)> CreateSoloPackageAsync(InstanceInfo instance, string version, string targetZipPath, bool hasJava, bool silent, ProgressBar progressBar, TextBlock status)
     {
-        string contentDirectory = FindInstanceContentDirectory(instance);
-        if (contentDirectory == null)
-        {
-            return (Ok: false, Path: string.Empty, Files: 0, Size: 0L, Message: L.T("Creator.Solo.Status.NoInstanceDir", "找不到实例目录，无法生成 NekoSolo 包"));
-        }
+        string? contentDirectory = FindInstanceContentDirectory(instance);
+        if (contentDirectory is null)
+            return (false, string.Empty, 0, 0, L.T("Creator.Solo.Status.NoInstanceDir", "找不到实例目录，无法生成 NekoSolo 包"));
         try
         {
-            List<ModpackContentItem> files = (from item in ModrinthBundleMake.CollectContent(contentDirectory)
-                where !item.IsDirectory
-                select item).ToList();
-            if (files.Count == 0)
+            if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("NekoSolo 安装包需要在 Windows 启动器中导出。");
+            string versionId = Path.GetFileName(Path.TrimEndingDirectorySeparator(contentDirectory));
+            var profile = new MofuCore.Launch.VersionLoader().Load(YamlRead.GameDirectory, versionId);
+            string? javaHome = null;
+            if (hasJava)
             {
-                return (Ok: false, Path: string.Empty, Files: 0, Size: 0L, Message: L.T("Creator.Solo.Status.EmptyInstance", "实例目录里没有可打包的文件"));
+                string? java = await MofuCore.Java.JavaPathSearch.FindJavaExecutableAsync(
+                    string.IsNullOrWhiteSpace(instance.JavaPath) ? YamlRead.JavaExecutable : instance.JavaPath,
+                    requiredMajorVersion: profile.RequiredJavaMajorVersion,
+                    runtimeDirectory: MofuCore.Java.JavaDownload.GetRuntimeDirectory(YamlRead.GameDirectory));
+                if (java is null) throw new InvalidOperationException("未找到可内嵌的 Java，请先安装 Java 或取消内嵌选项。");
+                javaHome = Path.GetDirectoryName(Path.GetDirectoryName(java));
             }
-            string manifestJson = JsonSerializer.Serialize(BuildSoloManifest(instance, version, silent, hasJava), new JsonSerializerOptions
+            var manifest = BuildSoloManifest(instance, version, silent, javaHome is not null);
+            manifest["versionId"] = versionId;
+            string manifestJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+            byte[] icon;
+            using (WriteableBitmap bitmap = CreatePackIconBitmap(ThemeTokens.Color("NekoAccentBrush"), 64))
+            using (var memory = new MemoryStream())
             {
-                WriteIndented = true
-            });
-            int total = files.Count + 2;
-            UTF8Encoding utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-            Color accent = ThemeTokens.Color("NekoAccentBrush");
-            IProgress<int> reporter = new Progress<int>((int done) =>
+                bitmap.Save(memory);
+                icon = memory.ToArray();
+            }
+            IProgress<(int Done, int Total)> reporter = new Progress<(int Done, int Total)>(value =>
             {
-                progressBar.Value = Math.Clamp((double)done * 100.0 / (double)total, 0.0, 100.0);
-                status.Text = L.T("Creator.Solo.Status.Writing", "正在写入 NekoSolo 包…{0}/{1}", done, total);
+                progressBar.Value = value.Done * 100.0 / value.Total;
+                status.Text = L.T("Creator.Solo.Status.Writing", "正在写入 NekoSolo 包…{0}/{1}", value.Done, value.Total);
             });
-            (int done, long Length) tuple = await Task.Run(() =>
-            {
-                string directoryName = Path.GetDirectoryName(targetZipPath);
-                if (!string.IsNullOrWhiteSpace(directoryName))
-                {
-                    Directory.CreateDirectory(directoryName);
-                }
-                if (File.Exists(targetZipPath))
-                {
-                    File.Delete(targetZipPath);
-                }
-                int num = 0;
-                using (ZipArchive zipArchive = ZipFile.Open(targetZipPath, ZipArchiveMode.Create))
-                {
-                    AddZipText(zipArchive, "manifest.json", manifestJson, utf8);
-                    num++;
-                    reporter.Report(num);
-                    using (WriteableBitmap writeableBitmap = CreatePackIconBitmap(accent, 64))
-                    {
-                        using MemoryStream memoryStream = new MemoryStream();
-                        writeableBitmap.Save(memoryStream);
-                        AddZipBytes(zipArchive, "icon.png", memoryStream.ToArray());
-                    }
-                    num++;
-                    reporter.Report(num);
-                    foreach (ModpackContentItem item in files)
-                    {
-                        string path = Path.Combine(contentDirectory, item.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                        if (File.Exists(path))
-                        {
-                            ZipArchiveEntry zipArchiveEntry = zipArchive.CreateEntry("files/" + item.RelativePath, CompressionLevel.Optimal);
-                            using (FileStream fileStream = File.OpenRead(path))
-                            {
-                                using Stream destination = zipArchiveEntry.Open();
-                                fileStream.CopyTo(destination);
-                            }
-                            num++;
-                            if (num % 10 == 0 || num == total)
-                            {
-                                reporter.Report(num);
-                            }
-                        }
-                    }
-                }
-                return (done: num, Length: new FileInfo(targetZipPath).Length);
-            });
-            return new ValueTuple<bool, string, int, long, string>(item3: tuple.done, item4: tuple.Length, item1: true, item2: targetZipPath, item5: string.Empty);
+            string launcher = Environment.ProcessPath ?? throw new InvalidOperationException("找不到当前启动器。");
+            string gameDirectory = YamlRead.GameDirectory;
+            var result = await Task.Run(() => SoloPackageBuilder.Build(targetZipPath, launcher, gameDirectory,
+                versionId, manifestJson, icon, javaHome, reporter));
+            return (true, targetZipPath, result.Files, result.Size, string.Empty);
         }
         catch (Exception ex)
         {
             AppLog("ERROR", "创作中心生成 NekoSolo 包失败：" + ex.Message);
-            return (Ok: false, Path: string.Empty, Files: 0, Size: 0L, Message: L.T("Creator.Solo.Status.Failed", "生成 NekoSolo 包失败：{0}", ex.Message));
+            return (false, string.Empty, 0, 0, L.T("Creator.Solo.Status.Failed", "生成 NekoSolo 包失败：{0}", ex.Message));
         }
     }
 

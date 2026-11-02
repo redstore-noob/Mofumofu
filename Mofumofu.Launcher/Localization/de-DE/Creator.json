@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "NekoSolo-Paket erzeugt: {0} ({1} Dateien, {2}, {3} ms)",
   "Creator.Solo.Status.EmptyInstance": "Keine packbaren Dateien im Instanzverzeichnis",
   "Creator.Solo.Status.Failed": "NekoSolo-Paket konnte nicht erzeugt werden: {0}",
-  "Creator.Solo.Status.Init": "Erzeugt ein NekoSolo-Payload-.zip mit manifest.json, icon.png und overrides/ (ohne Installer-.exe).",
+  "Creator.Solo.Status.Init": "Erzeugt ein NekoSolo-Payload-.zip mit manifest.json, icon.png und files/ + minecraft/ + jre/ (ohne Installer-.exe).",
   "Creator.Solo.Status.NoInstanceDir": "Instanzverzeichnis nicht gefunden – NekoSolo-Paket nicht möglich",
   "Creator.Solo.Status.Writing": "NekoSolo-Paket wird geschrieben… {0}/{1}",
   "Creator.Solo.Toast.Done": "NekoSolo-Paket erzeugt: {0}",

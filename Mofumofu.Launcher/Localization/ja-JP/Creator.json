@@ -384,7 +384,7 @@
   "Creator.Solo.Status.Done": "NekoSolo パッケージを生成しました：{0}（{1} 個のファイル、{2}、{3} ms）",
   "Creator.Solo.Status.EmptyInstance": "インスタンスフォルダにパッケージできるファイルがありません",
   "Creator.Solo.Status.Failed": "NekoSolo パッケージの生成に失敗しました：{0}",
-  "Creator.Solo.Status.Init": "manifest.json、icon.png、overrides/ を含む NekoSolo ペイロード zip を生成します（インストーラー exe は含みません）。",
+  "Creator.Solo.Status.Init": "manifest.json、icon.png、files/、minecraft/、jre/ を含む NekoSolo ペイロード zip を生成します（インストーラー exe は含みません）。",
   "Creator.Solo.Status.NoInstanceDir": "インスタンスフォルダが見つからないため、NekoSolo パッケージを生成できません",
   "Creator.Solo.Status.Writing": "NekoSolo パッケージを書き込み中…{0}/{1}",
   "Creator.Solo.Toast.Done": "NekoSolo パッケージを生成しました：{0}",

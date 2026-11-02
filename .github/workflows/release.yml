@@ -75,9 +75,12 @@ jobs:
 
           # 载荷 zip：主启动器整套发布产物（安装器会在玩家机器上解包它们）
           $stage = "publish/nekosolo-payload"
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item publish/win-x64/* $stage -Recurse -Force
+          New-Item -ItemType Directory -Force -Path "$stage/files" | Out-Null
+          Copy-Item publish/win-x64/* "$stage/files" -Recurse -Force
+          @{ format = 2; packId = 'mofumofu'; packName = 'Mofumofu'; packVersion = '${{ env.MOFU_BUILD_TAG }}'; author = 'Mofumofu' } |
+            ConvertTo-Json | Set-Content "$stage/manifest.json" -Encoding utf8NoBOM
           Compress-Archive -Path "$stage/*" -DestinationPath payload.zip -Force
+          Copy-Item payload.zip dist/NekoSolo-win-x64.zip
 
           $exe = "publish/nekosolo/NekoSolo.exe"
           $bytes = [System.IO.File]::ReadAllBytes($exe)
@@ -135,6 +138,7 @@ jobs:
             dist/Mofumofu-win-x64-fdd.exe
             dist/Mofumofu-win-x64.zip
             dist/NekoSolo-win-x64.exe
+            dist/NekoSolo-win-x64.zip
 
   # ------------------------------------------------------------------
   # macOS：dmg
