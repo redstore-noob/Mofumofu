@@ -52,6 +52,8 @@ public sealed record InstallResult(
 /// </summary>
 public sealed class SoloInstallController
 {
+    private const string LauncherFileName = "Mofumofu.Launcher.exe";
+
     private readonly string? _executableOverride;
     private readonly string? _packagePath;
     private readonly Action<string, string> _launch;
@@ -62,7 +64,7 @@ public sealed class SoloInstallController
         _executableOverride = executableOverride;
         _packagePath = packagePath;
         _launch = launch ?? ((executable, directory) =>
-            Process.Start(new ProcessStartInfo(executable) { WorkingDirectory = directory, UseShellExecute = true }));
+            Process.Start(new ProcessStartInfo(executable) { WorkingDirectory = directory, UseShellExecute = false }));
     }
 
     public IReadOnlyList<InstallStepItem> Steps { get; } = new List<InstallStepItem>
@@ -148,7 +150,17 @@ public sealed class SoloInstallController
                 {
                     int entries = archive.Entries.Count;
                     if (entries == 0) throw new InvalidOperationException("安装包为空");
-                    Log($"zip: OK（{entries} 个条目）");
+                    long declared = 0;
+                    foreach (ZipArchiveEntry entry in archive.Entries)
+                    {
+                        if (entry.Length < 0 || entry.Length > SoloPayload.EntryMaximumBytes)
+                            throw new InvalidOperationException("安装包条目体积超限：" + entry.FullName);
+                        declared += entry.Length;
+                        if (declared > SoloPayload.ExtractedMaximumBytes)
+                            throw new InvalidOperationException("安装包解压后总体积超限");
+                    }
+
+                    Log($"zip: OK（{entries} 个条目，{declared} 字节）");
                 }
 
                 Progress(1, SoloStrings.T("Step.Verify"), "zip");
@@ -166,10 +178,12 @@ public sealed class SoloInstallController
             using (Stream package = OpenPackageStream(payload))
             using (var archive = new ZipArchive(package, ZipArchiveMode.Read))
             {
+                // 释放/启动之前统一校验条目路径、体积上限与解压完整性，任一失败即终止（fail-closed）。
+                SoloPayload.VerifyArchive(archive, Log);
                 // 只接受包含主启动器的完整包，不能把普通 zip 或仅含实例内容的旧包标为安装成功。
                 if (!archive.Entries.Any(entry =>
-                        string.Equals(entry.FullName, "files/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(entry.FullName, "overrides/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase)))
+                        string.Equals(entry.FullName, "files/" + LauncherFileName, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(entry.FullName, "overrides/" + LauncherFileName, StringComparison.OrdinalIgnoreCase)))
                     throw new InvalidOperationException("安装包缺少 files/Mofumofu.Launcher.exe，请使用新版导出器重新打包。");
             }
             End(InstallStep.Verify);
@@ -182,7 +196,7 @@ public sealed class SoloInstallController
                 var extractProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Extract"), string.Empty));
                 string extractedPrefix = archive.Entries.Any(entry => string.Equals(entry.FullName,
-                    "files/Mofumofu.Launcher.exe", StringComparison.OrdinalIgnoreCase)) ? "files/" : "overrides/";
+                    "files/" + LauncherFileName, StringComparison.OrdinalIgnoreCase)) ? "files/" : "overrides/";
                 long count = SoloPayload.ExtractPrefix(payload, archive, extractedPrefix, options.TargetPath, Log,
                     extractProgress, cancellationToken);
 
@@ -245,9 +259,18 @@ public sealed class SoloInstallController
             Log($"done: {stopwatch.Elapsed.TotalSeconds:0.0}s");
             if (options.LaunchAfterInstall)
             {
-                // 启动失败不改变已经完成的安装结果，用户仍可手动重试启动。
-                try { _launch(FindLauncherExe(options.TargetPath, null)!, options.TargetPath); }
-                catch (Exception ex) { Log("launch: " + ex.Message); }
+                // 只启动经白名单与包内断言校验过的启动器；找不到时保持安装成功但跳过自动启动。
+                string? launcher = FindLauncherExe(options.TargetPath, null);
+                if (launcher is null)
+                {
+                    Log("launch: 未找到合法的启动器，已跳过自动启动");
+                }
+                else
+                {
+                    // 启动失败不改变已经完成的安装结果，用户仍可手动重试启动。
+                    try { _launch(launcher, options.TargetPath); }
+                    catch (Exception ex) { Log("launch: " + ex.Message); }
+                }
             }
         }
         catch (OperationCanceledException)
@@ -382,30 +405,42 @@ public sealed class SoloInstallController
         }
     }
 
-    /// <summary>安装目录里真正的启动器 exe（优先 solo.json 里记录的 LauncherExe）。</summary>
+    /// <summary>安装目录里真正的启动器 exe（仅接受白名单文件名，且断言位于安装目录内）。</summary>
     public static string? FindLauncherExe(string target, string? selfPath)
     {
         try
         {
-            string expected = Path.Combine(target, "Mofumofu.Launcher.exe");
+            string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(target));
+            string rootPrefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+            string expected = Path.Combine(root, LauncherFileName);
             if (File.Exists(expected)) return Path.GetFullPath(expected);
-            string soloJson = Path.Combine(target, "solo.json");
+            string soloJson = Path.Combine(root, "solo.json");
             if (File.Exists(soloJson))
             {
                 using JsonDocument document = JsonDocument.Parse(File.ReadAllText(soloJson));
                 if (document.RootElement.TryGetProperty("LauncherExe", out JsonElement launcher) &&
                     launcher.ValueKind == JsonValueKind.String &&
                     launcher.GetString() is { Length: > 0 } recorded &&
-                    File.Exists(recorded))
+                    string.Equals(Path.GetFileName(recorded), LauncherFileName, StringComparison.OrdinalIgnoreCase))
                 {
-                    return recorded;
+                    // 绝对路径不允许仅凭 File.Exists 就执行：先规范化并断言仍落在安装目录内。
+                    string full = Path.IsPathRooted(recorded)
+                        ? Path.GetFullPath(recorded)
+                        : Path.GetFullPath(Path.Combine(root, recorded));
+                    if (full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) && File.Exists(full))
+                    {
+                        return full;
+                    }
                 }
             }
 
             string selfName = string.IsNullOrWhiteSpace(selfPath)
                 ? string.Empty
                 : Path.GetFileName(selfPath);
-            return Directory.EnumerateFiles(target, "*.exe", SearchOption.TopDirectoryOnly)
+            return Directory.EnumerateFiles(root, "*.exe", SearchOption.TopDirectoryOnly)
+                .Where(path => string.Equals(Path.GetFileName(path), LauncherFileName,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(path => Path.GetFullPath(path))
                 .FirstOrDefault(path => !string.Equals(Path.GetFileName(path), selfName,
                     StringComparison.OrdinalIgnoreCase));
         }

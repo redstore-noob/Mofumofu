@@ -13,6 +13,14 @@ namespace NekoSolo.Services;
 public static class SoloPayload
 {
     public const int TrailerSize = 32;
+
+    // 外部安装包的统一体积上限；清单读取、条目校验、下载入口共用，避免各处硬编码不同上限形成可绕过旁路。
+    internal const long ManifestMaximumBytes = 1L * 1024 * 1024;
+    internal const long ArchiveMaximumBytes = 4L * 1024 * 1024 * 1024;
+    internal const long EntryMaximumBytes = 2L * 1024 * 1024 * 1024;
+    internal const long ExtractedMaximumBytes = 8L * 1024 * 1024 * 1024;
+    internal const int CopyBufferBytes = 81920;
+
     private static readonly byte[] Magic = "NKSOLO1\x01"u8.ToArray();
 
     public static bool TryRead(string executablePath, out SoloPayloadInfo info, out string error)
@@ -118,8 +126,74 @@ public static class SoloPayload
         ZipArchiveEntry? entry = archive.Entries.FirstOrDefault(item =>
             string.Equals(item.FullName, "manifest.json", StringComparison.OrdinalIgnoreCase));
         if (entry is null) return null;
-        using StreamReader reader = new(entry.Open(), Encoding.UTF8);
-        return SoloManifest.FromJson(reader.ReadToEnd());
+        if (entry.Length > ManifestMaximumBytes)
+            throw new InvalidOperationException("manifest.json 体积超过上限：" + entry.Length);
+
+        using Stream data = entry.Open();
+        using MemoryStream buffer = new();
+        byte[] chunk = new byte[CopyBufferBytes];
+        long readTotal = 0;
+        int read;
+        while ((read = data.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            readTotal += read;
+            if (readTotal > ManifestMaximumBytes)
+                throw new InvalidOperationException("manifest.json 体积超过上限");
+            buffer.Write(chunk, 0, read);
+        }
+
+        string json = Encoding.UTF8.GetString(buffer.ToArray()).TrimStart('\uFEFF');
+        return SoloManifest.FromJson(json);
+    }
+
+    /// <summary>
+    /// 释放/启动之前统一校验 zip：条目路径（防 zip slip）、声明体积上限、解压实际长度。
+    /// 读尽条目流会触发 ZipArchive 对条目 CRC32 的校验；任一失败即抛异常，调用方不得继续释放。
+    /// </summary>
+    internal static void VerifyArchive(ZipArchive archive, Action<string>? log = null)
+    {
+        long total = 0;
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string name = entry.FullName.Replace('\\', '/');
+            if (name.Length == 0 || name[0] == '/' || name.Contains(':') ||
+                name.Split('/').Any(part => part is ".." or ".") ||
+                name.Any(ch => char.IsControl(ch)))
+            {
+                throw new InvalidOperationException("安装包条目路径非法：" + entry.FullName);
+            }
+
+            if (entry.Length < 0 || entry.Length > EntryMaximumBytes)
+            {
+                throw new InvalidOperationException("安装包条目体积超限：" + entry.FullName);
+            }
+
+            total += entry.Length;
+            if (total > ExtractedMaximumBytes)
+            {
+                throw new InvalidOperationException("安装包解压后总体积超限");
+            }
+
+            if (entry.Name.Length == 0) continue; // 目录条目无数据可读
+
+            using Stream data = entry.Open();
+            byte[] chunk = new byte[CopyBufferBytes];
+            long actual = 0;
+            int read;
+            while ((read = data.Read(chunk, 0, chunk.Length)) > 0)
+            {
+                actual += read;
+                if (actual > entry.Length || actual > EntryMaximumBytes)
+                    throw new InvalidOperationException("安装包条目实际体积超限：" + entry.FullName);
+            }
+
+            if (actual != entry.Length)
+            {
+                throw new InvalidOperationException("安装包条目长度不符（疑似截断或伪造）：" + entry.FullName);
+            }
+        }
+
+        log?.Invoke($"zip: {archive.Entries.Count} 个条目路径/体积/完整性校验通过");
     }
 
     /// <summary>把载荷里的某个前缀目录解压到目标目录（files/ 与 minecraft/、jre/ 规则不同，由调用方决定）。</summary>

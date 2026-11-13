@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using MofuCore.Log;
 
 namespace Mofumofu.Launcher.Services;
 
@@ -29,9 +30,18 @@ internal static class SoloPackageBuilder
         void AddTree(string directory, string prefix)
         {
             if (!Directory.Exists(directory)) return;
-            foreach (string file in Directory.EnumerateFiles(directory, "*", new EnumerationOptions
-                     { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false }))
-                Add(file, prefix + Path.GetRelativePath(directory, file));
+            try
+            {
+                foreach (string file in Directory.EnumerateFiles(directory, "*", new EnumerationOptions
+                         { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false }))
+                    Add(file, prefix + Path.GetRelativePath(directory, file));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 安装器载荷必须完整，遇到不可读目录时明确记录失败目录而非静默跳过或含糊中断。
+                LogWrite.Write("ERROR", "[SoloPackageBuilder] 枚举目录失败：" + directory + " — " + ex.Message);
+                throw;
+            }
         }
 
         Add(launcherPath, "files/Mofumofu.Launcher.exe");
@@ -107,7 +117,16 @@ internal static class SoloPackageBuilder
                 foreach ((string entry, string source) in files)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    archive.CreateEntryFromFile(source, entry, CompressionLevel.Optimal);
+                    try
+                    {
+                        archive.CreateEntryFromFile(source, entry, CompressionLevel.Optimal);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // 记录具体失败文件，避免单个被占用/无权限文件导致无头绪地中断整包构建。
+                        LogWrite.Write("ERROR", "[SoloPackageBuilder] 写入打包文件失败：" + source + " — " + ex.Message);
+                        throw;
+                    }
                     done++;
                     progress?.Report((done, total));
                 }

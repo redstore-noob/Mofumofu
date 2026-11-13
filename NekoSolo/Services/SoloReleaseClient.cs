@@ -134,6 +134,11 @@ public static class SoloReleaseClient
         response.EnsureSuccessStatusCode();
 
         long total = response.Content.Headers.ContentLength ?? asset.Size;
+        if (total > SoloPayload.ArchiveMaximumBytes)
+        {
+            throw new InvalidOperationException("安装包体积超过上限：" + total);
+        }
+
         string? directory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
@@ -149,10 +154,20 @@ public static class SoloReleaseClient
             if (read <= 0) break;
             await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             received += read;
+            if (received > SoloPayload.ArchiveMaximumBytes)
+            {
+                throw new InvalidOperationException("安装包下载体积超过上限：" + received);
+            }
+
             progress?.Invoke(total > 0 ? Math.Clamp(received * 1.0 / total, 0, 1) : 0);
         }
 
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        if (total > 0 && received != total)
+        {
+            throw new InvalidOperationException($"安装包下载不完整：期望 {total} 字节，实际 {received} 字节");
+        }
+
         return targetPath;
     }
 }
