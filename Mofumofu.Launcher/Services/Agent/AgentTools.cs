@@ -86,6 +86,12 @@ public sealed class AgentToolRegistry
         if (tool is null)
             return ($"错误：不存在名为 {call.Name} 的工具。可用工具见系统提示。", true);
 
+        if (!Resolve(context.Settings.Tools).Any(active =>
+                string.Equals(active.Name, call.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ($"错误：工具 {call.Name} 已被玩家停用，请改用其它方式回答。", true);
+        }
+
         JsonElement arguments;
         try
         {
@@ -209,6 +215,7 @@ public sealed class AgentToolRegistry
             Description = "把一条值得长期记住的信息写进本地记忆（玩家偏好、常用实例、约定等）。",
             ParametersSchema = """{"type":"object","properties":{"note":{"type":"string","description":"要记住的内容，一句话"}},"required":["note"]}""",
             Risk = AgentToolRisk.Write,
+            RequiresConfirm = true,
             Handler = (arguments, _, _) =>
             {
                 string note = AgentToolArgs.String(arguments, "note") ?? string.Empty;
@@ -331,8 +338,7 @@ public static class AgentMemory
                 notes.Add(trimmed);
                 if (notes.Count > 200) notes.RemoveRange(0, notes.Count - 200);
 
-                Directory.CreateDirectory(AgentSettingsStore.RootDirectory);
-                File.WriteAllText(PathFile, JsonSerializer.Serialize(notes));
+                AgentSettingsStore.AtomicWrite(PathFile, JsonSerializer.Serialize(notes));
             }
             catch
             {

@@ -12,6 +12,7 @@ using Shapes = Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Services.Agent;
@@ -24,6 +25,8 @@ namespace Mofumofu.Launcher.Views;
 /// </summary>
 public partial class MofuAgentSettingsView : UserControl
 {
+    private const int MaxHistoryNotes = 60;
+
     private readonly AgentSettings _settings;
     private bool _loadingControls;
     private readonly List<string> _draftModels = new();
@@ -33,6 +36,13 @@ public partial class MofuAgentSettingsView : UserControl
     private DateTime _pendingKeyResetAt;
     private static bool _focusProviderRequested;
 
+    private bool _keyUnreadable;
+    private string _unreadableKey = string.Empty;
+    private bool _headersUnreadable;
+    private string _unreadableHeaders = string.Empty;
+
+    private bool _creatingProvider;
+
     /// <summary>从对话页点「+」进来时，直接落到供应商分区并高亮新建按钮。</summary>
     public static void RequestFocusProvider() => _focusProviderRequested = true;
 
@@ -41,7 +51,6 @@ public partial class MofuAgentSettingsView : UserControl
         InitializeComponent();
 
         _settings = AgentSettingsStore.Load();
-        _settings.EnsureProvider();
 
         Loaded += (_, _) =>
         {
@@ -50,7 +59,7 @@ public partial class MofuAgentSettingsView : UserControl
             if (!_focusProviderRequested) return;
             _focusProviderRequested = false;
             SelectTab("provider");
-            AddProviderButton.Focus();
+            OnAddProvider(null, new RoutedEventArgs());
             UiAnimations.Pulse(AddProviderButton, 1.04, 280);
         };
     }
@@ -94,21 +103,22 @@ public partial class MofuAgentSettingsView : UserControl
         DataPathBox.Text = AgentSettingsStore.RootDirectory;
         KeyPathText.Text = AgentSecretProtector.KeyPath;
 
-        ProviderKindCombo.ItemsSource = AgentProviderPresets.AllKinds
+        List<string> kindNames = AgentProviderPresets.AllKinds
             .Select(kind => AgentProviderPresets.DescribeKind(kind))
             .ToList();
+        ProviderKindCombo.ItemsSource = kindNames;
+        NewKindCombo.ItemsSource = kindNames;
 
         PresetCombo.ItemsSource = AgentProviderPresets.All
             .Select(preset => preset.Name)
             .ToList();
-        PresetCombo.SelectedIndex = 0;
+        PresetCombo.SelectedIndex = -1;
         UpdatePresetHint();
 
         RefreshProviderList();
-        AgentProviderConfig initial =
-            _settings.Providers.FirstOrDefault(p => p.Id == _settings.ActiveProviderId) ??
-            _settings.Providers[0];
-        LoadProviderForm(initial);
+        AgentProviderConfig? initial = _settings.EnsureProvider();
+        if (initial is not null) LoadProviderForm(initial);
+        else ClearProviderForm();
 
         GenTempSlider.Value = _settings.Temperature;
         GenTopPSlider.Value = _settings.TopP;
@@ -139,6 +149,11 @@ public partial class MofuAgentSettingsView : UserControl
 
         if (!string.IsNullOrEmpty(AgentSettingsStore.LastError))
             ShowProviderResult(AgentSettingsStore.LastError, "warning");
+        else
+        {
+            string? notice = AgentSettingsStore.ConsumeNotice();
+            if (!string.IsNullOrEmpty(notice)) ShowProviderResult(notice, "muted");
+        }
     }
 
     private void UpdateLabels()
@@ -155,10 +170,35 @@ public partial class MofuAgentSettingsView : UserControl
     private AgentProviderConfig? CurrentProvider =>
         _settings.Providers.FirstOrDefault(p => p.Id == _formProviderId);
 
+    private void UpdateProviderPaneState()
+    {
+        bool selected = !_creatingProvider &&
+                        _settings.Providers.Any(p => p.Id == _formProviderId);
+        ProviderCreateCard.IsVisible = _creatingProvider;
+        ProviderEditor.IsVisible = selected;
+        ProviderEditor.IsEnabled = selected;
+        ProviderEmptyState.IsVisible = !_creatingProvider && !selected;
+    }
+
     private void RefreshProviderList()
     {
         ProviderListPanel.Children.Clear();
         ProviderCountText.Text = _settings.Providers.Count + " 条";
+        UpdateProviderPaneState();
+
+        if (_settings.Providers.Count == 0)
+        {
+            ProviderListPanel.Children.Add(new TextBlock
+            {
+                Text = "还没有供应商。\n点下面的「添加供应商」开始。",
+                FontSize = 10.5,
+                LineHeight = 17,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = ThemeTokens.Brush("NekoDimBrush"),
+                Margin = new Avalonia.Thickness(4, 10, 4, 4),
+            });
+            return;
+        }
 
         foreach (AgentProviderConfig provider in _settings.Providers)
         {
@@ -239,33 +279,47 @@ public partial class MofuAgentSettingsView : UserControl
 
     private void SelectProviderForEditing(AgentProviderConfig provider)
     {
-        if (provider.Id == _formProviderId) return;
+        _creatingProvider = false;
+        if (provider.Id == _formProviderId)
+        {
+            RefreshProviderList();
+            return;
+        }
 
         _pendingDeleteProviderId = null;
         LoadProviderForm(provider);
         RefreshProviderList();
-        ProviderTestResult.Text = string.Empty;
+        ProviderResultText.Text = string.Empty;
     }
 
     private void LoadProviderForm(AgentProviderConfig provider)
     {
+        bool wasLoading = _loadingControls;
         _loadingControls = true;
         _formProviderId = provider.Id;
         ProviderNameBox.Text = provider.Name;
-        ProviderKindCombo.SelectedIndex = (int)provider.Kind;
+        ProviderKindCombo.SelectedIndex = AgentProviderPresets.IndexOfKind(provider.Kind);
         BaseUrlBox.Text = provider.BaseUrl;
-        ApiKeyBox.Text = provider.ApiKey;
-        HeadersBox.Text = provider.ExtraHeaders;
+        _keyUnreadable = AgentSecretProtector.LooksEncrypted(provider.ApiKey);
+        _unreadableKey = _keyUnreadable ? provider.ApiKey : string.Empty;
+        _headersUnreadable = AgentSecretProtector.LooksEncrypted(provider.ExtraHeaders);
+        _unreadableHeaders = _headersUnreadable ? provider.ExtraHeaders : string.Empty;
+
+        ApiKeyBox.Text = _keyUnreadable ? string.Empty : provider.ApiKey;
+        ApiKeyBox.PlaceholderText = _keyUnreadable ? "原 Key 无法解密，请重新填写" : "sk-...";
+        HeadersBox.Text = _headersUnreadable ? string.Empty : provider.ExtraHeaders;
+        HeadersBox.PlaceholderText = _headersUnreadable ? "原请求头无法解密，请重新填写" : string.Empty;
         ProviderContextBox.Text = provider.ContextWindow > 0 ? provider.ContextWindow.ToString() : string.Empty;
         SupportsToolsSwitch.IsChecked = provider.SupportsTools;
-        UpdateKindAvailability(provider.Kind);
 
         _draftModels.Clear();
         _draftModels.AddRange(provider.Models);
         RenderModelChips();
-        _loadingControls = false;
+        _loadingControls = wasLoading;
 
+        _creatingProvider = false;
         UpdateProviderHint();
+        UpdateProviderPaneState();
     }
 
     private void UpdateProviderHint()
@@ -277,12 +331,12 @@ public partial class MofuAgentSettingsView : UserControl
             return;
         }
 
-        string model = _draftModels.FirstOrDefault() ?? "未设置";
         int window = provider.ContextWindow > 0
             ? provider.ContextWindow
-            : AgentProviderPresets.GuessContextWindow(model);
+            : AgentProviderPresets.GuessContextWindow(_draftModels.FirstOrDefault() ?? string.Empty);
+        string models = _draftModels.Count == 0 ? "未添加模型" : _draftModels.Count + " 个模型";
         ProviderHintText.Text =
-            $"{AgentProviderPresets.DescribeKind(provider.Kind)} · 默认 {model} · 上下文 {TokenEstimator.Format(window)}";
+            $"{AgentProviderPresets.DescribeKind(provider.Kind)} · {models} · 上下文 {TokenEstimator.Format(window)}";
     }
 
     private void RenderModelChips()
@@ -320,12 +374,6 @@ public partial class MofuAgentSettingsView : UserControl
             ToolTip.SetTip(remove, "移除 " + model);
             remove.Click += (_, _) =>
             {
-                if (_draftModels.Count <= 1)
-                {
-                    ShowProviderResult("至少保留一个模型。", "warning");
-                    return;
-                }
-
                 _draftModels.Remove(model);
                 RenderModelChips();
             };
@@ -338,6 +386,34 @@ public partial class MofuAgentSettingsView : UserControl
 
         ModelCountText.Text = _draftModels.Count + " 个";
         UpdateProviderHint();
+    }
+
+    private void ClearProviderForm()
+    {
+        bool wasLoading = _loadingControls;
+        _loadingControls = true;
+        _formProviderId = string.Empty;
+        _pendingDeleteProviderId = null;
+        ProviderNameBox.Text = string.Empty;
+        ProviderKindCombo.SelectedIndex = 0;
+        BaseUrlBox.Text = string.Empty;
+        ApiKeyBox.Text = string.Empty;
+        ApiKeyBox.PlaceholderText = "sk-...";
+        HeadersBox.Text = string.Empty;
+        HeadersBox.PlaceholderText = string.Empty;
+        ProviderContextBox.Text = string.Empty;
+        SupportsToolsSwitch.IsChecked = true;
+        _keyUnreadable = false;
+        _unreadableKey = string.Empty;
+        _headersUnreadable = false;
+        _unreadableHeaders = string.Empty;
+        _draftModels.Clear();
+        RenderModelChips();
+        _loadingControls = wasLoading;
+        _creatingProvider = false;
+        ProviderHintText.Text = string.Empty;
+        ProviderResultText.Text = string.Empty;
+        UpdateProviderPaneState();
     }
 
     private void AddModelIds(IEnumerable<string> ids)
@@ -430,21 +506,22 @@ public partial class MofuAgentSettingsView : UserControl
         AgentProviderConfig? provider = CurrentProvider;
         if (provider is null)
         {
-            error = "先选一条供应商。";
+            error = "先在左侧选一条供应商。";
             return null;
         }
 
         var draft = provider.Clone();
         draft.Name = (ProviderNameBox.Text ?? string.Empty).Trim();
-        draft.Kind = (AgentProviderKind)Math.Max(0, ProviderKindCombo.SelectedIndex);
-        draft.BaseUrl = draft.Kind == AgentProviderKind.Mock
-            ? "local://mock"
-            : AgentProviderPresets.NormalizeBaseUrl(BaseUrlBox.Text);
+        draft.Kind = AgentProviderPresets.KindAt(ProviderKindCombo.SelectedIndex);
+        draft.BaseUrl = AgentProviderPresets.NormalizeBaseUrl(BaseUrlBox.Text);
         draft.ApiKey = (ApiKeyBox.Text ?? string.Empty).Trim();
+        if (_keyUnreadable && draft.ApiKey.Length == 0) draft.ApiKey = _unreadableKey;
         draft.Models = new List<string>(_draftModels);
         draft.ContextWindow = ParseInt(ProviderContextBox.Text, 0, 0, 4_000_000);
         draft.SupportsTools = SupportsToolsSwitch.IsChecked == true;
         draft.ExtraHeaders = HeadersBox.Text ?? string.Empty;
+        if (_headersUnreadable && draft.ExtraHeaders.Trim().Length == 0)
+            draft.ExtraHeaders = _unreadableHeaders;
 
         if (draft.Name.Length == 0)
         {
@@ -452,9 +529,9 @@ public partial class MofuAgentSettingsView : UserControl
             return null;
         }
 
-        if (draft.Kind != AgentProviderKind.Mock && draft.BaseUrl.Length == 0)
+        if (draft.BaseUrl.Length == 0)
         {
-            error = "Base URL 不能为空。";
+            error = "Base URL 不能为空，且只支持 http:// 或 https:// 开头的地址。";
             return null;
         }
 
@@ -501,40 +578,55 @@ public partial class MofuAgentSettingsView : UserControl
     private void OnProviderKindChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingControls) return;
-        UpdateKindAvailability((AgentProviderKind)Math.Max(0, ProviderKindCombo.SelectedIndex));
         UpdateProviderHint();
-    }
-
-    /// <summary>模拟供应商不需要地址和 Key，禁掉避免误导。</summary>
-    private void UpdateKindAvailability(AgentProviderKind kind)
-    {
-        bool remote = kind != AgentProviderKind.Mock;
-        BaseUrlBox.IsEnabled = remote;
-        ApiKeyBox.IsEnabled = remote;
-        FetchModelsButton.IsEnabled = remote;
     }
 
     private void OnAddProvider(object? sender, RoutedEventArgs e)
     {
-        AgentProviderConfig provider = AgentProviderPresets.CreateBlank();
-        _settings.Providers.Add(provider);
-        _settings.ActiveProviderId = provider.Id;
-        _settings.ActiveModel = provider.Models.FirstOrDefault() ?? string.Empty;
-        AgentSettingsStore.Save(_settings);
+        _creatingProvider = true;
+        _pendingDeleteProviderId = null;
+
+        _loadingControls = true;
+        PresetCombo.SelectedIndex = -1;
+        NewNameBox.Text = string.Empty;
+        NewKindCombo.SelectedIndex =
+            AgentProviderPresets.IndexOfKind(AgentProviderKind.OpenAiCompatible);
+        NewBaseUrlBox.Text = string.Empty;
+        NewApiKeyBox.Text = string.Empty;
+        _loadingControls = false;
+        UpdatePresetHint();
 
         RefreshProviderList();
-        LoadProviderForm(provider);
+        ProviderResultText.Text = string.Empty;
+        Dispatcher.UIThread.Post(() => NewNameBox.Focus());
+    }
+
+    private void OnCancelCreate(object? sender, RoutedEventArgs e)
+    {
+        _creatingProvider = false;
+
+        if (_settings.Providers.Count > 0 &&
+            _settings.Providers.All(p => p.Id != _formProviderId))
+            LoadProviderForm(_settings.Providers[0]);
+
         RefreshProviderList();
-        ProviderNameBox.Focus();
-        ProviderNameBox.SelectAll();
-        ShowProviderResult("填好地址、Key 与模型，然后保存。", "muted");
-        Shell.Toast("已新建自定义供应商。");
+        ProviderResultText.Text = string.Empty;
     }
 
     private void OnPresetChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingControls) return;
         UpdatePresetHint();
+
+        int index = PresetCombo.SelectedIndex;
+        if (index < 0 || index >= AgentProviderPresets.All.Count) return;
+        AgentProviderPreset preset = AgentProviderPresets.All[index];
+
+        _loadingControls = true;
+        NewNameBox.Text = preset.Name;
+        NewKindCombo.SelectedIndex = AgentProviderPresets.IndexOfKind(preset.Kind);
+        NewBaseUrlBox.Text = preset.BaseUrl;
+        _loadingControls = false;
     }
 
     private void UpdatePresetHint()
@@ -545,29 +637,48 @@ public partial class MofuAgentSettingsView : UserControl
             : string.Empty;
     }
 
-    private void OnAddPreset(object? sender, RoutedEventArgs e)
+    private void OnCreateProvider(object? sender, RoutedEventArgs e)
     {
-        int index = PresetCombo.SelectedIndex;
-        if (index < 0 || index >= AgentProviderPresets.All.Count)
+        string name = (NewNameBox.Text ?? string.Empty).Trim();
+        string baseUrl = AgentProviderPresets.NormalizeBaseUrl(NewBaseUrlBox.Text);
+
+        if (name.Length == 0)
         {
-            ShowProviderResult("先选一个预设。", "warning");
+            ShowProviderResult("先给这条供应商起个名字。", "warning");
+            NewNameBox.Focus();
             return;
         }
 
-        AgentProviderPreset preset = AgentProviderPresets.All[index];
-        AgentProviderConfig provider = AgentProviderPresets.CreateFromPreset(preset);
+        if (baseUrl.Length == 0)
+        {
+            ShowProviderResult("Base URL 不能为空，且只支持 http:// 或 https:// 开头的地址。", "warning");
+            NewBaseUrlBox.Focus();
+            return;
+        }
+
+        AgentProviderConfig provider = new()
+        {
+            Id = Guid.NewGuid().ToString("n")[..8],
+            Name = name,
+            Kind = AgentProviderPresets.KindAt(NewKindCombo.SelectedIndex),
+            BaseUrl = baseUrl,
+            ApiKey = (NewApiKeyBox.Text ?? string.Empty).Trim(),
+            Models = new List<string>(),
+            SupportsTools = true,
+        };
+
         _settings.Providers.Add(provider);
         _settings.ActiveProviderId = provider.Id;
-        _settings.ActiveModel = provider.Models.FirstOrDefault() ?? string.Empty;
-        _settings.ContextWindow = provider.ContextWindow > 0
-            ? provider.ContextWindow
-            : AgentProviderPresets.GuessContextWindow(_settings.ActiveModel);
+        _settings.ActiveModel = string.Empty;
         AgentSettingsStore.Save(_settings);
 
-        LoadProviderForm(provider);
+        _creatingProvider = false;
+        _formProviderId = provider.Id;
         RefreshProviderList();
-        ShowProviderResult($"已添加 {preset.Name}，填上 API Key 就能用。", "muted");
-        Shell.Toast("已添加 " + preset.Name);
+        LoadProviderForm(provider);
+        ShowProviderResult($"已添加 {provider.Name}。接着填入模型 id，或点「拉取模型」。", "success");
+        Dispatcher.UIThread.Post(() => NewModelBox.Focus());
+        Shell.Toast("已添加 " + provider.Name);
     }
 
     private void OnDeleteProvider(object? sender, RoutedEventArgs e)
@@ -575,18 +686,12 @@ public partial class MofuAgentSettingsView : UserControl
         AgentProviderConfig? provider = CurrentProvider;
         if (provider is null) return;
 
-        if (_settings.Providers.Count <= 1)
-        {
-            ShowProviderResult("至少保留一条供应商。", "warning");
-            return;
-        }
-
         if (_pendingDeleteProviderId != provider.Id ||
             DateTime.UtcNow - _pendingDeleteAt > TimeSpan.FromSeconds(4))
         {
             _pendingDeleteProviderId = provider.Id;
             _pendingDeleteAt = DateTime.UtcNow;
-            ShowProviderResult("再点一次「删除此供应商」确认。", "warning");
+            ShowProviderResult("再点一次「删除」确认。", "warning");
             return;
         }
 
@@ -594,15 +699,25 @@ public partial class MofuAgentSettingsView : UserControl
         _settings.Providers.Remove(provider);
         if (_settings.ActiveProviderId == provider.Id)
         {
-            AgentProviderConfig next = _settings.Providers[0];
-            _settings.ActiveProviderId = next.Id;
-            _settings.ActiveModel = next.Models.FirstOrDefault() ?? string.Empty;
-            _settings.ContextWindow = next.ContextWindow > 0
-                ? next.ContextWindow
-                : AgentProviderPresets.GuessContextWindow(_settings.ActiveModel);
+            AgentProviderConfig? next = _settings.Providers.FirstOrDefault();
+            _settings.ActiveProviderId = next?.Id ?? string.Empty;
+            _settings.ActiveModel = next?.Models.FirstOrDefault() ?? string.Empty;
+            if (next is not null)
+                _settings.ContextWindow = next.ContextWindow > 0
+                    ? next.ContextWindow
+                    : AgentProviderPresets.GuessContextWindow(_settings.ActiveModel);
         }
 
         AgentSettingsStore.Save(_settings);
+
+        if (_settings.Providers.Count == 0)
+        {
+            ClearProviderForm();
+            RefreshProviderList();
+            ShowProviderResult("已删除，列表已清空。需要时点「添加供应商」。", "muted");
+            Shell.Toast("供应商已删除。");
+            return;
+        }
 
         // 删掉的不是当前供应商时，编辑台留在当前供应商上，不要莫名其妙跳到第一条。
         AgentProviderConfig select = _settings.Providers
@@ -675,8 +790,8 @@ public partial class MofuAgentSettingsView : UserControl
 
     private void ShowProviderResult(string message, string tone)
     {
-        ProviderTestResult.Text = message;
-        ProviderTestResult.Foreground = ThemeTokens.Brush(tone switch
+        ProviderResultText.Text = message;
+        ProviderResultText.Foreground = ThemeTokens.Brush(tone switch
         {
             "success" => "NekoSuccessBrush",
             "danger" => "NekoDangerBrush",
@@ -866,7 +981,7 @@ public partial class MofuAgentSettingsView : UserControl
             return;
         }
 
-        foreach (string note in notes.Reverse().Take(60))
+        foreach (string note in notes.Reverse().Take(MaxHistoryNotes))
         {
             MemoryPanel.Children.Add(new Border
             {
@@ -904,10 +1019,11 @@ public partial class MofuAgentSettingsView : UserControl
 
         AgentSettingsStore.Save(_settings);
 
-        LoadProviderForm(CurrentProvider!);
+        AgentProviderConfig? current = CurrentProvider;
+        if (current is not null) LoadProviderForm(current);
+        else ClearProviderForm();
         RefreshProviderList();
-        ShowProviderResult("加密密钥已重置，请重新填写各供应商的 API Key。", "warning");
-        Shell.Toast("已重置加密密钥。");
+        Shell.Toast("已重置加密密钥，请重新填写各供应商的 API Key。");
     }
 
     private void OnClearMemory(object? sender, RoutedEventArgs e)
@@ -929,29 +1045,4 @@ public partial class MofuAgentSettingsView : UserControl
         int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
             ? Math.Clamp(value, min, max)
             : fallback;
-
-    // ==================================================================
-    // 验收用（仅被 MOFU_AGENT_SHOT 预览钩子调用）
-    // ==================================================================
-
-    /// <summary>直接切到数据分区，用来核对加密密钥信息。</summary>
-    internal void ShowDataForPreview() => SelectTab("data");
-
-    /// <summary>新建一条自定义供应商并填上示例值，用来核对编辑台布局。</summary>
-    internal void AddProviderForPreview()
-    {
-        OnAddProvider(null, new RoutedEventArgs());
-
-        ProviderNameBox.Text = "我的中转站";
-        ProviderKindCombo.SelectedIndex = (int)AgentProviderKind.OpenAiCompatible;
-        BaseUrlBox.Text = "https://api.example.com/v1";
-        ApiKeyBox.Text = "sk-preview-key";
-        _draftModels.Clear();
-        _draftModels.AddRange(new[] { "gpt-4o-mini", "gpt-4o", "deepseek-chat" });
-        RenderModelChips();
-        ProviderContextBox.Text = "128000";
-        SupportsToolsSwitch.IsChecked = true;
-        HeadersBox.Text = "X-Title: Mofumofu";
-        ShowProviderResult("示例已填入，点「测试连接」验证地址与 Key。", "muted");
-    }
 }

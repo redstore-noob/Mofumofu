@@ -48,16 +48,31 @@ public static class AgentStore
         return result.OrderByDescending(conversation => conversation.UpdatedAt).ToList();
     }
 
-    public static string PathFor(string id) =>
-        Path.Combine(AgentSettingsStore.SessionsDirectory, id + ".json");
+    private static readonly object SaveGate = new();
+
+    public static string PathFor(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) ||
+            id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            id.Contains("..", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("会话 id 不合法。", nameof(id));
+        }
+
+        return Path.Combine(AgentSettingsStore.SessionsDirectory, id + ".json");
+    }
 
     public static bool Save(AgentConversation conversation)
     {
         try
         {
-            Directory.CreateDirectory(AgentSettingsStore.SessionsDirectory);
-            conversation.UpdatedAt = DateTime.Now;
-            File.WriteAllText(PathFor(conversation.Id), JsonSerializer.Serialize(conversation, Options));
+            lock (SaveGate)
+            {
+                conversation.UpdatedAt = DateTime.Now;
+                string json = JsonSerializer.Serialize(conversation, Options);
+                AgentSettingsStore.AtomicWrite(PathFor(conversation.Id), json);
+            }
+
             return true;
         }
         catch
@@ -88,6 +103,15 @@ public static class AgentStore
         builder.Append("# ").AppendLine(conversation.Title);
         builder.AppendLine();
         builder.Append("导出时间：").AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+
+        if (!string.IsNullOrWhiteSpace(conversation.Digest))
+        {
+            builder.AppendLine();
+            builder.AppendLine("> 较早对话摘要");
+            builder.AppendLine();
+            foreach (string line in conversation.Digest.Split('\n'))
+                builder.Append("> ").AppendLine(line.TrimEnd('\r'));
+        }
 
         foreach (AgentMessage message in conversation.Messages)
         {

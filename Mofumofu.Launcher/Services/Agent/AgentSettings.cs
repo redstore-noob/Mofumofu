@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using MofuCore.Config;
 
@@ -81,11 +82,13 @@ public sealed class AgentSettings
     public AgentProviderConfig? ActiveProvider =>
         Providers.FirstOrDefault(p => p.Id == ActiveProviderId) ?? Providers.FirstOrDefault();
 
-    public AgentProviderConfig EnsureProvider()
+    public AgentProviderConfig? EnsureProvider()
     {
         if (Providers.Count == 0)
         {
-            Providers.AddRange(AgentProviderPresets.CreateDefaults());
+            ActiveProviderId = string.Empty;
+            ActiveModel = string.Empty;
+            return null;
         }
 
         if (string.IsNullOrWhiteSpace(ActiveProviderId) ||
@@ -95,18 +98,31 @@ public sealed class AgentSettings
         }
 
         AgentProviderConfig provider = Providers.First(p => p.Id == ActiveProviderId);
-        if (provider.Models.Count == 0)
-        {
-            // 手写的 settings.json 可能把模型列表留空，兜一个占位避免下拉框空白。
-            provider.Models.Add("model-id");
-        }
-
         if (string.IsNullOrWhiteSpace(ActiveModel) || !provider.Models.Contains(ActiveModel))
         {
             ActiveModel = provider.Models.FirstOrDefault() ?? string.Empty;
         }
 
         return provider;
+    }
+
+    public void CopyFrom(AgentSettings source)
+    {
+        Providers = source.Providers;
+        ActiveProviderId = source.ActiveProviderId;
+        ActiveModel = source.ActiveModel;
+        Temperature = source.Temperature;
+        TopP = source.TopP;
+        MaxOutputTokens = source.MaxOutputTokens;
+        Streaming = source.Streaming;
+        ContextWindow = source.ContextWindow;
+        AutoCompact = source.AutoCompact;
+        CompactAt = source.CompactAt;
+        KeepRecentMessages = source.KeepRecentMessages;
+        SystemPrompt = source.SystemPrompt;
+        MaxToolRounds = source.MaxToolRounds;
+        Tools = source.Tools;
+        ShowInspector = source.ShowInspector;
     }
 
     /// <summary>当前模型生效的上下文窗口：供应商覆盖值优先，否则用全局值。</summary>
@@ -121,6 +137,8 @@ public sealed class AgentSettings
 /// <summary>设置读写。文件很小，直接整份读写；写失败不抛给 UI。</summary>
 public static class AgentSettingsStore
 {
+    private static readonly object WriteGate = new();
+
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
@@ -136,52 +154,176 @@ public static class AgentSettingsStore
 
     public static string? LastError { get; private set; }
 
+    public static string? LastNotice { get; private set; }
+
+    public static string? ConsumeNotice()
+    {
+        string? notice = LastNotice;
+        LastNotice = null;
+        return notice;
+    }
+
+    public static string BackupPath => SettingsPath + ".bak";
+
     public static AgentSettings Load()
     {
         LastError = null;
-        AgentSecretProtector.ResetFlags();
+        LastNotice = null;
+
+        AgentSettings? fromFile = TryRead(SettingsPath, out string primaryError);
+        if (fromFile is not null) return fromFile;
+
+        AgentSettings? fromBackup = TryRead(BackupPath, out _);
+        if (fromBackup is not null)
+        {
+            Save(fromBackup);
+            LastError = "设置文件损坏，已从备份自动恢复。";
+            return fromBackup;
+        }
+
+        if (File.Exists(SettingsPath) || File.Exists(BackupPath))
+            LastError = "读取设置失败：" + primaryError + "（已改用默认设置，原文件保留未删）";
+
+        return new AgentSettings();
+    }
+
+    private static AgentSettings? TryRead(string path, out string error)
+    {
+        error = string.Empty;
+        if (!File.Exists(path)) return null;
 
         try
         {
-            if (File.Exists(SettingsPath))
+            AgentSecretProtector.ResetFlags();
+            string json = File.ReadAllText(path);
+            string sanitized = SanitizeLegacyProviders(json, out int removed);
+            AgentSettings? loaded = JsonSerializer.Deserialize<AgentSettings>(sanitized, Options);
+            if (loaded is null)
             {
-                AgentSettings? loaded = JsonSerializer.Deserialize<AgentSettings>(
-                    File.ReadAllText(SettingsPath), Options);
-                if (loaded is not null)
+                error = "文件内容为空";
+                return null;
+            }
+
+            loaded.Providers ??= new List<AgentProviderConfig>();
+            loaded.Tools ??= new AgentToolSettings();
+            NormalizeProviderNames(loaded);
+
+            if (removed > 0)
+            {
+                LastNotice = $"已自动移除 {removed} 条旧版本内置的空壳供应商（写死的模型 id 一并清掉）。" +
+                             "需要哪家，点「添加供应商」重新加一条即可；你自己配置过的条目没有动。";
+            }
+
+            bool legacyKeyFormat = AgentSecretProtector.LegacyPlaintextFound ||
+                                   AgentSecretProtector.LegacyDpapiFound;
+            if (!AgentSecretProtector.DecryptFailed && (removed > 0 || legacyKeyFormat))
+            {
+                Save(loaded);
+            }
+
+            if (AgentSecretProtector.DecryptFailed)
+            {
+                LastError = "部分 API Key 无法解密（可能换过账户、机器或主密钥丢失）。" +
+                            "请在供应商设置里重新填写；没改动的值不会被覆盖。";
+            }
+
+            return loaded;
+        }
+        catch (Exception exception)
+        {
+            AgentSecretProtector.ResetFlags();
+            error = exception.Message;
+            return null;
+        }
+    }
+
+    private static string SanitizeLegacyProviders(string json, out int removed)
+    {
+        removed = 0;
+        try
+        {
+            if (JsonNode.Parse(json) is not JsonObject root ||
+                root["Providers"] is not JsonArray providers)
+                return json;
+
+            for (int i = providers.Count - 1; i >= 0; i--)
+            {
+                if (providers[i] is not JsonObject provider) continue;
+
+                if (string.Equals(ReadString(provider, "Kind"), "Mock",
+                        StringComparison.OrdinalIgnoreCase))
                 {
-                    loaded.Providers ??= new List<AgentProviderConfig>();
-                    loaded.Tools ??= new AgentToolSettings();
-                    if (loaded.Providers.Count == 0)
-                        loaded.Providers.AddRange(AgentProviderPresets.CreateDefaults());
-                    NormalizeProviderNames(loaded);
+                    providers.RemoveAt(i);
+                    removed++;
+                    continue;
+                }
 
                     // 旧版本把 Key 直接写在 JSON 里：立刻回写一次加密版本，
                     // 避免磁盘上继续留明文。解密失败时绝不回写，否则会把 Key 抹掉。
-                    if ((AgentSecretProtector.LegacyPlaintextFound ||
-                         AgentSecretProtector.LegacyDpapiFound) &&
-                        !AgentSecretProtector.DecryptFailed)
-                    {
-                        Save(loaded);
-                    }
+                string? id = ReadString(provider, "Id");
+                if (id is null ||
+                    !AgentProviderPresets.LegacyDefaultModels.TryGetValue(id, out string[]? legacyModels) ||
+                    !SameModels(provider["Models"], legacyModels))
+                    continue;
 
-                    if (AgentSecretProtector.DecryptFailed)
-                    {
-                        LastError = "部分 API Key 无法解密（可能换过系统账户、机器，或主密钥丢失），请在供应商设置里重新填写。";
-                    }
+                string? key = ReadString(provider, "ApiKey");
+                string baseUrl = ReadString(provider, "BaseUrl") ?? string.Empty;
+                bool local = baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
+                             baseUrl.Contains("127.0.0.1", StringComparison.Ordinal);
+                if (!string.IsNullOrWhiteSpace(key) && !local) continue;
 
-                    return loaded;
+                providers.RemoveAt(i);
+                removed++;
+            }
+
+            if (removed > 0 && root["ActiveProviderId"] is not null)
+            {
+                string? active = ReadString(root, "ActiveProviderId");
+                bool stillExists = providers.Any(node => node is JsonObject item &&
+                    string.Equals(ReadString(item, "Id"), active, StringComparison.Ordinal));
+                if (!stillExists)
+                {
+                    root["ActiveProviderId"] = string.Empty;
+                    root["ActiveModel"] = string.Empty;
                 }
             }
+
+            return removed > 0 ? root.ToJsonString() : json;
         }
-        catch (Exception error)
+        catch
         {
-            LastError = "读取设置失败：" + error.Message;
+            removed = 0;
+            return json;
+        }
+    }
+
+    private static string? ReadString(JsonObject node, string name)
+    {
+        try
+        {
+            return node[name] is JsonValue value && value.TryGetValue<string>(out string? text)
+                ? text
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool SameModels(JsonNode? node, string[] expected)
+    {
+        if (node is not JsonArray array || array.Count != expected.Length) return false;
+
+        for (int i = 0; i < expected.Length; i++)
+        {
+            if (array[i] is not JsonValue value ||
+                !value.TryGetValue<string>(out string? text) ||
+                !string.Equals(text, expected[i], StringComparison.Ordinal))
+                return false;
         }
 
-        var settings = new AgentSettings();
-        settings.Providers.AddRange(AgentProviderPresets.CreateDefaults());
-        settings.EnsureProvider();
-        return settings;
+        return true;
     }
 
     /// <summary>
@@ -192,7 +334,6 @@ public static class AgentSettingsStore
     {
         var renamed = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["本地模拟（无需 Key）"] = "本地模拟",
             ["月之暗面 Kimi"] = "Kimi",
             ["通义千问（兼容模式）"] = "通义千问",
             ["Ollama（本机）"] = "Ollama",
@@ -212,8 +353,20 @@ public static class AgentSettingsStore
     {
         try
         {
-            Directory.CreateDirectory(RootDirectory);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, Options));
+            lock (WriteGate)
+            {
+                Directory.CreateDirectory(RootDirectory);
+                string json = JsonSerializer.Serialize(settings, Options);
+
+                if (File.Exists(SettingsPath))
+                {
+                    try { File.Copy(SettingsPath, BackupPath, true); }
+                    catch { /* 备份失败不阻断正常保存 */ }
+                }
+
+                AtomicWrite(SettingsPath, json);
+            }
+
             LastError = null;
             return true;
         }
@@ -222,5 +375,15 @@ public static class AgentSettingsStore
             LastError = "保存设置失败：" + error.Message;
             return false;
         }
+    }
+
+    public static void AtomicWrite(string path, string content)
+    {
+        string? directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+
+        string temp = path + ".tmp";
+        File.WriteAllText(temp, content);
+        File.Move(temp, path, true);
     }
 }

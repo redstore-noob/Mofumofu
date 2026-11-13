@@ -114,6 +114,7 @@ public static class AgentSecretProtector
     public static string Protect(string? plaintext)
     {
         if (string.IsNullOrEmpty(plaintext)) return string.Empty;
+        if (LooksEncrypted(plaintext)) return plaintext;
 
         byte[] key = GetKeyOrThrow();
         byte[] nonce = RandomNumberGenerator.GetBytes(NonceSize);
@@ -134,6 +135,11 @@ public static class AgentSecretProtector
         return AesPrefix + Convert.ToBase64String(payload);
     }
 
+    public static bool LooksEncrypted(string? value) =>
+        value is not null &&
+        (value.StartsWith(AesPrefix, StringComparison.Ordinal) ||
+         value.StartsWith(DpapiPrefix, StringComparison.Ordinal));
+
     public static string Unprotect(string? value)
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
@@ -147,6 +153,18 @@ public static class AgentSecretProtector
         // 早期版本直接存明文，读到后由 Load 负责回写加密版本。
         LegacyPlaintextFound = true;
         return value;
+    }
+
+    /// <summary>
+    /// 解密并给出每次调用可判别的成功/失败结果。
+    /// 失败时返回 false，plaintext 保留无法解开的原密文，调用方据此 fail-closed
+    /// 地拒绝把它当作有效凭据使用；不再只靠进程级 DecryptFailed 标志或空串来隐式表达失败。
+    /// </summary>
+    public static bool TryUnprotect(string? value, out string plaintext)
+    {
+        plaintext = Unprotect(value);
+        // 带密文前缀的输入若解出来仍是同一份密文（Unprotect 失败时原样返回），即为失败。
+        return !LooksEncrypted(value) || !ReferenceEquals(plaintext, value);
     }
 
     private static string UnprotectAes(string value)
@@ -173,7 +191,7 @@ public static class AgentSecretProtector
         catch
         {
             DecryptFailed = true;
-            return string.Empty;
+            return value;
         }
     }
 
@@ -183,7 +201,7 @@ public static class AgentSecretProtector
         if (!OperatingSystem.IsWindows())
         {
             DecryptFailed = true;
-            return string.Empty;
+            return value;
         }
 
         try
@@ -196,7 +214,7 @@ public static class AgentSecretProtector
         catch
         {
             DecryptFailed = true;
-            return string.Empty;
+            return value;
         }
     }
 
@@ -272,6 +290,14 @@ public static class AgentSecretProtector
 
             if (text.StartsWith(KeyRawPrefix, StringComparison.Ordinal))
             {
+                // Windows 上主密钥必须由 DPAPI(CurrentUser) 保护；接受 raw:v1: 等于让
+                // 能改写 secret.key 的进程绕过系统保护直接解出全部凭据，这里 fail-closed。
+                if (OperatingSystem.IsWindows())
+                {
+                    error = "Windows 上不接受明文主密钥格式。";
+                    return false;
+                }
+
                 byte[] plain = Convert.FromBase64String(text[KeyRawPrefix.Length..]);
                 if (plain.Length != KeySize)
                 {
@@ -364,6 +390,7 @@ public sealed class AgentSecretJsonConverter : JsonConverter<string>
         ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return string.Empty;
+        if (reader.TokenType != JsonTokenType.String) return string.Empty;
         return AgentSecretProtector.Unprotect(reader.GetString());
     }
 

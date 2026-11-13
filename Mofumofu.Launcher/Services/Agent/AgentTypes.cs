@@ -88,10 +88,7 @@ public enum AgentProviderKind
     Anthropic,
 
     /// <summary>Google Gemini generateContent。</summary>
-    Gemini,
-
-    /// <summary>本地模拟：不联网，用脚本化回复演示完整 Agent 流程。</summary>
-    Mock
+    Gemini
 }
 
 public sealed class AgentProviderConfig
@@ -99,7 +96,7 @@ public sealed class AgentProviderConfig
     public string Id { get; set; } = Guid.NewGuid().ToString("n")[..8];
     public string Name { get; set; } = string.Empty;
     public AgentProviderKind Kind { get; set; } = AgentProviderKind.OpenAiCompatible;
-    public string BaseUrl { get; set; } = "https://api.openai.com/v1";
+    public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>API Key。本地模拟不需要。落盘时由 DPAPI 加密。</summary>
     [JsonConverter(typeof(AgentSecretJsonConverter))]
@@ -141,6 +138,8 @@ public sealed class AgentConversation
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
     public List<AgentMessage> Messages { get; set; } = new();
+
+    public string Digest { get; set; } = string.Empty;
 
     public string DisplayTime
     {

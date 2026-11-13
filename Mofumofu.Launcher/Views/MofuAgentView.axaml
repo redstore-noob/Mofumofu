@@ -8,7 +8,7 @@
              Background="Transparent">
 
     <UserControl.Styles>
-        <!-- 对话正文排版 -->
+<!-- 对话正文排版 -->        
         <Style Selector="TextBlock.agent-body">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
@@ -91,7 +91,7 @@
             <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
         </Style>
 
-        <!-- 侧栏行 / 标签 -->
+<!-- 侧栏行 / 标签 -->        
         <Style Selector="Border.agent-row">
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="Padding" Value="9,7" />
@@ -152,7 +152,7 @@
             <Setter Property="CornerRadius" Value="8" />
         </Style>
 
-        <!-- 空状态任务卡 -->
+<!-- 空状态任务卡 -->        
         <Style Selector="Button.agent-suggestion">
             <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -169,7 +169,7 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-        <!-- 仪表卡片 -->
+<!-- 仪表卡片 -->        
         <Style Selector="Border.meter-card">
             <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -180,10 +180,10 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
-        <!-- 页头：标题 + 模型工具栏 -->
+<!-- 页头：标题 + 模型工具栏 -->        
         <Grid ColumnDefinitions="Auto,*,Auto" Height="56" Margin="0,0,0,12">
             <Button Classes="round" Width="32" Height="32" VerticalAlignment="Center"
-                    Click="OnBackToDesktop" ToolTip.Tip="回到桌面">
+                    Click="OnBackToDesktop" ToolTip.Tip="{DynamicResource L.Agent.Chat.T01}">
                 <controls:IconParkIcon Kind="IconArrowLeft" Width="15" Height="15" />
             </Button>
 
@@ -198,28 +198,28 @@
                     </Border>
                 </StackPanel>
                 <TextBlock Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis"
-                           Text="内置智能体 · 读实例状态，也能直接操作启动器" />
+                           Text="{DynamicResource L.Agent.Chat.L01}" />
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <ComboBox x:Name="ProviderCombo" Classes="agent-field" Width="142" Height="30"
                           VerticalAlignment="Center" SelectionChanged="OnProviderChanged"
-                          PlaceholderText="供应商" ToolTip.Tip="供应商" />
+                          PlaceholderText="{DynamicResource L.Agent.Chat.P01}" ToolTip.Tip="{DynamicResource L.Agent.Chat.P01}" />
                 <ComboBox x:Name="ModelCombo" Classes="agent-field" Width="158" Height="30"
                           VerticalAlignment="Center" SelectionChanged="OnModelChanged"
-                          PlaceholderText="模型" ToolTip.Tip="模型" />
+                          PlaceholderText="{DynamicResource L.Agent.Chat.P02}" ToolTip.Tip="{DynamicResource L.Agent.Chat.P02}" />
                 <Border Width="1" Height="18" Background="{DynamicResource NekoBorderBrush}"
                         Margin="2,0" VerticalAlignment="Center" />
                 <Button x:Name="AddProviderButton" Classes="icon" Width="30" Height="30"
-                        VerticalAlignment="Center" Click="OnAddProvider" ToolTip.Tip="添加供应商">
+                        VerticalAlignment="Center" Click="OnAddProvider" ToolTip.Tip="{DynamicResource L.Agent.Chat.T02}">
                     <controls:IconParkIcon Kind="IconPlus" Width="14" Height="14" />
                 </Button>
                 <Button x:Name="InspectorToggleButton" Classes="icon" Width="30" Height="30"
-                        VerticalAlignment="Center" Click="OnToggleInspector" ToolTip.Tip="收起/展开上下文仪表">
+                        VerticalAlignment="Center" Click="OnToggleInspector" ToolTip.Tip="{DynamicResource L.Agent.Chat.T03}">
                     <controls:IconParkIcon Kind="IconFluentGrid" Width="14" Height="14" />
                 </Button>
                 <Button x:Name="SettingsButton" Classes="icon" Width="30" Height="30"
-                        VerticalAlignment="Center" Click="OnOpenSettings" ToolTip.Tip="设置">
+                        VerticalAlignment="Center" Click="OnOpenSettings" ToolTip.Tip="{DynamicResource L.Agent.Chat.T04}">
                     <controls:IconParkIcon Kind="IconFluentSettings" Width="14" Height="14" />
                 </Button>
             </StackPanel>
@@ -227,16 +227,16 @@
 
         <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="244,*,288" ColumnSpacing="12">
 
-            <!-- 左：会话栏 -->
+<!-- 左：会话栏 -->            
             <Border Classes="card" CornerRadius="11" Padding="9">
                 <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="7">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="1">
-                            <TextBlock Classes="agent-label" Text="会话" />
-                            <TextBlock x:Name="SessionCountText" Classes="caption" Text="0 条" />
+                            <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L02}" />
+                            <TextBlock x:Name="SessionCountText" Classes="caption" Text="{DynamicResource L.Agent.Chat.L03}" />
                         </StackPanel>
                         <Button Grid.Column="1" Classes="icon" Width="26" Height="26" Click="OnNewChat"
-                                ToolTip.Tip="新对话">
+                                ToolTip.Tip="{DynamicResource L.Agent.Chat.T05}">
                             <controls:IconParkIcon Kind="IconPlus" Width="12" Height="12" />
                         </Button>
                     </Grid>
@@ -245,12 +245,12 @@
                             HorizontalAlignment="Stretch" Click="OnNewChat">
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                             <controls:IconParkIcon Kind="IconFluentChat" Width="12" Height="12" />
-                            <TextBlock Text="新建对话" FontSize="11.5" />
+                            <TextBlock Text="{DynamicResource L.Agent.Chat.L04}" FontSize="11.5" />
                         </StackPanel>
                     </Button>
 
                     <TextBox x:Name="SessionSearchBox" Grid.Row="2" Classes="search agent-field" Height="29"
-                             Watermark="搜索会话" TextChanged="OnSessionSearchChanged" />
+                             PlaceholderText="{DynamicResource L.Agent.Chat.P03}" TextChanged="OnSessionSearchChanged" />
 
                     <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
@@ -261,59 +261,59 @@
                         <Border Classes="divider" />
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Spacing="0">
-                                <TextBlock Classes="agent-label" Text="本地记忆" />
-                                <TextBlock x:Name="MemoryCountText" Classes="caption" Text="0 条" />
+                                <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L05}" />
+                                <TextBlock x:Name="MemoryCountText" Classes="caption" Text="{DynamicResource L.Agent.Chat.L03}" />
                             </StackPanel>
-                            <Button Grid.Column="1" Classes="agent-mini" Content="查看"
+                            <Button Grid.Column="1" Classes="agent-mini" Content="{DynamicResource L.Agent.Chat.B01}"
                                     Click="OnShowMemory" />
                         </Grid>
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- 中：对话 -->
+<!-- 中：对话 -->            
             <Border Grid.Column="1" Classes="card" CornerRadius="11" Padding="0" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- 对话标题条 -->
+<!-- 对话标题条 -->                    
                     <Grid ColumnDefinitions="*,Auto" Margin="15,11,10,8">
                         <StackPanel Spacing="2" VerticalAlignment="Center">
                             <TextBlock x:Name="ConversationTitle" FontSize="13.5" FontWeight="SemiBold"
-                                       Text="新对话" TextTrimming="CharacterEllipsis" />
+                                       Text="{DynamicResource L.Agent.Chat.T05}" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Ellipse x:Name="HeaderStatusDot" Width="5" Height="5"
                                          Fill="{DynamicResource NekoSuccessBrush}"
                                          VerticalAlignment="Center" />
-                                <TextBlock x:Name="HeaderStatusText" Classes="caption" Text="就绪"
+                                <TextBlock x:Name="HeaderStatusText" Classes="caption" Text="{DynamicResource L.Agent.Chat.L06}"
                                            VerticalAlignment="Center" />
                                 <TextBlock Text="·" Classes="caption" />
-                                <TextBlock x:Name="ConversationMeta" Classes="caption" Text="尚未开始" />
+                                <TextBlock x:Name="ConversationMeta" Classes="caption" Text="{DynamicResource L.Agent.Chat.L07}" />
                                 <TextBlock Text="·" Classes="caption" />
                                 <TextBlock x:Name="ContextPill" Classes="caption" Text="0 / 32k" />
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="1">
                             <Button Classes="icon" Width="27" Height="27" Click="OnRegenerate"
-                                    ToolTip.Tip="重新生成上一条">
+                                    ToolTip.Tip="{DynamicResource L.Agent.Chat.T06}">
                                 <controls:IconParkIcon Kind="IconFluentArrowClockwise" Width="12" Height="12" />
                             </Button>
                             <Button Classes="icon" Width="27" Height="27" Click="OnExportConversation"
-                                    ToolTip.Tip="导出为 Markdown">
+                                    ToolTip.Tip="{DynamicResource L.Agent.Chat.T07}">
                                 <controls:IconParkIcon Kind="IconFluentDocument" Width="12" Height="12" />
                             </Button>
                             <Button Classes="icon" Width="27" Height="27" Click="OnClearConversation"
-                                    ToolTip.Tip="清空当前会话">
+                                    ToolTip.Tip="{DynamicResource L.Agent.Chat.T08}">
                                 <controls:IconParkIcon Kind="IconFluentDismiss" Width="12" Height="12" />
                             </Button>
                         </StackPanel>
                     </Grid>
 
-                    <!-- 消息流 -->
+<!-- 消息流 -->                    
                     <ScrollViewer x:Name="MessagesScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" Padding="15,0,11,0">
                         <StackPanel x:Name="MessagePanel" Spacing="16" Margin="0,4,0,12" />
                     </ScrollViewer>
 
-                    <!-- 空状态：左对齐的入口面板 -->
+<!-- 空状态：左对齐的入口面板 -->                    
                     <StackPanel x:Name="EmptyState" Grid.Row="1" VerticalAlignment="Center"
                                 HorizontalAlignment="Left" Spacing="16" MaxWidth="560" Margin="26,0,20,0">
                         <StackPanel Spacing="7">
@@ -324,18 +324,18 @@
                                            FontSize="9" LetterSpacing="1.4"
                                            Foreground="{DynamicResource NekoAccentBrush}" />
                             </Border>
-                            <TextBlock Text="让启动器替你做点事。" FontSize="24" FontWeight="Bold"
+                            <TextBlock Text="{DynamicResource L.Agent.Chat.L08}" FontSize="24" FontWeight="Bold"
                                        LetterSpacing="-0.4" TextWrapping="Wrap" />
                             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" LineHeight="19"
-                                       Text="读实例、启动游戏、跳转页面。工具调用前会先征求你的同意。" />
+                                       Text="{DynamicResource L.Agent.Chat.L09}" />
                             <TextBlock x:Name="EmptyModelHint" FontFamily="Cascadia Mono,Consolas,monospace"
                                        FontSize="10.5" Foreground="{DynamicResource NekoDimBrush}"
-                                       Text="本地模拟 / mofu-sim-1" />
+                                       Text="{DynamicResource L.Agent.Chat.L10}" />
                         </StackPanel>
 
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,2,0,0">
                             <Button Grid.Row="0" Grid.Column="0" Classes="agent-suggestion"
-                                    Tag="帮我看看有哪些实例" Click="OnSuggestionClick">
+                                    Tag="{DynamicResource L.Agent.Chat.Q01}" Click="OnSuggestionClick">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <Border Width="30" Height="30" CornerRadius="7"
                                             Background="{DynamicResource NekoAccentSoftBrush}"
@@ -345,15 +345,15 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="9,0,0,0" Spacing="1"
                                                 VerticalAlignment="Center">
-                                        <TextBlock Text="查看实例" FontSize="12" FontWeight="SemiBold" />
-                                        <TextBlock Text="列出实例与加载器" FontSize="10"
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L11}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L12}" FontSize="10"
                                                    Foreground="{DynamicResource NekoDimBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </Button>
 
                             <Button Grid.Row="0" Grid.Column="1" Classes="agent-suggestion"
-                                    Tag="启动当前选中的实例" Click="OnSuggestionClick">
+                                    Tag="{DynamicResource L.Agent.Chat.Q02}" Click="OnSuggestionClick">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <Border Width="30" Height="30" CornerRadius="7"
                                             Background="{DynamicResource NekoSuccessSoftBrush}"
@@ -362,15 +362,15 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="9,0,0,0" Spacing="1"
                                                 VerticalAlignment="Center">
-                                        <TextBlock Text="启动游戏" FontSize="12" FontWeight="SemiBold" />
-                                        <TextBlock Text="打开选中实例" FontSize="10"
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L13}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L14}" FontSize="10"
                                                    Foreground="{DynamicResource NekoDimBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </Button>
 
                             <Button Grid.Row="1" Grid.Column="0" Classes="agent-suggestion"
-                                    Tag="现在启动器是什么状态" Click="OnSuggestionClick">
+                                    Tag="{DynamicResource L.Agent.Chat.Q03}" Click="OnSuggestionClick">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <Border Width="30" Height="30" CornerRadius="7"
                                             Background="{DynamicResource NekoInfoSoftBrush}"
@@ -379,15 +379,15 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="9,0,0,0" Spacing="1"
                                                 VerticalAlignment="Center">
-                                        <TextBlock Text="检查状态" FontSize="12" FontWeight="SemiBold" />
-                                        <TextBlock Text="内存 / Java / 登录" FontSize="10"
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L15}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L16}" FontSize="10"
                                                    Foreground="{DynamicResource NekoDimBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </Button>
 
                             <Button Grid.Row="1" Grid.Column="1" Classes="agent-suggestion"
-                                    Tag="你能做什么" Click="OnSuggestionClick">
+                                    Tag="{DynamicResource L.Agent.Chat.Q04}" Click="OnSuggestionClick">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <Border Width="30" Height="30" CornerRadius="7"
                                             Background="{DynamicResource NekoWarningSoftBrush}"
@@ -396,18 +396,18 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="9,0,0,0" Spacing="1"
                                                 VerticalAlignment="Center">
-                                        <TextBlock Text="能力清单" FontSize="12" FontWeight="SemiBold" />
-                                        <TextBlock Text="工具与用法示例" FontSize="10"
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L17}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="{DynamicResource L.Agent.Chat.L18}" FontSize="10"
                                                    Foreground="{DynamicResource NekoDimBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </Button>
                         </Grid>
 
-                        <TextBlock Classes="caption" Text="Enter 发送 · Shift+Enter 换行" />
+                        <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Chat.L19}" />
                     </StackPanel>
 
-                    <!-- 输入区 -->
+<!-- 输入区 -->                    
                     <Border Grid.Row="2" BorderThickness="0,1,0,0"
                             BorderBrush="{DynamicResource NekoBorderBrush}"
                             Background="{DynamicResource NekoFieldSoftBrush}" Padding="12,9">
@@ -421,7 +421,7 @@
                                              MinHeight="52" MaxHeight="132"
                                              BorderThickness="0" Background="Transparent"
                                              VerticalContentAlignment="Top"
-                                             Watermark="问点什么，或者让我去操作启动器…"
+                                             PlaceholderText="{DynamicResource L.Agent.Chat.P04}"
                                              KeyDown="OnComposerKeyDown" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                                 VerticalAlignment="Bottom" Margin="6,0,0,6">
@@ -429,14 +429,14 @@
                                                 IsVisible="False" Click="OnStopGenerating">
                                             <StackPanel Orientation="Horizontal" Spacing="5">
                                                 <controls:IconParkIcon Kind="IconStop" Width="11" Height="11" />
-                                                <TextBlock Text="停止" FontSize="11.5" />
+                                                <TextBlock Text="{DynamicResource L.Agent.Chat.L20}" FontSize="11.5" />
                                             </StackPanel>
                                         </Button>
                                         <Button x:Name="SendButton" Classes="primary" Height="30" Padding="12,0"
                                                 Click="OnSend">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <controls:IconParkIcon Kind="IconArrowRight" Width="12" Height="12" />
-                                                <TextBlock Text="发送" FontSize="11.5" />
+                                                <TextBlock Text="{DynamicResource L.Agent.Chat.L21}" FontSize="11.5" />
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>
@@ -444,24 +444,24 @@
                             </Border>
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Classes="caption" FontSize="10.5"
-                                           Text="工具调用前会征求同意 · 写入操作可直接拒绝" />
+                                           Text="{DynamicResource L.Agent.Chat.L22}" />
                                 <TextBlock x:Name="ComposerHint" Grid.Column="1" Classes="caption"
-                                           FontSize="10.5" Text="上下文 0%" />
+                                           FontSize="10.5" Text="{DynamicResource L.Agent.Chat.L23}" />
                             </Grid>
                         </StackPanel>
                     </Border>
                 </Grid>
             </Border>
 
-            <!-- 右：上下文仪表 -->
+<!-- 右：上下文仪表 -->            
             <ScrollViewer x:Name="InspectorPanel" Grid.Column="2" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="10">
-                    <!-- 上下文 -->
+<!-- 上下文 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="9">
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Classes="agent-label" Text="上下文" VerticalAlignment="Center" />
+                                <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L24}" VerticalAlignment="Center" />
                                 <Border Grid.Column="1" CornerRadius="4" Padding="6,1"
                                         Background="{DynamicResource NekoFieldBrush}">
                                     <TextBlock x:Name="ContextPercentText" Classes="agent-mono" Text="0%" />
@@ -474,7 +474,7 @@
                                     <TextBlock x:Name="ContextWindowText" Classes="agent-mono" Text="/ 32k"
                                                VerticalAlignment="Bottom" Margin="0,0,0,4" />
                                 </StackPanel>
-                                <TextBlock Classes="caption" Text="token 占用（估算）" />
+                                <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Chat.L25}" />
                             </StackPanel>
 
                             <Border CornerRadius="3" ClipToBounds="True" Height="6"
@@ -494,7 +494,7 @@
                                     <Border Width="5" Height="5" CornerRadius="1" Margin="0,0,7,0"
                                             Background="{DynamicResource NekoMutedBrush}"
                                             VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="系统提示" />
+                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="{DynamicResource L.Agent.Chat.L26}" />
                                     <TextBlock x:Name="SystemTokensText" Grid.Column="2" Classes="agent-mono"
                                                Text="0" />
                                 </Grid>
@@ -502,7 +502,7 @@
                                     <Border Width="5" Height="5" CornerRadius="1" Margin="0,0,7,0"
                                             Background="{DynamicResource NekoWarningBrush}"
                                             VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="工具描述" />
+                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="{DynamicResource L.Agent.Chat.L27}" />
                                     <TextBlock x:Name="ToolTokensText" Grid.Column="2" Classes="agent-mono"
                                                Text="0" />
                                 </Grid>
@@ -510,12 +510,12 @@
                                     <Border Width="5" Height="5" CornerRadius="1" Margin="0,0,7,0"
                                             Background="{DynamicResource NekoAccentBrush}"
                                             VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="消息历史" />
+                                    <TextBlock Grid.Column="1" Classes="agent-mono" Text="{DynamicResource L.Agent.Chat.L28}" />
                                     <TextBlock x:Name="MessageTokensText" Grid.Column="2" Classes="agent-mono"
                                                Text="0" />
                                 </Grid>
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Classes="agent-mono" Text="上次返回" />
+                                    <TextBlock Classes="agent-mono" Text="{DynamicResource L.Agent.Chat.L29}" />
                                     <TextBlock x:Name="UsageDetailText" Grid.Column="1" Classes="agent-mono"
                                                Text="—" />
                                 </Grid>
@@ -525,29 +525,29 @@
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="自动压缩" FontSize="11.5" />
-                                    <TextBlock Classes="caption" FontSize="10" Text="接近上限时折叠较早消息" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Chat.L30}" FontSize="11.5" />
+                                    <TextBlock Classes="caption" FontSize="10" Text="{DynamicResource L.Agent.Chat.L31}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="AutoCompactSwitch" Grid.Column="1" OnContent="" OffContent=""
                                               IsCheckedChanged="OnAutoCompactToggled" />
                             </Grid>
 
                             <Button x:Name="CompactNowButton" Classes="ghost" Height="27" Padding="10,0"
-                                    Content="立即压缩" FontSize="11" Click="OnCompactNow" />
+                                    Content="{DynamicResource L.Agent.Chat.B02}" FontSize="11" Click="OnCompactNow" />
                         </StackPanel>
                     </Border>
 
-                    <!-- 工具 -->
+<!-- 工具 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="8">
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Classes="agent-label" Text="工具" VerticalAlignment="Center" />
-                                <TextBlock x:Name="ToolCountText" Grid.Column="1" Classes="agent-mono" Text="0 个" />
+                                <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L32}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="ToolCountText" Grid.Column="1" Classes="agent-mono" Text="{DynamicResource L.Agent.Chat.L33}" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="允许操作启动器" FontSize="11.5" />
-                                    <TextBlock Classes="caption" FontSize="10" Text="关掉后只聊天，不碰任何功能" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Chat.L34}" FontSize="11.5" />
+                                    <TextBlock Classes="caption" FontSize="10" Text="{DynamicResource L.Agent.Chat.L35}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="LauncherToolsSwitch" Grid.Column="1" OnContent="" OffContent=""
                                               IsCheckedChanged="OnLauncherToolsToggled" />
@@ -557,18 +557,18 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 采样参数 -->
+<!-- 采样参数 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="agent-label" Text="生成" />
+                            <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L36}" />
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="温度" FontSize="11.5" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource L.Agent.Chat.L37}" FontSize="11.5" VerticalAlignment="Center" />
                                 <TextBlock x:Name="TempValueText" Grid.Column="1" Classes="agent-mono" Text="0.35" />
                             </Grid>
                             <Slider x:Name="TempSlider" Minimum="0" Maximum="2" Value="0.35" Height="20"
                                     ValueChanged="OnTemperatureChanged" />
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="最大输出" FontSize="11.5" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource L.Agent.Chat.L38}" FontSize="11.5" VerticalAlignment="Center" />
                                 <TextBlock x:Name="MaxTokensText" Grid.Column="1" Classes="agent-mono" Text="2048" />
                             </Grid>
                             <Slider x:Name="MaxTokensSlider" Minimum="256" Maximum="16384" Value="2048" Height="20"

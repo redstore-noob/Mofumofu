@@ -28,6 +28,8 @@ public sealed class AgentSession
     private readonly AgentToolRegistry _tools = AgentToolRegistry.CreateDefault();
     private readonly StringBuilder _digest = new();
 
+    private int _running;
+
     public AgentSession(AgentSettings settings, AgentConversation? conversation = null)
     {
         Settings = settings;
@@ -52,7 +54,7 @@ public sealed class AgentSession
     /// <summary>当前上下文占用估算（含系统提示与工具 schema）。</summary>
     public int ContextUsed { get; private set; }
 
-    public int ContextWindow => Math.Max(2048, Settings.ContextWindow);
+    public int ContextWindow => Settings.ResolveContextWindow();
 
     public double ContextRatio => Math.Clamp(ContextUsed / (double)ContextWindow, 0, 1);
 
@@ -63,6 +65,9 @@ public sealed class AgentSession
 
     public event Action<AgentMessage>? MessageAdded;
     public event Action<AgentMessage>? MessageUpdated;
+
+    public event Action? MessagesReset;
+
     public event Action<string>? TextDelta;
     public event Action<string>? ReasoningDelta;
     public event Action<AgentToolCall>? ToolStarted;
@@ -74,9 +79,12 @@ public sealed class AgentSession
     public void Load(AgentConversation conversation)
     {
         Conversation = conversation;
+        _digest.Clear();
+        _digest.Append(conversation.Digest ?? string.Empty);
         TokenEstimator.Recalculate(Conversation.Messages);
         RecalculateContext();
         SetState(AgentSessionState.Idle, "就绪");
+        MessagesReset?.Invoke();
         UsageChanged?.Invoke();
     }
 
@@ -88,39 +96,65 @@ public sealed class AgentSession
     {
         text = text.Trim();
         if (text.Length == 0) return;
-        if (IsBusy) return;
+        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0) return;
 
-        if (Conversation.Messages.Count == 0)
+        try
         {
-            Conversation.Title = TokenEstimator.MakeTitle(text);
-            Conversation.CreatedAt = DateTime.Now;
-        }
+            if (IsBusy) return;
 
-        AppendMessage(AgentMessage.User(text));
-        await RunLoopAsync(cancellationToken);
+            if (Conversation.Messages.Count == 0)
+            {
+                Conversation.Title = TokenEstimator.MakeTitle(text);
+                Conversation.CreatedAt = DateTime.Now;
+            }
+
+            AppendMessage(AgentMessage.User(text));
+            await RunLoopAsync(cancellationToken);
+        }
+        finally
+        {
+            Volatile.Write(ref _running, 0);
+        }
     }
 
     /// <summary>重新生成：丢掉最后一条助手回复（连同它的工具结果），再跑一遍。</summary>
     public async Task RegenerateAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy) return;
+        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0) return;
 
-        List<AgentMessage> messages = Conversation.Messages;
-        int index = messages.FindLastIndex(m => m.Role == AgentRole.Assistant);
-        if (index < 0) return;
+        try
+        {
+            if (IsBusy) return;
 
-        messages.RemoveRange(index, messages.Count - index);
-        RecalculateContext();
-        await RunLoopAsync(cancellationToken);
+            List<AgentMessage> messages = Conversation.Messages;
+            int index = messages.FindLastIndex(m => m.Role == AgentRole.Assistant);
+            if (index < 0) return;
+
+            messages.RemoveRange(index, messages.Count - index);
+            RecalculateContext();
+            MessagesReset?.Invoke();
+            await RunLoopAsync(cancellationToken);
+        }
+        finally
+        {
+            Volatile.Write(ref _running, 0);
+        }
     }
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
-        AgentProviderConfig provider = Settings.EnsureProvider();
+        AgentProviderConfig? provider = Settings.EnsureProvider();
+        if (provider is null)
+        {
+            SetState(AgentSessionState.Error, "还没有供应商");
+            AppendNotice("还没有添加供应商。请到「设置 → 供应商」里添加一条，填好地址、Key 与模型 id。", isError: true);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(Settings.ActiveModel))
         {
             SetState(AgentSessionState.Error, "还没选择模型");
-            AppendNotice("还没有可用模型。请到设置里选择供应商并填入模型 id。", isError: true);
+            AppendNotice("还没有可用模型。请到设置里给这条供应商添加模型 id，或点「拉取模型」。", isError: true);
             return;
         }
 
@@ -160,7 +194,7 @@ public sealed class AgentSession
                 catch (Exception error)
                 {
                     Conversation.Messages.Remove(assistant);
-                    MessageUpdated?.Invoke(assistant);
+                    MessagesReset?.Invoke();
                     AppendNotice(error.Message, isError: true);
                     SetState(AgentSessionState.Error, "请求失败");
                     return;
@@ -191,18 +225,19 @@ public sealed class AgentSession
                     AppendMessage(result);
                     ToolFinished?.Invoke(call, content, isError, stopwatch.Elapsed);
                 }
+
+                AgentStore.Save(Conversation);
             }
 
-            AgentStore.Save(Conversation);
             SetState(AgentSessionState.Idle, "就绪");
         }
         catch (OperationCanceledException)
         {
-            AgentStore.Save(Conversation);
             SetState(AgentSessionState.Idle, "已停止");
         }
         finally
         {
+            AgentStore.Save(Conversation);
             RecalculateContext();
             UsageChanged?.Invoke();
         }
@@ -215,7 +250,7 @@ public sealed class AgentSession
                 ? Task.FromResult("（界面不支持提问，按默认继续）")
                 : AskHandler(question, options, freeText, ct),
         ConfirmAsync = (tool, arguments, ct) =>
-            ConfirmHandler is null ? Task.FromResult(true) : ConfirmHandler(tool, arguments, ct),
+            ConfirmHandler is null ? Task.FromResult(false) : ConfirmHandler(tool, arguments, ct),
         Model = Settings.ActiveModel,
         Settings = Settings,
     };
@@ -230,18 +265,84 @@ public sealed class AgentSession
             Provider = provider,
             Model = Settings.ActiveModel,
             SystemPrompt = BuildSystemPrompt(toolTokens),
-            Messages = Conversation.Messages
-                .Where(message => message.Role != AgentRole.System)
-                .Where(message => message.Role != AgentRole.Assistant ||
-                                  !string.IsNullOrEmpty(message.Text) ||
-                                  message.ToolCalls.Count > 0)
-                .ToList(),
+            Messages = NormalizeForRequest(Conversation.Messages),
             Tools = ActiveTools,
             Temperature = Settings.Temperature,
             TopP = Settings.TopP,
             MaxOutputTokens = Settings.MaxOutputTokens,
             Streaming = Settings.Streaming,
         };
+    }
+
+    private static List<AgentMessage> NormalizeForRequest(IEnumerable<AgentMessage> source)
+    {
+        var result = new List<AgentMessage>();
+        var pending = new List<(string Id, string Name)>();
+
+        void FlushPending()
+        {
+            foreach ((string id, string name) in pending)
+            {
+                var missing = new AgentMessage
+                {
+                    Role = AgentRole.Tool,
+                    ToolCallId = id,
+                    ToolName = name,
+                    Text = "（工具调用已中断，没有结果）",
+                    IsError = true,
+                };
+                missing.Tokens = TokenEstimator.EstimateMessage(missing);
+                result.Add(missing);
+            }
+
+            pending.Clear();
+        }
+
+        foreach (AgentMessage message in source)
+        {
+            switch (message.Role)
+            {
+                case AgentRole.System:
+                    continue;
+
+                case AgentRole.User:
+                    FlushPending();
+                    result.Add(message);
+                    break;
+
+                case AgentRole.Assistant:
+                    if (string.IsNullOrEmpty(message.Text) && message.ToolCalls.Count == 0) continue;
+                    FlushPending();
+                    result.Add(message);
+                    foreach (AgentToolCall call in message.ToolCalls)
+                    {
+                        if (!string.IsNullOrEmpty(call.Id)) pending.Add((call.Id, call.Name));
+                    }
+                    break;
+
+                case AgentRole.Tool:
+                    int index = string.IsNullOrEmpty(message.ToolCallId)
+                        ? -1
+                        : pending.FindIndex(p => p.Id == message.ToolCallId);
+                    if (index < 0)
+                    {
+                        FlushPending();
+                        var orphan = AgentMessage.User(
+                            $"（工具 {message.ToolName ?? "未知"} 返回）{message.Text}");
+                        orphan.Tokens = TokenEstimator.EstimateMessage(orphan);
+                        result.Add(orphan);
+                    }
+                    else
+                    {
+                        pending.RemoveAt(index);
+                        result.Add(message);
+                    }
+                    break;
+            }
+        }
+
+        FlushPending();
+        return result;
     }
 
     private string BuildSystemPrompt(int toolTokens)
@@ -347,6 +448,8 @@ public sealed class AgentSession
         messages.RemoveRange(0, cut);
         _digest.Append(summary.ToString().TrimEnd());
         TrimDigest(1600);
+        Conversation.Digest = _digest.ToString();
+        AgentStore.Save(Conversation);
 
         RecalculateContext();
 
@@ -359,6 +462,7 @@ public sealed class AgentSession
 
         Notice?.Invoke($"上下文已压缩：折叠了 {removed} 条较早消息，" +
                        $"{TokenEstimator.Format(before)} → {TokenEstimator.Format(ContextUsed)} token。");
+        MessagesReset?.Invoke();
         UsageChanged?.Invoke();
         return true;
     }
@@ -375,9 +479,14 @@ public sealed class AgentSession
 
         _digest.Clear();
         _digest.Append("（更早的对话已省略）\n").Append(text[start..].TrimStart());
+        Conversation.Digest = _digest.ToString();
     }
 
-    public void ClearDigest() => _digest.Clear();
+    public void ClearDigest()
+    {
+        _digest.Clear();
+        Conversation.Digest = string.Empty;
+    }
 
     // ==================================================================
     // 内部
@@ -390,7 +499,6 @@ public sealed class AgentSession
         MessageAdded?.Invoke(message);
         RecalculateContext();
         UsageChanged?.Invoke();
-        AgentStore.Save(Conversation);
     }
 
     private void AppendNotice(string text, bool isError)

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Net;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
@@ -13,9 +13,7 @@ public sealed record AgentProviderPreset(
     string Name,
     string Note,
     AgentProviderKind Kind,
-    string BaseUrl,
-    string[] Models,
-    string ApiKey = "");
+    string BaseUrl);
 
 /// <summary>
 /// 内置供应商预设。预设只是"起步模板"，真正生效的是设置里的
@@ -26,94 +24,127 @@ public static class AgentProviderPresets
     /// <summary>可选预设（不含本地模拟，模拟服务始终内置在默认列表里）。</summary>
     public static IReadOnlyList<AgentProviderPreset> All { get; } = new List<AgentProviderPreset>
     {
-        new("openai", "OpenAI", "GPT-4o / 4.1 官方接口",
-            AgentProviderKind.OpenAiCompatible, "https://api.openai.com/v1",
-            new[] { "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini" }),
+        new("openai", "OpenAI", "官方接口",
+            AgentProviderKind.OpenAiCompatible, "https://api.openai.com/v1"),
 
-        new("deepseek", "DeepSeek", "deepseek-chat / reasoner",
-            AgentProviderKind.OpenAiCompatible, "https://api.deepseek.com/v1",
-            new[] { "deepseek-chat", "deepseek-reasoner" }),
+        new("deepseek", "DeepSeek", "官方接口",
+            AgentProviderKind.OpenAiCompatible, "https://api.deepseek.com/v1"),
 
         new("moonshot", "Kimi", "月之暗面 · 长上下文",
-            AgentProviderKind.OpenAiCompatible, "https://api.moonshot.cn/v1",
-            new[] { "moonshot-v1-32k", "moonshot-v1-8k", "kimi-k2-0905-preview" }),
+            AgentProviderKind.OpenAiCompatible, "https://api.moonshot.cn/v1"),
 
-        new("zhipu", "智谱 GLM", "GLM-4 系列",
-            AgentProviderKind.OpenAiCompatible, "https://open.bigmodel.cn/api/paas/v4",
-            new[] { "glm-4-flash", "glm-4-plus" }),
+        new("zhipu", "智谱 GLM", "智谱开放平台",
+            AgentProviderKind.OpenAiCompatible, "https://open.bigmodel.cn/api/paas/v4"),
 
         new("dashscope", "通义千问", "阿里云 · 兼容模式",
-            AgentProviderKind.OpenAiCompatible, "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            new[] { "qwen-plus", "qwen-max", "qwen-turbo" }),
+            AgentProviderKind.OpenAiCompatible, "https://dashscope.aliyuncs.com/compatible-mode/v1"),
 
         new("siliconflow", "硅基流动", "聚合推理服务",
-            AgentProviderKind.OpenAiCompatible, "https://api.siliconflow.cn/v1",
-            new[] { "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3" }),
+            AgentProviderKind.OpenAiCompatible, "https://api.siliconflow.cn/v1"),
 
         new("openrouter", "OpenRouter", "一个 Key 走多家模型",
-            AgentProviderKind.OpenAiCompatible, "https://openrouter.ai/api/v1",
-            new[] { "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini", "google/gemini-2.0-flash-001" }),
+            AgentProviderKind.OpenAiCompatible, "https://openrouter.ai/api/v1"),
 
-        new("ollama", "Ollama", "本机 11434 端口",
-            AgentProviderKind.OpenAiCompatible, "http://localhost:11434/v1",
-            new[] { "qwen2.5:7b", "llama3.1:8b" }, "ollama"),
+        new("ollama", "Ollama", "本机 11434 端口，不用填 Key",
+            AgentProviderKind.OpenAiCompatible, "http://localhost:11434/v1"),
 
-        new("lmstudio", "LM Studio", "本机 1234 端口",
-            AgentProviderKind.OpenAiCompatible, "http://localhost:1234/v1",
-            new[] { "local-model" }, "lm-studio"),
+        new("lmstudio", "LM Studio", "本机 1234 端口，不用填 Key",
+            AgentProviderKind.OpenAiCompatible, "http://localhost:1234/v1"),
 
         new("anthropic", "Claude", "Anthropic Messages",
-            AgentProviderKind.Anthropic, "https://api.anthropic.com",
-            new[] { "claude-3-5-sonnet-latest", "claude-3-7-sonnet-latest" }),
+            AgentProviderKind.Anthropic, "https://api.anthropic.com"),
 
         new("gemini", "Gemini", "Google AI Studio",
-            AgentProviderKind.Gemini, "https://generativelanguage.googleapis.com/v1beta",
-            new[] { "gemini-2.0-flash", "gemini-2.5-flash" }),
+            AgentProviderKind.Gemini, "https://generativelanguage.googleapis.com/v1beta"),
     };
 
-    public static IReadOnlyList<AgentProviderConfig> CreateDefaults()
-    {
-        var providers = new List<AgentProviderConfig>
-        {
-            new()
-            {
-                Id = "mock",
-                Name = "本地模拟",
-                Kind = AgentProviderKind.Mock,
-                BaseUrl = "local://mock",
-                Models = { "mofu-sim-1" },
-                SupportsTools = true,
-            },
-        };
+    // 官方 HTTPS 域名白名单：由预设自动推导，明文凭据只发给这些主机。
+    private static readonly HashSet<string> OfficialHosts = BuildOfficialHosts();
 
-        providers.AddRange(All.Select(preset => ToConfig(preset, preset.Id)));
-        return providers;
+    private static HashSet<string> BuildOfficialHosts()
+    {
+        var hosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (AgentProviderPreset preset in All)
+        {
+            if (Uri.TryCreate(preset.BaseUrl, UriKind.Absolute, out Uri? uri) &&
+                uri.Scheme == Uri.UriSchemeHttps)
+            {
+                hosts.Add(uri.Host);
+            }
+        }
+
+        return hosts;
     }
 
-    /// <summary>按预设新建一条供应商。运行期新增用唯一 id，避免和默认项撞车。</summary>
-    public static AgentProviderConfig CreateFromPreset(AgentProviderPreset preset) =>
-        ToConfig(preset, preset.Id + "-" + Guid.NewGuid().ToString("n")[..4]);
-
-    private static AgentProviderConfig ToConfig(AgentProviderPreset preset, string id) => new()
+    /// <summary>
+    /// 仅当目标为内置预设里的官方 HTTPS 端点时才允许附带明文凭据（ApiKey / ExtraHeaders）。
+    /// 本机服务、私网与用户自定义端点一律返回 false，避免密钥外带。
+    /// </summary>
+    public static bool IsOfficialEndpoint(string? baseUrl)
     {
-        Id = id,
-        Name = preset.Name,
-        Kind = preset.Kind,
-        BaseUrl = preset.BaseUrl,
-        ApiKey = preset.ApiKey,
-        Models = preset.Models.ToList(),
-        SupportsTools = true,
-    };
+        string normalized = NormalizeBaseUrl(baseUrl);
+        return Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri) &&
+               uri.Scheme == Uri.UriSchemeHttps &&
+               OfficialHosts.Contains(uri.Host);
+    }
 
-    /// <summary>新建空白供应商时的骨架。</summary>
-    public static AgentProviderConfig CreateBlank(string name = "自定义供应商") => new()
+    /// <summary>
+    /// 出站主机黑名单：云元数据、链路本地、私网与回环里的非本机地址一律拒绝；
+    /// 只放行内置的 localhost / 127.0.0.1 / ::1 本机 LLM 预设。
+    /// </summary>
+    private static bool IsBlockedHost(string host)
     {
-        Id = Guid.NewGuid().ToString("n")[..8],
-        Name = name,
-        Kind = AgentProviderKind.OpenAiCompatible,
-        BaseUrl = "https://api.example.com/v1",
-        Models = { "model-id" },
-    };
+        host = host.Trim().Trim('[', ']').ToLowerInvariant();
+
+        // 各家云元数据服务（AWS/GCP/Azure/阿里云/OpenStack）。
+        if (host is "metadata" or "metadata.google.internal" or "metadata.azure.internal"
+            or "169.254.169.254" or "100.100.100.200")
+            return true;
+
+        // 内置 Ollama / LM Studio 预设要能继续用本机服务。
+        if (host is "localhost" or "127.0.0.1" or "::1") return false;
+
+        if (!IPAddress.TryParse(host, out IPAddress? address)) return false;
+
+        // IPv4 映射的 IPv6 地址先规整成 IPv4 再判，避免 ::ffff:169.254.169.254 绕过。
+        if (address.IsIPv4MappedToIPv6)
+            address = address.MapToIPv4();
+
+        byte[] bytes = address.GetAddressBytes();
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            // IPv6：唯一本地 fc00::/7、链路本地 fe80::/10、未指定与回环均拒绝。
+            return bytes[0] == 0xFC || bytes[0] == 0xFD ||
+                   (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80) ||
+                   address.Equals(IPAddress.IPv6None) ||
+                   address.Equals(IPAddress.IPv6Loopback);
+        }
+
+        int a = bytes[0], b = bytes[1];
+        // 0/8、10/8、100.64/10、127/8、169.254/16、172.16/12、192.168/16、224/4 以上。
+        return a == 0 || a == 10 || a == 127 ||
+               (a == 169 && b == 254) ||
+               (a == 172 && b is >= 16 and <= 31) ||
+               (a == 192 && b == 168) ||
+               (a == 100 && b is >= 64 and <= 127) ||
+               a >= 224;
+    }
+
+    internal static readonly Dictionary<string, string[]> LegacyDefaultModels =
+        new(StringComparer.Ordinal)
+        {
+            ["openai"] = new[] { "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini" },
+            ["deepseek"] = new[] { "deepseek-chat", "deepseek-reasoner" },
+            ["moonshot"] = new[] { "moonshot-v1-32k", "moonshot-v1-8k", "kimi-k2-0905-preview" },
+            ["zhipu"] = new[] { "glm-4-flash", "glm-4-plus" },
+            ["dashscope"] = new[] { "qwen-plus", "qwen-max", "qwen-turbo" },
+            ["siliconflow"] = new[] { "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3" },
+            ["openrouter"] = new[] { "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini", "google/gemini-2.0-flash-001" },
+            ["ollama"] = new[] { "qwen2.5:7b", "llama3.1:8b" },
+            ["lmstudio"] = new[] { "local-model" },
+            ["anthropic"] = new[] { "claude-3-5-sonnet-latest", "claude-3-7-sonnet-latest" },
+            ["gemini"] = new[] { "gemini-2.0-flash", "gemini-2.5-flash" },
+        };
 
     /// <summary>按模型名猜一个上下文窗口，用于新建供应商时给个合理默认值。</summary>
     public static int GuessContextWindow(string model)
@@ -139,23 +170,32 @@ public static class AgentProviderPresets
         AgentProviderKind.OpenAiCompatible => "OpenAI 兼容",
         AgentProviderKind.Anthropic => "Anthropic Messages",
         AgentProviderKind.Gemini => "Gemini generateContent",
-        AgentProviderKind.Mock => "本地模拟",
         _ => kind.ToString(),
     };
 
     public static IReadOnlyList<AgentProviderKind> AllKinds { get; } = Enum.GetValues<AgentProviderKind>();
 
+    public static int IndexOfKind(AgentProviderKind kind)
+    {
+        for (int i = 0; i < AllKinds.Count; i++)
+            if (AllKinds[i] == kind) return i;
+        return 0;
+    }
+
+    public static AgentProviderKind KindAt(int index) =>
+        AllKinds[Math.Clamp(index, 0, AllKinds.Count - 1)];
+
     /// <summary>列表里显示的配置状态：已配置 / 缺 Key / 本机服务 / 模拟。</summary>
     public static (string Text, string Tone) DescribeStatus(AgentProviderConfig provider)
     {
-        if (provider.Kind == AgentProviderKind.Mock) return ("模拟", "info");
-        if (IsLocalEndpoint(provider)) return ("本机", "info");
+        if (string.IsNullOrWhiteSpace(provider.BaseUrl)) return ("未填地址", "warning");
+        if (provider.Models.Count == 0) return ("未填模型", "warning");
+        if (IsLocalEndpoint(provider)) return ("本机 · 可用", "success");
         if (string.IsNullOrWhiteSpace(provider.ApiKey)) return ("缺 Key", "warning");
         return ("已配置", "success");
     }
 
     public static bool IsLocalEndpoint(AgentProviderConfig provider) =>
-        provider.Kind == AgentProviderKind.Mock ||
         provider.BaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
         provider.BaseUrl.Contains("127.0.0.1", StringComparison.Ordinal);
 
@@ -164,12 +204,24 @@ public static class AgentProviderPresets
     {
         string url = (value ?? string.Empty).Trim();
         if (url.Length == 0) return url;
-        if (url.Contains("://", StringComparison.Ordinal)) return url.TrimEnd('/');
+
+        if (url.Contains("://", StringComparison.Ordinal))
+        {
+            url = url.TrimEnd('/');
+            return Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) &&
+                   (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps) &&
+                   !IsBlockedHost(parsed.Host)
+                ? url
+                : string.Empty;
+        }
 
         bool local = url.StartsWith("localhost", StringComparison.OrdinalIgnoreCase) ||
                      url.StartsWith("127.0.0.1", StringComparison.Ordinal) ||
                      url.StartsWith("0.0.0.0", StringComparison.Ordinal);
-        return (local ? "http://" : "https://") + url.TrimEnd('/');
+        string normalized = (local ? "http://" : "https://") + url.TrimEnd('/');
+        return Uri.TryCreate(normalized, UriKind.Absolute, out Uri? built) && !IsBlockedHost(built.Host)
+            ? normalized
+            : string.Empty;
     }
 
     public static string Summarize(AgentProviderConfig provider, string model) =>

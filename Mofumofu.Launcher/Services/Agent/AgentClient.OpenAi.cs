@@ -18,33 +18,7 @@ internal static class OpenAiClient
         var turn = new AgentTurn();
         string url = AgentClient.TrimBase(request.Provider.BaseUrl) + "/chat/completions";
 
-        var body = new Dictionary<string, object?>
-        {
-            ["model"] = request.Model,
-            ["messages"] = BuildMessages(request),
-            ["temperature"] = request.Temperature,
-            ["top_p"] = request.TopP,
-            ["max_tokens"] = request.MaxOutputTokens,
-            ["stream"] = request.Streaming,
-        };
-
-        if (request.Streaming)
-            body["stream_options"] = new Dictionary<string, object?> { ["include_usage"] = true };
-
-        if (request.Tools.Count > 0 && request.Provider.SupportsTools)
-            body["tools"] = BuildTools(request.Tools);
-
-        using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
-        if (!string.IsNullOrWhiteSpace(request.Provider.ApiKey))
-            http.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
-                "Bearer", request.Provider.ApiKey.Trim());
-        http.Content = AgentClient.JsonBody(body);
-
-        using HttpResponseMessage response = await AgentClient.Http.SendAsync(
-            http, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-            throw new AgentRequestException(await AgentClient.ReadErrorAsync(response, cancellationToken));
+        using HttpResponseMessage response = await SendWithFallbackAsync(request, url, cancellationToken);
 
         if (!request.Streaming)
         {
@@ -105,7 +79,7 @@ internal static class OpenAiClient
                 foreach (JsonNode? item in toolCalls)
                 {
                     if (item is null) continue;
-                    int index = item["index"]?.GetValue<int>() ?? toolBuffers.Count;
+                    int index = item["index"]?.GetValue<int>() ?? 0;
                     if (!toolBuffers.TryGetValue(index, out var buffer))
                     {
                         buffer = (string.Empty, string.Empty, new System.Text.StringBuilder());
@@ -133,6 +107,84 @@ internal static class OpenAiClient
         }
 
         return turn;
+    }
+
+    private static async Task<HttpResponseMessage> SendWithFallbackAsync(
+        AgentRequest request, string url, CancellationToken ct)
+    {
+        HttpResponseMessage response = await SendOnceAsync(request, url, true, ct);
+        if (response.IsSuccessStatusCode || !request.Streaming) return response;
+
+        string detail = await AgentClient.ReadErrorAsync(response, ct);
+        bool unsupported = (int)response.StatusCode is 400 or 422 &&
+                           detail.Contains("stream_options", StringComparison.OrdinalIgnoreCase);
+        response.Dispose();
+        if (!unsupported) throw new AgentRequestException(detail);
+
+        response = await SendOnceAsync(request, url, false, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            string second = await AgentClient.ReadErrorAsync(response, ct);
+            response.Dispose();
+            throw new AgentRequestException(second);
+        }
+
+        return response;
+    }
+
+    private static async Task<HttpResponseMessage> SendOnceAsync(
+        AgentRequest request, string url, bool includeUsage, CancellationToken ct)
+    {
+        using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
+        // 明文 Key 只发给官方端点；本机/自定义端点不自动附带。
+        if (AgentProviderPresets.IsOfficialEndpoint(request.Provider.BaseUrl) &&
+            !string.IsNullOrWhiteSpace(request.Provider.ApiKey))
+        {
+            http.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                "Bearer", request.Provider.ApiKey.Trim());
+        }
+
+        http.Content = AgentClient.JsonBody(BuildBody(request, includeUsage));
+        return await AgentClient.Http.SendAsync(http, HttpCompletionOption.ResponseHeadersRead, ct);
+    }
+
+    private static Dictionary<string, object?> BuildBody(AgentRequest request, bool includeUsage)
+    {
+        bool reasoningModel = RequiresCompletionTokens(request.Model);
+        var body = new Dictionary<string, object?>
+        {
+            ["model"] = request.Model,
+            ["messages"] = BuildMessages(request),
+            [reasoningModel ? "max_completion_tokens" : "max_tokens"] = request.MaxOutputTokens,
+            ["stream"] = request.Streaming,
+        };
+
+        if (!reasoningModel)
+        {
+            body["temperature"] = request.Temperature;
+            body["top_p"] = request.TopP;
+        }
+
+        if (request.Streaming && includeUsage)
+            body["stream_options"] = new Dictionary<string, object?> { ["include_usage"] = true };
+
+        if (request.Tools.Count > 0 && request.Provider.SupportsTools)
+            body["tools"] = BuildTools(request.Tools);
+
+        return body;
+    }
+
+    private static bool RequiresCompletionTokens(string model)
+    {
+        string id = model.Trim().ToLowerInvariant();
+        int slash = id.LastIndexOf('/');
+        if (slash >= 0) id = id[(slash + 1)..];
+
+        return id.StartsWith("gpt-5", StringComparison.Ordinal) ||
+               id.StartsWith("gpt-6", StringComparison.Ordinal) ||
+               id.StartsWith("o1", StringComparison.Ordinal) ||
+               id.StartsWith("o3", StringComparison.Ordinal) ||
+               id.StartsWith("o4", StringComparison.Ordinal);
     }
 
     private static List<object> BuildMessages(AgentRequest request)
@@ -224,7 +276,10 @@ internal static class OpenAiClient
         if (!choice.TryGetProperty("message", out JsonElement message)) return;
 
         if (message.TryGetProperty("reasoning_content", out JsonElement reasoning) && reasoning.ValueKind == JsonValueKind.String)
+        {
             turn.Reasoning = reasoning.GetString() ?? string.Empty;
+            if (turn.Reasoning.Length > 0) sink?.OnReasoning(turn.Reasoning);
+        }
 
         if (message.TryGetProperty("content", out JsonElement content) && content.ValueKind == JsonValueKind.String)
         {

@@ -19,12 +19,11 @@ public static partial class AgentClient
     public static async Task<(bool Ok, string Message, List<string> Models)> ListModelsAsync(
         AgentProviderConfig provider, CancellationToken cancellationToken)
     {
-        if (provider.Kind == AgentProviderKind.Mock)
-            return (true, "本地模拟不需要拉取。", new List<string>(provider.Models));
-
         string baseUrl = AgentProviderPresets.NormalizeBaseUrl(provider.BaseUrl);
         if (string.IsNullOrWhiteSpace(baseUrl))
             return (false, "先填 Base URL。", new List<string>());
+        if (AgentSecretProtector.LooksEncrypted(provider.ApiKey))
+            return (false, "API Key 无法解密，请重新填写后再拉取模型。", new List<string>());
 
         try
         {
@@ -59,23 +58,29 @@ public static partial class AgentClient
         switch (provider.Kind)
         {
             case AgentProviderKind.Anthropic:
-                url = baseUrl + "/v1/models?limit=100";
+                url = AgentClient.TrimVersionedBase(baseUrl) + "/v1/models?limit=100";
                 HttpRequestMessage anthropic = Build(HttpMethod.Get, url, provider);
-                if (!string.IsNullOrWhiteSpace(provider.ApiKey))
+                if (AgentProviderPresets.IsOfficialEndpoint(provider.BaseUrl) &&
+                    !string.IsNullOrWhiteSpace(provider.ApiKey))
                     anthropic.Headers.TryAddWithoutValidation("x-api-key", provider.ApiKey.Trim());
                 anthropic.Headers.TryAddWithoutValidation("anthropic-version", AnthropicVersion);
                 return anthropic;
 
             case AgentProviderKind.Gemini:
+            {
                 url = baseUrl + "/models?pageSize=200";
-                if (!string.IsNullOrWhiteSpace(provider.ApiKey))
-                    url += "&key=" + Uri.EscapeDataString(provider.ApiKey.Trim());
-                return Build(HttpMethod.Get, url, provider);
+                HttpRequestMessage gemini = Build(HttpMethod.Get, url, provider);
+                if (AgentProviderPresets.IsOfficialEndpoint(provider.BaseUrl) &&
+                    !string.IsNullOrWhiteSpace(provider.ApiKey))
+                    gemini.Headers.TryAddWithoutValidation("x-goog-api-key", provider.ApiKey.Trim());
+                return gemini;
+            }
 
             default:
                 url = baseUrl + "/models";
                 HttpRequestMessage openAi = Build(HttpMethod.Get, url, provider);
-                if (!string.IsNullOrWhiteSpace(provider.ApiKey))
+                if (AgentProviderPresets.IsOfficialEndpoint(provider.BaseUrl) &&
+                    !string.IsNullOrWhiteSpace(provider.ApiKey))
                 {
                     openAi.Headers.Authorization =
                         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", provider.ApiKey.Trim());
@@ -138,6 +143,10 @@ public static partial class AgentClient
         return models.Take(500).ToList();
     }
 
-    private static string Shorten(string url) =>
-        url.Length <= 64 ? url : url[..61] + "…";
+    private static string Shorten(string url)
+    {
+        int query = url.IndexOfAny(new[] { '?', '#' });
+        if (query >= 0) url = url[..query];
+        return url.Length <= 64 ? url : url[..61] + "…";
+    }
 }

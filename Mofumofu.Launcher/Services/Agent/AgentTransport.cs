@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,16 +55,26 @@ public static partial class AgentClient
         AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
     })
     {
-        Timeout = Timeout.InfiniteTimeSpan,
+        Timeout = TimeSpan.FromMinutes(15),
     };
 
     public static async Task<AgentTurn> CompleteAsync(
         AgentRequest request, IAgentStreamSink? sink, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+        if (AgentSecretProtector.LooksEncrypted(request.Provider.ApiKey))
+        {
+            throw new AgentRequestException("当前供应商的 API Key 无法解密，请到 MofuAgent 设置里重新填写。");
+        }
+
+        // 出站前再校验一次最终主机：拦截被篡改/导入的配置绕开设置界面直接打到内网或云元数据。
+        if (string.IsNullOrWhiteSpace(AgentProviderPresets.NormalizeBaseUrl(request.Provider.BaseUrl)))
+        {
+            throw new AgentRequestException("供应商地址无效或指向被禁止的主机（回环/私网/云元数据），请检查设置。");
+        }
+
         AgentTurn turn = request.Provider.Kind switch
         {
-            AgentProviderKind.Mock => await MockClient.CompleteAsync(request, sink, cancellationToken),
             AgentProviderKind.Anthropic => await AnthropicClient.CompleteAsync(request, sink, cancellationToken),
             AgentProviderKind.Gemini => await GeminiClient.CompleteAsync(request, sink, cancellationToken),
             _ => await OpenAiClient.CompleteAsync(request, sink, cancellationToken),
@@ -114,7 +125,12 @@ public static partial class AgentClient
     internal static HttpRequestMessage Build(HttpMethod method, string url, AgentProviderConfig provider)
     {
         var message = new HttpRequestMessage(method, url);
-        foreach (string line in provider.ExtraHeaders.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        // 只把额外请求头发给官方端点；本机/自定义端点一律不带，避免鉴权头外泄。
+        string headers = AgentProviderPresets.IsOfficialEndpoint(provider.BaseUrl) &&
+                         !AgentSecretProtector.LooksEncrypted(provider.ExtraHeaders)
+            ? provider.ExtraHeaders
+            : string.Empty;
+        foreach (string line in headers.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             int colon = line.IndexOf(':');
             if (colon <= 0) continue;
@@ -128,6 +144,12 @@ public static partial class AgentClient
         new(JsonSerializer.Serialize(body, AgentJson.Options), Encoding.UTF8, "application/json");
 
     internal static string TrimBase(string baseUrl) => baseUrl.TrimEnd('/');
+
+    internal static string TrimVersionedBase(string baseUrl)
+    {
+        string url = TrimBase(baseUrl);
+        return url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? url[..^3] : url;
+    }
 
     internal static async Task<string> ReadErrorAsync(HttpResponseMessage response, CancellationToken ct)
     {
@@ -159,9 +181,27 @@ public static partial class AgentClient
         }
 
         if (string.IsNullOrWhiteSpace(detail)) detail = response.ReasonPhrase ?? "无响应内容";
+        detail = RedactError(detail);
         if (detail.Length > 400) detail = detail[..400] + "…";
 
         return $"HTTP {(int)response.StatusCode} · {detail}";
+    }
+
+    /// <summary>错误体回显脱敏：去掉控制字符，掩盖可能被服务端回显出来的密钥/令牌。</summary>
+    private static string RedactError(string text)
+    {
+        if (text.Length == 0) return text;
+
+        var builder = new StringBuilder(text.Length);
+        foreach (char ch in text)
+            builder.Append(char.IsControl(ch) ? ' ' : ch);
+
+        const RegexOptions flags = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+        string clean = builder.ToString();
+        clean = Regex.Replace(clean, @"sk-[A-Za-z0-9_-]{8,}", "[已隐藏]", flags);
+        clean = Regex.Replace(clean, @"bearer\s+\S+", "Bearer [已隐藏]", flags);
+        clean = Regex.Replace(clean, @"x-(?:api|goog-api)-key\s*[:=]\s*\S+", "x-api-key: [已隐藏]", flags);
+        return clean;
     }
 }
 
@@ -178,6 +218,8 @@ internal static class AgentJson
 /// <summary>SSE 行读取器：把 "data: ..." 与 "event: ..." 组合成一条条事件。</summary>
 internal sealed class SseReader
 {
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(180);
+
     private readonly StreamReader _reader;
 
     private SseReader(StreamReader reader) => _reader = reader;
@@ -193,10 +235,24 @@ internal sealed class SseReader
     {
         string? eventName = null;
         var data = new StringBuilder();
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        idle.CancelAfter(IdleTimeout);
 
         while (true)
         {
-            string? line = await _reader.ReadLineAsync(ct);
+            string? line;
+            try
+            {
+                line = await _reader.ReadLineAsync(idle.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new AgentRequestException(
+                    $"供应商超过 {(int)IdleTimeout.TotalSeconds} 秒没有返回新数据，连接已断开。");
+            }
+
+            idle.CancelAfter(IdleTimeout);
+
             if (line is null)
             {
                 return data.Length > 0 ? (eventName, data.ToString()) : null;

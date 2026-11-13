@@ -17,9 +17,7 @@ internal static class GeminiClient
     {
         var turn = new AgentTurn();
         string action = request.Streaming ? ":streamGenerateContent?alt=sse" : ":generateContent";
-        string url = $"{AgentClient.TrimBase(request.Provider.BaseUrl)}/models/{request.Model}{action}";
-        if (!string.IsNullOrWhiteSpace(request.Provider.ApiKey))
-            url += (url.Contains('?') ? "&" : "?") + "key=" + Uri.EscapeDataString(request.Provider.ApiKey.Trim());
+        string url = $"{AgentClient.TrimBase(request.Provider.BaseUrl)}/models/{Uri.EscapeDataString(request.Model.Trim())}{action}";
 
         var body = new Dictionary<string, object?>
         {
@@ -53,6 +51,10 @@ internal static class GeminiClient
         }
 
         using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
+        // 明文 Key 只发给官方端点；本机/自定义端点不自动附带。
+        if (AgentProviderPresets.IsOfficialEndpoint(request.Provider.BaseUrl) &&
+            !string.IsNullOrWhiteSpace(request.Provider.ApiKey))
+            http.Headers.TryAddWithoutValidation("x-goog-api-key", request.Provider.ApiKey.Trim());
         http.Content = AgentClient.JsonBody(body);
 
         using HttpResponseMessage response = await AgentClient.Http.SendAsync(

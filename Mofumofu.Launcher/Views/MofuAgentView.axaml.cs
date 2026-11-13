@@ -78,25 +78,7 @@ public partial class MofuAgentView : UserControl
         {
             // 从设置页回来时设置可能已经变了，重新读一遍再刷新仪表
             AgentSettings fresh = AgentSettingsStore.Load();
-            _settings.Temperature = fresh.Temperature;
-            _settings.TopP = fresh.TopP;
-            _settings.MaxOutputTokens = fresh.MaxOutputTokens;
-            _settings.Streaming = fresh.Streaming;
-            _settings.MaxToolRounds = fresh.MaxToolRounds;
-            _settings.ContextWindow = fresh.ContextWindow;
-            _settings.AutoCompact = fresh.AutoCompact;
-            _settings.CompactAt = fresh.CompactAt;
-            _settings.KeepRecentMessages = fresh.KeepRecentMessages;
-            _settings.Tools.Enabled = fresh.Tools.Enabled;
-            _settings.Tools.LauncherControl = fresh.Tools.LauncherControl;
-            _settings.Tools.ConfirmWrites = fresh.Tools.ConfirmWrites;
-            _settings.Tools.TimeoutSeconds = fresh.Tools.TimeoutSeconds;
-            _settings.Tools.DisabledTools = fresh.Tools.DisabledTools;
-            _settings.ShowInspector = fresh.ShowInspector;
-            _settings.SystemPrompt = fresh.SystemPrompt;
-            _settings.Providers = fresh.Providers;
-            _settings.ActiveProviderId = fresh.ActiveProviderId;
-            _settings.ActiveModel = fresh.ActiveModel;
+            _settings.CopyFrom(fresh);
 
             FillProviderCombos();
             ApplyQuickSettings();
@@ -180,6 +162,7 @@ public partial class MofuAgentView : UserControl
 
         _session.StateChanged += (state, detail) => RunOnUi(() => ApplyState(state, detail));
         _session.UsageChanged += () => RunOnUi(RefreshInspector);
+        _session.MessagesReset += () => RunOnUi(RebuildMessagePanel);
         _session.Notice += text => RunOnUi(() => Shell.Toast(text));
     }
 
@@ -199,7 +182,16 @@ public partial class MofuAgentView : UserControl
         _settings.LastConversationId = conversation.Id;
         AgentSettingsStore.Save(_settings);
 
-        _session.Load(conversation);
+        _session.Load(conversation);   // 内部触发 MessagesReset，气泡会整体重建
+        RebuildSessionList();
+        RefreshHeader();
+        RefreshInspector();
+    }
+
+    private void RebuildMessagePanel()
+    {
+        AgentConversation conversation = _session.Conversation;
+
         _toolRuns.Clear();
         foreach (AgentMessage message in conversation.Messages.Where(m => m.Role == AgentRole.Tool))
         {
@@ -209,8 +201,8 @@ public partial class MofuAgentView : UserControl
                 message.IsError ? "error" : "ok",
                 message.IsError ? "失败" : "已完成");
         }
-        ClearMessageHosts();
 
+        ClearMessageHosts();
         foreach (AgentMessage message in conversation.Messages)
         {
             var host = new StackPanel { Spacing = 8 };
@@ -220,7 +212,6 @@ public partial class MofuAgentView : UserControl
         }
 
         EmptyState.IsVisible = conversation.Messages.Count == 0;
-        RebuildSessionList();
         RefreshHeader();
         RefreshInspector();
         AutoScroll();
@@ -521,14 +512,20 @@ public partial class MofuAgentView : UserControl
     private void RefreshProviderReadiness()
     {
         AgentProviderConfig? provider = _settings.ActiveProvider;
-        if (provider is null) return;
-
-        (string status, _) = AgentProviderPresets.DescribeStatus(provider);
-        if (status == "缺 Key")
+        if (provider is null)
         {
-            HeaderStatusText.Text = "缺少 API Key";
+            HeaderStatusText.Text = "未添加供应商";
             HeaderStatusDot.Fill = ThemeTokens.Brush("NekoWarningBrush");
-            ToolTip.SetTip(HeaderStatusText, "设置 → 供应商 → 填 API Key");
+            ToolTip.SetTip(HeaderStatusText, "设置 → 供应商 → 添加一条，填好地址、Key 与模型 id");
+            return;
+        }
+
+        (string status, string tone) = AgentProviderPresets.DescribeStatus(provider);
+        if (tone == "warning")
+        {
+            HeaderStatusText.Text = status;
+            HeaderStatusDot.Fill = ThemeTokens.Brush("NekoWarningBrush");
+            ToolTip.SetTip(HeaderStatusText, "设置 → 供应商 → " + status);
             return;
         }
 
@@ -1325,15 +1322,21 @@ public partial class MofuAgentView : UserControl
     {
         _loadingControls = true;
         ProviderCombo.ItemsSource = _settings.Providers.Select(p => p.Name).ToList();
-        ProviderCombo.SelectedIndex = Math.Max(0,
-            _settings.Providers.FindIndex(p => p.Id == _settings.ActiveProviderId));
+        ProviderCombo.SelectedIndex = _settings.Providers.Count == 0
+            ? -1
+            : Math.Max(0, _settings.Providers.FindIndex(p => p.Id == _settings.ActiveProviderId));
 
-        AgentProviderConfig provider = _settings.EnsureProvider();
-        ModelCombo.ItemsSource = provider.Models.ToList();
-        ModelCombo.SelectedIndex = Math.Max(0, provider.Models.IndexOf(_settings.ActiveModel));
+        AgentProviderConfig? provider = _settings.EnsureProvider();
+        ModelCombo.ItemsSource = provider?.Models.ToList() ?? new List<string>();
+        ModelCombo.SelectedIndex = provider is null || provider.Models.Count == 0
+            ? -1
+            : Math.Max(0, provider.Models.IndexOf(_settings.ActiveModel));
         _settings.ContextWindow = _settings.ResolveContextWindow();
-        ToolTip.SetTip(ProviderCombo, $"{provider.Name} · {AgentProviderPresets.DescribeKind(provider.Kind)}");
-        ToolTip.SetTip(ModelCombo, "当前模型：" + (_settings.ActiveModel.Length == 0 ? "未选择" : _settings.ActiveModel));
+        ToolTip.SetTip(ProviderCombo, provider is null
+            ? "还没有供应商，请到「设置 → 供应商」里添加一条"
+            : $"{provider.Name} · {AgentProviderPresets.DescribeKind(provider.Kind)}");
+        ToolTip.SetTip(ModelCombo, "当前模型：" +
+            (string.IsNullOrEmpty(_settings.ActiveModel) ? "未选择" : _settings.ActiveModel));
         UpdateEmptyModelHint();
         RefreshProviderReadiness();
         _loadingControls = false;
@@ -1347,16 +1350,16 @@ public partial class MofuAgentView : UserControl
         if (index < 0 || index >= _settings.Providers.Count) return;
 
         _settings.ActiveProviderId = _settings.Providers[index].Id;
-        AgentProviderConfig provider = _settings.EnsureProvider();
-        _settings.ActiveModel = provider.Models.FirstOrDefault() ?? string.Empty;
-        _settings.ContextWindow = provider.ContextWindow > 0
+        AgentProviderConfig? provider = _settings.EnsureProvider();
+        _settings.ActiveModel = provider?.Models.FirstOrDefault() ?? string.Empty;
+        _settings.ContextWindow = provider is { ContextWindow: > 0 }
             ? provider.ContextWindow
             : AgentProviderPresets.GuessContextWindow(_settings.ActiveModel);
 
         AgentSettingsStore.Save(_settings);
         FillProviderCombos();
         RefreshInspector();
-        Shell.Toast("已切换到 " + provider.Name);
+        Shell.Toast("已切换到 " + (provider?.Name ?? string.Empty));
     }
 
     private void OnModelChanged(object? sender, SelectionChangedEventArgs e)
@@ -1437,14 +1440,19 @@ public partial class MofuAgentView : UserControl
 
     private void OnCompactNow(object? sender, RoutedEventArgs e)
     {
+        if (_session.IsBusy)
+        {
+            Shell.Toast("正在生成，等这一轮结束再压缩。");
+            return;
+        }
+
         if (!_session.CompactIfNeeded(force: true))
         {
             Shell.Toast("当前没有可压缩的历史（消息太少）。");
             return;
         }
 
-        OpenConversation(_session.Conversation);
-        RefreshInspector();
+        RebuildSessionList();
     }
 
 
@@ -1465,8 +1473,8 @@ public partial class MofuAgentView : UserControl
     private void UpdateEmptyModelHint()
     {
         AgentProviderConfig? provider = _settings.ActiveProvider;
-        EmptyModelHint.Text = (provider?.Name ?? "未选择") + " / " +
-                              (_settings.ActiveModel.Length == 0 ? "无模型" : _settings.ActiveModel);
+        EmptyModelHint.Text = (provider?.Name ?? "未添加供应商") + " / " +
+                              (string.IsNullOrEmpty(_settings.ActiveModel) ? "无模型" : _settings.ActiveModel);
     }
 
     /// <summary>收起右侧仪表，把宽度让给对话正文。窄窗口下很实用。</summary>
@@ -1487,40 +1495,5 @@ public partial class MofuAgentView : UserControl
             ComposerBox.Focus();
             ComposerBox.CaretIndex = text.Length;
         }
-    }
-
-
-    // ==================================================================
-    // 验收用（仅被 MOFU_AGENT_SHOT 预览钩子调用）
-    // ==================================================================
-
-    /// <summary>页面是否已经完成首次加载（预览钩子等它稳定后再灌数据）。</summary>
-    internal bool IsReady => _initialized;
-
-    internal void StartNewConversationForPreview() => StartNewConversation();
-
-    /// <summary>跑一次会触发 ask_user 的对话，用于截图核对交互卡片。</summary>
-    internal void SeedPreviewAsk()
-    {
-        if (_session.Conversation.Messages.Count > 0) StartNewConversation();
-        ComposerBox.Text = "问我一下要做什么";
-        _ = SendComposerAsync();
-    }
-
-    /// <summary>跑一段本地模拟对话，用来截图核对消息气泡、工具卡片与上下文仪表。</summary>
-    internal async Task SeedPreviewConversationAsync()
-    {
-        if (_session.Conversation.Messages.Count > 0) return;
-
-        AgentProviderConfig? mock = _settings.Providers.FirstOrDefault(p => p.Kind == AgentProviderKind.Mock);
-        if (mock is not null && _settings.ActiveProvider?.Kind != AgentProviderKind.Mock)
-        {
-            _settings.ActiveProviderId = mock.Id;
-            _settings.ActiveModel = mock.Models.FirstOrDefault() ?? "mofu-sim-1";
-            FillProviderCombos();
-        }
-
-        ComposerBox.Text = "帮我看看有哪些实例，顺便告诉我现在的状态";
-        await SendComposerAsync();
     }
 }

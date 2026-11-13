@@ -116,9 +116,16 @@ internal static class LauncherAgentTools
     {
         return Task.Run(() =>
         {
-            string instance = AgentToolArgs.String(arguments, "instance") ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(instance)) instance = LocalSettings.Current.SelectedInstanceId;
+            string instance = (AgentToolArgs.String(arguments, "instance") ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(instance)) instance = LocalSettings.Current.SelectedInstanceId ?? string.Empty;
             if (string.IsNullOrWhiteSpace(instance)) return "没有选中实例，也没指定实例名。";
+
+            if (Path.IsPathRooted(instance) ||
+                instance.Contains("..", StringComparison.Ordinal) ||
+                instance.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return "实例名不合法：只能是 versions 目录下的单个目录名。";
+            }
 
             string root = YamlRead.GameDirectory ?? string.Empty;
             if (root.Length == 0) return "游戏目录还没设置。";

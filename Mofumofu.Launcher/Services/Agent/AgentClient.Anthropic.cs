@@ -19,7 +19,7 @@ internal static class AnthropicClient
         AgentRequest request, IAgentStreamSink? sink, CancellationToken cancellationToken)
     {
         var turn = new AgentTurn();
-        string url = AgentClient.TrimBase(request.Provider.BaseUrl) + "/v1/messages";
+        string url = AgentClient.TrimVersionedBase(request.Provider.BaseUrl) + "/v1/messages";
 
         var body = new Dictionary<string, object?>
         {
@@ -44,7 +44,12 @@ internal static class AnthropicClient
         }
 
         using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
-        http.Headers.TryAddWithoutValidation("x-api-key", request.Provider.ApiKey.Trim());
+        // 明文 Key 只发给官方端点；本机/自定义端点不自动附带。
+        if (AgentProviderPresets.IsOfficialEndpoint(request.Provider.BaseUrl) &&
+            !string.IsNullOrWhiteSpace(request.Provider.ApiKey))
+        {
+            http.Headers.TryAddWithoutValidation("x-api-key", request.Provider.ApiKey.Trim());
+        }
         http.Headers.TryAddWithoutValidation("anthropic-version", ApiVersion);
         http.Content = AgentClient.JsonBody(body);
 
@@ -263,6 +268,12 @@ internal static class AnthropicClient
                 string value = text.GetString() ?? string.Empty;
                 turn.Text += value;
                 if (value.Length > 0) sink?.OnText(value);
+            }
+            else if (type == "thinking" && block.TryGetProperty("thinking", out JsonElement thought))
+            {
+                string value = thought.GetString() ?? string.Empty;
+                turn.Reasoning += value;
+                if (value.Length > 0) sink?.OnReasoning(value);
             }
             else if (type == "tool_use")
             {

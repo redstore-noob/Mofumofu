@@ -32,7 +32,7 @@
             <Setter Property="MinHeight" Value="32" />
         </Style>
 
-        <!-- 供应商主从列表 -->
+<!-- 供应商主从列表 -->        
         <Style Selector="Border.provider-row">
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="Padding" Value="8,6" />
@@ -48,7 +48,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
         </Style>
 
-        <!-- 模型标签 -->
+<!-- 模型标签 -->        
         <Style Selector="Border.model-chip">
             <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -88,120 +88,181 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
-        <!-- 页头 -->
-        <Grid ColumnDefinitions="Auto,*,Auto" Height="58" Margin="0,0,0,14">
-            <Button Classes="round" Width="34" Height="34" VerticalAlignment="Top" Margin="0,3,0,0"
-                    Click="OnBack" ToolTip.Tip="返回 MofuAgent">
+<!-- 页头 -->        
+        <Grid ColumnDefinitions="Auto,*,Auto" Height="34" Margin="0,0,0,10">
+            <Button Classes="round" Width="32" Height="32" VerticalAlignment="Center"
+                    Click="OnBack" ToolTip.Tip="{DynamicResource L.Agent.Settings.T01}">
                 <controls:IconParkIcon Kind="IconArrowLeft" Width="16" Height="16" />
             </Button>
-            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="MofuAgent 设置" Classes="page-title" />
-                <TextBlock Classes="muted" Text="供应商、模型、上下文与工具权限" />
-            </StackPanel>
-            <Button Grid.Column="2" Classes="ghost" Height="32" Padding="12,0" VerticalAlignment="Center"
+            <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                       Text="{DynamicResource L.Agent.Settings.L01}" FontSize="11.5"
+                       Foreground="{DynamicResource NekoMutedBrush}" />
+            <Button Grid.Column="2" Classes="ghost" Height="30" Padding="12,0" VerticalAlignment="Center"
                     Click="OnBack">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <controls:IconParkIcon Kind="IconFluentChat" Width="14" Height="14" />
-                    <TextBlock Text="返回对话" FontSize="11.5" />
+                    <TextBlock Text="{DynamicResource L.Agent.Settings.L02}" FontSize="11.5" />
                 </StackPanel>
             </Button>
         </Grid>
 
         <Grid Grid.Row="1" ColumnDefinitions="164,*" ColumnSpacing="12">
-            <!-- 分区导航 -->
+<!-- 分区导航 -->            
             <Border Classes="card" CornerRadius="12" Padding="10">
                 <StackPanel Spacing="2">
-                    <TextBlock Classes="muted" Text="设置" Margin="6,2,0,8" />
+                    <TextBlock Classes="muted" Text="{DynamicResource L.Agent.Settings.L03}" Margin="6,2,0,8" />
                     <Button x:Name="TabProvider" Classes="pill active" Height="32" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left" Padding="10,0" Content="供应商"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B01}"
                             Click="OnSettingsTab" Tag="provider" />
                     <Button x:Name="TabGeneration" Classes="pill" Height="32" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left" Padding="10,0" Content="生成"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B02}"
                             Click="OnSettingsTab" Tag="generation" />
                     <Button x:Name="TabContext" Classes="pill" Height="32" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left" Padding="10,0" Content="上下文"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B03}"
                             Click="OnSettingsTab" Tag="context" />
                     <Button x:Name="TabTools" Classes="pill" Height="32" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left" Padding="10,0" Content="工具"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B04}"
                             Click="OnSettingsTab" Tag="tools" />
                     <Button x:Name="TabData" Classes="pill" Height="32" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left" Padding="10,0" Content="数据"
+                            HorizontalContentAlignment="Left" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B05}"
                             Click="OnSettingsTab" Tag="data" />
                     <Border Classes="divider" Margin="0,8" />
                     <TextBlock x:Name="SettingsPathText" Classes="caption" Margin="6,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
-            <!-- 内容 -->
+<!-- 内容 -->            
             <Border Grid.Column="1" Classes="card" CornerRadius="12" Padding="16,14">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Panel>
-                        <!-- 供应商：预设工具栏 + 主从编辑台 -->
+<!-- 供应商：预设工具栏 + 主从编辑台 -->                        
                         <StackPanel x:Name="PaneProvider" Spacing="10">
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="2">
-                                    <TextBlock Classes="setting-title" Text="供应商" />
+                                    <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B01}" />
                                     <TextBlock Classes="setting-hint"
-                                               Text="一条供应商 = 协议 + 地址 + Key。预设只是模板，任何 OpenAI 兼容服务都能接。" />
+                                               Text="{DynamicResource L.Agent.Settings.L04}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
-                                            VerticalAlignment="Center">
-                                    <Button x:Name="SaveProviderButton" Classes="ghost" Height="30" Padding="11,0"
-                                            Content="保存" FontSize="11.5" Click="OnSaveProvider" />
-                                    <Button x:Name="TestProviderButton" Classes="primary" Height="30" Padding="11,0"
-                                            Content="测试连接" FontSize="11.5" Click="OnTestProvider" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid ColumnDefinitions="Auto,248,Auto,*,Auto" ColumnSpacing="6">
-                                <TextBlock Classes="field-label" Text="从预设添加" VerticalAlignment="Center" />
-                                <ComboBox x:Name="PresetCombo" Grid.Column="1" Classes="agent-field"
-                                          PlaceholderText="选择常用服务" SelectionChanged="OnPresetChanged" />
-                                <Button Grid.Column="2" Classes="ghost" Height="30" Padding="9,0"
-                                        Content="添加" FontSize="11" Click="OnAddPreset" />
-                                <TextBlock x:Name="PresetHint" Grid.Column="3" Classes="caption" FontSize="10.5"
-                                           Margin="8,0" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" />
-                                <Button x:Name="AddProviderButton" Grid.Column="4" Classes="ghost" Height="30"
-                                        Padding="10,0" Click="OnAddProvider">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <controls:IconParkIcon Kind="IconPlus" Width="12" Height="12" />
-                                        <TextBlock Text="新建自定义" FontSize="11.5" />
-                                    </StackPanel>
-                                </Button>
+                                
                             </Grid>
 
                             <Grid ColumnDefinitions="222,*" ColumnSpacing="12">
-                                <!-- 主列表 -->
+<!-- 主列表 -->                                
                                 <Border Classes="card-soft" Padding="8" VerticalAlignment="Top">
-                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Classes="field-label" Text="已配置" Margin="4,0,0,0"
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L05}" Margin="4,0,0,0"
                                                        VerticalAlignment="Center" />
                                             <TextBlock x:Name="ProviderCountText" Grid.Column="1"
-                                                       Classes="agent-mono" Text="0 条" />
+                                                       Classes="agent-mono" Text="{DynamicResource L.Agent.Settings.L06}" />
                                         </Grid>
 
-                                        <ScrollViewer Grid.Row="1" Height="322" VerticalScrollBarVisibility="Auto"
+                                        <ScrollViewer Grid.Row="1" Height="300" VerticalScrollBarVisibility="Auto"
                                                       HorizontalScrollBarVisibility="Disabled">
                                             <StackPanel x:Name="ProviderListPanel" Spacing="2" />
                                         </ScrollViewer>
 
-                                        <TextBlock Grid.Row="2" Classes="caption" FontSize="10"
-                                                   Text="点击编辑，双击设为当前" Margin="4,2,0,0" />
+                                        <Button x:Name="AddProviderButton" Grid.Row="2" Classes="ghost" Height="32"
+                                                HorizontalAlignment="Stretch" Click="OnAddProvider">
+                                            <StackPanel Orientation="Horizontal" Spacing="6"
+                                                        HorizontalAlignment="Center">
+                                                <controls:IconParkIcon Kind="IconPlus" Width="12" Height="12" />
+                                                <TextBlock Text="{DynamicResource L.Agent.Settings.L07}" FontSize="11.5" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <TextBlock Grid.Row="3" Classes="caption" FontSize="10"
+                                                   Text="{DynamicResource L.Agent.Settings.L08}" Margin="4,0,0,0" />
                                     </Grid>
                                 </Border>
 
-                                <!-- 编辑台 -->
-                                <StackPanel Grid.Column="1" Spacing="8">
+                                
+                                <Panel Grid.Column="1" MinHeight="360">
+                                    
+                                    <Border x:Name="ProviderEmptyState" Classes="card-soft" Padding="20"
+                                            IsVisible="False">
+                                        <StackPanel Spacing="10" VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center" MaxWidth="300">
+                                            <Border Width="42" Height="42" CornerRadius="13"
+                                                    Background="{DynamicResource NekoAccentSoftBrush}"
+                                                    HorizontalAlignment="Center">
+                                                <controls:IconParkIcon Kind="IconPlus" Width="20" Height="20"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Text="{DynamicResource L.Agent.Settings.L09}" FontSize="14" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource NekoTextBrush}" />
+                                            <TextBlock Classes="setting-hint" TextAlignment="Center"
+                                                       Text="{DynamicResource L.Agent.Settings.L10}" />
+                                            <Button Classes="primary" Height="32" Padding="14,0"
+                                                    HorizontalAlignment="Center" Content="{DynamicResource L.Agent.Settings.L07}"
+                                                    FontSize="11.5" Click="OnAddProvider" />
+                                        </StackPanel>
+                                    </Border>
+<!-- 编辑台 -->
+                                    
+                                    <Border x:Name="ProviderCreateCard" Classes="card-soft" Padding="18"
+                                            IsVisible="False">
+                                        <StackPanel Spacing="10" MaxWidth="440" HorizontalAlignment="Left">
+                                            <TextBlock Text="{DynamicResource L.Agent.Settings.L07}" Classes="setting-title" />
+                                            <TextBlock Classes="setting-hint"
+                                                       Text="{DynamicResource L.Agent.Settings.L11}" />
+
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="field-label"
+                                                           Text="{DynamicResource L.Agent.Settings.L12}" />
+                                                <ComboBox x:Name="PresetCombo" Classes="agent-field"
+                                                          PlaceholderText="{DynamicResource L.Agent.Settings.P01}"
+                                                          SelectionChanged="OnPresetChanged" />
+                                                <TextBlock x:Name="PresetHint" Classes="caption" FontSize="10.5"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L13}" />
+                                                    <TextBox x:Name="NewNameBox" Classes="agent-field"
+                                                             PlaceholderText="{DynamicResource L.Agent.Settings.P02}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                    <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L14}" />
+                                                    <ComboBox x:Name="NewKindCombo" Classes="agent-field" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="field-label" Text="Base URL" />
+                                                <TextBox x:Name="NewBaseUrlBox" Classes="agent-field"
+                                                         PlaceholderText="{DynamicResource L.Agent.Settings.P03}" />
+                                            </StackPanel>
+
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="field-label" Text="API Key" />
+                                                <TextBox x:Name="NewApiKeyBox" Classes="agent-field"
+                                                         PasswordChar="●" PlaceholderText="{DynamicResource L.Agent.Settings.P04}" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                                                <Button Classes="primary" Height="32" Padding="14,0"
+                                                        Content="{DynamicResource L.Agent.Settings.B06}" FontSize="11.5"
+                                                        Click="OnCreateProvider" />
+                                                <Button Classes="ghost" Height="32" Padding="12,0"
+                                                        Content="{DynamicResource L.Agent.Settings.B07}" FontSize="11.5" Click="OnCancelCreate" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    
+                                    <StackPanel x:Name="ProviderEditor" Spacing="8" IsVisible="False">
                                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                                         <StackPanel Spacing="4">
-                                            <TextBlock Classes="field-label" Text="名称" />
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L13}" />
                                             <TextBox x:Name="ProviderNameBox" Classes="agent-field"
-                                                     Watermark="我的中转站" />
+                                                     PlaceholderText="{DynamicResource L.Agent.Settings.P05}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Spacing="4">
-                                            <TextBlock Classes="field-label" Text="协议" />
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L14}" />
                                             <ComboBox x:Name="ProviderKindCombo" Classes="agent-field"
                                                       SelectionChanged="OnProviderKindChanged" />
                                         </StackPanel>
@@ -210,24 +271,24 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock Classes="field-label" Text="Base URL" />
                                         <TextBox x:Name="BaseUrlBox" Classes="agent-field"
-                                                 Watermark="https://api.example.com/v1" />
+                                                 PlaceholderText="{DynamicResource L.Agent.Settings.P03}" />
                                     </StackPanel>
 
                                     <StackPanel Spacing="4">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Classes="field-label" Text="API Key" />
                                             <Button Grid.Column="1" Classes="agent-mini" Height="20" Padding="6,0"
-                                                    Content="显示" Click="OnToggleKeyVisibility" />
+                                                    Content="{DynamicResource L.Agent.Settings.B08}" Click="OnToggleKeyVisibility" />
                                         </Grid>
                                         <TextBox x:Name="ApiKeyBox" Classes="agent-field" PasswordChar="●"
-                                                 Watermark="sk-..." />
+                                                 PlaceholderText="sk-..." />
                                         <TextBlock Classes="setting-hint"
-                                                   Text="AES-256-GCM 加密后存本机；主密钥跟随系统账户保护。Ollama / LM Studio 可随便填。" />
+                                                   Text="{DynamicResource L.Agent.Settings.L15}" />
                                     </StackPanel>
 
                                     <StackPanel Spacing="5">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Classes="field-label" Text="模型（第一个为默认，点 × 移除）" />
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L16}" />
                                             <TextBlock x:Name="ModelCountText" Grid.Column="1" Classes="agent-mono" />
                                         </Grid>
                                         <Border Classes="field-soft" CornerRadius="8" Padding="7,6,4,2"
@@ -239,64 +300,73 @@
                                         </Border>
                                         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                                             <TextBox x:Name="NewModelBox" Classes="agent-field" Height="30"
-                                                     Watermark="输入模型 id，回车添加" KeyDown="OnNewModelKeyDown" />
+                                                     PlaceholderText="{DynamicResource L.Agent.Settings.P06}" KeyDown="OnNewModelKeyDown" />
                                             <Button Grid.Column="1" Classes="ghost" Height="30" Padding="9,0"
-                                                    Content="添加" FontSize="11" Click="OnAddModel" />
+                                                    Content="{DynamicResource L.Agent.Settings.B09}" FontSize="11" Click="OnAddModel" />
                                             <Button x:Name="FetchModelsButton" Grid.Column="2" Classes="ghost"
                                                     Height="30" Padding="9,0" FontSize="11" Click="OnFetchModels">
                                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                                     <controls:IconParkIcon Kind="IconRefresh" Width="11" Height="11" />
-                                                    <TextBlock Text="拉取模型" FontSize="11" />
+                                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L17}" FontSize="11" />
                                                 </StackPanel>
                                             </Button>
                                         </Grid>
-                                        <TextBlock x:Name="ProviderTestResult" Classes="caption"
-                                                   TextWrapping="Wrap" />
+                                        
                                     </StackPanel>
 
-                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="10">
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                                         <StackPanel Spacing="4">
-                                            <TextBlock Classes="field-label" Text="上下文窗口（0 = 自动推断）" />
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L18}" />
                                             <TextBox x:Name="ProviderContextBox" Classes="agent-field"
-                                                     Watermark="0" />
+                                                     PlaceholderText="0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Spacing="4">
-                                            <TextBlock Classes="field-label" Text="工具调用" />
+                                            <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L19}" />
                                             <ToggleSwitch x:Name="SupportsToolsSwitch" OnContent=""
                                                           OffContent="" />
                                         </StackPanel>
-                                        <Button Grid.Column="2" Classes="ghost" Height="32" Padding="10,0"
-                                                Content="设为当前" FontSize="11" VerticalAlignment="Bottom"
-                                                Click="OnSetActiveProvider" />
                                     </Grid>
 
                                     <StackPanel Spacing="4">
                                         <TextBlock Classes="field-label"
-                                                   Text="额外请求头（每行 Name: Value，可留空）" />
+                                                   Text="{DynamicResource L.Agent.Settings.L20}" />
                                         <TextBox x:Name="HeadersBox" Classes="agent-field" AcceptsReturn="True"
                                                  MinHeight="48" TextWrapping="Wrap" />
                                     </StackPanel>
 
-                                    <Grid ColumnDefinitions="*,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="6"
+                                          Margin="0,4,0,0">
                                         <TextBlock x:Name="ProviderHintText" Classes="caption"
                                                    TextWrapping="Wrap" VerticalAlignment="Center" />
-                                        <Button Grid.Column="1" Classes="ghost" Height="28" Padding="9,0"
-                                                Content="删除此供应商" FontSize="11" Click="OnDeleteProvider" />
+                                        <Button x:Name="SaveProviderButton" Grid.Column="1" Classes="ghost"
+                                                Height="30" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B10}" FontSize="11"
+                                                Click="OnSaveProvider" />
+                                        <Button x:Name="TestProviderButton" Grid.Column="2" Classes="primary"
+                                                Height="30" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B11}" FontSize="11"
+                                                Click="OnTestProvider" />
+                                        <Button Grid.Column="3" Classes="ghost" Height="30" Padding="10,0"
+                                                Content="{DynamicResource L.Agent.Settings.B12}" FontSize="11" Click="OnSetActiveProvider" />
+                                        <Button Grid.Column="4" Classes="ghost" Height="30" Padding="10,0"
+                                                Content="{DynamicResource L.Agent.Settings.B13}" FontSize="11" Click="OnDeleteProvider" />
                                     </Grid>
-                                </StackPanel>
+                                    </StackPanel>
+                                </Panel>
                             </Grid>
+
+                            <TextBlock x:Name="ProviderResultText" Classes="caption" FontSize="11"
+                                       TextWrapping="Wrap" MinHeight="16" Margin="2,0,0,0" />
                         </StackPanel>
 
-                        <!-- 生成 -->
+<!-- 生成 -->                        
                         <StackPanel x:Name="PaneGeneration" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
-                                <TextBlock Classes="setting-title" Text="生成" />
+                                <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B02}" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="做工具调用建议温度 ≤ 0.5，太高的温度容易生成不合法的参数。" />
+                                           Text="{DynamicResource L.Agent.Settings.L21}" />
                             </StackPanel>
 
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="温度" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource L.Agent.Settings.L22}" FontSize="12" VerticalAlignment="Center" />
                                 <TextBlock x:Name="GenTempText" Grid.Column="1" Classes="muted" Text="0.35" />
                             </Grid>
                             <Slider x:Name="GenTempSlider" Minimum="0" Maximum="2" Value="0.35" Height="22"
@@ -311,167 +381,167 @@
 
                             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Classes="field-label" Text="最大输出 token" />
+                                    <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L23}" />
                                     <TextBox x:Name="GenMaxTokensBox" Classes="agent-field" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="4">
-                                    <TextBlock Classes="field-label" Text="单轮工具调用上限" />
+                                    <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L24}" />
                                     <TextBox x:Name="GenMaxRoundsBox" Classes="agent-field" />
                                 </StackPanel>
                             </Grid>
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="流式输出" FontSize="12" />
-                                    <TextBlock Classes="caption" Text="关掉后等整段返回再显示" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L25}" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Settings.L26}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="StreamingSwitch" Grid.Column="1" OnContent="" OffContent="" />
                             </Grid>
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="系统提示词" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L27}" />
                                 <TextBox x:Name="SystemPromptBox" Classes="agent-field" AcceptsReturn="True"
                                          TextWrapping="Wrap" MinHeight="220"
                                          FontFamily="Cascadia Mono,Consolas,monospace" FontSize="11.5" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="运行时还会自动附加：当前时间、游戏目录、选中实例、可用工具清单。" />
+                                           Text="{DynamicResource L.Agent.Settings.L28}" />
                             </StackPanel>
 
-                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存生成设置"
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="{DynamicResource L.Agent.Settings.B14}"
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveGeneration" />
                         </StackPanel>
 
-                        <!-- 上下文 -->
+<!-- 上下文 -->                        
                         <StackPanel x:Name="PaneContext" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
-                                <TextBlock Classes="setting-title" Text="上下文" />
+                                <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B03}" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="窗口大小要和你选的模型一致；填小了会提前触发压缩。" />
+                                           Text="{DynamicResource L.Agent.Settings.L29}" />
                             </StackPanel>
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="上下文窗口（token）" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L30}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <ComboBox x:Name="WindowPresetCombo" Classes="agent-field" Width="180"
                                               SelectionChanged="OnWindowPresetChanged" />
                                     <TextBox x:Name="WindowCustomBox" Classes="agent-field" Width="150" />
-                                    <Button Classes="ghost" Height="32" Padding="10,0" Content="应用"
+                                    <Button Classes="ghost" Height="32" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B15}"
                                             FontSize="11.5" Click="OnApplyWindow" />
                                 </StackPanel>
                             </StackPanel>
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="自动压缩" FontSize="12" />
-                                    <TextBlock Classes="caption" Text="超过阈值时把较早消息折叠成摘要" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L31}" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Settings.L32}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="AutoCompactSwitch" Grid.Column="1" OnContent="" OffContent="" />
                             </Grid>
 
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="触发比例" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource L.Agent.Settings.L33}" FontSize="12" VerticalAlignment="Center" />
                                 <TextBlock x:Name="CompactAtText" Grid.Column="1" Classes="muted" Text="78%" />
                             </Grid>
                             <Slider x:Name="CompactAtSlider" Minimum="0.4" Maximum="0.95" Value="0.78" Height="22"
                                     ValueChanged="OnCompactAtChanged" />
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="压缩后保留最近消息条数" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L34}" />
                                 <TextBox x:Name="KeepRecentBox" Classes="agent-field" Width="160"
                                          HorizontalAlignment="Left" />
                             </StackPanel>
 
-                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存上下文设置"
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="{DynamicResource L.Agent.Settings.B16}"
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveContext" />
                         </StackPanel>
 
-                        <!-- 工具 -->
+<!-- 工具 -->                        
                         <StackPanel x:Name="PaneTools" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
-                                <TextBlock Classes="setting-title" Text="工具" />
+                                <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B04}" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="模型只能看到这里打开的工具；写操作会先弹确认卡。" />
+                                           Text="{DynamicResource L.Agent.Settings.L35}" />
                             </StackPanel>
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="启用工具调用" FontSize="12" />
-                                    <TextBlock Classes="caption" Text="总开关，关掉后纯聊天" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L36}" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Settings.L37}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="ToolsEnabledSwitch" Grid.Column="1" OnContent="" OffContent="" />
                             </Grid>
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="允许操作启动器" FontSize="12" />
-                                    <TextBlock Classes="caption" Text="启动游戏、跳页面、弹提示等 launcher.* 工具" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L38}" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Settings.L39}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="LauncherToolsSwitch" Grid.Column="1" OnContent="" OffContent="" />
                             </Grid>
 
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Text="写操作前确认" FontSize="12" />
-                                    <TextBlock Classes="caption" Text="启动游戏这类动作先问一句" />
+                                    <TextBlock Text="{DynamicResource L.Agent.Settings.L40}" FontSize="12" />
+                                    <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Settings.L41}" />
                                 </StackPanel>
                                 <ToggleSwitch x:Name="ConfirmWritesSwitch" Grid.Column="1" OnContent="" OffContent="" />
                             </Grid>
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="工具超时（秒）" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L42}" />
                                 <TextBox x:Name="ToolTimeoutBox" Classes="agent-field" Width="160"
                                          HorizontalAlignment="Left" />
                             </StackPanel>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Classes="field-label" Text="逐个开关" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L43}" />
                                 <StackPanel x:Name="ToolListPanel" Spacing="4" />
                             </StackPanel>
 
-                            <Button Classes="primary" Height="30" Padding="12,0" Content="保存工具设置"
+                            <Button Classes="primary" Height="30" Padding="12,0" Content="{DynamicResource L.Agent.Settings.B17}"
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveTools" />
                         </StackPanel>
 
-                        <!-- 数据 -->
+<!-- 数据 -->                        
                         <StackPanel x:Name="PaneData" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
-                                <TextBlock Classes="setting-title" Text="数据" />
+                                <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B05}" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="会话按 JSON 存在本机；导出后可读的 Markdown。" />
+                                           Text="{DynamicResource L.Agent.Settings.L44}" />
                             </StackPanel>
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="存储目录" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L45}" />
                                 <TextBox x:Name="DataPathBox" Classes="agent-field" IsReadOnly="True" />
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Classes="ghost" Height="30" Padding="12,0" Content="打开目录"
+                                <Button Classes="ghost" Height="30" Padding="12,0" Content="{DynamicResource L.Agent.Settings.B18}"
                                         FontSize="11.5" Click="OnOpenDataFolder" />
-                                <Button Classes="ghost" Height="30" Padding="12,0" Content="清空全部会话"
+                                <Button Classes="ghost" Height="30" Padding="12,0" Content="{DynamicResource L.Agent.Settings.B19}"
                                         FontSize="11.5" Click="OnClearAllSessions" />
                             </StackPanel>
 
                             <Border Classes="divider" />
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="加密密钥" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L46}" />
                                 <TextBlock x:Name="KeyPathText" Classes="caption" TextWrapping="Wrap" />
                                 <TextBlock Classes="setting-hint"
-                                           Text="API Key 用 AES-256-GCM 加密；主密钥跟随系统账户保护，不在配置目录里。" />
+                                           Text="{DynamicResource L.Agent.Settings.L47}" />
                                 <Button x:Name="ResetKeyButton" Classes="ghost" Height="28" Padding="10,0"
-                                        Content="重置加密密钥" FontSize="11" HorizontalAlignment="Left"
+                                        Content="{DynamicResource L.Agent.Settings.B20}" FontSize="11" HorizontalAlignment="Left"
                                         Click="OnResetKey" />
                             </StackPanel>
 
                             <Border Classes="divider" />
 
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="field-label" Text="本地记忆（模型通过 memory.remember 写入）" />
+                                <TextBlock Classes="field-label" Text="{DynamicResource L.Agent.Settings.L48}" />
                                 <ScrollViewer Height="170" VerticalScrollBarVisibility="Auto">
                                     <StackPanel x:Name="MemoryPanel" Spacing="4" />
                                 </ScrollViewer>
-                                <Button Classes="ghost" Height="28" Padding="10,0" Content="清空记忆"
+                                <Button Classes="ghost" Height="28" Padding="10,0" Content="{DynamicResource L.Agent.Settings.B21}"
                                         FontSize="11.5" HorizontalAlignment="Left" Click="OnClearMemory" />
                             </StackPanel>
                         </StackPanel>
