@@ -8,7 +8,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
+using MofuCore.Config;
 namespace MofuCore.Account;
 
 /// <summary>
@@ -18,6 +20,8 @@ namespace MofuCore.Account;
 /// </summary>
 public class MinecraftTokenHandle
 {
+    private const int StreamCopyBufferSize = 1024;
+
     public const string DefaultClientId = "427f0a7c-9edd-40ba-a0ec-f189f8328418";
     public const string ClientIdEnvironmentVariable = "MOFUCORE_MSA_CLIENT_ID";
     private const string MicrosoftScope = "XboxLive.signin offline_access";
@@ -60,7 +64,7 @@ public class MinecraftTokenHandle
         ClientId = string.IsNullOrWhiteSpace(clientId)
             ? (overrideClientId.Length > 0 ? overrideClientId : DefaultClientId)
             : clientId!.Trim();
-        _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _http = httpClient ?? new HttpClient { Timeout = NetworkDefaults.HttpRequestTimeout };
         _crypto = crypto ?? new MinecraftTokenCrypto(storageDirectory);
         _store = new AccountStore(_crypto);
         Authlib = new AuthlibAccountManage(_http, storageDirectory);
@@ -89,7 +93,7 @@ public class MinecraftTokenHandle
             .ConfigureAwait(false);
         if ((int)statusCode is < 200 or >= 300)
         {
-            throw new MicrosoftAuthenticationException($"请求设备码失败（HTTP {(int)statusCode}）：{body}");
+            throw new MicrosoftAuthenticationException($"请求设备码失败（HTTP {(int)statusCode}）。");
         }
 
         DeviceCodePayload? payload = Deserialize<DeviceCodePayload>(body);
@@ -183,8 +187,7 @@ public class MinecraftTokenHandle
                     continue;
                 }
 
-                throw new MicrosoftAuthenticationException(
-                    $"令牌服务返回了无法解析的响应：{Truncate(body, 200)}");
+                throw new MicrosoftAuthenticationException("令牌服务返回了无法解析的响应。");
             }
 
             if (!string.IsNullOrWhiteSpace(token.AccessToken))
@@ -220,7 +223,8 @@ public class MinecraftTokenHandle
                     string description = string.IsNullOrWhiteSpace(token.ErrorDescription)
                         ? (string.IsNullOrWhiteSpace(token.Error) ? "未知错误" : token.Error)
                         : token.ErrorDescription;
-                    throw new MicrosoftAuthenticationException($"设备码登录失败：{description}", token.Error ?? string.Empty);
+                    throw new MicrosoftAuthenticationException(
+                        $"设备码登录失败：{Truncate(RedactSecrets(description), 200)}", token.Error ?? string.Empty);
             }
         }
 
@@ -271,7 +275,7 @@ public class MinecraftTokenHandle
         LoopbackCallbackServer? server = null;
         try
         {
-            server = LoopbackCallbackServer.Start();
+            server = LoopbackCallbackServer.Start(state);
             string redirectUri = $"http://localhost:{server.Port}/callback";
             string authorizeUrl = BuildAuthorizeUrl(redirectUri, CreatePkceChallenge(verifier), state);
 
@@ -307,11 +311,13 @@ public class MinecraftTokenHandle
         }
         catch (HttpRequestException e)
         {
-            throw new MicrosoftAuthenticationException("登录过程中网络请求失败：" + e.Message, string.Empty, e);
+            throw new MicrosoftAuthenticationException(
+                "登录过程中网络请求失败：" + RedactSecrets(e.Message), string.Empty, e);
         }
         catch (JsonException e)
         {
-            throw new MicrosoftAuthenticationException("登录服务返回了无法解析的响应：" + e.Message, string.Empty, e);
+            throw new MicrosoftAuthenticationException(
+                "登录服务返回了无法解析的响应：" + RedactSecrets(e.Message), string.Empty, e);
         }
         finally
         {
@@ -340,9 +346,12 @@ public class MinecraftTokenHandle
         TokenPayload token = Deserialize<TokenPayload>(body);
         if ((int)statusCode is < 200 or >= 300 || string.IsNullOrWhiteSpace(token.AccessToken))
         {
-            string detail = string.IsNullOrWhiteSpace(token.ErrorDescription) ? body : token.ErrorDescription;
+            string detail = string.IsNullOrWhiteSpace(token.ErrorDescription)
+                ? (string.IsNullOrWhiteSpace(token.Error) ? "未知错误" : token.Error)
+                : token.ErrorDescription;
             throw new MicrosoftAuthenticationException(
-                $"换取 Microsoft 令牌失败（HTTP {(int)statusCode}）：{detail}", token.Error ?? string.Empty);
+                $"换取 Microsoft 令牌失败（HTTP {(int)statusCode}）：{Truncate(RedactSecrets(detail), 200)}",
+                token.Error ?? string.Empty);
         }
         if (string.IsNullOrWhiteSpace(token.RefreshToken))
         {
@@ -399,7 +408,7 @@ public class MinecraftTokenHandle
             message = $"微软登录页返回错误：{code}";
         }
 
-        return new MicrosoftAuthenticationException(message, code);
+        return new MicrosoftAuthenticationException(RedactSecrets(message), code);
     }
 
     /// <summary>一次 OAuth 回环回调的内容。</summary>
@@ -418,22 +427,31 @@ public class MinecraftTokenHandle
     private sealed class LoopbackCallbackServer : IDisposable
     {
         private const int MaxRequestBytes = 16 * 1024;
+        private const int RequestReadTimeoutMs = 15_000;
+        private const int DisposeWaitMs = 2_000;
 
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _acceptCts = new();
         private readonly TaskCompletionSource<OAuthCallbackResult> _result =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly string? _expectedState;
+        private readonly object _clientTasksLock = new();
+        private readonly List<Task> _clientTasks = [];
+        private readonly Task _acceptLoopTask;
 
-        private LoopbackCallbackServer(TcpListener listener)
+        private LoopbackCallbackServer(TcpListener listener, string? expectedState)
         {
             _listener = listener;
+            _expectedState = expectedState;
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            _ = Task.Run(AcceptLoopAsync);
+            _acceptLoopTask = Task.Run(AcceptLoopAsync);
         }
 
         public int Port { get; }
 
-        public static LoopbackCallbackServer Start()
+        public static LoopbackCallbackServer Start() => Start(null);
+
+        public static LoopbackCallbackServer Start(string? expectedState)
         {
             SocketException? lastError = null;
             for (var attempt = 0; attempt < LoopbackListenRetryLimit; attempt++)
@@ -442,7 +460,7 @@ public class MinecraftTokenHandle
                 try
                 {
                     listener.Start();
-                    return new LoopbackCallbackServer(listener);
+                    return new LoopbackCallbackServer(listener, expectedState);
                 }
                 catch (SocketException e)
                 {
@@ -479,7 +497,11 @@ public class MinecraftTokenHandle
                     return;
                 }
 
-                _ = Task.Run(() => HandleClientAsync(client));
+                Task clientTask = Task.Run(() => HandleClientAsync(client));
+                lock (_clientTasksLock)
+                {
+                    _clientTasks.Add(clientTask);
+                }
             }
         }
 
@@ -490,13 +512,22 @@ public class MinecraftTokenHandle
                 try
                 {
                     await using NetworkStream stream = client.GetStream();
-                    string request = await ReadRequestHeadAsync(stream, _acceptCts.Token).ConfigureAwait(false);
+                    using CancellationTokenSource readCts =
+                        CancellationTokenSource.CreateLinkedTokenSource(_acceptCts.Token);
+                    readCts.CancelAfter(RequestReadTimeoutMs);
+                    string request = await ReadRequestHeadAsync(stream, readCts.Token).ConfigureAwait(false);
+                    if (!IsLoopbackHostAllowed(request))
+                    {
+                        await WriteResponseAsync(stream, 400, "Bad Request", BuildPage(
+                            "请求被拒绝", "非法的 Host 头。"), readCts.Token).ConfigureAwait(false);
+                        return;
+                    }
                     string target = ExtractRequestTarget(request);
                     bool isCallback = Uri.TryCreate("http://localhost" + target, UriKind.Absolute, out Uri? uri)
                                       && string.Equals(uri.AbsolutePath, "/callback", StringComparison.Ordinal);
                     if (!isCallback)
                     {
-                        await WriteResponseAsync(stream, 404, "Not Found", BuildPage("未找到页面", "Not Found"), _acceptCts.Token)
+                        await WriteResponseAsync(stream, 404, "Not Found", BuildPage("未找到页面", "Not Found"), readCts.Token)
                             .ConfigureAwait(false);
                         return;
                     }
@@ -509,13 +540,21 @@ public class MinecraftTokenHandle
                         ErrorCode = GetValue(query, "error"),
                         ErrorDescription = GetValue(query, "error_description"),
                     };
+                    // state 校验前移到服务层：拒绝不符合预期的本地连接，避免其抢先写入回调结果
+                    if (_expectedState is not null &&
+                        !string.Equals(result.State, _expectedState, StringComparison.Ordinal))
+                    {
+                        await WriteResponseAsync(stream, 400, "Bad Request", BuildPage(
+                            "登录校验失败", "回调 state 校验失败，请重试登录。"), readCts.Token).ConfigureAwait(false);
+                        return;
+                    }
                     // 重复回调（浏览器重试 / 预取）以第一次为准
                     _result.TrySetResult(result);
 
                     if (string.IsNullOrWhiteSpace(result.ErrorCode))
                     {
                         await WriteResponseAsync(stream, 200, "OK", BuildPage(
-                            "登录已完成", "登录已完成，可以关闭此窗口返回启动器。"), _acceptCts.Token).ConfigureAwait(false);
+                            "登录已完成", "登录已完成，可以关闭此窗口返回启动器。"), readCts.Token).ConfigureAwait(false);
                     }
                     else
                     {
@@ -523,12 +562,12 @@ public class MinecraftTokenHandle
                             ? result.ErrorCode
                             : result.ErrorCode + "：" + result.ErrorDescription;
                         await WriteResponseAsync(stream, 200, "OK", BuildPage(
-                            "登录未完成", "登录未完成：" + detail), _acceptCts.Token).ConfigureAwait(false);
+                            "登录未完成", "登录未完成：" + detail), readCts.Token).ConfigureAwait(false);
                     }
                 }
                 catch (Exception)
                 {
-                    // 浏览器提前断开、请求不完整等都无需上报：等待回调的任务会超时收尾
+                    // 浏览器提前断开、请求不完整、读取超时等都无需上报：等待回调的任务会超时收尾
                 }
             }
         }
@@ -536,7 +575,7 @@ public class MinecraftTokenHandle
         private static async Task<string> ReadRequestHeadAsync(NetworkStream stream, CancellationToken cancellationToken)
         {
             List<byte> buffer = [];
-            byte[] chunk = new byte[1024];
+            byte[] chunk = new byte[StreamCopyBufferSize];
             while (buffer.Count < MaxRequestBytes)
             {
                 int read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false);
@@ -574,6 +613,30 @@ public class MinecraftTokenHandle
             string firstLine = request.Split("\r\n", 2, StringSplitOptions.None)[0];
             string[] parts = firstLine.Split(' ');
             return parts.Length >= 2 && parts[1].StartsWith('/') ? parts[1] : "/";
+        }
+
+        private static bool IsLoopbackHostAllowed(string request)
+        {
+            foreach (string line in request.Split("\r\n", StringSplitOptions.None))
+            {
+                int colon = line.IndexOf(':');
+                if (colon <= 0 ||
+                    !string.Equals(line[..colon].Trim(), "Host", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string host = line[(colon + 1)..].Trim();
+                int portColon = host.LastIndexOf(':');
+                string name = portColon > 0 ? host[..portColon] : host;
+                // 仅放行指向回环地址的 Host，拒绝 DNS rebinding / 跨站把外部 Host 指到本端口
+                return name.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                       || name.Equals("127.0.0.1", StringComparison.Ordinal)
+                       || name.Equals("[::1]", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // 无 Host 头：保留兼容，交由 state 校验兜底
+            return true;
         }
 
         private static Dictionary<string, string> ParseQuery(string query)
@@ -649,6 +712,23 @@ public class MinecraftTokenHandle
                 // 已释放
             }
 
+            // 先等待接收循环与在途请求收尾，再释放 CTS，避免后台任务访问已释放对象
+            try
+            {
+                _acceptLoopTask.Wait(DisposeWaitMs);
+                Task[] pending = [];
+                lock (_clientTasksLock)
+                {
+                    pending = _clientTasks.ToArray();
+                }
+
+                Task.WaitAll(pending, DisposeWaitMs);
+            }
+            catch (Exception)
+            {
+                // 关闭阶段无需上报：超时后直接释放
+            }
+
             _acceptCts.Dispose();
         }
     }
@@ -680,7 +760,7 @@ public class MinecraftTokenHandle
             MicrosoftAccount refreshed = account.Clone();
             refreshed.RefreshToken = refreshToken;
             throw new RotatedCredentialsException(
-                $"凭据已刷新，但获取 Minecraft 档案失败：{e.Message}", refreshed, e);
+                $"凭据已刷新，但获取 Minecraft 档案失败：{RedactSecrets(e.Message)}", refreshed, e);
         }
     }
 
@@ -710,9 +790,9 @@ public class MinecraftTokenHandle
         if ((int)statusCode is < 200 or >= 300 || string.IsNullOrWhiteSpace(token.AccessToken))
         {
             string detail = string.IsNullOrWhiteSpace(token.ErrorDescription)
-                ? body
-                : token.ErrorDescription + "\n" + body;
-            string message = $"刷新令牌失败（HTTP {(int)statusCode}）：{detail}";
+                ? (string.IsNullOrWhiteSpace(token.Error) ? "未知错误" : token.Error)
+                : token.ErrorDescription;
+            string message = $"刷新令牌失败（HTTP {(int)statusCode}）：{Truncate(RedactSecrets(detail), 200)}";
             if (string.Equals(token.Error?.Trim(), "invalid_grant", StringComparison.OrdinalIgnoreCase))
             {
                 message += "——该账号的登录凭据已失效，请删除该账号后重新登录。";
@@ -792,7 +872,7 @@ public class MinecraftTokenHandle
             cancellationToken).ConfigureAwait(false);
         if ((int)statusCode is < 200 or >= 300)
         {
-            throw new MicrosoftAuthenticationException($"Xbox Live 认证失败（HTTP {(int)statusCode}）：{body}");
+            throw new MicrosoftAuthenticationException($"Xbox Live 认证失败（HTTP {(int)statusCode}）。");
         }
 
         XboxPayload? parsed = TryDeserialize<XboxPayload>(body);
@@ -865,7 +945,7 @@ public class MinecraftTokenHandle
             MicrosoftAuthErrorCodes.XboxConsentRequired => "该账号需要获得家长同意（可能未满 18 岁），请先完成相关流程。",
             MicrosoftAuthErrorCodes.XboxRegionBlocked => "当前国家或地区不支持 Minecraft 服务。",
             MicrosoftAuthErrorCodes.XboxAgeVerification => "该账号需要先完成年龄验证才能游玩。",
-            _ => $"XSTS 授权失败（HTTP {statusCode}）：{body}",
+            _ => $"XSTS 授权失败（HTTP {statusCode}）。",
         };
         return new MicrosoftAuthenticationException(message, errorCode);
     }
@@ -887,7 +967,7 @@ public class MinecraftTokenHandle
                     "该账号已被 Minecraft 服务封禁（ACCOUNT_SUSPENDED），无法登录，需联系官方客服申诉。");
             }
 
-            throw new MicrosoftAuthenticationException($"Minecraft 登录失败（HTTP {(int)statusCode}）：{body}");
+            throw new MicrosoftAuthenticationException($"Minecraft 登录失败（HTTP {(int)statusCode}）。");
         }
 
         MinecraftLoginPayload? parsed = TryDeserialize<MinecraftLoginPayload>(body);
@@ -916,7 +996,7 @@ public class MinecraftTokenHandle
         if (!response.IsSuccessStatusCode)
         {
             throw new MicrosoftAuthenticationException(
-                $"获取 Minecraft 档案失败（HTTP {(int)response.StatusCode}）：{body}");
+                $"获取 Minecraft 档案失败（HTTP {(int)response.StatusCode}）。");
         }
 
         MinecraftProfilePayload? profile = TryDeserialize<MinecraftProfilePayload>(body);
@@ -960,11 +1040,10 @@ public class MinecraftTokenHandle
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + account.AccessToken);
 
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new MicrosoftAuthenticationException(
-                $"上传皮肤失败（HTTP {(int)response.StatusCode}）：{body}");
+                $"上传皮肤失败（HTTP {(int)response.StatusCode}）。");
         }
     }
 
@@ -1107,6 +1186,17 @@ public class MinecraftTokenHandle
     {
         return value.Length <= maxLength ? value : value[..maxLength] + "…";
     }
+
+    // 统一脱敏：把可能混入响应/异常文本里的令牌字段与 Bearer 凭据替换为占位符，
+    // 避免随 Exception.ToString() 写入 %TEMP% 明文日志。
+    private static readonly Regex SensitiveValueRegex = new(
+        @"(?<prefix>""?(?:access_token|refresh_token|id_token|device_code|code_verifier|token)""?\s*[:=]\s*|Bearer\s+)(?<value>""[^""]*""|[^\s,;&]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static string RedactSecrets(string? value)
+        => string.IsNullOrEmpty(value)
+            ? string.Empty
+            : SensitiveValueRegex.Replace(value, "${prefix}[REDACTED]");
 
     // ------------------------------------------------------------------
     // 内部 DTO
@@ -1588,10 +1678,11 @@ public class MinecraftTokenCrypto
             byte[] generated = RandomNumberGenerator.GetBytes(KeyLength);
             bool stored = OperatingSystem.IsMacOS()
                 ? WriteKeyToKeychain(generated)
-                : WriteKeyToSecretService(generated, storageDirectory);
-            if (!stored && OperatingSystem.IsMacOS())
+                : WriteKeyToSecretService(generated);
+            if (!stored)
             {
-                throw new CryptographicException("无法写入 macOS 钥匙串。");
+                // fail-closed：系统凭据库不可用时不落明文主密钥，也不使用未持久化的临时密钥
+                throw new CryptographicException("无法持久化主密钥：系统凭据库不可用。");
             }
 
             _masterKey = generated;
@@ -1610,18 +1701,14 @@ public class MinecraftTokenCrypto
         return TryReadKeyFile(Path.Combine(storageDirectory, KeyFileName));
     }
 
-    private static bool WriteKeyToSecretService(byte[] key, string storageDirectory)
+    private static bool WriteKeyToSecretService(byte[] key)
     {
         string encoded = Convert.ToBase64String(key);
         (int exitCode, _) = RunProcess("secret-tool",
             ["store", "--label=MofuCore 账号令牌", "service", KeychainService, "key", KeychainAccount],
             encoded);
-        if (exitCode == 0)
-        {
-            return true;
-        }
-
-        return TryWriteKeyFile(Path.Combine(storageDirectory, KeyFileName), encoded);
+        // 不再以 base64 明文落盘兜底：无系统凭据库时直接失败（由调用方 fail-closed）
+        return exitCode == 0;
     }
 
     private static byte[]? ReadKeyFromKeychain()
@@ -1638,9 +1725,11 @@ public class MinecraftTokenCrypto
 
     private static bool WriteKeyToKeychain(byte[] key)
     {
+        // 主密钥经标准输入传给 security，避免 -w 明文出现在进程命令行（同机 ps 可读）
         (int exitCode, _) = RunProcess("security",
             ["add-generic-password", "-U", "-a", KeychainAccount, "-s", KeychainService,
-                "-l", "MofuCore 账号令牌", "-w", Convert.ToBase64String(key)]);
+                "-l", "MofuCore 账号令牌"],
+            Convert.ToBase64String(key));
         return exitCode == 0;
     }
 
@@ -1681,30 +1770,6 @@ public class MinecraftTokenCrypto
         }
     }
 
-    private static bool TryWriteKeyFile(string path, string encoded)
-    {
-        try
-        {
-            string? directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            File.WriteAllText(path, encoded);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private static (int ExitCode, string Output) RunProcess(string fileName, string[] arguments, string? stdin = null)
     {
         try
@@ -1729,8 +1794,11 @@ public class MinecraftTokenCrypto
                 process.StandardInput.Close();
             }
 
+            // 在线程池线程并发排空 stderr、当前线程排空 stdout，避免子进程写满 stderr 管道时死锁；
+            // 两端都用同步 ReadToEnd，不引入 SynchronizationContext 下 .GetResult() 的死锁风险
+            Task<string> stderrTask = Task.Run(() => process.StandardError.ReadToEnd());
             string output = process.StandardOutput.ReadToEnd();
-            _ = process.StandardError.ReadToEnd();
+            _ = stderrTask.GetAwaiter().GetResult();
             process.WaitForExit();
             return (process.ExitCode, output);
         }

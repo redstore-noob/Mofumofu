@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using MofuCore.Config;
 namespace MofuCore.Account;
 
 /// <summary>皮肤站（authlib-injector / Yggdrasil 规范）账号的持久化凭据。</summary>
@@ -75,7 +76,7 @@ public class AuthlibAccountManage
 
     public AuthlibAccountManage(HttpClient? httpClient = null, string? storageDirectory = null)
     {
-        _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _http = httpClient ?? new HttpClient { Timeout = NetworkDefaults.HttpRequestTimeout };
         _storageDirectory = storageDirectory;
     }
 
@@ -505,6 +506,12 @@ public static class AuthlibInjector
             throw new InvalidOperationException("latest.json 缺少下载地址或 version 字段。");
         }
 
+        // 远端 version 先过文件名白名单再拼路径，杜绝 .. / 路径分隔符 / 绝对路径越界写 jar
+        if (!IsSafeVersion(artifact.Version))
+        {
+            throw new InvalidOperationException("latest.json 的 version 字段含非法字符，已中止下载。");
+        }
+
         string targetPath = Path.Combine(installDirectory, $"authlib-injector-{artifact.Version}.jar");
         if (File.Exists(targetPath))
         {
@@ -566,6 +573,19 @@ public static class AuthlibInjector
     private static bool HasKnownHash(AuthlibArtifact artifact)
     {
         return !string.IsNullOrWhiteSpace(artifact.ArtifactSha256) || !string.IsNullOrWhiteSpace(artifact.ArtifactSha1);
+    }
+
+    /// <summary>version 拼进 jar 文件名前的白名单：仅 [A-Za-z0-9._-]，拒绝目录语义值与分隔符。</summary>
+    private static bool IsSafeVersion(string version)
+    {
+        if (string.IsNullOrEmpty(version) || version.Length > 100 || version is "." or "..") return false;
+        foreach (char c in version)
+        {
+            bool allowed = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                           || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+            if (!allowed) return false;
+        }
+        return true;
     }
 
     private static async Task<bool> MatchesHashAsync(

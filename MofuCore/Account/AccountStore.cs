@@ -12,6 +12,9 @@ public sealed class AccountStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+    // 保险库是「读-改-写」整体，跨实例共享同一文件，必须串行化避免并发互相覆盖
+    private static readonly object VaultGate = new();
+
     private readonly MinecraftTokenCrypto _crypto;
 
     public AccountStore(MinecraftTokenCrypto crypto)
@@ -25,48 +28,57 @@ public sealed class AccountStore
     public void SaveMicrosoftAccount(MicrosoftAccount account)
     {
         ArgumentNullException.ThrowIfNull(account);
-        Vault vault = LoadVault();
-        vault.Microsoft.RemoveAll(item => string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
-        vault.Microsoft.Insert(0, account.Clone());
-        SaveVault(vault);
+        lock (VaultGate)
+        {
+            Vault vault = LoadVault();
+            vault.Microsoft.RemoveAll(item => string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
+            vault.Microsoft.Insert(0, account.Clone());
+            SaveVault(vault);
+        }
     }
 
     /// <summary>读取全部已保存的正版账号。</summary>
     public IReadOnlyList<MicrosoftAccount> LoadMicrosoftAccounts()
     {
-        return LoadVault().Microsoft;
+        lock (VaultGate) return LoadVault().Microsoft;
     }
 
     /// <summary>删除一个正版账号（按 UUID）。</summary>
     public bool RemoveMicrosoftAccount(string uuid)
     {
-        Vault vault = LoadVault();
-        int removed = vault.Microsoft.RemoveAll(item =>
-            string.Equals(item.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
-        if (removed > 0)
+        lock (VaultGate)
         {
-            SaveVault(vault);
-        }
+            Vault vault = LoadVault();
+            int removed = vault.Microsoft.RemoveAll(item =>
+                string.Equals(item.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
+            if (removed > 0)
+            {
+                SaveVault(vault);
+            }
 
-        return removed > 0;
+            return removed > 0;
+        }
     }
 
     /// <summary>保存/更新一个皮肤站账号（按 UUID + API 根去重）。</summary>
     public void SaveAuthlibCredential(AuthlibCredential credential)
     {
         ArgumentNullException.ThrowIfNull(credential);
-        Vault vault = LoadVault();
-        vault.Authlib.RemoveAll(item =>
-            string.Equals(item.ProfileUuid, credential.ProfileUuid, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(item.ApiRoot.TrimEnd('/'), credential.ApiRoot.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
-        vault.Authlib.Insert(0, credential.Clone());
-        SaveVault(vault);
+        lock (VaultGate)
+        {
+            Vault vault = LoadVault();
+            vault.Authlib.RemoveAll(item =>
+                string.Equals(item.ProfileUuid, credential.ProfileUuid, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.ApiRoot.TrimEnd('/'), credential.ApiRoot.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+            vault.Authlib.Insert(0, credential.Clone());
+            SaveVault(vault);
+        }
     }
 
     /// <summary>读取全部已保存的皮肤站凭据。</summary>
     public IReadOnlyList<AuthlibCredential> LoadAuthlibCredentials()
     {
-        return LoadVault().Authlib;
+        lock (VaultGate) return LoadVault().Authlib;
     }
 
     /// <summary>保存一个离线账号名（按名称去重，新账号排在最前）。</summary>
@@ -78,20 +90,23 @@ public sealed class AccountStore
             throw new ArgumentException("离线账号名不能为空。", nameof(username));
         }
 
-        Vault vault = LoadVault();
-        if (vault.Offline.Contains(name, StringComparer.OrdinalIgnoreCase))
+        lock (VaultGate)
         {
-            return;
-        }
+            Vault vault = LoadVault();
+            if (vault.Offline.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
-        vault.Offline.Insert(0, name);
-        SaveVault(vault);
+            vault.Offline.Insert(0, name);
+            SaveVault(vault);
+        }
     }
 
     /// <summary>读取全部离线账号名。</summary>
     public IReadOnlyList<string> LoadOfflineAccounts()
     {
-        return LoadVault().Offline;
+        lock (VaultGate) return LoadVault().Offline;
     }
 
     /// <summary>删除一个离线账号名。</summary>
@@ -100,77 +115,119 @@ public sealed class AccountStore
         string name = (username ?? string.Empty).Trim();
         if (name.Length == 0) return false;
 
-        Vault vault = LoadVault();
-        int removed = vault.Offline.RemoveAll(item =>
-            string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
-        if (removed > 0)
+        lock (VaultGate)
         {
-            SaveVault(vault);
-        }
+            Vault vault = LoadVault();
+            int removed = vault.Offline.RemoveAll(item =>
+                string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
+            if (removed > 0)
+            {
+                SaveVault(vault);
+            }
 
-        return removed > 0;
+            return removed > 0;
+        }
     }
 
     /// <summary>把旧版 LocalSettings 里的离线账号一次性导入保险库。</summary>
     public void ImportOfflineAccounts(IEnumerable<string> usernames)
     {
         ArgumentNullException.ThrowIfNull(usernames);
-        Vault vault = LoadVault();
-        bool changed = false;
-        foreach (string raw in usernames)
+        lock (VaultGate)
         {
-            string name = (raw ?? string.Empty).Trim();
-            if (name.Length == 0 || vault.Offline.Contains(name, StringComparer.OrdinalIgnoreCase))
+            Vault vault = LoadVault();
+            bool changed = false;
+            foreach (string raw in usernames)
             {
-                continue;
+                string name = (raw ?? string.Empty).Trim();
+                if (name.Length == 0 || vault.Offline.Contains(name, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                vault.Offline.Add(name);
+                changed = true;
             }
 
-            vault.Offline.Add(name);
-            changed = true;
-        }
-
-        if (changed)
-        {
-            SaveVault(vault);
+            if (changed)
+            {
+                SaveVault(vault);
+            }
         }
     }
 
     /// <summary>本安装固定的 Yggdrasil clientToken（首次调用时生成并落盘）。</summary>
     public string GetOrCreateClientToken()
     {
-        Vault vault = LoadVault();
-        if (!string.IsNullOrWhiteSpace(vault.ClientToken))
+        lock (VaultGate)
         {
+            Vault vault = LoadVault();
+            if (!string.IsNullOrWhiteSpace(vault.ClientToken))
+            {
+                return vault.ClientToken;
+            }
+
+            vault.ClientToken = Guid.NewGuid().ToString("D");
+            SaveVault(vault);
             return vault.ClientToken;
         }
-
-        vault.ClientToken = Guid.NewGuid().ToString("D");
-        SaveVault(vault);
-        return vault.ClientToken;
     }
 
     private Vault LoadVault()
     {
         string path = VaultPath();
-        try
-        {
-            if (!File.Exists(path))
-            {
-                return new Vault();
-            }
-
-            string stored = File.ReadAllText(path, Encoding.UTF8);
-            string json = _crypto.Decrypt(stored);
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return new Vault();
-            }
-
-            return JsonSerializer.Deserialize<Vault>(json, JsonOptions) ?? new Vault();
-        }
-        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        if (!File.Exists(path))
         {
             return new Vault();
+        }
+
+        string stored;
+        try
+        {
+            stored = File.ReadAllText(path, Encoding.UTF8);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // 文件存在却读不出来：绝不能当空库返回，否则下一次 Save 会覆盖并永久丢账号
+            throw new MicrosoftAuthenticationException("账号令牌文件读取失败，已中止以避免覆盖：" + e.Message);
+        }
+
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return new Vault();
+        }
+
+        if (_crypto.TryDecrypt(stored, out string json))
+        {
+            return DeserializeVault(json);
+        }
+
+        // 历史明文库兼容：旧版在加密不可用时曾明文写回；识别为合法 Vault JSON 才接受，下次 Save 自动重新加密
+        if (stored.TrimStart().StartsWith('{'))
+        {
+            try
+            {
+                return DeserializeVault(stored);
+            }
+            catch (MicrosoftAuthenticationException)
+            {
+                // 不是合法 JSON，落到下面 fail-closed
+            }
+        }
+
+        // 既解不开也不是合法明文 JSON：fail-closed，绝不覆盖现有文件
+        throw new MicrosoftAuthenticationException("账号令牌文件无法解密或已损坏，已中止以避免覆盖。请检查加密密钥或从备份恢复。");
+    }
+
+    private static Vault DeserializeVault(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<Vault>(json, JsonOptions) ?? new Vault();
+        }
+        catch (JsonException e)
+        {
+            throw new MicrosoftAuthenticationException("账号令牌文件内容损坏，已中止以避免覆盖：" + e.Message);
         }
     }
 
@@ -189,11 +246,12 @@ public sealed class AccountStore
             string stored = _crypto.Encrypt(json);
             if (string.IsNullOrEmpty(stored))
             {
-                // 加密不可用时宁可明文也不能丢账号
-                stored = json;
+                // fail-closed：加密不可用时绝不明文写回（泄密），直接报错保住现有密文库
+                throw new MicrosoftAuthenticationException("账号令牌加密失败，已中止写入以避免明文泄露。");
             }
 
-            string temporaryPath = path + ".tmp";
+            // 唯一临时名：避免多进程/多线程并发时固定 .tmp 互相覆盖
+            string temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             File.WriteAllText(temporaryPath, stored, new UTF8Encoding(false));
             if (!OperatingSystem.IsWindows())
             {

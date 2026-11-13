@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -32,6 +32,7 @@ using Mofumofu.Launcher.Controls;
 using NativeSkinModel = Mofumofu.Launcher.Controls.SkinView3D.SkinModel;
 using NativeSkinAnimation = Mofumofu.Launcher.Controls.SkinView3D.SkinAnimation;
 
+using MofuCore.Config;
 namespace Mofumofu.Launcher.Views;
 
 /// <summary>
@@ -40,6 +41,8 @@ namespace Mofumofu.Launcher.Views;
 /// </summary>
 public partial class AccountView : UserControl
 {
+    private const int SkinSwapDelayMs = 160;
+
     /// <summary>皮肤解析（网络）最多等这么久，超时走本地/内置兜底。</summary>
     private static readonly TimeSpan SkinResolveTimeout = TimeSpan.FromSeconds(4);
 
@@ -75,8 +78,6 @@ public partial class AccountView : UserControl
         LoadAccounts();
 
         _ready = true;
-        UpdateAccountInfo(SelectedRow ?? (_accounts.Count > 0 ? _accounts[0] : null));
-        RefreshHeader();
         _ = ApplySkinPaletteAsync(SelectedRow);
     }
 
@@ -216,32 +217,12 @@ public partial class AccountView : UserControl
         if (!_ready || SelectedRow is not { } row) return;
 
         _modelChoice = null;
-        UpdateAccountInfo(row);
-        AnimateInfoPanel();
+        AnimateStage();
         _ = ApplySkinPaletteAsync(row);
 
         LocalSettings.Current.SelectedAccountName = row.Name;
         LocalSettings.Save();
         GameState.SetAccount(row.Name);
-    }
-
-    private void RefreshHeader()
-    {
-        var current = SelectedRow ?? (_accounts.Count > 0 ? _accounts[0] : null);
-
-        Header.Subtitle = current is null
-            ? L.T("Account.Subtitle.Empty", "还没有账号，点右上「添加账号」开始")
-            : L.T("Account.Subtitle.Count", "{0} 个账号 · {1} 使用中", _accounts.Count, current.Name);
-    }
-
-    private void UpdateAccountInfo(AccountRow? row)
-    {
-        if (row is null) return;
-
-        CurrentAccountName.Text = row.Name;
-        CurrentAccountBadge.Text = row.IsDefault
-            ? L.T("Account.Status.InUse", "使用中")
-            : L.T("Account.Status.Selected", "已选中");
     }
 
     private void OnSetDefaultClick(object? sender, RoutedEventArgs e)
@@ -253,8 +234,6 @@ public partial class AccountView : UserControl
         LocalSettings.Current.SelectedAccountName = row.Name;
         LocalSettings.Save();
         GameState.SetAccount(row.Name);
-        UpdateAccountInfo(row);
-        Header.Subtitle = L.T("Account.Subtitle.Count", "{0} 个账号 · {1} 使用中", _accounts.Count, row.Name);
         Shell.Toast(L.T("Account.Toast.SetDefault", "已把「{0}」设为默认账号", row.Name));
     }
 
@@ -299,14 +278,11 @@ public partial class AccountView : UserControl
         else
         {
             AccountList.SelectedIndex = -1;
-            CurrentAccountName.Text = "—";
-            CurrentAccountBadge.Text = string.Empty;
             ClearSkinPreview();
         }
 
         LocalSettings.Save();
         Shell.Toast(L.T("Account.Toast.Deleted", "已删除账号「{0}」", row.Name));
-        RefreshHeader();
     }
 
     // ---------------- 添加账号（正版内置浏览器登录 / 离线账号） ----------------
@@ -368,7 +344,6 @@ public partial class AccountView : UserControl
             _accounts.Add(row);
             AccountList.SelectedIndex = _accounts.Count - 1;
             Shell.Toast(L.T("Account.Toast.AddedOffline", "已添加离线账号「{0}」", name));
-            RefreshHeader();
             CloseActiveDialog(offlineButton);
         };
 
@@ -571,8 +546,6 @@ public partial class AccountView : UserControl
         GameState.SetAccount(row.Name);
 
         AccountList.SelectedIndex = _accounts.IndexOf(row);
-        UpdateAccountInfo(row);
-        RefreshHeader();
 
         await ApplySkinPaletteAsync(row);
         SkinHeadService.Invalidate(name);
@@ -868,11 +841,10 @@ public partial class AccountView : UserControl
         Shell.Toast(L.T("Account.Toast.CapeReset", "已还原官方披风"));
     }
 
-    private void AnimateInfoPanel()
+    private void AnimateStage()
     {
         if (!UiAnimations.Enabled) return;
 
-        UiAnimations.FadeSlideIn(SkinInfoPanel, 0.99, 6, 170);
         UiAnimations.FadeSlideIn(NativeSkinViewer, 0.99, 6, 170);
     }
 
@@ -1103,7 +1075,7 @@ public partial class AccountView : UserControl
             if (SkinEditorOverlay.IsVisible)
             {
                 UiAnimations.FadeSlideOut(SkinEditorOverlay, 0.99, 8, 150);
-                if (UiAnimations.Enabled) await Task.Delay(160);
+                if (UiAnimations.Enabled) await Task.Delay(SkinSwapDelayMs);
             }
 
             SkinEditorOverlay.IsVisible = false;
@@ -1577,8 +1549,12 @@ internal sealed record OfflineSkinChoice(string Id, string DisplayName, bool Sli
 /// </summary>
 internal static class SkinTextureService
 {
+    private const int MaxSkinTiles = 24;
+
+
+
     private const string HttpUserAgent = "Mofumofu.Launcher/1.0 (skin-preview)";
-    private const long MaxTextureBytes = 4 * 1024 * 1024;
+    private const long MaxTextureBytes = SizeLimits.SkinTextureMaximumBytes;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
 
@@ -2003,7 +1979,7 @@ internal static class SkinTextureService
         return jars
             .OrderByDescending(jar => jar.Time)
             .Select(jar => jar.Path)
-            .Take(24)
+            .Take(MaxSkinTiles)
             .ToList();
     }
 
