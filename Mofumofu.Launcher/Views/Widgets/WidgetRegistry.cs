@@ -205,6 +205,5 @@ public static class WidgetRegistry
             "IconFluentHistory", 4, 3, 3, 2, WidgetCards.Rewind),
         new("screenshots", "截图墙", "轮播当前实例的截图，点击可打开",
             "IconFluentImage", 6, 4, 3, 2, WidgetCards.Screenshots),
-    }.Where(widget => widget.Id is not ("playtime" or "rss"
-        or "network" or "goal" or "screenshots")).ToList();
+    }.Where(widget => widget.Id is not ("playtime" or "rss" or "network" or "goal")).ToList();
 }

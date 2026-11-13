@@ -41,6 +41,11 @@ namespace Mofumofu.Launcher.Views;
 /// </summary>
 public partial class CreatorView : UserControl
 {
+    private const int MaxErrorMessages = 3;
+
+    private const int PreviewDebounceMs = 250;
+    private const int MaxPreviewMods = 12;
+
     // ---------------- 3D 文字：参数选项 ----------------
 
     private static readonly (string Value, string Label)[] ColorModes =
@@ -304,7 +309,7 @@ public partial class CreatorView : UserControl
         for (var attempt = 0; attempt < 14; attempt++)
         {
             PushCubeState();
-            await Task.Delay(250);
+            await Task.Delay(PreviewDebounceMs);
         }
     }
 
@@ -1911,7 +1916,7 @@ public partial class CreatorView : UserControl
                                 if (!result.Success)
                                 {
                                     progress.Value = 0.0;
-                                    string errors = string.Join("； ", result.Errors.Take(3));
+                                    string errors = string.Join("； ", result.Errors.Take(MaxErrorMessages));
                                     task.Fail(errors);
                                     status.Text = L.T("Creator.Modpack.Install.FailedDetail", "安装失败：{0}", errors);
                                     Shell.Toast(status.Text);
@@ -2029,7 +2034,7 @@ public partial class CreatorView : UserControl
                     stringBuilder.Append("  \"files\": [");
                     if (includeMods.IsChecked == true)
                     {
-                        string[] array = RealModFiles(instanceInfo).Take(12).ToArray();
+                        string[] array = RealModFiles(instanceInfo).Take(MaxPreviewMods).ToArray();
                         for (int i = 0; i < array.Length; i++)
                         {
                             stringBuilder.Append((i == 0) ? "\n" : ",\n");

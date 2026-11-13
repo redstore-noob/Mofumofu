@@ -8,11 +8,9 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.CreatorView">
     <Grid>
-        <!-- ============ 工具列表页 ============ -->
+<!-- ============ 工具列表页 ============ -->        
         <Grid x:Name="ListView" RowDefinitions="Auto,*">
-            <controls:PageHeader Grid.Row="0"
-                                 Title="{DynamicResource L.Creator.Page.Title}"
->
+            <controls:PageHeader Grid.Row="0">
                 <controls:PageHeader.Actions>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="ghost" Height="34" Click="OnOpenWorkspaceClick">
@@ -29,16 +27,12 @@
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="14" Margin="0,0,0,18">
-                    <!-- 顶部横幅 -->
+<!-- 顶部横幅 -->                    
                     <suki:GlassCard CornerRadius="12" Padding="20">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Spacing="7">
                                 <TextBlock Text="{DynamicResource L.Creator.List.Banner.Title}" FontSize="23" FontWeight="Bold"
                                            Foreground="{DynamicResource NekoTextBrush}" />
-                                <TextBlock Classes="muted"
-                                           MaxWidth="660"
-                                           Text="{DynamicResource L.Creator.List.Banner.Desc}"
-                                           TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,7,0,0">
                                     <Border CornerRadius="8" Padding="10,4"
                                             Background="{DynamicResource NekoAccentSoftBrush}">
@@ -64,37 +58,25 @@
                         </Grid>
                     </suki:GlassCard>
 
-                    <!-- 工具标题行 -->
+<!-- 工具标题行 -->                    
                     <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="{DynamicResource L.Creator.List.Section.Title}" Classes="section-title" />
-                            <TextBlock Text="{DynamicResource L.Creator.List.Section.Desc}"
-                                       Classes="caption" />
-                        </StackPanel>
+                        <TextBlock Text="{DynamicResource L.Creator.List.Section.Title}" Classes="section-title" />
                         <TextBlock Grid.Column="1" x:Name="ToolGridHint" Text="{DynamicResource L.Creator.List.Section.GridHint}" Classes="caption"
                                    VerticalAlignment="Bottom" />
                     </Grid>
 
-                    <!-- 8 个工具卡片：代码里按 MockData.CreatorTools 生成 -->
+<!-- 8 个工具卡片：代码里按 MockData.CreatorTools 生成 -->                    
                     <primitives:UniformGrid x:Name="ToolGrid"
                                             Columns="4"
                                             Rows="2"
                                             ColumnSpacing="10"
                                             RowSpacing="10" />
 
-                    <!-- 底部提示 -->
+<!-- 底部提示 -->                    
                     <suki:GlassCard CornerRadius="12" Padding="18">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Spacing="7">
                                 <TextBlock Text="{DynamicResource L.Creator.List.Tips.Title}" Classes="section-title" />
-                                <StackPanel Spacing="4">
-                                    <TextBlock Classes="muted" TextWrapping="Wrap"
-                                               Text="{DynamicResource L.Creator.List.Tips.One}" />
-                                    <TextBlock Classes="muted" TextWrapping="Wrap"
-                                               Text="{DynamicResource L.Creator.List.Tips.Two}" />
-                                    <TextBlock Classes="muted" TextWrapping="Wrap"
-                                               Text="{DynamicResource L.Creator.List.Tips.Three}" />
-                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
                                     <Button Classes="ghost" Height="32" Content="{DynamicResource L.Creator.List.Action.Instances}"
                                             Click="OnOpenInstancesClick" />
@@ -115,7 +97,7 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ============ 工具子页（页面内导航，不再是弹窗/独立窗口） ============ -->
+<!-- ============ 工具子页（页面内导航，不再是弹窗/独立窗口） ============ -->        
         <Grid x:Name="ToolView" IsVisible="False" RowDefinitions="Auto,*">
             <Border Grid.Row="0" Padding="0,0,0,13"
                     BorderThickness="0,0,0,1"
@@ -154,10 +136,10 @@
             </Border>
 
             <Grid Grid.Row="1">
-                <!-- 普通工具页（代码里按工具 id 构建并缓存） -->
+<!-- 普通工具页（代码里按工具 id 构建并缓存） -->                
                 <ContentControl x:Name="ToolBody" />
 
-                <!-- 3D 文字生成器：左侧 Avalonia 参数面板（跟随主题），右侧内嵌 WebView2 预览 -->
+<!-- 3D 文字生成器：左侧 Avalonia 参数面板（跟随主题），右侧内嵌 WebView2 预览 -->                
                 <Grid x:Name="CubeTextPanel" IsVisible="False"
                       ColumnDefinitions="330,*" Margin="0,13,0,0">
                     <ScrollViewer Grid.Column="0"
@@ -272,7 +254,7 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- WebView2 锚点：必须放在 ScrollViewer 之外，滚动时才能正确裁剪 -->
+<!-- WebView2 锚点：必须放在 ScrollViewer 之外，滚动时才能正确裁剪 -->                    
                     <Border x:Name="CubeTextHost" Grid.Column="1" Margin="12,0,0,0"
                             CornerRadius="12"
                             BorderThickness="1"

@@ -1,6 +1,8 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -24,6 +26,20 @@ internal static class WidgetBackend
 
     /// <summary>本机存档（来自 &lt;gameDir&gt;/saves/*）。</summary>
     internal sealed record WorldInfo(string Name, DateTime LastWrite, long SizeBytes, string Directory);
+
+    internal sealed record ScreenshotInfo(
+        string Path,
+        string FileName,
+        DateTime Taken,
+        long SizeBytes,
+        int Width,
+        int Height,
+        string? InstanceId)
+    {
+        public string Directory => System.IO.Path.GetDirectoryName(Path) ?? string.Empty;
+
+        public double AspectRatio => Width > 0 && Height > 0 ? Width / (double)Height : 16 / 9d;
+    }
 
     /// <summary>带所属实例的存档：隔离实例的存档归属该实例，共享目录的存档 InstanceId 为空（跟随当前选择）。</summary>
     internal sealed record InstanceWorldInfo(WorldInfo World, string? InstanceId);
@@ -231,6 +247,167 @@ internal static class WidgetBackend
         }
 
         return [.. byDirectory.Values.OrderByDescending(item => item.World.LastWrite)];
+    }
+
+    internal static async Task<IReadOnlyList<ScreenshotInfo>> LoadAllScreenshotsAsync(CancellationToken cancellationToken = default)
+    {
+        var roots = new List<(string Directory, string? InstanceId)>();
+
+        try
+        {
+            var shared = Path.Combine(GameDirectory, "screenshots");
+            if (Directory.Exists(shared)) roots.Add((shared, null));
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var instances = await LoadInstancesAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var instance in instances)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var isolated = Path.Combine(instance.Directory, "screenshots");
+                    if (Directory.Exists(isolated)) roots.Add((isolated, instance.Id));
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return await Task.Run<IReadOnlyList<ScreenshotInfo>>(() =>
+        {
+            var collected = new List<ScreenshotInfo>();
+
+            foreach (var (directory, instanceId) in roots)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(directory, "*.png", SearchOption.TopDirectoryOnly))
+                    {
+                        try
+                        {
+                            var fileInfo = new FileInfo(file);
+                            if (!fileInfo.Exists || fileInfo.Length <= 0) continue;
+
+                            var (width, height) = ReadImageSize(file);
+                            collected.Add(new ScreenshotInfo(
+                                file,
+                                fileInfo.Name,
+                                ScreenshotTime(file, fileInfo),
+                                fileInfo.Length,
+                                width,
+                                height,
+                                instanceId));
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            var byPath = new Dictionary<string, ScreenshotInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var shot in collected)
+            {
+                if (byPath.TryGetValue(shot.Path, out var existing)
+                    && !(existing.InstanceId is null && shot.InstanceId is not null))
+                {
+                    continue;
+                }
+
+                byPath[shot.Path] = shot;
+            }
+
+            var result = byPath.Values.OrderByDescending(shot => shot.Taken).ToList();
+            Log($"screenshots={result.Count} roots={roots.Count}");
+            return result;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static DateTime ScreenshotTime(string path, FileInfo info)
+    {
+        var name = Path.GetFileNameWithoutExtension(path);
+        if (DateTime.TryParseExact(
+                name,
+                "yyyy-MM-dd_HH.mm.ss",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            return parsed;
+        }
+
+        return info.LastWriteTime;
+    }
+
+    private static (int Width, int Height) ReadImageSize(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            Span<byte> header = stackalloc byte[32];
+            int read = stream.Read(header);
+            if (read < 24) return (0, 0);
+
+            if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+            {
+                int width = BinaryPrimitives.ReadInt32BigEndian(header[16..20]);
+                int height = BinaryPrimitives.ReadInt32BigEndian(header[20..24]);
+                return width > 0 && height > 0 ? (width, height) : (0, 0);
+            }
+
+            if (header[0] == 0xFF && header[1] == 0xD8)
+            {
+                stream.Position = 2;
+
+                Span<byte> lengthBytes = stackalloc byte[2];
+                Span<byte> sof = stackalloc byte[5];
+
+                while (stream.Position < stream.Length - 9)
+                {
+                    int marker = stream.ReadByte();
+                    if (marker != 0xFF) continue;
+
+                    int code = stream.ReadByte();
+                    while (code == 0xFF) code = stream.ReadByte();
+                    if (code < 0) break;
+
+                    if (code is 0xD8 or 0x01 || code is >= 0xD0 and <= 0xD7) continue;
+
+                    if (stream.Read(lengthBytes) < 2) break;
+                    int length = BinaryPrimitives.ReadUInt16BigEndian(lengthBytes);
+                    if (length < 2) break;
+
+                    bool isStartOfFrame = code is >= 0xC0 and <= 0xCF && code is not (0xC4 or 0xC8 or 0xCC);
+                    if (isStartOfFrame)
+                    {
+                        if (stream.Read(sof) < 5) break;
+                        int height = BinaryPrimitives.ReadUInt16BigEndian(sof[1..3]);
+                        int width = BinaryPrimitives.ReadUInt16BigEndian(sof[3..5]);
+                        return width > 0 && height > 0 ? (width, height) : (0, 0);
+                    }
+
+                    stream.Seek(length - 2, SeekOrigin.Current);
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return (0, 0);
     }
 
     internal static string FormatSize(long bytes)

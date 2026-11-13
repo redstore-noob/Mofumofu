@@ -238,7 +238,7 @@
   "Home.Download.EmptyHint": "下載任务状態还没有接入真實後端；下載與進度請到下載頁查看",
   "Home.Music.EmptyHint": "还没有在播放音樂，去音樂頁挑一首吧",
   "Home.Rss.EmptyHint": "RSS 订阅还没有接入真實後端；接入後會在这裡显示订阅條目",
-  "Home.Screenshots.EmptyHint": "截圖牆还没有接入真實掃描；接入後會在这裡显示最近截圖",
+  "Home.Screenshots.EmptyHint": "在遊戲裡按 F2 截圖後，最近的照片會出現在這裡",
   "Home.Screenshots.OpenPage": "前往實例頁",
   "Home.Goal.EmptyHint": "遊玩時長統計还没有接入真實數據，暂時無法計算目標進度",
   "Home.Goal.Open": "前往實例頁",
@@ -255,5 +255,15 @@
   "Home.DownloadWidget.ActiveCount": "{0} 個進行中",
   "Home.DownloadWidget.Idle": "空闲",
   "Home.DownloadWidget.EmptyHint": "还没有下載任务；安裝遊戲或资源後會显示在这裡",
-  "Home.DownloadWidget.RowActive": "{0:0}% · {1}"
+  "Home.DownloadWidget.RowActive": "{0:0}% · {1}",
+  "Home.Screenshots.Loading": "掃描中…",
+  "Home.Screenshots.Refresh": "重新掃描截圖",
+  "Home.Screenshots.OpenGallery": "開啟截圖畫廊",
+  "Home.Servers.ChooseVersionHint": "用哪個遊戲版本進入 {0}？",
+  "Home.Servers.VersionsFailed": "讀取版本清單失敗",
+  "Home.Servers.NoVersions": "還沒有安裝任何遊戲版本",
+  "Home.Servers.GoDownload": "前往下載頁",
+  "Home.Servers.InstanceMeta": "{0} · {1}",
+  "Home.Servers.NameLabel": "顯示名稱",
+  "Home.Servers.AddressLabel": "伺服器位址"
 }

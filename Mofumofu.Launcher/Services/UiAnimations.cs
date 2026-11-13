@@ -14,6 +14,9 @@ namespace Mofumofu.Launcher.Services;
 /// <summary>统一的轻量过渡动画：淡入/缩放/下滑，供页面、标签页、开始菜单和小组件复用。</summary>
 public static class UiAnimations
 {
+    private const int LayoutSettleMs = 16;
+    private const int TransitionPaddingMs = 30;
+
     /// <summary>全局过渡动画开关：关掉后页面/标签直接切换，不做淡入滑入。</summary>
     public static bool Enabled { get; set; } = true;
 
@@ -291,9 +294,9 @@ public static class UiAnimations
 
             target.Height = 0;
             target.Transitions = BuildTransitions(milliseconds, new CubicEaseOut());
-            await Task.Delay(16);
+            await Task.Delay(LayoutSettleMs);
             target.Height = full;
-            await Task.Delay(milliseconds + 30);
+            await Task.Delay(milliseconds + TransitionPaddingMs);
             target.Transitions = null;
             target.Height = double.NaN;
             return;
@@ -309,7 +312,7 @@ public static class UiAnimations
 
         target.Height = current;
         target.Transitions = BuildTransitions(milliseconds, new CubicEaseIn());
-        await Task.Delay(16);
+        await Task.Delay(LayoutSettleMs);
         target.Height = 0;
         await Task.Delay(milliseconds + 30);
         target.Transitions = null;

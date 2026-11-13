@@ -238,7 +238,7 @@
   "Home.Download.EmptyHint": "La statoj de elŝutotaskoj ankoraŭ ne uzas realan backend-on; vidu la elŝutojn kaj la progreson en la elŝutpaĝo",
   "Home.Music.EmptyHint": "Neniu muziko nun ludas; elektu pecon en la muzikpaĝo",
   "Home.Rss.EmptyHint": "La RSS-abonoj ankoraŭ ne uzas realan backend-on; poste aperos ĉi tie la abonaj eroj",
-  "Home.Screenshots.EmptyHint": "La ekrankopimuro ankoraŭ ne skanas realajn dosierojn; poste aperos ĉi tie la lastaj ekrankopioj",
+  "Home.Screenshots.EmptyHint": "Premu F2 en la ludo — la plej novaj bildoj aperos ĉi tie",
   "Home.Screenshots.OpenPage": "Iri al la instanca paĝo",
   "Home.Goal.EmptyHint": "La statistiko de ludotempo ankoraŭ ne havas realajn datumojn; la celprogreso nuntempe ne kalkuleblas",
   "Home.Goal.Open": "Iri al la instanca paĝo",
@@ -255,5 +255,15 @@
   "Home.DownloadWidget.ActiveCount": "{0} daŭrantaj",
   "Home.DownloadWidget.Idle": "Senokupa",
   "Home.DownloadWidget.EmptyHint": "Ankoraŭ neniu elŝutotasko; ili aperos ĉi tie post instalado de ludo aŭ rimedo",
-  "Home.DownloadWidget.RowActive": "{0:0}% · {1}"
+  "Home.DownloadWidget.RowActive": "{0:0}% · {1}",
+  "Home.Screenshots.Loading": "Skanado…",
+  "Home.Screenshots.Refresh": "Reskani ekrankopiojn",
+  "Home.Screenshots.OpenGallery": "Malfermi galerion",
+  "Home.Servers.ChooseVersionHint": "Per kiu ludversio eniri {0}?",
+  "Home.Servers.VersionsFailed": "Malsukcesis ŝargi la versionliston",
+  "Home.Servers.NoVersions": "Neniu ludversio ankoraŭ instalita",
+  "Home.Servers.GoDownload": "Iri al elŝutoj",
+  "Home.Servers.InstanceMeta": "{0} · {1}",
+  "Home.Servers.NameLabel": "Montra nomo",
+  "Home.Servers.AddressLabel": "Servila adreso"
 }

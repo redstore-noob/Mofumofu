@@ -14,16 +14,16 @@
                   ExtendClientAreaTitleBarHeightHint="-1">
 
     <Panel x:Name="RootPanel" Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
-        <!-- 主窗口内部壁纸层：供 GlassCard 模糊背景采样 -->
+<!-- 主窗口内部壁纸层：供 GlassCard 模糊背景采样 -->        
         <views:InAppWallpaperSurface x:Name="InAppWallpaper" IsVisible="False" />
-        <!-- 插件接管壁纸层：IWallpaperEdit.WallpaperTakeOver 的挂载点 -->
+<!-- 插件接管壁纸层：IWallpaperEdit.WallpaperTakeOver 的挂载点 -->        
         <Border x:Name="PluginWallpaperLayer" IsVisible="False" />
         <Border x:Name="BackdropLayer" Background="{StaticResource NekoBackgroundBrush}" />
         <Border x:Name="HeroGlowLayer" Background="{StaticResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
         <Border x:Name="WallpaperDimLayer" Background="{DynamicResource NekoBackdropDimBrush}" IsHitTestVisible="False" IsVisible="False" />
 
         <Grid RowDefinitions="40,*">
-    <!-- ================= 自绘标题栏 ================= -->
+<!-- ================= 自绘标题栏 ================= -->    
             <Border x:Name="TitleBar"
                     Grid.Row="0"
                     Background="{DynamicResource NekoTitleBarBrush}"
@@ -61,12 +61,12 @@
                 </Grid>
             </Border>
 
-            <!-- ================= 内容区 ================= -->
+<!-- ================= 内容区 ================= -->            
             <Grid Grid.Row="1">
                 <Grid RowDefinitions="*,Auto">
                     <ContentControl x:Name="PageHost" Grid.Row="0" Margin="20,16,20,12" />
 
-                    <!-- 底部开始栏 -->
+<!-- 底部开始栏 -->                    
                     <Border x:Name="StartBar"
                             Grid.Row="1"
                             Height="58"
@@ -86,24 +86,17 @@
                                             Spacing="3" VerticalAlignment="Center" />
                             </StackPanel>
 
+                            <ScrollViewer Grid.Column="1" Margin="14,0" VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="InstanceChipPanel" Orientation="Horizontal"
+                                            Spacing="6" VerticalAlignment="Center" />
+                            </ScrollViewer>
+
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                                         VerticalAlignment="Center">
                                 <StackPanel x:Name="PluginTrayPanel" Orientation="Horizontal"
                                             Spacing="3" VerticalAlignment="Center" />
-                                <ComboBox x:Name="VersionCombo" Classes="startbar" Height="36" MinWidth="176"
-                                          PlaceholderText="{DynamicResource L.Shell.StartBar.NoVersion}"
-                                          SelectionChanged="OnVersionSelectionChanged"
-                                          ToolTip.Tip="{DynamicResource L.Shell.StartBar.VersionTip}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                                                <Image Source="{Binding Icon}" Width="18" Height="18" />
-                                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
                                 <ComboBox x:Name="AccountCombo" Classes="startbar" Height="36" MinWidth="152"
                                           PlaceholderText="{DynamicResource L.Shell.StartBar.NoAccount}"
                                           SelectionChanged="OnAccountSelectionChanged"
@@ -147,7 +140,7 @@
                     </Border>
                 </Grid>
 
-                <!-- ================= 开始菜单 ================= -->
+<!-- ================= 开始菜单 ================= -->                
                 <Grid x:Name="StartMenuOverlay" IsVisible="False" Background="Transparent"
                       PointerPressed="OnStartMenuOverlayPointerPressed">
                     <Border x:Name="StartMenuCard"
@@ -178,7 +171,7 @@
             </Grid>
         </Grid>
 
-        <!-- ================= 无边框窗口缩放热区（覆盖整窗，最后绘制） ================= -->
+<!-- ================= 无边框窗口缩放热区（覆盖整窗，最后绘制） ================= -->        
         <Grid Grid.RowSpan="2">
             <Border VerticalAlignment="Top" Height="5" Background="Transparent"
                     Cursor="SizeNorthSouth" PointerPressed="OnResizeTop" />
@@ -198,7 +191,7 @@
                     Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeBottomRight" />
         </Grid>
 
-        <!-- ================= 顶层叠加层：弹窗 + Toast（永远在内容之上） ================= -->
+<!-- ================= 顶层叠加层：弹窗 + Toast（永远在内容之上） ================= -->        
         <Grid>
             <controls:MofuDialogHost x:Name="DialogHost" />
             <StackPanel x:Name="ToastStack"

@@ -245,7 +245,7 @@
   "Home.Download.EmptyHint": "Download task status is not connected yet — check progress on the Downloads page",
   "Home.Music.EmptyHint": "Nothing playing yet — pick a song on the Music page",
   "Home.Rss.EmptyHint": "RSS subscriptions are not connected yet; feed items will show here",
-  "Home.Screenshots.EmptyHint": "Screenshot wall is not connected to a real scan yet; recent screenshots will show here",
+  "Home.Screenshots.EmptyHint": "Press F2 in game — your latest shots show up here",
   "Home.Screenshots.OpenPage": "Open Instances",
   "Home.Goal.EmptyHint": "Playtime statistics are not connected yet, so goal progress cannot be calculated",
   "Home.Goal.Open": "Open Instances",
@@ -262,5 +262,8 @@
   "Home.DownloadWidget.ActiveCount": "{0} active",
   "Home.DownloadWidget.Idle": "Idle",
   "Home.DownloadWidget.EmptyHint": "No downloads yet; installing a game or resource will show them here",
-  "Home.DownloadWidget.RowActive": "{0:0}% · {1}"
+  "Home.DownloadWidget.RowActive": "{0:0}% · {1}",
+  "Home.Screenshots.Loading": "Scanning…",
+  "Home.Screenshots.Refresh": "Rescan screenshots",
+  "Home.Screenshots.OpenGallery": "Open screenshot gallery"
 }

@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <views:InstanceIconConverter x:Key="InstanceIcon" />
 
-        <!-- 左栏实例行 -->
+<!-- 左栏实例行 -->        
         <DataTemplate x:Key="InstanceItemTemplate">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,5">
                 <Border Width="36" Height="36" CornerRadius="8" Background="{DynamicResource NekoFieldBrush}">
@@ -35,7 +35,7 @@
             </Grid>
         </DataTemplate>
 
-        <!-- 内容标签行（模组/资源包/光影/存档共用） -->
+<!-- 内容标签行（模组/资源包/光影/存档共用） -->        
         <DataTemplate x:Key="ContentRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
@@ -60,7 +60,7 @@
                 </Grid>
             </Border>
         </DataTemplate>
-        <!-- 世界存档行：目录没有启停概念，操作是 Rewind / 备份 / 导出 / 打开 -->
+<!-- 世界存档行：目录没有启停概念，操作是 Rewind / 备份 / 导出 / 打开 -->        
         <DataTemplate x:Key="WorldRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
@@ -105,7 +105,7 @@
                 </Grid>
             </Border>
         </DataTemplate>
-        <!-- Java 运行时行 -->
+<!-- Java 运行时行 -->        
         <DataTemplate x:Key="JavaRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
@@ -191,9 +191,8 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,Auto,*">
-        <!-- ================= 页头 ================= -->
-        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Instances.Page.Title}"
->
+<!-- ================= 页头 ================= -->        
+        <controls:PageHeader Grid.Row="0">
             <controls:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="ghost" Height="36" Padding="12,0" Click="OnImportClick">
@@ -224,7 +223,7 @@
             </controls:PageHeader.Actions>
         </controls:PageHeader>
 
-        <!-- ================= 游戏目录工具栏 ================= -->
+<!-- ================= 游戏目录工具栏 ================= -->        
         <Border Grid.Row="1" Classes="card" Padding="10" Margin="0,0,0,12">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
                 <ComboBox x:Name="GameDirCombo" Width="300" Height="38" SelectedIndex="0"
@@ -249,7 +248,7 @@
             </Grid>
         </Border>
 
-        <!-- ================= 左栏实例列表 + 右栏详情 ================= -->
+<!-- ================= 左栏实例列表 + 右栏详情 ================= -->        
         <Grid Grid.Row="2" ColumnDefinitions="330,*">
             <suki:GlassCard Grid.Column="0" CornerRadius="12" Padding="12" Margin="0,0,12,0"
                             HorizontalContentAlignment="Stretch"
@@ -278,7 +277,7 @@
 
             <Border x:Name="DetailPanel" Grid.Column="1" Classes="card" Padding="18">
                 <Grid RowDefinitions="Auto,Auto,*">
-                    <!-- 启动卡 -->
+<!-- 启动卡 -->                    
                     <Border Grid.Row="0" Classes="card-soft" Padding="14">
                         <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
                             <Border Width="50" Height="50" CornerRadius="10" Background="{DynamicResource NekoFieldBrush}">
@@ -344,7 +343,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- 子标签 -->
+<!-- 子标签 -->                    
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="0,14,0,8">
                         <Button x:Name="TabOverview" Classes="pill active"
                                 Content="{DynamicResource L.Instances.Tab.Overview}"
@@ -366,12 +365,12 @@
                                 Tag="manage" Click="OnTabClick" />
                     </StackPanel>
 
-                    <!-- 子面板 -->
+<!-- 子面板 -->                    
                     <ScrollViewer x:Name="DetailScroll" Grid.Row="2"
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
                         <Grid>
-                            <!-- ===== 概览 ===== -->
+<!-- ===== 概览 ===== -->                            
                             <StackPanel x:Name="OverviewPanel" Spacing="12" Margin="0,0,4,8">
                                 <Grid ColumnDefinitions="*,*,*,*">
                                     <Border Classes="stat-card" Margin="0,0,8,0">
@@ -465,7 +464,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- ===== 启动设置 ===== -->
+<!-- ===== 启动设置 ===== -->                            
                             <StackPanel x:Name="LaunchSettingsPanel" IsVisible="False"
                                         Spacing="12" Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">
@@ -495,7 +494,7 @@
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{DynamicResource L.Instances.Launch.JavaPath}" Classes="field-label" />
                                             <TextBox x:Name="JavaPathBox" FontSize="12"
-                                                     Watermark="{DynamicResource L.Instances.Launch.JavaPath}" />
+                                                     PlaceholderText="{DynamicResource L.Instances.Launch.JavaPath}" />
                                         </StackPanel>
                                         <Grid ColumnDefinitions="*,*">
                                             <StackPanel Spacing="4" Margin="0,0,8,0">
@@ -537,14 +536,12 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- ===== Java 设置 ===== -->
+<!-- ===== Java 设置 ===== -->                            
                             <StackPanel x:Name="JavaPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <StackPanel Spacing="1">
                                         <TextBlock Text="{DynamicResource L.Instances.Java.Title}" Classes="section-title" />
-                                        <TextBlock Text="{DynamicResource L.Instances.Java.Hint}"
-                                                   Classes="caption" />
                                     </StackPanel>
                                     <Button Grid.Column="1" Classes="ghost" Height="32"
                                             Content="{DynamicResource L.Instances.Java.Add}" Click="OnAddJavaClick" />
@@ -565,13 +562,11 @@
                                         <TextBlock x:Name="JavaRequirementText"
                                                    Text="{DynamicResource L.Instances.Java.RequirementCurrent}"
                                                    Classes="muted" />
-                                        <TextBlock Text="{DynamicResource L.Instances.Java.RequirementHint}"
-                                                   Classes="caption" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
 
-                            <!-- ===== 内容 ===== -->
+<!-- ===== 内容 ===== -->                            
                             <StackPanel x:Name="ContentPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="12">
@@ -583,10 +578,74 @@
                                                 <TextBlock x:Name="ModContentCount" Text="—"
                                                            Classes="caption" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <Button Grid.Column="1" Classes="pill"
-                                                    Content="{DynamicResource L.Instances.Content.Add}"
-                                                    Tag="Instances.Content.Mods" Click="OnAddContentClick" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                <Button x:Name="ModUpdateCheckButton" Classes="pill"
+                                                        Content="{DynamicResource L.Instances.Content.CheckUpdates}"
+                                                        Click="OnCheckModUpdatesClick" />
+                                                <Button Classes="pill"
+                                                        Content="{DynamicResource L.Instances.Content.Add}"
+                                                        Tag="Instances.Content.Mods" Click="OnAddContentClick" />
+                                            </StackPanel>
                                         </Grid>
+
+                                        
+                                        <Border x:Name="ModUpdatePanel" IsVisible="False"
+                                                Background="{DynamicResource NekoAccentSoftBrush}"
+                                                CornerRadius="8" Padding="10">
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                                                VerticalAlignment="Center">
+                                                        <controls:IconParkIcon Kind="IconFluentDownload" Width="13" Height="13" />
+                                                        <TextBlock x:Name="ModUpdateTitle" FontSize="12.5"
+                                                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="ModUpdateHint" Classes="caption"
+                                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                        <Button x:Name="ModUpdateAllButton" Classes="pill"
+                                                                Click="OnUpdateAllModsClick" />
+                                                        <Button Classes="icon" Width="26" Height="26"
+                                                                Click="OnCloseModUpdatesClick">
+                                                            <controls:IconParkIcon Kind="IconFluentDismiss" Width="11" Height="11" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <ItemsControl x:Name="ModUpdateList">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Classes="row">
+                                                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                                                                    <Border Width="30" Height="30" CornerRadius="7"
+                                                                            Background="{DynamicResource NekoFieldBrush}">
+                                                                        <Grid>
+                                                                            <controls:IconParkIcon Kind="IconFluentBox"
+                                                                                                   Width="14" Height="14"
+                                                                                                   HorizontalAlignment="Center"
+                                                                                                   VerticalAlignment="Center" />
+                                                                            <Image Tag="{Binding}" Loaded="OnModUpdateIconLoaded"
+                                                                                   Width="30" Height="30" Stretch="UniformToFill" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" Margin="10,0" Spacing="1"
+                                                                                VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding DisplayTitle}" FontSize="12.5"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Text="{Binding VersionTransition}"
+                                                                                   Classes="caption" />
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="2" Classes="pill"
+                                                                            Content="{DynamicResource L.Instances.Content.UpdateOne}"
+                                                                            Tag="{Binding}" Click="OnUpdateOneModClick" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+
                                         <ItemsControl x:Name="ModsList"
                                                       ItemTemplate="{StaticResource ContentRowTemplate}" />
                                     </StackPanel>
@@ -647,7 +706,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- ===== 游戏设置 ===== -->
+<!-- ===== 游戏设置 ===== -->                            
                             <StackPanel x:Name="GameSettingsPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">
@@ -737,13 +796,21 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- ===== 管理 ===== -->
+<!-- ===== 管理 ===== -->                            
                             <StackPanel x:Name="ManagePanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">
                                     <StackPanel Spacing="12">
                                         <TextBlock Text="{DynamicResource L.Instances.Manage.Title}" Classes="section-title" />
                                         <WrapPanel>
+                                            <Button Classes="ghost" Margin="0,0,8,8"
+                                                    Click="OnUpdateInstanceClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <controls:IconParkIcon Kind="IconRefresh"
+                                                              Width="14" Height="14" />
+                                                    <TextBlock Text="{DynamicResource L.Instances.Manage.Update}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
                                             <Button Classes="ghost" Margin="0,0,8,8"
                                                     Click="OnRenameInstanceClick">
                                                 <StackPanel Orientation="Horizontal" Spacing="7">

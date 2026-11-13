@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
 
+using MofuCore.Config;
 namespace Mofumofu.Launcher.Services;
 
 /// <summary>
@@ -19,8 +20,10 @@ namespace Mofumofu.Launcher.Services;
 /// </summary>
 public static class ResourceIconCache
 {
+    private const int StreamCopyBufferSize = 81920;
+
     private const int MemoryCapacity = 256;
-    private const int MaxDownloadBytes = 16 * 1024 * 1024;
+    private const long MaxDownloadBytes = SizeLimits.IconDownloadMaximumBytes;
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
@@ -211,7 +214,7 @@ public static class ResourceIconCache
 
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
             using var buffer = new MemoryStream();
-            var chunk = new byte[81920];
+            var chunk = new byte[StreamCopyBufferSize];
             while (true)
             {
                 var read = await stream.ReadAsync(chunk, timeout.Token).ConfigureAwait(false);

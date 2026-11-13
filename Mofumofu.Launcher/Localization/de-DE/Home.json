@@ -238,7 +238,7 @@
   "Home.Download.EmptyHint": "Der Download-Status ist noch nicht an ein echtes Backend angebunden; Downloads und Fortschritt siehst du auf der Download-Seite",
   "Home.Music.EmptyHint": "Gerade läuft keine Musik – such dir auf der Musik-Seite einen Titel aus",
   "Home.Rss.EmptyHint": "Die RSS-Abos sind noch nicht an ein echtes Backend angebunden; danach erscheinen hier die Einträge",
-  "Home.Screenshots.EmptyHint": "Die Screenshot-Galerie scannt noch nicht; danach erscheinen hier die neuesten Screenshots",
+  "Home.Screenshots.EmptyHint": "Drücke im Spiel F2 — die neuesten Bilder erscheinen hier",
   "Home.Screenshots.OpenPage": "Zur Instanz-Seite",
   "Home.Goal.EmptyHint": "Die Spielzeit-Statistik ist noch nicht an echte Daten angebunden – der Zielfortschritt kann noch nicht berechnet werden",
   "Home.Goal.Open": "Zur Instanz-Seite",
@@ -255,5 +255,15 @@
   "Home.DownloadWidget.ActiveCount": "{0} laufen",
   "Home.DownloadWidget.Idle": "Inaktiv",
   "Home.DownloadWidget.EmptyHint": "Noch keine Download-Aufgaben; sie erscheinen nach der Installation von Spielen oder Inhalten",
-  "Home.DownloadWidget.RowActive": "{0:0}% · {1}"
+  "Home.DownloadWidget.RowActive": "{0:0}% · {1}",
+  "Home.Screenshots.Loading": "Wird gescannt…",
+  "Home.Screenshots.Refresh": "Screenshots neu scannen",
+  "Home.Screenshots.OpenGallery": "Galerie öffnen",
+  "Home.Servers.ChooseVersionHint": "Mit welcher Spielversion {0} betreten?",
+  "Home.Servers.VersionsFailed": "Versionsliste konnte nicht geladen werden",
+  "Home.Servers.NoVersions": "Noch keine Spielversion installiert",
+  "Home.Servers.GoDownload": "Zum Download",
+  "Home.Servers.InstanceMeta": "{0} · {1}",
+  "Home.Servers.NameLabel": "Anzeigename",
+  "Home.Servers.AddressLabel": "Serveradresse"
 }

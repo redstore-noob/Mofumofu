@@ -8,12 +8,6 @@ namespace Mofumofu.Launcher.Controls;
 
 public partial class PageHeader : UserControl
 {
-    public static readonly StyledProperty<string> TitleProperty =
-        AvaloniaProperty.Register<PageHeader, string>(nameof(Title), string.Empty);
-
-    public static readonly StyledProperty<string> SubtitleProperty =
-        AvaloniaProperty.Register<PageHeader, string>(nameof(Subtitle), string.Empty);
-
     public static readonly StyledProperty<bool> ShowBackProperty =
         AvaloniaProperty.Register<PageHeader, bool>(nameof(ShowBack), true);
 
@@ -25,18 +19,6 @@ public partial class PageHeader : UserControl
     public PageHeader()
     {
         InitializeComponent();
-    }
-
-    public string Title
-    {
-        get => GetValue(TitleProperty);
-        set => SetValue(TitleProperty, value);
-    }
-
-    public string Subtitle
-    {
-        get => GetValue(SubtitleProperty);
-        set => SetValue(SubtitleProperty, value);
     }
 
     public bool ShowBack
@@ -55,17 +37,7 @@ public partial class PageHeader : UserControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == TitleProperty)
-        {
-            TitleText.Text = change.NewValue as string ?? string.Empty;
-        }
-        else if (change.Property == SubtitleProperty)
-        {
-            var subtitle = change.NewValue as string ?? string.Empty;
-            SubtitleText.Text = subtitle;
-            SubtitleText.IsVisible = !string.IsNullOrWhiteSpace(subtitle);
-        }
-        else if (change.Property == ShowBackProperty)
+        if (change.Property == ShowBackProperty)
         {
             BackButton.IsVisible = change.NewValue is true;
         }

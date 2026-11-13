@@ -479,12 +479,94 @@ internal static partial class WidgetCards
 
     // ================= 截图墙（无截图扫描后端 → 空态） =================
 
-    public static Control Screenshots() =>
-        WidgetChrome.EmptyStateCard(
-            "IconFluentImage",
-            L.T("Home.Screenshots.EmptyHint", "截图墙还没有接入真实扫描；接入后会在这里显示最近截图"),
-            L.T("Home.Screenshots.OpenPage", "前往实例页"),
-            () => Shell.Go("instances"));
+    public static Control Screenshots()
+    {
+        var shots = new List<WidgetBackend.ScreenshotInfo>();
+        var busy = false;
+
+        var thumbHost = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,*"),
+            ColumnDefinitions = new ColumnDefinitions("*,*,*"),
+            ColumnSpacing = 6,
+            RowSpacing = 6,
+            IsVisible = false,
+        };
+
+        var empty = WidgetChrome.Empty(
+            L.T("Home.Screenshots.EmptyHint", "在游戏里按 F2 截图后，最近的照片会出现在这里"));
+        empty.IsVisible = false;
+
+        var body = new Grid();
+        body.Children.Add(thumbHost);
+        body.Children.Add(empty);
+
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var (card, valueText) = WidgetChrome.CardWithValue(
+            L.T("Home.Screenshots.Loading", "扫描中…"),
+            actions,
+            body);
+
+        actions.Children.Add(WidgetChrome.IconButton("IconFluentArrowClockwise",
+            L.T("Home.Screenshots.Refresh", "重新扫描截图"), () => Refresh()));
+        actions.Children.Add(WidgetChrome.IconButton("IconFluentGrid",
+            L.T("Home.Screenshots.OpenGallery", "打开截图画廊"), () => Shell.Go("gallery")));
+
+        async void Refresh()
+        {
+            if (busy) return;
+            busy = true;
+
+            try
+            {
+                var items = await WidgetBackend.LoadAllScreenshotsAsync();
+                shots.Clear();
+                shots.AddRange(items);
+                Render();
+            }
+            catch
+            {
+                valueText.Text = L.T("Home.Screenshots.Count", "{0} 张截图", 0);
+                thumbHost.IsVisible = false;
+                empty.IsVisible = true;
+            }
+            finally
+            {
+                busy = false;
+            }
+        }
+
+        void Render()
+        {
+            thumbHost.Children.Clear();
+            valueText.Text = L.T("Home.Screenshots.Count", "{0} 张截图", shots.Count);
+
+            bool any = shots.Count > 0;
+            thumbHost.IsVisible = any;
+            empty.IsVisible = !any;
+            if (!any) return;
+
+            var recent = shots.Take(6).ToList();
+            for (int i = 0; i < recent.Count; i++)
+            {
+                int captured = i;
+                var tile = ScreenshotViewer.Tile(recent[i], () => ScreenshotViewer.Show(shots, captured), 320);
+                Grid.SetRow(tile, i / 3);
+                Grid.SetColumn(tile, i % 3);
+                thumbHost.Children.Add(tile);
+            }
+        }
+
+        WidgetChrome.OnBecameVisible(card, () => { if (shots.Count == 0) Refresh(); });
+        Refresh();
+        return card;
+    }
 
     // ================= 成就目标（无游玩时长统计 → 空态） =================
 

@@ -52,5 +52,6 @@
   "Shell.Simple.Account": "Аккаунт",
   "Shell.Simple.Exit": "Выйти из S-режима",
   "Shell.Simple.Footer": "S-режим скрывает меню и панель, оставляя только необходимое.",
-  "Shell.StartBar.LogTip": "Журнал запуска"
+  "Shell.StartBar.LogTip": "Журнал запуска",
+  "Shell.Page.Gallery": "Галерея скриншотов"
 }

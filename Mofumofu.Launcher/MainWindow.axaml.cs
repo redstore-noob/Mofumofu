@@ -30,11 +30,15 @@ namespace Mofumofu.Launcher;
 
 public partial class MainWindow : Window
 {
+    private const int ToastExitAnimationMs = 260;
+    private const int StartMenuAnimationMs = 160;
+
     private static readonly (string Id, string Label, string IconKey, string Hint)[] PageRegistry =
     {
         ("account", "账户", "IconAccount", "账号、皮肤与披风"),
         ("download", "下载", "IconDownload", "版本与内容下载"),
         ("instances", "实例", "IconCube", "游戏实例与版本"),
+        ("gallery", "截图画廊", "IconFluentImage", "游戏截图浏览"),
         ("music", "音乐", "IconMusic", "本地音乐播放器"),
         ("online", "联机", "IconGlobe", "房间与公网联机"),
         ("servers", "服务器", "IconServer", "本机托管与收藏"),
@@ -44,7 +48,7 @@ public partial class MainWindow : Window
     };
 
     /// <summary>插件注册的动态页面（pageId → 标签/图标/工厂）；由 PluginContextImpl 调用。</summary>
-    private static readonly Dictionary<string, (string Label, Control Icon, Func<Control> Factory)> PluginPages = new();
+    private static readonly Dictionary<string, (string Label, Control Icon, Func<Control> Factory, bool IsTool)> PluginPages = new();
 
     private static MainWindow? _mainInstance;
 
@@ -74,8 +78,6 @@ public partial class MainWindow : Window
         LaunchBarRefresh.Requested += OnLaunchBarRefreshRequested;
 
         _mainInstance = this;
-
-        AttachAgentPreviewCapture();
 
         RebuildTaskbar();
 
@@ -134,6 +136,7 @@ public partial class MainWindow : Window
         "account" => new AccountView(),
         "download" => new DownloadView(),
         "instances" => new InstancesView(),
+        "gallery" => new GalleryView(),
         "music" => new MusicView(),
         "online" => new OnlineView(),
         "servers" => new ServersView(),
@@ -509,9 +512,14 @@ public partial class MainWindow : Window
     /// 注册一个插件页面（IPageRegister 的宿主侧入口）；返回撤销句柄。
     /// 线程安全：非 UI 线程调用会自动调度。
     /// </summary>
-    public static IDisposable RegisterPluginPage(string pageId, string label, Control icon, Func<Control> factory)
+    public static IDisposable RegisterPluginPage(
+        string pageId,
+        string label,
+        Control icon,
+        Func<Control> factory,
+        bool isTool = false)
     {
-        PluginPages[pageId] = (label, icon, factory);
+        PluginPages[pageId] = (label, icon, factory, isTool);
         _mainInstance?.RefreshPluginPages();
         return new PluginPageToken(pageId);
     }
@@ -837,6 +845,53 @@ public partial class MainWindow : Window
             list.Children.Add(row);
         }
 
+        foreach (var (pluginPageId, pluginPage) in PluginPages)
+        {
+            if (!pluginPage.IsTool) continue;
+
+            string pageId = pluginPageId;
+            var pluginIcon = new IconParkIcon
+            {
+                Kind = "IconFluentWrench",
+                Width = 15,
+                Height = 15,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            var pluginTitle = new TextBlock
+            {
+                Text = pluginPage.Label,
+                FontSize = 13,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Foreground = (IBrush)FindRes("NekoTextBrush")!,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+            };
+
+            var pluginRowContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+            pluginRowContent.Children.Add(pluginIcon);
+            pluginTitle.Margin = new Thickness(10, 0, 0, 0);
+            Grid.SetColumn(pluginTitle, 1);
+            pluginRowContent.Children.Add(pluginTitle);
+
+            var pluginRow = new Button
+            {
+                Classes = { "menu-row" },
+                Height = 38,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                Content = pluginRowContent,
+            };
+
+            pluginRow.Click += (_, _) =>
+            {
+                StartMenuOverlay.IsVisible = false;
+                StartButton.Classes.Set("active", false);
+                Navigate(pageId);
+            };
+
+            list.Children.Add(pluginRow);
+        }
+
         var container = new StackPanel();
         container.Children.Add(button);
         container.Children.Add(list);
@@ -960,7 +1015,7 @@ public partial class MainWindow : Window
         // 向左滑出
         toast.Opacity = 0;
         toast.RenderTransform = TransformOperations.Parse("translateX(-150px)");
-        await System.Threading.Tasks.Task.Delay(260);
+        await System.Threading.Tasks.Task.Delay(ToastExitAnimationMs);
         ToastStack.Children.Remove(toast);
     }
 
@@ -982,11 +1037,13 @@ public partial class MainWindow : Window
     }
 
     private bool _suppressStartBarSelection;
+    private List<VersionChoice> _startBarVersions = [];
 
     /// <summary>重建开始栏的版本 / 账号下拉（版本优先真实扫描游戏目录 versions/，账号来自账号列表 + 皮肤档案缓存）。</summary>
     private void ReloadStartBarChoices()
     {
         var versions = BuildVersionChoices();
+        _startBarVersions = versions;
         var accounts = BuildAccountChoices();
 
         var desiredVersion = versions.FirstOrDefault(v => v.Id == GameState.SelectedVersion)
@@ -999,8 +1056,7 @@ public partial class MainWindow : Window
         _suppressStartBarSelection = true;
         try
         {
-            VersionCombo.ItemsSource = versions;
-            VersionCombo.SelectedItem = desiredVersion;
+            RebuildInstanceChips(desiredVersion?.Id);
             AccountCombo.ItemsSource = accounts;
             AccountCombo.SelectedItem = desiredAccount;
         }
@@ -1026,11 +1082,7 @@ public partial class MainWindow : Window
         _suppressStartBarSelection = true;
         try
         {
-            if (VersionCombo.ItemsSource is IEnumerable<VersionChoice> versions)
-            {
-                var match = versions.FirstOrDefault(v => v.Id == GameState.SelectedVersion);
-                if (match is not null) VersionCombo.SelectedItem = match;
-            }
+            RebuildInstanceChips(GameState.SelectedVersion);
 
             if (AccountCombo.ItemsSource is IEnumerable<AccountChoice> accounts)
             {
@@ -1044,13 +1096,87 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnVersionSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void RebuildInstanceChips(string? selectedId)
     {
-        if (_suppressStartBarSelection || VersionCombo.SelectedItem is not VersionChoice choice) return;
+        if (InstanceChipPanel is null) return;
 
-        GameState.SetVersion(choice.Id);
-        LocalSettings.Current.SelectedInstanceId = choice.Id;
-        LocalSettings.Save();
+        InstanceChipPanel.Children.Clear();
+        if (_startBarVersions.Count == 0)
+        {
+            InstanceChipPanel.Children.Add(new TextBlock
+            {
+                Text = L.T("Shell.StartBar.NoVersion", "未选择版本"),
+                FontSize = 12,
+                Foreground = ThemeTokens.Brush("NekoMutedBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            return;
+        }
+
+        string selected = selectedId ?? GameState.SelectedVersion;
+        foreach (VersionChoice choice in _startBarVersions)
+        {
+            bool active = string.Equals(choice.Id, selected, StringComparison.OrdinalIgnoreCase);
+            InstanceChipPanel.Children.Add(CreateInstanceChip(choice, active));
+        }
+    }
+
+    private Control CreateInstanceChip(VersionChoice choice, bool active)
+    {
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        if (choice.Icon is not null)
+        {
+            content.Children.Add(new Image { Source = choice.Icon, Width = 16, Height = 16 });
+        }
+
+        content.Children.Add(new TextBlock
+        {
+            Text = choice.DisplayName,
+            FontSize = 12,
+            MaxWidth = 160,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ThemeTokens.Brush(active ? "NekoAccentBrush" : "NekoBorderBrush"),
+            Background = ThemeTokens.Brush(active ? "NekoAccentSoftBrush" : "NekoFieldSoftBrush"),
+            Padding = new Thickness(9, 5),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = content,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        chip.PointerEntered += (_, _) =>
+        {
+            if (!active) chip.Background = ThemeTokens.Brush("NekoFieldHoverBrush");
+        };
+        chip.PointerExited += (_, _) =>
+        {
+            if (!active) chip.Background = ThemeTokens.Brush("NekoFieldSoftBrush");
+        };
+        chip.PointerPressed += (_, args) =>
+        {
+            if (!args.GetCurrentPoint(chip).Properties.IsLeftButtonPressed) return;
+            if (!string.Equals(GameState.SelectedVersion, choice.Id, StringComparison.Ordinal))
+            {
+                GameState.SetVersion(choice.Id);
+                LocalSettings.Current.SelectedInstanceId = choice.Id;
+                LocalSettings.Save();
+            }
+
+            RebuildInstanceChips(choice.Id);
+        };
+
+        return chip;
     }
 
     private void OnAccountSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -1075,6 +1201,7 @@ public partial class MainWindow : Window
                 {
                     var id = Path.GetFileName(directory);
                     if (string.IsNullOrWhiteSpace(id)) continue;
+                    if (id.StartsWith(".mofu-update-", StringComparison.OrdinalIgnoreCase)) continue;
                     if (!File.Exists(Path.Combine(directory, id + ".json"))) continue;
 
                     list.Add(new VersionChoice { Id = id, DisplayName = id, Icon = LoadInstanceIcon(id) });
@@ -1545,7 +1672,7 @@ public partial class MainWindow : Window
 
         _startMenuClosing = true;
         UiAnimations.PopOut(StartMenuCard, 0.9, 14, 150);
-        await System.Threading.Tasks.Task.Delay(160);
+        await System.Threading.Tasks.Task.Delay(StartMenuAnimationMs);
 
         StartMenuOverlay.IsVisible = false;
         StartButton.Classes.Set("active", false);
@@ -1683,107 +1810,4 @@ public partial class MainWindow : Window
         WallpaperService.Instance.Changed -= OnWallpaperChanged;
         base.OnClosed(e);
     }
-    /// <summary>
-    /// 验收用：设置 MOFU_AGENT_SHOT=xxx.png 后，启动器会自动切到 MofuAgent 页并把页面渲染成 PNG。
-    /// MOFU_AGENT_SHOT_MODE 支持 chat（跑一段本地模拟对话）/ settings（打开设置抽屉）/ empty。
-    /// 只在该环境变量存在时生效，正常使用不会进入。
-    /// </summary>
-    private static void WaitForAgentReady(MofuAgentView view, Action action, int attempt = 0)
-    {
-        if (view.IsReady || attempt > 30)
-        {
-            action();
-            return;
-        }
-
-        DispatcherTimer.RunOnce(() => WaitForAgentReady(view, action, attempt + 1),
-            TimeSpan.FromMilliseconds(100));
-    }
-
-    private void AttachAgentPreviewCapture()
-    {
-        string? shotPath = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT");
-        if (string.IsNullOrWhiteSpace(shotPath)) return;
-
-        string mode = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_MODE") ?? "chat";
-
-        string? pageId = mode.StartsWith("page:", StringComparison.Ordinal) ? mode[5..]
-            : mode is "settings" or "settings-new" or "settings-data" ? "mofuagent-settings"
-            : "mofuagent";
-
-        DispatcherTimer.RunOnce(() =>
-        {
-            Navigate(pageId);
-            if (PageHost.Content is not Control host) return;
-            var view = host.GetVisualDescendants().OfType<MofuAgentView>().FirstOrDefault();
-
-            if (view is not null && mode is "chat" or "ask" or "empty")
-            {
-                WaitForAgentReady(view, () =>
-                {
-                    if (mode == "chat") _ = view.SeedPreviewConversationAsync();
-                    else if (mode == "ask") view.SeedPreviewAsk();
-                    else view.StartNewConversationForPreview();
-                });
-            }
-
-            var settingsView = host.GetVisualDescendants().OfType<MofuAgentSettingsView>().FirstOrDefault();
-            if (settingsView is not null && mode == "settings-new")
-            {
-                DispatcherTimer.RunOnce(settingsView.AddProviderForPreview,
-                    TimeSpan.FromMilliseconds(250));
-            }
-            else if (settingsView is not null && mode == "settings-data")
-            {
-                DispatcherTimer.RunOnce(settingsView.ShowDataForPreview,
-                    TimeSpan.FromMilliseconds(250));
-            }
-
-            bool wholeWindow = Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_TARGET") == "window";
-
-            DispatcherTimer.RunOnce(() =>
-            {
-                try
-                {
-                    Control target = wholeWindow ? RootPanel : PageHost;
-                    Thickness savedMargin = PageHost.Margin;
-                    if (!wholeWindow) PageHost.Margin = default;
-                    double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
-                    var size = new PixelSize(
-                        Math.Max(1, (int)Math.Round(target.Bounds.Width * scaling)),
-                        Math.Max(1, (int)Math.Round(target.Bounds.Height * scaling)));
-                    using var bitmap = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
-                    bitmap.Render(target);
-                    PageHost.Margin = savedMargin;
-                    string? directory = Path.GetDirectoryName(shotPath);
-                    if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                    bitmap.Save(shotPath);
-
-                    // 附一张顶部区域的 1:1 裁剪图，方便核对标题与右侧按钮的对齐
-                    var cropRect = new PixelRect(
-                        (int)(size.Width * 0.45), 0,
-                        Math.Max(1, (int)(size.Width * 0.55)),
-                        Math.Max(1, (int)(size.Height * 0.34)));
-                    using var cropBitmap = new RenderTargetBitmap(
-                        new PixelSize(cropRect.Width, cropRect.Height), new Vector(96 * scaling, 96 * scaling));
-                    using (var context = cropBitmap.CreateDrawingContext())
-                    {
-                        context.DrawImage(bitmap,
-                            new Rect(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height),
-                            new Rect(0, 0, cropRect.Width, cropRect.Height));
-                    }
-
-                    cropBitmap.Save(Path.Combine(Path.GetDirectoryName(shotPath) ?? ".",
-                        "crop_" + Path.GetFileName(shotPath)));
-                }
-                catch (Exception error)
-                {
-                    Console.Error.WriteLine("[agent-preview] " + error);
-                }
-
-                if (Environment.GetEnvironmentVariable("MOFU_AGENT_SHOT_EXIT") == "1") Close();
-            }, TimeSpan.FromMilliseconds(mode is "chat" or "ask" ? 4200 : 1200));
-        }, TimeSpan.FromMilliseconds(900));
-    }
-
 }

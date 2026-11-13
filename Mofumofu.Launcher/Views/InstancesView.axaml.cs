@@ -23,6 +23,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MofuCore.Config;
 using MofuCore.Download.Minecraft;
+using MofuCore.Download.Modrinth;
 using MofuCore.Java;
 using MofuCore.Launch;
 using Mofumofu.Launcher.Mock;
@@ -90,6 +91,9 @@ public sealed class InstalledJavaEntry
 
 public partial class InstancesView : UserControl
 {
+    private const int MaxVisibleContentRows = 80;
+    private const int MaxVersionCandidates = 200;
+
     private readonly List<Button> _tabButtons = new();
     private readonly List<Control> _tabPanels = new();
 
@@ -102,14 +106,29 @@ public partial class InstancesView : UserControl
     private CancellationTokenSource? _javaCts;
     private List<InstanceInfo> _instances = [];
     private bool _installing;
+    private bool _updating;
+    private bool _updateDialogOpen;
     private string _gameDirectory = string.Empty;
     private bool _loadingMemory;
+
+    private List<ModrinthUpdateCandidate> _modUpdates = [];
+    private bool _modUpdateBusy;
+    private int _modUpdateCheckedFiles;
 
     public InstancesView()
     {
         InitializeComponent();
 
         _gameDirectory = EnsureGameDirectory();
+        try
+        {
+            InstanceUpdate.RecoverPendingUpdates(_gameDirectory);
+        }
+        catch (Exception ex)
+        {
+            Shell.Toast(L.T("Instances.Update.RecoveryFailed",
+                "检测到未完成的实例更新，自动恢复失败：{0}", ex.Message));
+        }
         bool local = ScanInstances();
 
         ScanStatusText.Text = L.T("Instances.Scan.Status", "已检测到 {0} 个实例 · {1} 个账户 · 最后扫描 {2}",
@@ -201,6 +220,7 @@ public partial class InstancesView : UserControl
             foreach (string directory in directories)
             {
                 string id = Path.GetFileName(directory);
+                if (id.StartsWith(".mofu-update-", StringComparison.OrdinalIgnoreCase)) continue;
                 string jsonPath = Path.Combine(directory, id + ".json");
                 if (!File.Exists(jsonPath)) continue;
 
@@ -213,7 +233,7 @@ public partial class InstancesView : UserControl
                     string? inherits = string.IsNullOrWhiteSpace(profile.InheritsFrom) ? null : profile.InheritsFrom;
                     string type = string.IsNullOrWhiteSpace(profile.VersionType) ? "release" : profile.VersionType;
 
-                    string loader = DetectLoader(inherits, id);
+                    string loader = DetectLoader(profile);
                     string displayVersion = string.IsNullOrWhiteSpace(inherits) ? version : inherits!;
                     string icon = InstanceIconFor(loader, displayVersion, type);
                     string lastPlayed = File.GetLastWriteTime(jsonPath).ToString("yyyy-MM-dd HH:mm");
@@ -255,13 +275,19 @@ public partial class InstancesView : UserControl
         return Path.Combine(_gameDirectory, name);
     }
 
-    private static string DetectLoader(string? inheritsFrom, string id)
+    private static string DetectLoader(LaunchProfile profile)
     {
-        string probe = (inheritsFrom ?? string.Empty) + " " + id;
-        if (probe.Contains("fabric", StringComparison.OrdinalIgnoreCase)) return "Fabric";
-        if (probe.Contains("quilt", StringComparison.OrdinalIgnoreCase)) return "Quilt";
-        if (probe.Contains("neoforge", StringComparison.OrdinalIgnoreCase)) return "NeoForge";
-        if (probe.Contains("forge", StringComparison.OrdinalIgnoreCase)) return "Forge";
+        string probe = profile.MainClass + " " + string.Join(' ',
+            profile.Libraries.Select(library => library.GetRawText()));
+        if (probe.Contains("org.quiltmc.loader", StringComparison.OrdinalIgnoreCase) ||
+            probe.Contains("quilt-loader", StringComparison.OrdinalIgnoreCase)) return "Quilt";
+        if (probe.Contains("net.fabricmc.loader", StringComparison.OrdinalIgnoreCase) ||
+            probe.Contains("fabric-loader", StringComparison.OrdinalIgnoreCase)) return "Fabric";
+        if (probe.Contains("net.neoforged", StringComparison.OrdinalIgnoreCase) ||
+            probe.Contains("neoforge-", StringComparison.OrdinalIgnoreCase)) return "NeoForge";
+        if (probe.Contains("optifine", StringComparison.OrdinalIgnoreCase)) return "OptiFine";
+        if (probe.Contains("net.minecraftforge", StringComparison.OrdinalIgnoreCase) ||
+            probe.Contains("minecraftforge", StringComparison.OrdinalIgnoreCase)) return "Forge";
         if (probe.Contains("liteloader", StringComparison.OrdinalIgnoreCase)) return "LiteLoader";
         return "Vanilla";
     }
@@ -274,6 +300,7 @@ public partial class InstancesView : UserControl
             "Quilt" => "fabric.png",
             "Forge" => "forge.png",
             "NeoForge" => "neoforge.png",
+            "OptiFine" => "command_block.png",
             "LiteLoader" => "liteloader.png",
             _ => type == "snapshot" ? "snapshot_version.png"
                 : version.StartsWith("1.7", StringComparison.Ordinal) ? "old_version.png"
@@ -480,8 +507,182 @@ public partial class InstancesView : UserControl
         }
     }
 
-    private void ShowInstance(InstanceInfo info)
+
+    private async void OnCheckModUpdatesClick(object? sender, RoutedEventArgs e)
     {
+        if (_current is null || _modUpdateBusy) return;
+
+        _modUpdateBusy = true;
+        ModUpdateCheckButton.IsEnabled = false;
+        ModUpdateCheckButton.Content = L.T("Instances.Content.CheckingUpdates", "检查中…");
+
+        try
+        {
+            List<ContentEntry> mods = ScanContent(_current, "mods")
+                .Where(entry => entry.FilePath.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (mods.Count == 0)
+            {
+                Shell.Toast(L.T("Instances.Content.NoMods", "这个实例还没有安装模组"));
+                return;
+            }
+
+            var entries = await Task.Run(() => mods
+                .Select(entry => new ModFileEntry(entry.FilePath, ModrinthUpdateChecker.Sha1OfFile(entry.FilePath)))
+                .Where(entry => entry.Sha1.Length > 0)
+                .ToList());
+
+            if (entries.Count == 0)
+            {
+                Shell.Toast(L.T("Instances.Content.NoModsReadable", "模组文件读不出来，检查一下文件权限"));
+                return;
+            }
+
+            var progress = new Progress<string>(text => ModUpdateHint.Text = text);
+            var updates = await ModrinthUpdateChecker.CheckAsync(
+                entries,
+                _current.Version,
+                _current.Loader,
+                progress);
+
+            _modUpdateCheckedFiles = entries.Count;
+            RenderModUpdates(updates, notifyWhenEmpty: true);
+        }
+        catch (Exception ex)
+        {
+            Shell.Toast(L.T("Instances.Content.CheckUpdatesFailed", "检查更新失败：{0}", ex.Message));
+        }
+        finally
+        {
+            _modUpdateBusy = false;
+            ModUpdateCheckButton.IsEnabled = true;
+            ModUpdateCheckButton.Content = L.T("Instances.Content.CheckUpdates", "检查更新");
+        }
+    }
+
+    private void RenderModUpdates(IReadOnlyList<ModrinthUpdateCandidate> updates, bool notifyWhenEmpty)
+    {
+        _modUpdates = [.. updates];
+
+        if (_modUpdates.Count == 0)
+        {
+            ModUpdatePanel.IsVisible = false;
+            if (notifyWhenEmpty)
+            {
+                Shell.Toast(L.T("Instances.Content.UpToDate", "已是最新：检查了 {0} 个文件", _modUpdateCheckedFiles));
+            }
+            return;
+        }
+
+        ModUpdateList.ItemsSource = null;
+        ModUpdateList.ItemsSource = _modUpdates;
+
+        ModUpdateTitle.Text = L.T("Instances.Content.UpdateAvailable", "{0} 个模组可更新", _modUpdates.Count);
+        ModUpdateHint.Text = L.T("Instances.Content.UpdateChecked", "共检查 {0} 个文件",
+            _modUpdateCheckedFiles);
+        ModUpdateAllButton.Content = L.T("Instances.Content.UpdateAll", "全部更新");
+        ModUpdateAllButton.IsEnabled = true;
+        ModUpdatePanel.IsVisible = true;
+    }
+
+    private void OnModUpdateIconLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Image { Tag: ModrinthUpdateCandidate candidate } image) return;
+        if (string.IsNullOrWhiteSpace(candidate.ProjectIcon)) return;
+
+        _ = ResourceIconCache.LoadAsync(candidate.ProjectIcon, $"modrinth:{candidate.ProjectId}")
+            .ContinueWith(task =>
+            {
+                if (!task.IsCompletedSuccessfully || task.Result is null) return;
+                Dispatcher.UIThread.Post(() => image.Source = task.Result);
+            }, TaskScheduler.Default);
+    }
+
+    private async void OnUpdateOneModClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ModrinthUpdateCandidate candidate } button) return;
+        if (_current is null || _modUpdateBusy) return;
+
+        _modUpdateBusy = true;
+        button.IsEnabled = false;
+
+        try
+        {
+            await ApplyModUpdateAsync(candidate);
+            _modUpdates.Remove(candidate);
+            RenderModUpdates(_modUpdates, notifyWhenEmpty: false);
+        }
+        catch (Exception ex)
+        {
+            button.IsEnabled = true;
+            Shell.Toast(L.T("Instances.Content.UpdateOneFailed", "更新「{0}」失败：{1}", candidate.DisplayTitle, ex.Message));
+        }
+        finally
+        {
+            _modUpdateBusy = false;
+        }
+    }
+
+    private async void OnUpdateAllModsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_current is null || _modUpdateBusy || _modUpdates.Count == 0) return;
+
+        _modUpdateBusy = true;
+        ModUpdateAllButton.IsEnabled = false;
+
+        int succeeded = 0;
+        int failed = 0;
+
+        try
+        {
+            foreach (var candidate in _modUpdates.ToList())
+            {
+                try
+                {
+                    await ApplyModUpdateAsync(candidate);
+                    _modUpdates.Remove(candidate);
+                    succeeded++;
+                }
+                catch
+                {
+                    failed++;
+                }
+
+                RenderModUpdates(_modUpdates, notifyWhenEmpty: false);
+            }
+        }
+        finally
+        {
+            _modUpdateBusy = false;
+            RenderModUpdates(_modUpdates, notifyWhenEmpty: false);
+
+            Shell.Toast(failed == 0
+                ? L.T("Instances.Content.UpdateAllDone", "全部更新完成：{0} 个模组", succeeded)
+                : L.T("Instances.Content.UpdateAllPartial", "更新完成 {0} 个，失败 {1} 个（旧文件已备份）",
+                    succeeded, failed));
+        }
+    }
+
+    private async Task ApplyModUpdateAsync(ModrinthUpdateCandidate candidate)
+    {
+        if (_current is null) return;
+
+        string modsDirectory = ContentDirectoryFor(_current.Id, "mods");
+
+        Shell.Toast(L.T("Instances.Content.UpdatingOne", "正在更新「{0}」…", candidate.DisplayTitle));
+
+        await ModrinthUpdateChecker.ApplyUpdateAsync(candidate, modsDirectory);
+
+        LoadContentLists(_current);
+
+        Shell.Toast(L.T("Instances.Content.UpdatedOne", "已更新「{0}」到 {1}",
+            candidate.DisplayTitle, candidate.LatestVersionNumber));
+    }
+
+    private void OnCloseModUpdatesClick(object? sender, RoutedEventArgs e) => ModUpdatePanel.IsVisible = false;
+
+    private void ShowInstance(InstanceInfo info)    {
         _current = info;
         LocalSettings.Current.SelectedInstanceId = info.Id;
         LocalSettings.Save();
@@ -701,6 +902,7 @@ public partial class InstancesView : UserControl
 
     private void OnLaunchClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         // 与主窗口开始栏同一套真实启动路径：停 → 取消后台启动；启 → 交给启动控制台跑 MofuCore
         if (GameState.IsRunning)
         {
@@ -837,6 +1039,7 @@ public partial class InstancesView : UserControl
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         try
         {
             TopLevel? topLevel = TopLevel.GetTopLevel(this);
@@ -930,6 +1133,13 @@ public partial class InstancesView : UserControl
     private void OnGameDirChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (!_ready) return;
+        if (BlockInstanceMutationWhileUpdating())
+        {
+            _suppressSelection = true;
+            GameDirCombo.SelectedIndex = 0;
+            _suppressSelection = false;
+            return;
+        }
 
         var dir = (GameDirCombo.SelectedItem as ComboBoxItem)?.Content as string ?? string.Empty;
         if (string.IsNullOrWhiteSpace(dir)) return;
@@ -943,6 +1153,7 @@ public partial class InstancesView : UserControl
 
     private async void OnNewInstanceClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         if (_installing) return;
         _installing = true;
         try
@@ -951,7 +1162,7 @@ public partial class InstancesView : UserControl
             IReadOnlyList<MinecraftVersion> versions = await MinecraftDownload.GetVersionsAsync();
             List<MinecraftVersion> candidates = versions
                 .Where(version => version.Type is "release" or "snapshot")
-                .Take(80)
+                .Take(MaxVisibleContentRows)
                 .ToList();
             if (candidates.Count == 0)
             {
@@ -1906,6 +2117,476 @@ public partial class InstancesView : UserControl
 
     // ---------------- 管理 ----------------
 
+    private sealed record InstanceSnapshotEntry(string Id, string MinecraftVersion, DateTime CreatedAt);
+
+    private List<InstanceSnapshotEntry> FindInstanceSnapshots(string instanceId)
+    {
+        var result = new List<InstanceSnapshotEntry>();
+        string versionsRoot = Path.Combine(_gameDirectory, "versions");
+        if (!Directory.Exists(versionsRoot)) return result;
+
+        string prefix = instanceId + "-snapshot";
+        string[] directories;
+        try
+        {
+            directories = Directory.GetDirectories(versionsRoot);
+        }
+        catch (Exception)
+        {
+            return result;
+        }
+
+        foreach (string directory in directories)
+        {
+            string id = Path.GetFileName(directory);
+            if (!id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            string suffix = id[prefix.Length..];
+            if (suffix.Length == 0 || !char.IsDigit(suffix[0])) continue;
+
+            string jsonPath = Path.Combine(directory, id + ".json");
+            if (!File.Exists(jsonPath)) continue;
+
+            string minecraftVersion = suffix;
+            try
+            {
+                using System.Text.Json.JsonDocument document =
+                    System.Text.Json.JsonDocument.Parse(File.ReadAllText(jsonPath));
+                if (document.RootElement.TryGetProperty("inheritsFrom", out var inherits) &&
+                    inherits.ValueKind == System.Text.Json.JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(inherits.GetString()))
+                {
+                    minecraftVersion = inherits.GetString()!.Trim();
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            DateTime createdAt;
+            try
+            {
+                createdAt = Directory.GetCreationTime(directory);
+            }
+            catch (Exception)
+            {
+                createdAt = DateTime.MinValue;
+            }
+
+            result.Add(new InstanceSnapshotEntry(id, minecraftVersion, createdAt));
+        }
+
+        return result
+            .OrderByDescending(entry => entry.CreatedAt)
+            .ThenBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private bool BlockInstanceMutationWhileUpdating()
+    {
+        if (!_updating) return false;
+        Shell.Toast(L.T("Instances.Update.Busy", "实例正在更新，请等待更新与备份流程完成"));
+        return true;
+    }
+
+    private async void OnUpdateInstanceClick(object? sender, RoutedEventArgs e)
+    {
+        if (_current is null || _updating || _updateDialogOpen) return;
+        InstanceInfo instance = _current;
+        string gameDirectory = _gameDirectory;
+
+        if (GameState.IsRunning || LaunchProgress.Shared.IsRunning || GameLaunch.Shared.IsGameRunning)
+        {
+            Shell.Toast(L.T("Instances.Update.Running", "游戏正在运行或启动中，请先关闭游戏再更新实例"));
+            return;
+        }
+
+        ModLoaderKind? detectedLoader = instance.Loader switch
+        {
+            "Vanilla" => ModLoaderKind.Vanilla,
+            "Fabric" => ModLoaderKind.Fabric,
+            "Quilt" => ModLoaderKind.Quilt,
+            "Forge" => ModLoaderKind.Forge,
+            "NeoForge" => ModLoaderKind.NeoForge,
+            "OptiFine" => ModLoaderKind.OptiFine,
+            _ => null,
+        };
+        if (detectedLoader is not { } loaderKind)
+        {
+            Shell.Toast(L.T("Instances.Update.Unsupported",
+                "暂不支持更新使用 {0} 的实例，请新建实例后迁移内容", instance.Loader));
+            return;
+        }
+
+        _updateDialogOpen = true;
+        bool dialogShown = false;
+        try
+        {
+            Shell.Toast(L.T("Instances.Update.LoadingVersions", "正在获取 Minecraft 版本清单…"));
+            IReadOnlyList<MinecraftVersion> versions = await MinecraftDownload.GetVersionsAsync();
+            List<MinecraftVersion> candidates = versions
+                .Where(version => version.Type is "release" or "snapshot" or "old_beta" or "old_alpha")
+                .Take(MaxVersionCandidates)
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                Shell.Toast(L.T("Instances.Update.NoVersions", "没有获取到可更新的 Minecraft 版本"));
+                return;
+            }
+
+            var timeline = new VersionTimeline { Height = 220 };
+            var searchBox = MofuDialog.Input(
+                null, L.T("Instances.Update.SearchVersion", "搜索 Minecraft 版本，例如 1.20"));
+
+            static CheckBox FilterCheck(string text, bool isChecked) => new()
+            {
+                Content = text,
+                IsChecked = isChecked,
+                FontSize = 12,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            var releaseCheck = FilterCheck(L.T("Download.Version.Type.Release", "正式版"), true);
+            var snapshotCheck = FilterCheck(L.T("Download.Version.Type.Snapshot", "快照"), true);
+            var oldCheck = FilterCheck(L.T("Download.Version.Type.Old", "远古"), false);
+            var typeFilters = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Spacing = 12,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+            };
+            typeFilters.Children.Add(releaseCheck);
+            typeFilters.Children.Add(snapshotCheck);
+            typeFilters.Children.Add(oldCheck);
+
+            var filterRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+            filterRow.Children.Add(searchBox);
+            Grid.SetColumn(typeFilters, 1);
+            filterRow.Children.Add(typeFilters);
+
+            var timelineBlock = new StackPanel { Spacing = 8 };
+            timelineBlock.Children.Add(MofuDialog.Label(
+                L.T("Instances.Update.Timeline", "版本时间轴")));
+            timelineBlock.Children.Add(filterRow);
+            timelineBlock.Children.Add(timeline);
+
+            var loaderCombo = new ComboBox { Height = 38 };
+            var loaderField = MofuDialog.Field(
+                L.T("Instances.Update.LoaderVersion", "{0} 版本", ModLoaderInstaller.DisplayName(loaderKind)),
+                loaderCombo);
+            loaderField.IsVisible = loaderKind != ModLoaderKind.Vanilla;
+
+            var statusText = new TextBlock
+            {
+                FontSize = 11.5,
+                Foreground = ThemeTokens.Brush("NekoMutedBrush"),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            };
+            var progressBar = new ProgressBar
+            {
+                Height = 6,
+                Minimum = 0,
+                Maximum = 100,
+                IsVisible = false,
+            };
+            var updateButton = new Button
+            {
+                Content = L.T("Instances.Update.Action", "备份并更新"),
+                Classes = { "primary", "dialog-action" },
+                IsEnabled = loaderKind == ModLoaderKind.Vanilla,
+            };
+
+            var panel = MofuDialog.Stack(width: 460, spacing: 12);
+            var closeButton = MofuDialog.Secondary(
+                L.T("Common.Cancel", "取消"), () => MofuDialog.Close(panel));
+            panel.Children.Add(MofuDialog.Message(L.T("Instances.Update.Current",
+                "当前实例：{0} · Minecraft {1} · {2}", instance.Name, instance.Version, instance.Loader)));
+            panel.Children.Add(timelineBlock);
+            panel.Children.Add(loaderField);
+            panel.Children.Add(MofuDialog.Footer(closeButton, updateButton));
+            panel.Children.Add(progressBar);
+            panel.Children.Add(statusText);
+
+            List<InstanceSnapshotEntry> snapshots = FindInstanceSnapshots(instance.Id);
+            MinecraftVersion? selectedTarget = candidates.FirstOrDefault(version => version.IsLatestRelease)
+                                               ?? candidates[0];
+            var nodes = new List<VersionTimelineNode>();
+            var currentNode = new VersionTimelineNode
+            {
+                Title = "Minecraft " + instance.Version,
+                Subtitle = instance.Loader + " · " + L.T("Instances.Update.InUse", "当前正在使用"),
+                Badge = L.T("Instances.Update.CurrentBadge", "当前"),
+                BadgeTone = "NekoAccent",
+                IsCurrent = true,
+                IsSelectable = false,
+            };
+
+            void RebuildTimeline()
+            {
+                nodes.Clear();
+                foreach (InstanceSnapshotEntry snapshot in snapshots)
+                {
+                    nodes.Add(new VersionTimelineNode
+                    {
+                        Title = "Minecraft " + snapshot.MinecraftVersion,
+                        Subtitle = L.T("Instances.Update.SnapshotMeta", "原版本快照 · {0}",
+                            snapshot.CreatedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)),
+                        Badge = L.T("Instances.Update.SnapshotBadge", "快照"),
+                        BadgeTone = "NekoMuted",
+                        IsSelectable = false,
+                        Tag = snapshot,
+                    });
+                }
+
+                nodes.Add(currentNode);
+
+                string filter = (searchBox.Text ?? string.Empty).Trim();
+                bool showRelease = releaseCheck.IsChecked == true;
+                bool showSnapshot = snapshotCheck.IsChecked == true;
+                bool showOld = oldCheck.IsChecked == true;
+                string? lastYear = null;
+                foreach (MinecraftVersion version in candidates)
+                {
+                    bool visible = version.Type switch
+                    {
+                        "release" => showRelease,
+                        "snapshot" => showSnapshot,
+                        "old_beta" or "old_alpha" => showOld,
+                        _ => true,
+                    };
+                    if (!visible) continue;
+                    if (filter.Length > 0 &&
+                        version.Id.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+
+                    string year = version.ReleaseTime.Year.ToString(CultureInfo.InvariantCulture);
+                    string group = string.Equals(year, lastYear, StringComparison.Ordinal)
+                        ? string.Empty
+                        : L.T("Instances.Update.YearLabel", "{0} 年", year);
+                    lastYear = year;
+
+                    nodes.Add(new VersionTimelineNode
+                    {
+                        Title = "Minecraft " + version.Id,
+                        Subtitle = (version.Type switch
+                                       {
+                                           "release" => L.T("Instances.Update.ReleaseType", "正式版"),
+                                           "snapshot" => L.T("Instances.Update.SnapshotType", "快照版"),
+                                           _ => L.T("Instances.Update.OldType", "远古版"),
+                                       })
+                                   + " · " + version.ReleaseTime.ToString(
+                                       "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        Badge = version.IsLatestRelease
+                            ? L.T("Instances.Update.LatestBadge", "最新")
+                            : string.Empty,
+                        BadgeTone = "NekoSuccess",
+                        GroupLabel = group,
+                        Tag = version,
+                    });
+                }
+
+                VersionTimelineNode? selectedNode = nodes.FirstOrDefault(node =>
+                    node.Tag is MinecraftVersion version && ReferenceEquals(version, selectedTarget));
+                timeline.SetNodes(nodes, selectedNode);
+                timeline.ScrollToSelected();
+            }
+
+            List<ModLoaderVersionInfo> loaderVersions = [];
+            CancellationTokenSource? loaderCts = null;
+            DownloadTaskHandle? activeUpdateTask = null;
+            int loaderRevision = 0;
+            bool loadingLoader = false;
+
+            async Task LoadLoaderVersionsAsync()
+            {
+                int revision = ++loaderRevision;
+                loaderCts?.Cancel();
+                loaderCts = new CancellationTokenSource();
+                CancellationToken token = loaderCts.Token;
+                if (loaderKind == ModLoaderKind.Vanilla) return;
+
+                string minecraftVersion = selectedTarget?.Id ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(minecraftVersion)) return;
+
+                loadingLoader = true;
+                updateButton.IsEnabled = false;
+                loaderCombo.IsEnabled = false;
+                loaderCombo.ItemsSource = null;
+                statusText.Text = L.T("Instances.Update.LoadingLoader",
+                    "正在获取适配所选版本的 {0}…", ModLoaderInstaller.DisplayName(loaderKind));
+                try
+                {
+                    IReadOnlyList<ModLoaderVersionInfo> fetched = await ModLoaderInstaller
+                        .GetVersionsAsync(loaderKind, minecraftVersion, token);
+                    if (revision != loaderRevision || token.IsCancellationRequested) return;
+
+                    loaderVersions = fetched.ToList();
+                    loaderCombo.ItemsSource = loaderVersions
+                        .Select(version => version.DisplayName)
+                        .ToList();
+                    int stable = loaderVersions.FindIndex(version => version.IsStable);
+                    loaderCombo.SelectedIndex = stable >= 0 ? stable : loaderVersions.Count > 0 ? 0 : -1;
+                    statusText.Text = loaderVersions.Count == 0
+                        ? L.T("Instances.Update.NoLoader", "没有找到兼容的 {0} 版本，请换一个 Minecraft 版本",
+                            ModLoaderInstaller.DisplayName(loaderKind))
+                        : L.T("Instances.Update.Ready", "已就绪，默认选择最新稳定加载器；开始更新前会再次确认运行状态");
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                }
+                catch (Exception ex)
+                {
+                    if (revision != loaderRevision) return;
+                    loaderVersions = [];
+                    statusText.Text = L.T("Instances.Update.LoaderFailed", "获取加载器版本失败：{0}", ex.Message);
+                }
+                finally
+                {
+                    if (revision == loaderRevision)
+                    {
+                        loadingLoader = false;
+                        loaderCombo.IsEnabled = true;
+                        updateButton.IsEnabled = selectedTarget is not null && loaderVersions.Count > 0;
+                    }
+                }
+            }
+
+            void SelectTarget(MinecraftVersion version)
+            {
+                selectedTarget = version;
+                _ = LoadLoaderVersionsAsync();
+            }
+
+            searchBox.TextChanged += (_, _) => RebuildTimeline();
+            releaseCheck.IsCheckedChanged += (_, _) => RebuildTimeline();
+            snapshotCheck.IsCheckedChanged += (_, _) => RebuildTimeline();
+            oldCheck.IsCheckedChanged += (_, _) => RebuildTimeline();
+            timeline.NodeSelected += (_, node) =>
+            {
+                if (node.Tag is MinecraftVersion version) SelectTarget(version);
+            };
+
+            RebuildTimeline();
+            panel.DetachedFromVisualTree += (_, _) =>
+            {
+                _updateDialogOpen = false;
+                loaderCts?.Cancel();
+                if (_updating && activeUpdateTask is not null)
+                {
+                    DownloadTaskService.TryCancel(activeUpdateTask.Id);
+                }
+            };
+
+            updateButton.Click += async (_, _) =>
+            {
+                if (_updating || loadingLoader || selectedTarget is null) return;
+                if (GameState.IsRunning || LaunchProgress.Shared.IsRunning || GameLaunch.Shared.IsGameRunning)
+                {
+                    statusText.Text = L.T("Instances.Update.Running",
+                        "游戏正在运行或启动中，请先关闭游戏再更新实例");
+                    return;
+                }
+
+                MinecraftVersion target = selectedTarget;
+                ModLoaderVersionInfo? selectedLoader = loaderKind == ModLoaderKind.Vanilla
+                    ? null
+                    : loaderCombo.SelectedIndex >= 0 && loaderCombo.SelectedIndex < loaderVersions.Count
+                        ? loaderVersions[loaderCombo.SelectedIndex]
+                        : null;
+                if (loaderKind != ModLoaderKind.Vanilla && selectedLoader is null)
+                {
+                    statusText.Text = L.T("Instances.Update.NoLoader", "没有找到兼容的 {0} 版本，请换一个 Minecraft 版本",
+                        ModLoaderInstaller.DisplayName(loaderKind));
+                    return;
+                }
+
+                _updating = true;
+                updateButton.IsEnabled = false;
+                closeButton.IsEnabled = false;
+                timeline.IsEnabled = false;
+                loaderCombo.IsEnabled = false;
+                progressBar.IsVisible = true;
+                DownloadTaskHandle? updateTask = null;
+                try
+                {
+                    updateTask = DownloadTaskService.Start(
+                        L.T("Instances.Update.TaskTitle", "更新实例 {0}", instance.Name),
+                        L.T("Instances.Update.Preparing", "准备备份并更新到 Minecraft {0}", target.Id));
+                    activeUpdateTask = updateTask;
+                    var updateProgress = new Progress<InstanceUpdateProgress>(value =>
+                    {
+                        string detail = string.IsNullOrWhiteSpace(value.Detail)
+                            ? value.StageName
+                            : $"{value.StageName} · {value.Detail}";
+                        updateTask!.Report(value.Percentage, detail,
+                            value.BytesPerSecond > 0
+                                ? MofuCore.Tools.MemoryRead.FormatBytes((long)value.BytesPerSecond) + "/s"
+                                : null,
+                            value.TotalBytes > 0
+                                ? $"{MofuCore.Tools.MemoryRead.FormatBytes(value.CompletedBytes)} / {MofuCore.Tools.MemoryRead.FormatBytes(value.TotalBytes)}"
+                                : null);
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            progressBar.Value = value.Percentage;
+                            statusText.Text = detail;
+                        });
+                    });
+
+                    InstanceUpdateResult result = await new InstanceUpdate(gameDirectory).UpdateAsync(
+                        instance.Id, target, selectedLoader, updateProgress, updateTask.Token);
+                    updateTask.Complete();
+                    if (string.Equals(_gameDirectory, gameDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        RefreshInstanceList(result.InstanceId);
+                        GameState.SetVersion(result.InstanceId);
+                    }
+                    LaunchBarRefresh.Request();
+                    statusText.Text = L.T("Instances.Update.DoneBackup",
+                        "更新完成。原版本已保留为快照：{0}", result.SnapshotInstanceId);
+                    Shell.Toast(L.T("Instances.Update.Done",
+                        "实例「{0}」已更新到 Minecraft {1}，原版本已保留为 {2}",
+                        instance.Name, target.Id, result.SnapshotInstanceId));
+                }
+                catch (OperationCanceledException) when (updateTask?.Token.IsCancellationRequested == true)
+                {
+                    updateTask.MarkCancelled();
+                    statusText.Text = L.T("Instances.Update.Cancelled", "已取消更新，原实例已恢复");
+                }
+                catch (Exception ex)
+                {
+                    updateTask?.Fail(ex.Message);
+                    statusText.Text = L.T("Instances.Update.Failed", "更新失败：{0}", ex.Message);
+                    Shell.Toast(statusText.Text);
+                }
+                finally
+                {
+                    activeUpdateTask = null;
+                    _updating = false;
+                    closeButton.IsEnabled = true;
+                    timeline.IsEnabled = true;
+                    loaderCombo.IsEnabled = loaderKind != ModLoaderKind.Vanilla;
+                    updateButton.IsEnabled = selectedTarget is not null &&
+                                             (loaderKind == ModLoaderKind.Vanilla ||
+                                              loaderCombo.SelectedIndex >= 0);
+                }
+            };
+
+            Shell.Dialog(panel, L.T("Instances.Update.Title", "更新实例"), sender as Control);
+            dialogShown = true;
+            _ = LoadLoaderVersionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Shell.Toast(L.T("Instances.Update.Failed", "更新失败：{0}", ex.Message));
+        }
+        finally
+        {
+            if (!dialogShown) _updateDialogOpen = false;
+        }
+    }
+
     private void OnOpenFolderClick(object? sender, RoutedEventArgs e)
     {
         if (_current is null) return;
@@ -1925,6 +2606,7 @@ public partial class InstancesView : UserControl
 
     private void OnRenameInstanceClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         if (_current is null) return;
 
         var nameBox = MofuDialog.Input(_current.Id);
@@ -1980,6 +2662,7 @@ public partial class InstancesView : UserControl
 
     private void OnDuplicateInstanceClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         if (_current is null) return;
 
         var nameBox = MofuDialog.Input(_current.Id + "-copy");
@@ -2037,6 +2720,7 @@ public partial class InstancesView : UserControl
 
     private void OnDeleteInstanceClick(object? sender, RoutedEventArgs e)
     {
+        if (BlockInstanceMutationWhileUpdating()) return;
         if (_current is null) return;
 
         InstanceInfo target = _current;

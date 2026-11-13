@@ -245,7 +245,7 @@
   "Home.Download.EmptyHint": "下载任务状态还没有接入真实后端；下载与进度请到下载页查看",
   "Home.Music.EmptyHint": "还没有在播放音乐，去音乐页挑一首吧",
   "Home.Rss.EmptyHint": "RSS 订阅还没有接入真实后端；接入后会在这里显示订阅条目",
-  "Home.Screenshots.EmptyHint": "截图墙还没有接入真实扫描；接入后会在这里显示最近截图",
+  "Home.Screenshots.EmptyHint": "在游戏里按 F2 截图后，最近的照片会出现在这里",
   "Home.Screenshots.OpenPage": "前往实例页",
   "Home.Goal.EmptyHint": "游玩时长统计还没有接入真实数据，暂时无法计算目标进度",
   "Home.Goal.Open": "前往实例页",
@@ -262,5 +262,8 @@
   "Home.DownloadWidget.ActiveCount": "{0} 个进行中",
   "Home.DownloadWidget.Idle": "空闲",
   "Home.DownloadWidget.EmptyHint": "还没有下载任务；安装游戏或资源后会显示在这里",
-  "Home.DownloadWidget.RowActive": "{0:0}% · {1}"
+  "Home.DownloadWidget.RowActive": "{0:0}% · {1}",
+  "Home.Screenshots.Loading": "扫描中…",
+  "Home.Screenshots.Refresh": "重新扫描截图",
+  "Home.Screenshots.OpenGallery": "打开截图画廊"
 }

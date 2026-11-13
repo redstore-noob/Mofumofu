@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
                  x:Class="Mofumofu.Launcher.Views.OobeWindow"
@@ -58,7 +58,7 @@
     </Window.Styles>
 
     <Grid ColumnDefinitions="282,*">
-        <!-- 左侧：品牌与配置进度 -->
+<!-- 左侧：品牌与配置进度 -->        
         <Border Grid.Column="0" Padding="26,28,22,24"
                 Background="{DynamicResource NekoCardBrush}"
                 BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="0,0,1,0">
@@ -143,12 +143,12 @@
             </Grid>
         </Border>
 
-        <!-- 右侧：当前步骤配置 -->
+<!-- 右侧：当前步骤配置 -->        
         <Grid Grid.Column="1" RowDefinitions="*,Auto">
             <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <Grid Margin="34,30,34,22">
-                    <!-- 1. 语言与主题：完整语言卡片，不再收进下拉列表 -->
+<!-- 1. 语言与主题：完整语言卡片，不再收进下拉列表 -->                    
                     <StackPanel x:Name="WelcomePanel" MaxWidth="680" HorizontalAlignment="Center" Spacing="18">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{DynamicResource L.Oobe.WelcomeTitle}" FontSize="25" FontWeight="Bold"
@@ -210,7 +210,7 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 2. 游戏目录 -->
+<!-- 2. 游戏目录 -->                    
                     <StackPanel x:Name="DirectoryPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -230,7 +230,7 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 3. Java -->
+<!-- 3. Java -->                    
                     <StackPanel x:Name="JavaPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -254,7 +254,7 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 4. 账号 -->
+<!-- 4. 账号 -->                    
                     <StackPanel x:Name="AccountPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -313,7 +313,7 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 5. 完成 -->
+<!-- 5. 完成 -->                    
                     <StackPanel x:Name="FinishPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -353,7 +353,7 @@
                 </Grid>
             </ScrollViewer>
 
-            <!-- 右侧底部导航 -->
+<!-- 右侧底部导航 -->            
             <Border Grid.Row="1" Padding="30,16,32,22"
                     BorderThickness="0,1,0,0" BorderBrush="{DynamicResource NekoBorderBrush}">
                 <Grid ColumnDefinitions="Auto,*,Auto">

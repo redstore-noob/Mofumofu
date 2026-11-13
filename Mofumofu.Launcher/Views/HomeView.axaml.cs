@@ -32,6 +32,10 @@ namespace Mofumofu.Launcher.Views;
 /// </summary>
 public partial class HomeView : UserControl
 {
+    private const int HintPulseDelayMs = 110;
+    private const int GridLinesHideDelayMs = 240;
+    private const int WidgetDrawerCloseDelayMs = 240;
+
     private const int Cols = 20;
     private const double Gap = 12;
     private const int MinRows = 9;
@@ -487,7 +491,7 @@ public partial class HomeView : UserControl
 
         DeleteHint.RenderTransformOrigin = RelativePoint.Center;
         PlayMotion(DeleteHint, Transform(0, 0, 1.04), Transform(0, 0, 1.16), 110, new CubicEaseOut());
-        await Task.Delay(110);
+        await Task.Delay(HintPulseDelayMs);
         PlayMotion(DeleteHint, Transform(0, 0, 1.16), Transform(0, 0, 1), 180, new CubicEaseOut());
     }
 
@@ -1165,7 +1169,7 @@ public partial class HomeView : UserControl
 
     private async System.Threading.Tasks.Task HideGridLinesLaterAsync()
     {
-        await System.Threading.Tasks.Task.Delay(240);
+        await System.Threading.Tasks.Task.Delay(GridLinesHideDelayMs);
         if (!_pressing && !_dragging)
         {
             GridLines.IsVisible = false;
@@ -1691,7 +1695,7 @@ public partial class HomeView : UserControl
         if (!WidgetDrawer.IsVisible) return;
 
         WidgetDrawer.RenderTransform = TransformOperations.Parse("translateX(380px)");
-        await System.Threading.Tasks.Task.Delay(240);
+        await System.Threading.Tasks.Task.Delay(WidgetDrawerCloseDelayMs);
         WidgetDrawer.IsVisible = false;
     }
 
