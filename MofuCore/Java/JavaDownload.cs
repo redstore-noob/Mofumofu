@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 
+using MofuCore.Config;
 namespace MofuCore.Java;
 
 /// <summary>
@@ -17,7 +18,7 @@ public class JavaDownload
         "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
 
     private const int MaximumParallelDownloads = 8;
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan CacheTtl = NetworkDefaults.CacheTtl;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(200);
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(30) };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -117,12 +118,19 @@ public class JavaDownload
         }
 
         List<MojangJavaRuntime> result = [];
-        if (manifest is not null && manifest.TryGetValue(PlatformKey, out Dictionary<string, List<AllManifestEntry>>? components))
+        if (manifest is not null && manifest.TryGetValue(PlatformKey, out Dictionary<string, List<AllManifestEntry>>? components)
+            && components is not null)
         {
             foreach (KeyValuePair<string, List<AllManifestEntry>> component in components)
             {
+                if (component.Value is null)
+                {
+                    continue;
+                }
+
                 AllManifestEntry? entry = component.Value.FirstOrDefault();
-                if (entry is null || string.IsNullOrWhiteSpace(entry.Manifest.Url))
+                if (entry is null || entry.Manifest is null || entry.Version is null ||
+                    string.IsNullOrWhiteSpace(entry.Manifest.Url))
                 {
                     continue;
                 }
@@ -195,12 +203,12 @@ public class JavaDownload
             throw new InvalidOperationException($"当前平台没有名为 {component} 的 Java 运行时。");
         }
 
-        RuntimeManifest manifest = await FetchManifestAsync(selected.ManifestUrl, cancellationToken).ConfigureAwait(false);
+        RuntimeManifest manifest = await FetchManifestAsync(selected.ManifestUrl, selected.ManifestSha1, cancellationToken).ConfigureAwait(false);
         string runtimeRoot = Path.Combine(GetRuntimeDirectory(Path.GetFullPath(gameDirectory.Trim())), selected.Component, PlatformKey);
         Directory.CreateDirectory(runtimeRoot);
 
         List<KeyValuePair<string, RuntimeFile>> files = manifest.Files
-            .Where(pair => string.Equals(pair.Value.Type, "file", StringComparison.OrdinalIgnoreCase))
+            .Where(pair => pair.Value is not null && string.Equals(pair.Value.Type, "file", StringComparison.OrdinalIgnoreCase))
             .ToList();
         long totalBytes = files.Sum(pair => pair.Value.Downloads?.Raw?.Size ?? 0);
         int totalFiles = files.Count;
@@ -424,13 +432,30 @@ public class JavaDownload
         return false;
     }
 
-    private static async Task<RuntimeManifest> FetchManifestAsync(string manifestUrl, CancellationToken cancellationToken)
+    private static async Task<RuntimeManifest> FetchManifestAsync(
+        string manifestUrl,
+        string expectedSha1,
+        CancellationToken cancellationToken)
     {
         try
         {
-            string json = await Http.GetStringAsync(manifestUrl, cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<RuntimeManifest>(json, JsonOptions)
-                   ?? throw new InvalidOperationException("Java 运行时清单为空或格式错误。");
+            byte[] bytes = await Http.GetByteArrayAsync(manifestUrl, cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(expectedSha1))
+            {
+                string actual = Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant();
+                if (!string.Equals(actual, expectedSha1.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException("Java 运行时组件清单校验失败（SHA-1 不匹配）。");
+                }
+            }
+
+            RuntimeManifest? parsed = JsonSerializer.Deserialize<RuntimeManifest>(bytes, JsonOptions);
+            if (parsed is null || parsed.Files is null)
+            {
+                throw new InvalidOperationException("Java 运行时清单为空或格式错误。");
+            }
+
+            return parsed;
         }
         catch (JsonException e)
         {
@@ -451,10 +476,28 @@ public class JavaDownload
         string targetPath,
         CancellationToken cancellationToken)
     {
-        // 已存在且大小一致的文件直接跳过（官方启动器同样按清单跳过）
+        // 已存在的文件需大小一致，且提供 SHA-1 时内容校验通过才跳过，避免残留/被篡改文件被直接采用
         if (File.Exists(targetPath) && new FileInfo(targetPath).Length == download.Size)
         {
-            return;
+            if (string.IsNullOrWhiteSpace(download.Sha1))
+            {
+                return;
+            }
+
+            try
+            {
+                await using FileStream existing = File.OpenRead(targetPath);
+                string existingHash = Convert.ToHexString(
+                    await SHA1.HashDataAsync(existing, cancellationToken).ConfigureAwait(false)).ToLowerInvariant();
+                if (string.Equals(existingHash, download.Sha1.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                // 校验读取失败按无效处理，继续重新下载
+            }
         }
 
         string? directory = Path.GetDirectoryName(targetPath);

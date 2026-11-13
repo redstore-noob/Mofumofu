@@ -274,9 +274,18 @@ public sealed class VendorJavaInstaller
             ? nameElement.GetString()
             : string.Empty;
         var buildVersion = ExtractJdkVersionFromName(name);
-        // Zulu Metadata API 未提供 sha256，下载后靠 https + 解压验证兜底
+        // Azul Metadata API 部分响应会带回 sha256_hash 与 size；能取到就纳入完整性校验，
+        // 取不到时退化为 https + 下载大小校验 + 解压逐条目校验兜底
+        var sha256 = first.TryGetProperty("sha256_hash", out var shaElement) &&
+                     shaElement.ValueKind == JsonValueKind.String
+            ? shaElement.GetString()
+            : null;
+        var size = first.TryGetProperty("size", out var sizeElement) &&
+                   sizeElement.TryGetInt64(out var parsedSize) && parsedSize > 0
+            ? parsedSize
+            : 0;
         return new VendorJavaCandidate(
-            VendorJavaKind.Zulu, majorVersion, buildVersion, downloadUrl, null, 0);
+            VendorJavaKind.Zulu, majorVersion, buildVersion, downloadUrl, sha256, size);
     }
 
     /// <summary>Temurin：Adoptium API，带 SHA-256 校验。</summary>
@@ -389,7 +398,7 @@ public sealed class VendorJavaInstaller
             await DownloadAsync(candidate.DownloadUrl, temporaryArchive, candidate.SizeBytes, progress, cancellationToken)
                 .ConfigureAwait(false);
 
-            // SHA-256 完整性校验（有校验值才校验；Zulu/Oracle 无公开校验值时靠 https + 解压验证兜底）
+            // SHA-256 完整性校验（有校验值才校验；无公开校验值时靠 https + 下载大小校验 + 解压逐条目校验兜底）
             if (!string.IsNullOrWhiteSpace(candidate.Sha256))
             {
                 Report(progress, "校验文件完整性", candidate.SizeBytes, candidate.SizeBytes, 0);
@@ -412,9 +421,36 @@ public sealed class VendorJavaInstaller
                 if (extractedRoot is null)
                     throw new InvalidDataException("下载的压缩包中没有找到 JDK 目录。");
 
+                // 覆盖安装先把旧目录改名到备份位置（同一分区，运行中 java 的文件占用不影响改名），
+                // 再把解压出的新目录就位；就位失败则回滚，避免先删后移在中途失败留下不可用状态。
+                string? backupDirectory = null;
                 if (Directory.Exists(targetDirectory))
-                    Directory.Delete(targetDirectory, recursive: true);
-                Directory.Move(extractedRoot, targetDirectory);
+                {
+                    var runtimeParent = Path.GetDirectoryName(Path.GetFullPath(runtimeDirectory))!;
+                    backupDirectory = Path.Combine(runtimeParent,
+                        $".java-backup-{vendorKey}-{candidate.MajorVersion}-{Guid.NewGuid():N}");
+                    Directory.Move(targetDirectory, backupDirectory);
+                }
+
+                try
+                {
+                    Directory.Move(extractedRoot, targetDirectory);
+                }
+                catch
+                {
+                    TryDeleteDirectory(targetDirectory);
+                    if (backupDirectory is not null && !Directory.Exists(targetDirectory))
+                    {
+                        Directory.Move(backupDirectory, targetDirectory);
+                    }
+                    throw;
+                }
+
+                // 旧目录可能仍被运行中的 java 占用，删除失败不影响已就位的新安装
+                if (backupDirectory is not null)
+                {
+                    TryDeleteDirectory(backupDirectory);
+                }
             }
             finally
             {
@@ -466,7 +502,8 @@ public sealed class VendorJavaInstaller
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var totalBytes = response.Content.Headers.ContentLength ?? expectedSize;
+        var contentLength = response.Content.Headers.ContentLength;
+        var totalBytes = contentLength ?? expectedSize;
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var destination = new FileStream(
@@ -488,6 +525,16 @@ public sealed class VendorJavaInstaller
                 ? downloaded / stopwatch.Elapsed.TotalSeconds
                 : 0;
             Report(progress, "正在下载 JDK", downloaded, totalBytes, speed);
+        }
+
+        // 大小校验：优先比对响应声明长度，其次比对候选期望大小，检测截断/不完整下载
+        if (contentLength is long declaredLength && downloaded != declaredLength)
+        {
+            throw new InvalidDataException("Java 安装包下载不完整（与响应声明长度不一致）。");
+        }
+        if (contentLength is null && expectedSize > 0 && downloaded != expectedSize)
+        {
+            throw new InvalidDataException("Java 安装包下载不完整（与期望大小不一致）。");
         }
     }
 
@@ -512,21 +559,131 @@ public sealed class VendorJavaInstaller
         string destinationDirectory,
         CancellationToken cancellationToken)
     {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
+        var rootPrefix = root + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
         if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
-            await Task.Run(() => ZipFile.ExtractToDirectory(archivePath, destinationDirectory), cancellationToken)
-                .ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                using var archive = ZipFile.OpenRead(archivePath);
+                foreach (var entry in archive.Entries)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var destination = ResolveArchiveEntryPath(root, rootPrefix, comparison, entry.FullName);
+                    // ZIP 符号链接等以 Unix 外部属性高位标记（S_IFLNK=0xA000）；非普通文件/目录一律拒绝落地
+                    var unixMode = (entry.ExternalAttributes >> 16) & 0xF000;
+                    if (unixMode != 0 && unixMode != 0x8000 && unixMode != 0x4000)
+                    {
+                        continue;
+                    }
+
+                    if (IsDirectoryEntry(entry.FullName))
+                    {
+                        Directory.CreateDirectory(destination);
+                        continue;
+                    }
+
+                    var parent = Path.GetDirectoryName(destination);
+                    if (!string.IsNullOrEmpty(parent))
+                        Directory.CreateDirectory(parent);
+                    entry.ExtractToFile(destination, false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
         else if (archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
         {
-            await using var stream = File.OpenRead(archivePath);
-            await TarFile.ExtractToDirectoryAsync(
-                    stream, destinationDirectory, overwriteFiles: true, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                using var fileStream = File.OpenRead(archivePath);
+                using var gzip = new GZipStream(fileStream, CompressionMode.Decompress);
+                using var reader = new TarReader(gzip);
+                while (reader.GetNextEntry() is TarEntry entry)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var destination = ResolveArchiveEntryPath(root, rootPrefix, comparison, entry.Name);
+                    // 仅落地普通文件与目录；符号链接、硬链接、设备、FIFO 等全部拒绝，防止经链接写出到目标目录之外
+                    if (entry.EntryType == TarEntryType.Directory || IsDirectoryEntry(entry.Name))
+                    {
+                        Directory.CreateDirectory(destination);
+                        continue;
+                    }
+
+                    if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile))
+                    {
+                        continue;
+                    }
+
+                    var parent = Path.GetDirectoryName(destination);
+                    if (!string.IsNullOrEmpty(parent))
+                        Directory.CreateDirectory(parent);
+                    entry.ExtractToFile(destination, false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
         else
         {
             throw new InvalidDataException($"不支持的安装包格式：{archivePath}");
+        }
+
+        // 解压后兜底：确认所有产物仍在目标目录内
+        AssertExtractedContained(root, rootPrefix, comparison);
+    }
+
+    private static string ResolveArchiveEntryPath(
+        string root,
+        string rootPrefix,
+        StringComparison comparison,
+        string entryName)
+    {
+        if (string.IsNullOrWhiteSpace(entryName) || entryName.Contains('\0'))
+        {
+            throw new InvalidDataException("压缩包含非法条目名。");
+        }
+
+        var normalized = entryName.Replace('\\', '/');
+        // 显式拒绝绝对路径、盘符（含 Windows ADS）与任何 .. 上跳段
+        if (normalized[0] == '/' || Path.IsPathRooted(entryName) || normalized.Contains(':'))
+        {
+            throw new InvalidDataException($"压缩包含绝对路径或盘符条目：{entryName}");
+        }
+        foreach (var segment in normalized.Split('/'))
+        {
+            if (segment == "..")
+            {
+                throw new InvalidDataException($"压缩包含目录穿越条目：{entryName}");
+            }
+        }
+
+        var combined = Path.GetFullPath(Path.Combine(root, normalized.Replace('/', Path.DirectorySeparatorChar)));
+        if (!combined.Equals(root, comparison) && !combined.StartsWith(rootPrefix, comparison))
+        {
+            throw new InvalidDataException($"压缩包条目越出目标目录：{entryName}");
+        }
+
+        return combined;
+    }
+
+    private static bool IsDirectoryEntry(string name) =>
+        name.EndsWith('/') || name.EndsWith('\\');
+
+    private static void AssertExtractedContained(
+        string root,
+        string rootPrefix,
+        StringComparison comparison)
+    {
+        foreach (var path in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.AllDirectories))
+        {
+            var full = Path.GetFullPath(path);
+            if (!full.Equals(root, comparison) && !full.StartsWith(rootPrefix, comparison))
+            {
+                throw new InvalidDataException($"解压产物越出目标目录：{path}");
+            }
         }
     }
 

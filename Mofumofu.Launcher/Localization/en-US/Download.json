@@ -182,5 +182,7 @@
   "Download.Version.Type.Snapshot": "Snapshots",
   "Download.Modpack.Drop.NotModpack": "Not a modpack file (supported: .mrpack / .zip)",
   "Download.Modpack.Drop.ReadFailed": "Failed to read modpack: {0}",
-  "Download.Modpack.Drop.CurseForge": "CurseForge modpacks are not supported yet; please use a Modrinth (.mrpack) version"
+  "Download.Modpack.Drop.CurseForge": "CurseForge modpacks are not supported yet; please use a Modrinth (.mrpack) version",
+  "Download.Modpack.Drop.CurseForgeNoKey": "CurseForge packs need an API key — add one in Settings → Download",
+  "Download.Modpack.Drop.CurseForgePartial": "Installed {0}, but {1} files were skipped (author may block third-party downloads)"
 }

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
+using MofuCore.Config;
 namespace MofuCore.Java;
 
 /// <summary>
@@ -18,7 +19,7 @@ public class JavaPathSearch
     public const string JavaRuntimeVariable = "MOFUMOFU_JAVA_RUNTIME";
 
     private const int MaximumScanDepth = 6;
-    private static readonly TimeSpan DetectTimeout = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan DetectTimeout = NetworkDefaults.QuickProbeTimeout;
     private static readonly Regex VersionPattern = new(
         "version\\s+\"?(\\d+)(?:\\.(\\d+))?",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -544,6 +545,15 @@ public class JavaPathSearch
         try
         {
             string expanded = ExpandPath(path.Trim().Trim('"'));
+            // 拒绝展开后仍含控制字符/空字符的路径，避免环境变量或 PATH 注入破坏后续命令行与路径解析
+            foreach (char character in expanded)
+            {
+                if (character == '\0' || char.IsControl(character))
+                {
+                    return null;
+                }
+            }
+
             if (Directory.Exists(expanded))
             {
                 string insideDirectory = Path.Combine(expanded, "bin", JavaExecutableName);
@@ -561,6 +571,12 @@ public class JavaPathSearch
     private static string ExpandPath(string path)
     {
         string expanded = Environment.ExpandEnvironmentVariables(path);
+        // Windows 路径允许字面量 '$'，禁用 Unix 风格 $VAR / ${VAR} 展开，避免环境变量劫持候选路径
+        if (OperatingSystem.IsWindows())
+        {
+            return expanded;
+        }
+
         return UnixVariablePattern.Replace(expanded, match =>
             Environment.GetEnvironmentVariable(match.Groups["braced"].Success
                 ? match.Groups["braced"].Value

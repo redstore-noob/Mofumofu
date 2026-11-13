@@ -30,7 +30,9 @@ public class LibraryResolver
                 continue;
             }
 
-            if (TryGetArtifactPath(library, out string artifactRelativePath))
+            if (TryGetArtifactPath(library, out string artifactRelativePath) ||
+                (!HasNativeMappings(library) &&
+                 TryGetCoordinateArtifactPath(library, out artifactRelativePath)))
             {
                 string artifactPath = ToAbsoluteLibraryPath(librariesDirectory, artifactRelativePath);
                 if (File.Exists(artifactPath))
@@ -105,6 +107,7 @@ public class LibraryResolver
                 {
                     plans.Add(new LibraryDownloadPlan(artifact.Path, artifact.Url, artifact.Sha1, artifact.Size,
                         false, "依赖库"));
+                    planned = true;
                 }
 
                 if (library.Downloads.Classifiers is not null && library.Natives is not null &&
@@ -114,9 +117,9 @@ public class LibraryResolver
                 {
                     plans.Add(new LibraryDownloadPlan(native.Path, native.Url, native.Sha1, native.Size,
                         true, "原生依赖库"));
+                    planned = true;
                 }
 
-                planned = true;
             }
 
             if (planned) continue;
@@ -316,6 +319,22 @@ public class LibraryResolver
         }
 
         return false;
+    }
+
+    private static bool HasNativeMappings(JsonElement library)
+    {
+        return library.TryGetProperty("natives", out JsonElement natives) &&
+               natives.ValueKind == JsonValueKind.Object;
+    }
+
+    private static bool TryGetCoordinateArtifactPath(JsonElement library, out string relativePath)
+    {
+        relativePath = string.Empty;
+        string? name = VersionLoader.TryGetString(library, "name");
+        if (string.IsNullOrWhiteSpace(name)) return false;
+
+        relativePath = CreateMavenPath(name);
+        return relativePath.Length > 0;
     }
 
     private static bool TryGetNativePath(JsonElement library, out string relativePath)

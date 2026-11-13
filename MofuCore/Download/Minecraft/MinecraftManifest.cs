@@ -2,6 +2,8 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using MofuCore.Config;
+
 namespace MofuCore.Download.Minecraft;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace MofuCore.Download.Minecraft;
 /// </summary>
 public class MinecraftManifest
 {
-    public const string DefaultUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+    public const string DefaultUrl = ApiEndpoints.MojangManifest;
 
     /// <summary>单次拉取版本清单的超时：BMCL 等镜像偶尔会挂起数十秒，超过该预算就换下一个源。</summary>
     private const int ManifestAttemptTimeoutSeconds = 8;

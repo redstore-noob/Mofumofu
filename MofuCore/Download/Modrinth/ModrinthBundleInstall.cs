@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using MofuCore.Download.Minecraft;
 
+using MofuCore.Config;
 namespace MofuCore.Download.Modrinth;
 
 /// <summary>整合包声明的 Mod Loader 类型。</summary>
@@ -123,9 +124,10 @@ public class ModpackInstallResult
 public class ModrinthBundleInstall
 {
     private const int MaximumArchiveEntries = 20000;
-    private const long MaximumEntryBytes = 2L * 1024 * 1024 * 1024;
-    private const long MaximumExtractedBytes = 8L * 1024 * 1024 * 1024;
-    private const long MaximumIndexBytes = 8L * 1024 * 1024;
+    private const long MaximumEntryBytes = SizeLimits.BundleEntryMaximumBytes;
+    private const long MaximumExtractedBytes = SizeLimits.BundleExtractedMaximumBytes;
+    private const long MaximumIndexBytes = SizeLimits.BundleIndexMaximumBytes;
+    private const long MaximumDownloadBytes = SizeLimits.BundleEntryMaximumBytes;
     private const int CopyBufferSize = 128 * 1024;
     private const string ServerOverridesPrefix = "server-overrides/";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(30) };
@@ -493,14 +495,17 @@ public class ModrinthBundleInstall
             string sha1 = GetHash(file.Hashes, "sha1");
             string sha512 = GetHash(file.Hashes, "sha512");
             bool hasDeclaredHash = IsDeclaredHashWellFormed(sha1, 40) || IsDeclaredHashWellFormed(sha512, 128);
-            if (File.Exists(target) && new FileInfo(target).Length > 0)
+            if (!hasDeclaredHash)
             {
-                // 清单没声明哈希时按"非空即认"复用；声明了就按哈希校验
-                if (!hasDeclaredHash || FileMatchesHashes(target, sha1, sha512))
-                {
-                    result.ReusedFiles++;
-                    continue;
-                }
+                // 清单未声明有效哈希时拒绝下载并显式告警，绝不静默跳过完整性校验
+                result.Errors.Add($"跳过 {declaredPath}：清单未声明有效的 sha1/sha512 哈希，无法校验完整性。");
+                continue;
+            }
+
+            if (File.Exists(target) && new FileInfo(target).Length > 0 && FileMatchesHashes(target, sha1, sha512))
+            {
+                result.ReusedFiles++;
+                continue;
             }
 
             jobs.Add(new DependencyJob(declaredPath, url, target, sha1, sha512, file.FileSize));
@@ -593,6 +598,11 @@ public class ModrinthBundleInstall
         IProgress<long>? progress,
         CancellationToken cancellationToken)
     {
+        if (!ModrinthApiClient.IsAllowedDownloadUrl(url))
+        {
+            throw new InvalidOperationException($"下载地址不是允许的 HTTPS URL：{url}");
+        }
+
         using HttpResponseMessage response = await Http
             .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
@@ -609,8 +619,13 @@ public class ModrinthBundleInstall
                 break;
             }
 
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             total += read;
+            if (total > MaximumDownloadBytes)
+            {
+                throw new InvalidOperationException($"下载 {url} 超过单文件体积上限。");
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             progress?.Report(total);
         }
     }
@@ -827,12 +842,7 @@ public class ModrinthBundleInstall
         return combined;
     }
 
-    private static bool IsHttpUrl(string? value)
-    {
-        return !string.IsNullOrWhiteSpace(value)
-               && Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
-               && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
-    }
+    private static bool IsHttpUrl(string? value) => ModrinthApiClient.IsAllowedDownloadUrl(value);
 
     private static string GetHash(Dictionary<string, string>? hashes, string algorithm)
     {
@@ -855,7 +865,8 @@ public class ModrinthBundleInstall
         bool wantSha512 = IsDeclaredHashWellFormed(sha512, 128);
         if (!wantSha1 && !wantSha512)
         {
-            return true;
+            // 没有可校验的声明哈希时不再静默放行
+            return false;
         }
 
         try

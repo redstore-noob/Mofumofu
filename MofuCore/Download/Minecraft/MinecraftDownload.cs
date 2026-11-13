@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 
 using MofuCore;
 
+using MofuCore.Config;
 namespace MofuCore.Download.Minecraft;
 
 /// <summary>
@@ -1113,7 +1114,7 @@ public sealed class MinecraftDownload
         return new MinecraftDownloadFile
         {
             Url = file.Url,
-            TargetPath = Path.Combine(MinecraftDirectory, "assets", LoggingConfigDirectory, file.Id),
+            TargetPath = ResolveLoggingConfigPath(MinecraftDirectory, file.Id),
             Sha1 = file.Sha1?.Trim(),
             Size = file.Size,
             DisplayName = file.Id,
@@ -1326,7 +1327,7 @@ public sealed class MinecraftDownload
         DownloadSourceProvider.EnsureHttps(url);
 
         // 大文件（jar / 大 library）走多连接分段下载；未设置限速且没有断点临时文件时启用
-        bool canSegment = expectedSize >= 8L * 1024 * 1024
+        bool canSegment = expectedSize >= SizeLimits.SegmentedDownloadMinimumBytes
                           && DownloadSpeedLimiter.Kbps <= 0
                           && (!File.Exists(temporaryPath) || new FileInfo(temporaryPath).Length == 0);
         if (canSegment)
@@ -1585,6 +1586,21 @@ public sealed class MinecraftDownload
         {
             throw new InvalidOperationException($"版本 ID 包含不安全字符：{versionId}");
         }
+    }
+
+    /// <summary>
+    /// 远端 logging.client.file.id 拼进日志配置路径前的净化：拒绝路径分隔符 / .. / 非法文件名字符，
+    /// 杜绝越出 assets/log_configs 目录写文件（Zip Slip 式的远端清单注入）。
+    /// </summary>
+    public static string ResolveLoggingConfigPath(string minecraftDirectory, string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id is "." or ".." ||
+            id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            id.Contains('/') || id.Contains('\\'))
+        {
+            throw new InvalidOperationException($"日志配置 ID 包含不安全字符：{id}");
+        }
+        return Path.Combine(minecraftDirectory, "assets", LoggingConfigDirectory, id);
     }
 
     /// <summary>Maven 坐标 → 文件系统相对路径（支持 @extension 后缀）。</summary>
@@ -1969,7 +1985,7 @@ public sealed class MinecraftGameFileVerifier
 
             if (metadata.Logging?.Client?.File is not null)
             {
-                string loggingPath = Path.Combine(root, "assets", MinecraftDownload.LoggingConfigDirectory, metadata.Logging.Client.File.Id);
+                string loggingPath = MinecraftDownload.ResolveLoggingConfigPath(root, metadata.Logging.Client.File.Id);
                 if (!File.Exists(loggingPath))
                 {
                     Reporter.Report(status, "正在补全日志配置…");
@@ -1999,7 +2015,7 @@ public sealed class MinecraftGameFileVerifier
     private static async Task DownloadLoggingConfigAsync(string root, MinecraftVersionJson metadata, CancellationToken cancellationToken)
     {
         MinecraftDownloadInfo file = metadata.Logging!.Client!.File!;
-        string target = Path.Combine(root, "assets", MinecraftDownload.LoggingConfigDirectory, file.Id);
+        string target = MinecraftDownload.ResolveLoggingConfigPath(root, file.Id);
         await MinecraftDownload.DownloadFileToPathAsync(file.Url, target, file.Sha1, file.Size, null, cancellationToken).ConfigureAwait(false);
     }
 

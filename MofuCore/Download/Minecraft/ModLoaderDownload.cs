@@ -1,15 +1,769 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using MofuCore.Config;
 using MofuCore.Java;
 
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>加载器版本目录、安装入口与安装器公共流程。</summary>
+/// <summary>
+/// 五种加载器的版本查询与安装：Fabric / Quilt 走各自的 meta 与 maven；
+/// Forge / NeoForge 读 maven-metadata 与官方安装器；OptiFine 解析官网下载页。
+/// </summary>
+public enum ModLoaderKind
+{
+    Vanilla,
+    Fabric,
+    Quilt,
+    Forge,
+    NeoForge,
+    OptiFine,
+}
+
+public sealed record ModLoaderVersionInfo(
+    ModLoaderKind Kind,
+    string MinecraftVersion,
+    string LoaderVersion,
+    string DisplayName,
+    bool IsStable,
+    string InstallSource)
+{
+    public bool RequiresInstaller => Kind is ModLoaderKind.Forge or ModLoaderKind.NeoForge or ModLoaderKind.OptiFine;
+}
+
+public sealed record ModLoaderInstallProgress(
+    int StageIndex,
+    string StageName,
+    string Detail,
+    double Percentage,
+    double BytesPerSecond = 0,
+    long CompletedBytes = 0,
+    long TotalBytes = 0);
+
+public static class FabricDownload
+{
+    public const string MetaRoot = ApiEndpoints.FabricMeta + "/versions/loader/";
+
+    public static async Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        string mc = RequireMinecraftVersion(minecraftVersion);
+        string url = MetaRoot + Uri.EscapeDataString(mc);
+        string json = await DownloadSourceProvider.GetStringAsync(url, TimeSpan.FromSeconds(10), cancellationToken)
+            .ConfigureAwait(false);
+
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+
+        List<ModLoaderVersionInfo> result = [];
+        foreach (JsonElement entry in document.RootElement.EnumerateArray())
+        {
+            if (!entry.TryGetProperty("loader", out JsonElement loader) ||
+                !loader.TryGetProperty("version", out JsonElement versionElement))
+            {
+                continue;
+            }
+
+            string? version = versionElement.GetString();
+            if (string.IsNullOrWhiteSpace(version)) continue;
+
+            bool stable = loader.TryGetProperty("stable", out JsonElement stableElement) &&
+                          stableElement.ValueKind == JsonValueKind.True;
+            result.Add(new ModLoaderVersionInfo(
+                ModLoaderKind.Fabric,
+                mc,
+                version.Trim(),
+                $"Fabric Loader {version.Trim()}",
+                stable,
+                $"{MetaRoot}{Uri.EscapeDataString(mc)}/{Uri.EscapeDataString(version.Trim())}/profile/json"));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result);
+    }
+
+    public static async Task<string> InstallAsync(
+        ModLoaderVersionInfo version,
+        string gameDirectory,
+        string instanceName,
+        IProgress<ModLoaderInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ModLoaderInstaller.EnsureVanillaAsync(
+            gameDirectory, version.MinecraftVersion, progress, cancellationToken).ConfigureAwait(false);
+
+        ModLoaderInstaller.Report(progress, 60, "获取 Fabric 配置", "正在读取 Fabric Loader 的版本 JSON…");
+        string json = await DownloadSourceProvider.GetStringAsync(
+            version.InstallSource, TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+
+        await ModLoaderInstaller.WriteProfileVersionAsync(
+            gameDirectory, instanceName, json, progress, cancellationToken).ConfigureAwait(false);
+        return instanceName;
+    }
+
+    internal static string RequireMinecraftVersion(string minecraftVersion)
+    {
+        string mc = (minecraftVersion ?? string.Empty).Trim();
+        if (mc.Length == 0)
+        {
+            throw new InvalidOperationException("Minecraft 版本不能为空。");
+        }
+        return mc;
+    }
+}
+
+
+
+public static class QuiltLoaderDownload
+{
+    public const string MetaRoot = ApiEndpoints.QuiltMeta + "/versions/loader/";
+
+    public static async Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        string mc = FabricDownload.RequireMinecraftVersion(minecraftVersion);
+        string url = MetaRoot + Uri.EscapeDataString(mc);
+        string json = await DownloadSourceProvider.GetStringAsync(url, TimeSpan.FromSeconds(10), cancellationToken)
+            .ConfigureAwait(false);
+
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+
+        List<ModLoaderVersionInfo> result = [];
+        foreach (JsonElement entry in document.RootElement.EnumerateArray())
+        {
+            if (!entry.TryGetProperty("loader", out JsonElement loader) ||
+                !loader.TryGetProperty("version", out JsonElement versionElement))
+            {
+                continue;
+            }
+
+            string? version = versionElement.GetString();
+            if (string.IsNullOrWhiteSpace(version)) continue;
+
+            bool stable = loader.TryGetProperty("stable", out JsonElement stableElement)
+                ? stableElement.ValueKind == JsonValueKind.True
+                : !version.Contains("-beta", StringComparison.OrdinalIgnoreCase) &&
+                  !version.Contains("-pre", StringComparison.OrdinalIgnoreCase) &&
+                  !version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
+            result.Add(new ModLoaderVersionInfo(
+                ModLoaderKind.Quilt,
+                mc,
+                version.Trim(),
+                $"Quilt Loader {version.Trim()}",
+                stable,
+                $"{MetaRoot}{Uri.EscapeDataString(mc)}/{Uri.EscapeDataString(version.Trim())}/profile/json"));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result);
+    }
+
+    public static async Task<string> InstallAsync(
+        ModLoaderVersionInfo version,
+        string gameDirectory,
+        string instanceName,
+        IProgress<ModLoaderInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ModLoaderInstaller.EnsureVanillaAsync(
+            gameDirectory, version.MinecraftVersion, progress, cancellationToken).ConfigureAwait(false);
+
+        ModLoaderInstaller.Report(progress, 60, "获取 Quilt 配置", "正在读取 Quilt Loader 的版本 JSON…");
+        string json = await DownloadSourceProvider.GetStringAsync(
+            version.InstallSource, TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+
+        await ModLoaderInstaller.WriteProfileVersionAsync(
+            gameDirectory, instanceName, json, progress, cancellationToken).ConfigureAwait(false);
+        return instanceName;
+    }
+}
+
+
+
+public static class ForgeDownload
+{
+    public const string PromotionsUrl = ApiEndpoints.ForgeFiles + "/net/minecraftforge/forge/promotions_slim.json";
+    public const string MetadataUrl = ApiEndpoints.ForgeMaven + "/net/minecraftforge/forge/maven-metadata.xml";
+    public const string MavenRoot = ApiEndpoints.ForgeMaven + "/net/minecraftforge/forge/";
+    public const string BmclForgeListUrl = ApiEndpoints.BmclApi + "/forge/minecraft/";
+
+    private static readonly SemaphoreSlim PromotionsGate = new(1, 1);
+    private static readonly object PromotionsLock = new();
+    private static string? _promotionsJson;
+    private static DateTimeOffset _promotionsAt;
+
+    public static async Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        string mc = FabricDownload.RequireMinecraftVersion(minecraftVersion);
+
+        IReadOnlyList<ModLoaderVersionInfo> full = await TryBmclFullListAsync(mc, cancellationToken)
+            .ConfigureAwait(false);
+        if (full.Count > 0) return full;
+
+        full = await TryMavenMetadataAsync(mc, cancellationToken).ConfigureAwait(false);
+        if (full.Count > 0) return full;
+
+        string json = await GetPromotionsAsync(cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<ModLoaderVersionInfo> result = ParsePromotions(json, mc);
+        if (result.Count > 0) return result;
+
+        string official = await GetStringDirectAsync(
+            PromotionsUrl, TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+        return ParsePromotions(official, mc);
+    }
+
+    private static async Task<IReadOnlyList<ModLoaderVersionInfo>> TryBmclFullListAsync(
+        string minecraftVersion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string json = await DownloadSourceProvider.GetStringAsync(
+                BmclForgeListUrl + Uri.EscapeDataString(minecraftVersion),
+                TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+
+            return ParseBmclForgeList(json, minecraftVersion);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            return [];
+        }
+    }
+
+    internal static IReadOnlyList<ModLoaderVersionInfo> ParseBmclForgeList(string json, string minecraftVersion)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<ModLoaderVersionInfo> result = [];
+        foreach (JsonElement entry in document.RootElement.EnumerateArray())
+        {
+            if (entry.TryGetProperty("mcversion", out JsonElement mcElement) &&
+                !string.Equals(mcElement.GetString(), minecraftVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!entry.TryGetProperty("version", out JsonElement versionElement)) continue;
+            string bare = versionElement.GetString()?.Trim() ?? string.Empty;
+            if (bare.Length == 0) continue;
+
+            string fullVersion = minecraftVersion + "-" + bare;
+            if (!seen.Add(fullVersion) || IsPrerelease(fullVersion)) continue;
+
+            result.Add(new ModLoaderVersionInfo(
+                ModLoaderKind.Forge,
+                minecraftVersion,
+                fullVersion,
+                $"Forge {fullVersion}",
+                true,
+                InstallerUrl(fullVersion, minecraftVersion)));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result);
+    }
+
+    private static async Task<IReadOnlyList<ModLoaderVersionInfo>> TryMavenMetadataAsync(
+        string minecraftVersion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            byte[] metadataBytes = await DownloadSourceProvider.GetBytesDirectAsync(
+                MetadataUrl, TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+            string metadata = System.Text.Encoding.UTF8.GetString(metadataBytes);
+
+            return ParseMavenMetadata(metadata, minecraftVersion);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            return [];
+        }
+    }
+
+    internal static IReadOnlyList<ModLoaderVersionInfo> ParseMavenMetadata(string xml, string minecraftVersion)
+    {
+        string prefix = minecraftVersion + "-";
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<ModLoaderVersionInfo> result = [];
+
+        foreach (Match match in VersionTag.Matches(xml))
+        {
+            string fullVersion = match.Groups[1].Value.Trim();
+            if (!fullVersion.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!seen.Add(fullVersion) || IsPrerelease(fullVersion)) continue;
+
+            result.Add(new ModLoaderVersionInfo(
+                ModLoaderKind.Forge,
+                minecraftVersion,
+                fullVersion,
+                $"Forge {fullVersion}",
+                true,
+                InstallerUrl(fullVersion, minecraftVersion)));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result);
+    }
+
+    private static bool IsPrerelease(string version)
+    {
+        string lower = version.ToLowerInvariant();
+
+        return lower.Contains("shim", StringComparison.Ordinal) ||
+               lower.Contains("-beta", StringComparison.Ordinal) ||
+               lower.Contains("-pre", StringComparison.Ordinal) ||
+               lower.Contains("-rc", StringComparison.Ordinal);
+    }
+
+    private static readonly Regex VersionTag = new(
+        "<version>([^<]+)</version>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static async Task<string> GetPromotionsAsync(CancellationToken cancellationToken)
+    {
+        lock (PromotionsLock)
+        {
+            if (_promotionsJson is not null && DateTimeOffset.UtcNow - _promotionsAt < TimeSpan.FromMinutes(10))
+            {
+                return _promotionsJson;
+            }
+        }
+
+        await PromotionsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_promotionsJson is not null && DateTimeOffset.UtcNow - _promotionsAt < TimeSpan.FromMinutes(10))
+            {
+                return _promotionsJson;
+            }
+
+            string json;
+            try
+            {
+                json = await DownloadSourceProvider.GetStringAsync(
+                    PromotionsUrl, TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                json = await GetStringDirectAsync(
+                    PromotionsUrl, TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            }
+
+            _promotionsJson = json;
+            _promotionsAt = DateTimeOffset.UtcNow;
+            return json;
+        }
+        finally
+        {
+            PromotionsGate.Release();
+        }
+    }
+
+    private static IReadOnlyList<ModLoaderVersionInfo> ParsePromotions(string json, string minecraftVersion)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("promos", out JsonElement promos) ||
+            promos.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        Dictionary<string, ModLoaderVersionInfo> result = new(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty property in promos.EnumerateObject())
+        {
+            string key = property.Name;
+            bool recommended = key.EndsWith("-recommended", StringComparison.OrdinalIgnoreCase);
+            bool latest = key.EndsWith("-latest", StringComparison.OrdinalIgnoreCase);
+            if (!recommended && !latest) continue;
+
+            string suffix = recommended ? "-recommended" : "-latest";
+            string keyVersion = key[..^suffix.Length];
+            if (!string.Equals(keyVersion, minecraftVersion, StringComparison.OrdinalIgnoreCase)) continue;
+
+            string forgeVersion = property.Value.GetString()?.Trim() ?? string.Empty;
+            if (forgeVersion.Length == 0) continue;
+
+            string fullVersion = minecraftVersion + "-" + forgeVersion;
+            if (result.TryGetValue(fullVersion, out ModLoaderVersionInfo? existing) && existing.IsStable)
+            {
+                continue;
+            }
+
+            result[fullVersion] = new ModLoaderVersionInfo(
+                ModLoaderKind.Forge,
+                minecraftVersion,
+                fullVersion,
+                $"Forge {fullVersion}",
+                recommended,
+                InstallerUrl(fullVersion, minecraftVersion));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result.Values);
+    }
+
+    private static async Task<string> GetStringDirectAsync(
+        string url,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(timeout);
+        using HttpResponseMessage response = await DownloadSourceProvider.Http
+            .GetAsync(url, timeoutCts.Token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+    }
+
+    public static string InstallerUrl(string loaderVersion, string minecraftVersion)
+    {
+        string mc = (minecraftVersion ?? string.Empty).Trim();
+        string version = (loaderVersion ?? string.Empty).Trim();
+        string fullVersion = version.StartsWith(mc + "-", StringComparison.OrdinalIgnoreCase)
+            ? version
+            : mc + "-" + version;
+        return MavenRoot + Uri.EscapeDataString(fullVersion) +
+               "/forge-" + Uri.EscapeDataString(fullVersion) + "-installer.jar";
+    }
+
+    public static Task<string> InstallAsync(
+        ModLoaderVersionInfo version,
+        string gameDirectory,
+        string instanceName,
+        IProgress<ModLoaderInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ModLoaderInstaller.InstallWithInstallerAsync(
+            version, gameDirectory, instanceName, progress, cancellationToken,
+            directInstallSources: [version.InstallSource]);
+    }
+}
+
+
+
+
+
+
+public static class NeoforgeLoaderDownload
+{
+    private const string OfficialMetadataUrl =
+        ApiEndpoints.NeoForgeMaven + "/net/neoforged/neoforge/maven-metadata.xml";
+    private const string OfficialInstallerRoot =
+        ApiEndpoints.NeoForgeMaven + "/net/neoforged/neoforge/";
+    private const string BmclListUrl = ApiEndpoints.BmclApi + "/neoforge/list/";
+    private const string BmclInstallerRoot = ApiEndpoints.BmclApi + "/neoforge/version/";
+
+    private static readonly Regex VersionTag = new(
+        "<version>([^<]+)</version>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public static async Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        string mc = FabricDownload.RequireMinecraftVersion(minecraftVersion);
+        bool preferBmcl = !string.Equals(
+            DownloadSourceProvider.Active.Name, DownloadSources.Official.Name, StringComparison.Ordinal);
+
+        if (preferBmcl)
+        {
+            IReadOnlyList<ModLoaderVersionInfo> fromBmcl = await TryBmclAsync(mc, cancellationToken)
+                .ConfigureAwait(false);
+            if (fromBmcl.Count > 0) return fromBmcl;
+
+            return await TryOfficialAsync(mc, cancellationToken).ConfigureAwait(false);
+        }
+
+        IReadOnlyList<ModLoaderVersionInfo> fromOfficial = await TryOfficialAsync(mc, cancellationToken)
+            .ConfigureAwait(false);
+        if (fromOfficial.Count > 0) return fromOfficial;
+
+        return await TryBmclAsync(mc, cancellationToken).ConfigureAwait(false);
+    }
+
+    public static Task<string> InstallAsync(
+        ModLoaderVersionInfo version,
+        string gameDirectory,
+        string instanceName,
+        IProgress<ModLoaderInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        string bare = Uri.EscapeDataString(version.LoaderVersion);
+        string full = Uri.EscapeDataString(version.MinecraftVersion + "-" + version.LoaderVersion);
+        List<string> sources =
+        [
+            version.InstallSource,
+            $"{BmclInstallerRoot}{full}/download/installer.jar",
+            $"{BmclInstallerRoot}{bare}/download/installer.jar",
+            $"{OfficialInstallerRoot}{bare}/neoforge-{bare}-installer.jar",
+            $"https://maven.neoforged.net/releases/net/neoforged/forge/{full}/forge-{full}-installer.jar",
+        ];
+
+        return ModLoaderInstaller.InstallWithInstallerAsync(
+            version, gameDirectory, instanceName, progress, cancellationToken, sources,
+            directInstallSources:
+            [
+                $"{OfficialInstallerRoot}{bare}/neoforge-{bare}-installer.jar",
+                $"https://maven.neoforged.net/releases/net/neoforged/forge/{full}/forge-{full}-installer.jar",
+            ]);
+    }
+
+    public static string InstallerUrl(string loaderVersion)
+    {
+        string version = Uri.EscapeDataString((loaderVersion ?? string.Empty).Trim());
+        bool useBmcl = !string.Equals(
+            DownloadSourceProvider.Active.Name, DownloadSources.Official.Name, StringComparison.Ordinal);
+        return useBmcl
+            ? $"{BmclInstallerRoot}{version}/download/installer.jar"
+            : $"{OfficialInstallerRoot}{version}/neoforge-{version}-installer.jar";
+    }
+
+    public static string NormalizeVersion(string version)
+    {
+        string value = (version ?? string.Empty).Trim();
+        int dash = value.IndexOf('-');
+        if (dash > 0 && dash < value.Length - 1 && char.IsDigit(value[dash + 1]))
+        {
+            return value[(dash + 1)..];
+        }
+        return value;
+    }
+
+    public static string ToVersionPrefix(string minecraftVersion)
+    {
+        string[] parts = (minecraftVersion ?? string.Empty).Trim().Split('.');
+        if (parts.Length >= 3) return parts[1] + "." + parts[2];
+        if (parts.Length == 2) return parts[1] + ".0";
+        return minecraftVersion ?? string.Empty;
+    }
+
+    private static async Task<IReadOnlyList<ModLoaderVersionInfo>> TryBmclAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            string json = await DownloadSourceProvider.GetStringAsync(
+                BmclListUrl + Uri.EscapeDataString(minecraftVersion),
+                TimeSpan.FromSeconds(10),
+                cancellationToken).ConfigureAwait(false);
+
+            using JsonDocument document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+
+            HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+            List<ModLoaderVersionInfo> result = [];
+            foreach (JsonElement entry in document.RootElement.EnumerateArray())
+            {
+                if (!entry.TryGetProperty("version", out JsonElement versionElement)) continue;
+                string version = NormalizeVersion(versionElement.GetString() ?? string.Empty);
+                if (version.Length == 0 || !seen.Add(version)) continue;
+
+                result.Add(new ModLoaderVersionInfo(
+                    ModLoaderKind.NeoForge,
+                    minecraftVersion,
+                    version,
+                    $"NeoForge {version}",
+                    true,
+                    $"{BmclInstallerRoot}{Uri.EscapeDataString(version)}/download/installer.jar"));
+            }
+
+            return ModLoaderInstaller.SortLoaderVersions(result);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            return [];
+        }
+    }
+
+    private static async Task<IReadOnlyList<ModLoaderVersionInfo>> TryOfficialAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            byte[] metadataBytes = await DownloadSourceProvider.GetBytesDirectAsync(
+                OfficialMetadataUrl, TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+            string metadata = System.Text.Encoding.UTF8.GetString(metadataBytes);
+
+            string prefix = ToVersionPrefix(minecraftVersion);
+            HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+            List<ModLoaderVersionInfo> result = [];
+            foreach (Match match in VersionTag.Matches(metadata))
+            {
+                string version = match.Groups[1].Value.Trim();
+                if (!MatchesPrefix(version, prefix) || !seen.Add(version)) continue;
+
+                result.Add(new ModLoaderVersionInfo(
+                    ModLoaderKind.NeoForge,
+                    minecraftVersion,
+                    version,
+                    $"NeoForge {version}",
+                    true,
+                    $"{OfficialInstallerRoot}{Uri.EscapeDataString(version)}/neoforge-{Uri.EscapeDataString(version)}-installer.jar"));
+            }
+
+            return ModLoaderInstaller.SortLoaderVersions(result);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            return [];
+        }
+    }
+
+    private static bool MatchesPrefix(string value, string prefix)
+    {
+        return string.Equals(value, prefix, StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+
+
+public static class OptifineInstaller
+{
+    private const string DownloadsUrl = "https://optifine.net/downloads";
+    private const string DownloadPageRoot = "https://optifine.net/";
+
+    private static readonly Regex FileLink = new(
+        @"(?:preview_)?OptiFine_[0-9][A-Za-z0-9._-]*?\.jar",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DownloadLink = new(
+        @"downloadx\?f=[A-Za-z0-9._=&;-]+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly TimeSpan InstallerTimeout = TimeSpan.FromMinutes(2);
+
+    public static async Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        string mc = FabricDownload.RequireMinecraftVersion(minecraftVersion);
+        string page = await DownloadSourceProvider.GetStringAsync(
+            DownloadsUrl, TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<ModLoaderVersionInfo> result = [];
+        foreach (Match match in FileLink.Matches(page))
+        {
+            string fileName = match.Value;
+            if (!seen.Add(fileName)) continue;
+
+            bool preview = fileName.StartsWith("preview_", StringComparison.OrdinalIgnoreCase);
+            string baseName = preview ? fileName["preview_".Length..] : fileName;
+            string name = baseName["OptiFine_".Length..];
+            if (name.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name[..^4];
+            }
+
+            int separator = name.IndexOf('_');
+            if (separator <= 0) continue;
+
+            string fileMinecraftVersion = name[..separator];
+            if (!string.Equals(fileMinecraftVersion, mc, StringComparison.OrdinalIgnoreCase)) continue;
+
+            string loaderVersion = name;
+            result.Add(new ModLoaderVersionInfo(
+                ModLoaderKind.OptiFine,
+                mc,
+                loaderVersion,
+                preview ? $"OptiFine {name[separator..].TrimStart('_')}（预览）" : $"OptiFine {name[separator..].TrimStart('_')}",
+                !preview,
+                $"{DownloadPageRoot}adloadx?f={Uri.EscapeDataString(fileName)}"));
+        }
+
+        return ModLoaderInstaller.SortLoaderVersions(result);
+    }
+
+    public static async Task<string> InstallAsync(
+        ModLoaderVersionInfo version,
+        string gameDirectory,
+        string instanceName,
+        IProgress<ModLoaderInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ModLoaderInstaller.EnsureVanillaAsync(
+            gameDirectory, version.MinecraftVersion, progress, cancellationToken).ConfigureAwait(false);
+
+        ModLoaderInstaller.Report(progress, 48, "下载 OptiFine", "正在解析官网下载页并下载安装器…");
+        byte[] installer = await DownloadInstallerAsync(version.InstallSource, cancellationToken)
+            .ConfigureAwait(false);
+
+        string temporaryDirectory = Path.Combine(Path.GetTempPath(), "mofu-optifine-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporaryDirectory);
+        string installerPath = Path.Combine(temporaryDirectory, "OptiFine-installer.jar");
+        try
+        {
+            await File.WriteAllBytesAsync(installerPath, installer, cancellationToken).ConfigureAwait(false);
+            return await ModLoaderInstaller.RunInstallerAndAlignAsync(
+                gameDirectory, version, instanceName, installerPath, progress, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(temporaryDirectory, true);
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
+    public static string AdLoadUrl(string loaderVersion, string minecraftVersion)
+    {
+        string loader = (loaderVersion ?? string.Empty).Trim();
+        if (loader.StartsWith("OptiFine_", StringComparison.OrdinalIgnoreCase))
+        {
+            loader = loader["OptiFine_".Length..];
+        }
+
+        bool preview = loader.Contains("_pre", StringComparison.OrdinalIgnoreCase);
+        string fileName = (preview ? "preview_OptiFine_" : "OptiFine_") + loader + ".jar";
+        return $"{DownloadPageRoot}adloadx?f={Uri.EscapeDataString(fileName)}";
+    }
+
+    private static async Task<byte[]> DownloadInstallerAsync(string adLoadUrl, CancellationToken cancellationToken)
+    {
+        string page = await DownloadSourceProvider.GetStringAsync(
+            adLoadUrl, TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+        Match match = DownloadLink.Match(page);
+        if (!match.Success)
+        {
+            throw new InvalidOperationException(
+                "无法从 OptiFine 下载页解析出安装器直链（官网页面结构可能已变化）。");
+        }
+
+        string link = match.Value.Replace("&amp;", "&", StringComparison.OrdinalIgnoreCase);
+        string downloadUrl = DownloadPageRoot + link;
+        byte[] bytes = await DownloadSourceProvider.GetBytesAsync(
+            downloadUrl, InstallerTimeout, cancellationToken).ConfigureAwait(false);
+        if (bytes.Length == 0)
+        {
+            throw new InvalidOperationException("OptiFine 安装器下载结果为空。");
+        }
+
+        if (bytes.Length < 4 || bytes[0] != 'P' || bytes[1] != 'K')
+        {
+            throw new InvalidOperationException("OptiFine 安装器下载内容不是有效的 JAR 文件。");
+        }
+
+        return bytes;
+    }
+}
+
+
+
 public static class ModLoaderInstaller
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> InstallationLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static string DisplayName(ModLoaderKind kind) => kind switch
     {
         ModLoaderKind.Fabric => "Fabric",
@@ -20,7 +774,6 @@ public static class ModLoaderInstaller
         _ => "原版",
     };
 
-    /// <summary>获取指定 Minecraft 版本下可用的加载器版本（按稳定版优先、版本号降序）。</summary>
     public static Task<IReadOnlyList<ModLoaderVersionInfo>> GetVersionsAsync(
         ModLoaderKind kind,
         string minecraftVersion,
@@ -37,8 +790,7 @@ public static class ModLoaderInstaller
         };
     }
 
-    /// <summary>安装加载器；原版依赖会自动补装。返回 versions/ 下实际使用的目录名。</summary>
-    public static Task<string> InstallAsync(
+    public static async Task<string> InstallAsync(
         ModLoaderVersionInfo version,
         string gameDirectory,
         string? instanceName = null,
@@ -46,22 +798,42 @@ public static class ModLoaderInstaller
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(version);
+        if (version.Kind == ModLoaderKind.Vanilla)
+        {
+            throw new InvalidOperationException("原版没有加载器可以安装。");
+        }
+
+        string root = NormalizeGameDirectory(gameDirectory);
         string name = string.IsNullOrWhiteSpace(instanceName)
             ? DefaultInstanceName(version.Kind, version.MinecraftVersion, version.LoaderVersion)
             : instanceName.Trim();
-
-        return version.Kind switch
+        string lockKey = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        SemaphoreSlim installationLock = InstallationLocks.GetOrAdd(
+            lockKey, _ => new SemaphoreSlim(1, 1));
+        await installationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        FileStream? processLock = null;
+        try
         {
-            ModLoaderKind.Fabric => FabricDownload.InstallAsync(version, gameDirectory, name, progress, cancellationToken),
-            ModLoaderKind.Quilt => QuiltLoaderDownload.InstallAsync(version, gameDirectory, name, progress, cancellationToken),
-            ModLoaderKind.Forge => ForgeDownload.InstallAsync(version, gameDirectory, name, progress, cancellationToken),
-            ModLoaderKind.NeoForge => NeoforgeLoaderDownload.InstallAsync(version, gameDirectory, name, progress, cancellationToken),
-            ModLoaderKind.OptiFine => OptifineInstaller.InstallAsync(version, gameDirectory, name, progress, cancellationToken),
-            _ => throw new InvalidOperationException("原版没有加载器可以安装。"),
-        };
+            string processLockPath = InstanceUpdate.GetCrossProcessLockPath(root, "loader-installer");
+            processLock = await InstanceUpdate.AcquireCrossProcessLockAsync(
+                processLockPath, true, cancellationToken).ConfigureAwait(false);
+            return await (version.Kind switch
+            {
+                ModLoaderKind.Fabric => FabricDownload.InstallAsync(version, root, name, progress, cancellationToken),
+                ModLoaderKind.Quilt => QuiltLoaderDownload.InstallAsync(version, root, name, progress, cancellationToken),
+                ModLoaderKind.Forge => ForgeDownload.InstallAsync(version, root, name, progress, cancellationToken),
+                ModLoaderKind.NeoForge => NeoforgeLoaderDownload.InstallAsync(version, root, name, progress, cancellationToken),
+                ModLoaderKind.OptiFine => OptifineInstaller.InstallAsync(version, root, name, progress, cancellationToken),
+                _ => throw new InvalidOperationException("不支持的加载器类型。"),
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            processLock?.Dispose();
+            installationLock.Release();
+        }
     }
 
-    /// <summary>按元数据直接构造安装描述（整合包安装、外部实例修复用）。</summary>
     public static ModLoaderVersionInfo CreateVersion(
         ModLoaderKind kind,
         string minecraftVersion,
@@ -95,7 +867,6 @@ public static class ModLoaderInstaller
         };
     }
 
-    /// <summary>默认实例目录名（与各加载器 meta 里的 id 形态一致）。</summary>
     public static string DefaultInstanceName(ModLoaderKind kind, string minecraftVersion, string loaderVersion)
     {
         string mc = (minecraftVersion ?? string.Empty).Trim();
@@ -128,7 +899,6 @@ public static class ModLoaderInstaller
         };
     }
 
-/// <summary>加载器版本排序：稳定版优先，其次按版本号数字降序。</summary>
     internal static IReadOnlyList<ModLoaderVersionInfo> SortLoaderVersions(IEnumerable<ModLoaderVersionInfo> versions)
     {
         return versions
@@ -167,7 +937,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
     private static readonly TimeSpan InstallerTimeout = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan InstallerDownloadTimeout = TimeSpan.FromMinutes(2);
 
-    /// <summary>原版版本 JSON 不存在时静默安装；百分比 0-45。</summary>
     public static async Task EnsureVanillaAsync(
         string gameDirectory,
         string minecraftVersion,
@@ -209,7 +978,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         Report(progress, 45, "原版安装完成", $"Minecraft {mc} 已就绪");
     }
 
-    /// <summary>把加载器 profile JSON 写成自包含的版本目录（id 对齐到实例名）。</summary>
     public static async Task WriteProfileVersionAsync(
         string gameDirectory,
         string instanceName,
@@ -239,7 +1007,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         Report(progress, 100, "安装完成", $"{id} 已写入 versions/{id}");
     }
 
-    /// <summary>下载安装器 JAR，运行它，并把生成的版本目录对齐到实例名。</summary>
     public static async Task<string> InstallWithInstallerAsync(
         ModLoaderVersionInfo version,
         string gameDirectory,
@@ -307,7 +1074,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             }
         }
 
-        // 镜像不可用或重定向链卡住时，直连官方 Maven（不被下载源重写）
         if (directSources is not null)
         {
             foreach (string source in directSources)
@@ -329,10 +1095,23 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         throw new InvalidOperationException("加载器安装器下载失败。", lastError);
     }
 
-    private static bool IsZip(byte[] bytes) =>
-        bytes.Length > 2 && bytes[0] == (byte)'P' && bytes[1] == (byte)'K';
+    private static bool IsZip(byte[] bytes)
+    {
+        if (bytes.Length < 4 || bytes[0] != (byte)'P' || bytes[1] != (byte)'K') return false;
+        try
+        {
+            // 真正读出中央目录并确认有条目：仅前两字节碰巧为 PK 的损坏/截断体不算有效 JAR，
+            // 避免落盘后被 java -jar 执行
+            using var archive = new System.IO.Compression.ZipArchive(
+                new MemoryStream(bytes), System.IO.Compression.ZipArchiveMode.Read);
+            return archive.Entries.Count > 0;
+        }
+        catch (Exception e) when (e is InvalidDataException or IOException)
+        {
+            return false;
+        }
+    }
 
-    /// <summary>运行已经下载到本地的安装器（OptiFine 需要先解析引导页，单独调用）。</summary>
     public static async Task<string> RunInstallerAndAlignAsync(
         string gameDirectory,
         ModLoaderVersionInfo version,
@@ -393,7 +1172,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             1, stage, detail, Math.Clamp(percentage, 0, 100), bytesPerSecond, completedBytes, totalBytes));
     }
 
-    // ---------------------------------------------------------------- Java
 
     private static async Task<string> ResolveJavaAsync(
         string gameDirectory,
@@ -409,14 +1187,11 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (Exception)
         {
-            // 配置不可读时继续自动探测
         }
 
         int requiredMajor = await ReadRequiredJavaMajorAsync(gameDirectory, minecraftVersion, cancellationToken)
             .ConfigureAwait(false);
 
-        // 安装器对 Java 版本敏感：只接受与原版 javaVersion 精确匹配的运行时，
-        // 避免用 Java 25 去跑要求 Java 21 的 Forge/NeoForge 安装器。
         string? java = await JavaPathSearch.FindExactMatchJavaAsync(
             configuredPath: configured.Length > 0 ? configured : null,
             requiredMajorVersion: requiredMajor,
@@ -467,13 +1242,11 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (Exception e) when (e is IOException or JsonException)
         {
-            // 读不到就按现代版本处理
         }
 
         return 21;
     }
 
-    // ---------------------------------------------------------------- 安装器进程
 
     private static async Task<string> RunInstallerAttemptsAsync(
         string javaExecutable,
@@ -502,7 +1275,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
                 $"{ModLoaderInstaller.DisplayName(kind)} 安装器退出码 {exitCode}：{Tail(output, 1600)}");
             if (!IsUnrecognizedOption(output))
             {
-                // 非参数不兼容的失败（下载失败 / 校验失败 / 崩溃）重试没有意义
                 throw lastError;
             }
         }
@@ -637,14 +1409,12 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             }
             catch (Exception)
             {
-                // 进程可能已经退出
             }
 
             cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("加载器安装器运行超时（10 分钟）。");
         }
 
-        // WaitForExitAsync 可能先于异步输出回调结束；再等一次把尾部输出冲刷完
         process.WaitForExit();
         lock (gate)
         {
@@ -660,7 +1430,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
                text.Contains("unknown option", StringComparison.Ordinal);
     }
 
-    // ---------------------------------------------------------------- 目录对齐
 
     private static HashSet<string> SnapshotDirectories(string versionsDirectory)
     {
@@ -674,7 +1443,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (Exception)
         {
-            // 目录不可读时按空集处理
         }
 
         return result;
@@ -716,7 +1484,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             return directory;
         }
 
-        // 重装场景：安装器可能直接写进了实例目录
         string target = Path.Combine(versionsDirectory, instanceName);
         if (Directory.Exists(target) && Directory.EnumerateFiles(target, "*.json").Any())
         {
@@ -796,7 +1563,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             File.Copy(sourceJar, targetJar, true);
         }
 
-        // 只清理安装器生成的 json/jar 空壳，绝不碰用户已有实例内容
         foreach (string file in Directory.EnumerateFiles(sourceDirectory))
         {
             string extension = Path.GetExtension(file);
@@ -816,7 +1582,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (Exception)
         {
-            // 清理失败不影响安装
         }
     }
 
@@ -857,26 +1622,13 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
     }
 
-    // ---------------------------------------------------------------- 公共辅助
 
     private static void EnsureLauncherProfiles(string minecraftRoot)
     {
         string profilePath = Path.Combine(minecraftRoot, "launcher_profiles.json");
         if (File.Exists(profilePath))
         {
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(profilePath));
-                if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                    document.RootElement.TryGetProperty("profiles", out _))
-                {
-                    return;
-                }
-            }
-            catch (Exception)
-            {
-                // 内容损坏时重写一份最小模板
-            }
+            return;
         }
 
         const string template = """
@@ -893,7 +1645,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (IOException)
         {
-            // 部分安装器版本不强制检查，写失败不阻塞安装
         }
     }
 
@@ -944,7 +1695,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (IOException)
         {
-            // 清理失败不影响安装
         }
     }
 
@@ -956,7 +1706,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
         catch (Exception)
         {
-            // 临时目录清理失败不影响结果
         }
     }
 }

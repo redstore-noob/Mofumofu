@@ -85,8 +85,7 @@ public sealed class ModrinthResourceDownload
         }
         catch (InvalidOperationException e) when (e.InnerException is JsonException)
         {
-            // 解析失败按"没有版本"处理，与旧实现保持一致
-            return [];
+            throw new InvalidOperationException("Modrinth 版本列表解析失败：" + e.Message, e);
         }
     }
 
@@ -143,13 +142,17 @@ public sealed class ModrinthResourceDownload
         ArgumentNullException.ThrowIfNull(file);
         if (string.IsNullOrWhiteSpace(targetDirectory)) throw new InvalidOperationException("targetDirectory 不能为空。");
         if (string.IsNullOrWhiteSpace(file.Url)) throw new InvalidOperationException("文件没有下载地址。");
+        // 远端未提供哈希时拒绝下载，避免静默跳过完整性校验
+        if (string.IsNullOrWhiteSpace(file.Sha1))
+        {
+            throw new InvalidOperationException($"文件 {file.Filename} 未提供 SHA-1 哈希，无法校验完整性，已拒绝下载。");
+        }
 
         Directory.CreateDirectory(targetDirectory);
         string targetPath = Path.Combine(targetDirectory, SanitizeFileName(file.Filename));
         await ModrinthApiClient.DownloadToFileAsync(file.Url, targetPath, progress, cancellationToken).ConfigureAwait(false);
 
-        if (!string.IsNullOrWhiteSpace(file.Sha1) &&
-            !await MinecraftFileHash.MatchesSha1Async(targetPath, file.Sha1, cancellationToken).ConfigureAwait(false))
+        if (!await MinecraftFileHash.MatchesSha1Async(targetPath, file.Sha1, cancellationToken).ConfigureAwait(false))
         {
             File.Delete(targetPath);
             throw new InvalidOperationException($"文件 SHA-1 校验失败：{file.Filename}");
@@ -447,7 +450,13 @@ public sealed class ModrinthResourceDownload
         [System.Text.Json.Serialization.JsonPropertyName("game_versions")] public List<string>? GameVersions { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("loaders")] public List<string>? Loaders { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("date_published")] public string DatePublished { get; set; } = string.Empty;
-        [System.Text.Json.Serialization.JsonPropertyName("files")] public List<VersionFileInfoPayload> Files { get; set; } = [];
+        private List<VersionFileInfoPayload> _files = [];
+        [System.Text.Json.Serialization.JsonPropertyName("files")]
+        public List<VersionFileInfoPayload> Files
+        {
+            get => _files;
+            set => _files = value ?? [];
+        }
 
         public ModrinthVersionFileMatch ToMatch(string hash) => new(
             ProjectId,
@@ -461,12 +470,21 @@ public sealed class ModrinthResourceDownload
 
     private sealed class VersionFileInfoPayload
     {
+        private Dictionary<string, string> _hashes = [];
+
         [System.Text.Json.Serialization.JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
         [System.Text.Json.Serialization.JsonPropertyName("filename")] public string Filename { get; set; } = string.Empty;
         [System.Text.Json.Serialization.JsonPropertyName("size")] public long Size { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("hashes")] public Dictionary<string, string> Hashes { get; set; } = [];
+        [System.Text.Json.Serialization.JsonPropertyName("hashes")]
+        public Dictionary<string, string> Hashes
+        {
+            get => _hashes;
+            set => _hashes = value ?? [];
+        }
         [System.Text.Json.Serialization.JsonPropertyName("primary")] public bool Primary { get; set; }
 
-        public string Sha1() => Hashes.TryGetValue("sha1", out string? hash) ? hash.Trim().ToLowerInvariant() : string.Empty;
+        public string Sha1() => Hashes.TryGetValue("sha1", out string? hash) && hash is not null
+            ? hash.Trim().ToLowerInvariant()
+            : string.Empty;
     }
 }

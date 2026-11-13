@@ -24,6 +24,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MofuCore.Config;
 using MofuCore.Download;
+using MofuCore.Download.CurseForge;
 using MofuCore.Download.Minecraft;
 using MofuCore.Download.Modrinth;
 using MofuCore.Java;
@@ -62,6 +63,8 @@ public sealed class DownloadIconConverter : IValueConverter
 
 public partial class DownloadView : UserControl
 {
+    private const int TaskListExitDelayMs = 160;
+
     /// <summary>「下载任务」列表里的一行视觉卡片（数据来自 DownloadTaskService）。</summary>
     private sealed class TaskCard
     {
@@ -389,7 +392,7 @@ public partial class DownloadView : UserControl
             UiAnimations.FadeSlideOut(card.Root, 0.96, 6, 150);
         }
 
-        if (UiAnimations.Enabled) await Task.Delay(160);
+        if (UiAnimations.Enabled) await Task.Delay(TaskListExitDelayMs);
 
         foreach (TaskCard card in finished)
         {
@@ -1559,7 +1562,7 @@ public partial class DownloadView : UserControl
 
         if (isCurseForge)
         {
-            Shell.Toast(L.T("Download.Modpack.Drop.CurseForge", "暂不支持 CurseForge 格式整合包，请选择 Modrinth（.mrpack）版本"));
+            await InstallLocalCurseForgeModpackAsync(packagePath);
             return;
         }
 
@@ -1599,6 +1602,71 @@ public partial class DownloadView : UserControl
             task.Complete();
             LaunchBarRefresh.Request();
             Shell.Toast(L.T("Download.Resource.InstallDone", "已安装「{0}」", displayName));
+        }
+        catch (OperationCanceledException)
+        {
+            task.MarkCancelled();
+            Shell.Toast(L.T("Download.Resource.InstallCancelled", "已取消安装「{0}」", displayName));
+        }
+        catch (Exception ex)
+        {
+            task.Fail(ex.Message);
+            Shell.Toast(L.T("Download.Resource.InstallFailed", "安装「{0}」失败：{1}", displayName, ex.Message));
+        }
+    }
+
+    private async Task InstallLocalCurseForgeModpackAsync(string packagePath)
+    {
+        string apiKey = LocalSettings.Current.CurseForgeApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Shell.Toast(L.T("Download.Modpack.Drop.CurseForgeNoKey",
+                "CurseForge 整合包需要 API Key，请先到「设置 → 下载」填写"));
+            return;
+        }
+
+        string displayName = SanitizeDirectoryName(Path.GetFileNameWithoutExtension(packagePath));
+        string gameDirectory = EnsureGameDirectory();
+        var task = DownloadTaskService.Start(displayName, L.T("Download.Version.Preparing", "准备下载"));
+
+        try
+        {
+            string instanceDirectory = Path.Combine(gameDirectory, "versions", displayName);
+            bool instanceExisted = Directory.Exists(instanceDirectory);
+            Directory.CreateDirectory(instanceDirectory);
+            if (!instanceExisted) task.RegisterCleanup(instanceDirectory);
+
+            var installProgress = new Progress<ModpackInstallProgress>(value => task.Report(
+                value.TotalFiles > 0
+                    ? Math.Clamp(value.CompletedFiles * 100.0 / value.TotalFiles, 0, 100)
+                    : 0,
+                value.Phase));
+
+            ModpackInstallResult result = await CurseForgeBundleInstall.InstallAsync(
+                packagePath,
+                instanceDirectory,
+                apiKey,
+                new ModpackInstallOptions
+                {
+                    InstallLoader = true,
+                    JavaExecutable = YamlRead.JavaExecutable,
+                },
+                installProgress,
+                task.Token);
+
+            task.Complete();
+            LaunchBarRefresh.Request();
+
+            if (result.Warnings.Count > 0)
+            {
+                Shell.Toast(L.T("Download.Modpack.Drop.CurseForgePartial",
+                    "已安装「{0}」，但有 {1} 个文件未装上（作者可能关闭了第三方下载）",
+                    displayName, result.Warnings.Count));
+            }
+            else
+            {
+                Shell.Toast(L.T("Download.Resource.InstallDone", "已安装「{0}」", displayName));
+            }
         }
         catch (OperationCanceledException)
         {

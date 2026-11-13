@@ -166,15 +166,17 @@ internal sealed class DownloadTaskCore
             LastDetail = detail,
         };
 
+        DownloadTaskSnapshot addedSnapshot;
         lock (_sync)
         {
             entry.ShortId = AllocateShortId();
             _tasks.Add(entry);
             AddLine(entry, L.T("Download.Log.Start", "任务开始"));
             if (detail.Length > 0) AddLine(entry, detail);
+            addedSnapshot = entry.Snapshot();
         }
 
-        Post(() => DownloadTaskService.Added?.Invoke(entry.Snapshot()));
+        Post(() => DownloadTaskService.Added?.Invoke(addedSnapshot));
         SyncPauseGate();
         return new DownloadTaskHandle(this, entry.Id, entry.ShortId, entry.Cancellation?.Token ?? CancellationToken.None);
     }
@@ -195,10 +197,10 @@ internal sealed class DownloadTaskCore
 
     public void Report(string id, double percent, string? detail, string? speed, string? size)
     {
-        Entry? entry;
+        DownloadTaskSnapshot snapshot;
         lock (_sync)
         {
-            entry = _tasks.FirstOrDefault(item => item.Id == id);
+            var entry = _tasks.FirstOrDefault(item => item.Id == id);
             if (entry is null || entry.State is not (DownloadTaskState.Downloading or DownloadTaskState.Paused))
             {
                 return;
@@ -215,14 +217,17 @@ internal sealed class DownloadTaskCore
                 entry.LastDetail = detail;
                 AddLine(entry, detail);
             }
+
+            snapshot = entry.Snapshot();
         }
 
-        Post(() => DownloadTaskService.Changed?.Invoke(entry.Snapshot()));
+        Post(() => DownloadTaskService.Changed?.Invoke(snapshot));
     }
 
     public void Finish(string id, DownloadTaskState state, string? detail)
     {
         Entry? entry;
+        DownloadTaskSnapshot snapshot;
         lock (_sync)
         {
             entry = _tasks.FirstOrDefault(item => item.Id == id);
@@ -252,17 +257,20 @@ internal sealed class DownloadTaskCore
                     AddLine(entry, L.T("Download.Log.Cancelled", "已取消下载"));
                     break;
             }
+
+            snapshot = entry.Snapshot();
         }
 
         if (state == DownloadTaskState.Cancelled) RunCleanup(entry);
         SyncPauseGate();
-        Post(() => DownloadTaskService.Changed?.Invoke(entry.Snapshot()));
+        Post(() => DownloadTaskService.Changed?.Invoke(snapshot));
     }
 
     public bool TryCancel(string id)
     {
         CancellationTokenSource? cts;
         Entry? entry;
+        DownloadTaskSnapshot snapshot;
         lock (_sync)
         {
             entry = _tasks.FirstOrDefault(item => item.Id == id);
@@ -278,6 +286,7 @@ internal sealed class DownloadTaskCore
             cts = entry.Cancellation;
             entry.Cancellation = null;
             AddLine(entry, L.T("Download.Log.UserCancel", "用户取消了下载"));
+            snapshot = entry.Snapshot();
         }
 
         if (cts is not null)
@@ -294,16 +303,16 @@ internal sealed class DownloadTaskCore
 
         RunCleanup(entry);
         SyncPauseGate();
-        Post(() => DownloadTaskService.Changed?.Invoke(entry.Snapshot()));
+        Post(() => DownloadTaskService.Changed?.Invoke(snapshot));
         return true;
     }
 
     public bool TrySetPaused(string id, bool paused)
     {
-        Entry? entry;
+        DownloadTaskSnapshot snapshot;
         lock (_sync)
         {
-            entry = _tasks.FirstOrDefault(item => item.Id == id);
+            var entry = _tasks.FirstOrDefault(item => item.Id == id);
             if (entry is null || !entry.CanPause) return false;
             if (paused && entry.State == DownloadTaskState.Downloading)
             {
@@ -319,10 +328,12 @@ internal sealed class DownloadTaskCore
             {
                 return true;
             }
+
+            snapshot = entry.Snapshot();
         }
 
         SyncPauseGate();
-        Post(() => DownloadTaskService.Changed?.Invoke(entry.Snapshot()));
+        Post(() => DownloadTaskService.Changed?.Invoke(snapshot));
         return true;
     }
 
@@ -332,7 +343,8 @@ internal sealed class DownloadTaskCore
         {
             for (var index = _tasks.Count - 1; index >= 0; index--)
             {
-                if (_tasks[index].State == DownloadTaskState.Done)
+                if (_tasks[index].State is DownloadTaskState.Done or DownloadTaskState.Cancelled
+                    or DownloadTaskState.Failed)
                 {
                     _tasks.RemoveAt(index);
                 }

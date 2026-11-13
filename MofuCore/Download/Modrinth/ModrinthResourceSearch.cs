@@ -12,6 +12,7 @@ namespace MofuCore.Download.Modrinth;
 /// <summary>Modrinth search 接口的命中项。</summary>
 public sealed class ModrinthProject
 {
+
     [JsonPropertyName("project_id")] public string ProjectId { get; set; } = string.Empty;
     [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
@@ -56,14 +57,15 @@ public sealed class ModrinthSearchResult
 /// <summary>Modrinth 版本中的单个文件。</summary>
 public sealed class ModrinthVersionFile
 {
+
     [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
     [JsonPropertyName("filename")] public string Filename { get; set; } = string.Empty;
     [JsonPropertyName("size")] public long Size { get; set; }
     [JsonPropertyName("primary")] public bool Primary { get; set; }
     [JsonPropertyName("hashes")] public Dictionary<string, string> Hashes { get; set; } = [];
 
-    public string Sha1 => Hashes.TryGetValue("sha1", out string? value) ? value.Trim().ToLowerInvariant() : string.Empty;
-    public string Sha512 => Hashes.TryGetValue("sha512", out string? value) ? value.Trim().ToLowerInvariant() : string.Empty;
+    public string Sha1 => Hashes is not null && Hashes.TryGetValue("sha1", out string? value) && value is not null ? value.Trim().ToLowerInvariant() : string.Empty;
+    public string Sha512 => Hashes is not null && Hashes.TryGetValue("sha512", out string? value) && value is not null ? value.Trim().ToLowerInvariant() : string.Empty;
 
     public string SizeDisplay => Size switch
     {
@@ -96,6 +98,8 @@ public sealed class ModrinthDependency
 /// <summary>Modrinth 版本条目。</summary>
 public sealed class ModrinthVersion
 {
+    private const int GameVersionsPreviewCount = 3;
+
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
     [JsonPropertyName("project_id")] public string ProjectId { get; set; } = string.Empty;
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
@@ -129,7 +133,7 @@ public sealed class ModrinthVersion
 
     public string DateDisplay => DateTimeOffset.TryParse(DatePublished, out DateTimeOffset parsed) ? parsed.ToString("yyyy-MM-dd") : DatePublished;
 
-    public string GameVersionsDisplay => GameVersions.Count <= 3 ? string.Join(", ", GameVersions) : string.Join(", ", GameVersions.Take(3));
+    public string GameVersionsDisplay => GameVersions.Count <= GameVersionsPreviewCount ? string.Join(", ", GameVersions) : string.Join(", ", GameVersions.Take(GameVersionsPreviewCount));
 
     public string LoaderDisplay => string.Join(", ", Loaders.Select(loader => loader switch
     {
@@ -163,6 +167,7 @@ internal static class ModrinthApiClient
     public const string SiteUrl = "https://modrinth.com";
 
     private const int MaxResponseBytes = 32 << 20;
+    private const long MaximumDownloadBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(8);
     private static readonly HttpClient Client = CreateClient();
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -190,6 +195,52 @@ internal static class ModrinthApiClient
         else if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) trimmed = trimmed[7..];
         int index = trimmed.IndexOfAny(['/', '?', '#']);
         return index >= 0 ? trimmed[..index] : trimmed;
+    }
+
+    /// <summary>
+    /// 校验外部来源的下载地址：仅允许 HTTPS，且主机不是环回/私网/链路本地字面 IP。
+    /// 域名被解析到内网的情形需由统一网络出口层处理。
+    /// </summary>
+    internal static bool IsAllowedDownloadUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || !Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+            || uri is null
+            || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        string host = uri.Host;
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!IPAddress.TryParse(host.Trim('[', ']'), out IPAddress? address) || address is null) return true;
+        if (IPAddress.IsLoopback(address)) return false;
+
+        byte[] bytes = address.GetAddressBytes();
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            int first = bytes[0];
+            int second = bytes[1];
+            if (first == 0 || first == 10 || first == 127
+                || (first == 100 && second >= 64 && second <= 127)
+                || (first == 169 && second == 254)
+                || (first == 172 && second >= 16 && second <= 31)
+                || (first == 192 && second == 168)
+                || (first == 198 && (second == 18 || second == 19))
+                || first >= 224)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if ((bytes[0] & 0xfe) == 0xfc || (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) || bytes[0] == 0xff)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static void SetEndpoints(string official, string? mirror)
@@ -309,7 +360,22 @@ internal static class ModrinthApiClient
         {
             throw new ModrinthStatusException((int)response.StatusCode);
         }
-        return await response.Content.ReadAsByteArrayAsync(attemptCts.Token).ConfigureAwait(false);
+        await using Stream responseStream = await response.Content.ReadAsStreamAsync(attemptCts.Token).ConfigureAwait(false);
+        using MemoryStream buffer = new();
+        byte[] chunk = new byte[64 * 1024];
+        long total = 0;
+        while (true)
+        {
+            int read = await responseStream.ReadAsync(chunk, attemptCts.Token).ConfigureAwait(false);
+            if (read <= 0) break;
+            total += read;
+            if (total > MaxResponseBytes)
+            {
+                throw new InvalidOperationException("Modrinth 响应超过体积上限。");
+            }
+            buffer.Write(chunk, 0, read);
+        }
+        return buffer.ToArray();
     }
 
     private static T Deserialize<T>(byte[] payload)
@@ -352,9 +418,9 @@ internal static class ModrinthApiClient
 
     public static async Task DownloadToFileAsync(string url, string targetPath, IProgress<long>? progress, CancellationToken cancellationToken)
     {
-        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (!IsAllowedDownloadUrl(url))
         {
-            throw new InvalidOperationException($"下载地址不是有效的 HTTPS URL：{url}");
+            throw new InvalidOperationException($"下载地址不是允许的 HTTPS URL：{url}");
         }
         string? directory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
@@ -369,8 +435,12 @@ internal static class ModrinthApiClient
         {
             int read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (read <= 0) break;
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             downloaded += read;
+            if (downloaded > MaximumDownloadBytes)
+            {
+                throw new InvalidOperationException("下载文件超过单文件体积上限。");
+            }
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             progress?.Report(downloaded);
         }
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);

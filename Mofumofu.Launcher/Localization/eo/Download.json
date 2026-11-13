@@ -182,5 +182,7 @@
   "Download.Version.Type.Snapshot": "Testversioj",
   "Download.Modpack.Drop.NotModpack": "La trenita dosiero ne estas modpaketo (subtenataj: .mrpack / .zip)",
   "Download.Modpack.Drop.ReadFailed": "Legado de la modpaketo malsukcesis: {0}",
-  "Download.Modpack.Drop.CurseForge": "Modpaketoj en CurseForge-formato ankoraŭ ne subtenataj; bonvolu elekti version de Modrinth (.mrpack)"
+  "Download.Modpack.Drop.CurseForge": "Modpaketoj en CurseForge-formato ankoraŭ ne subtenataj; bonvolu elekti version de Modrinth (.mrpack)",
+  "Download.Modpack.Drop.CurseForgeNoKey": "CurseForge-pakaĵoj bezonas API-ŝlosilon — enigu ĝin en Agordoj → Elŝutoj",
+  "Download.Modpack.Drop.CurseForgePartial": "Instalita {0}, sed {1} dosieroj ne haveblas (aŭtoro eble malpermesis eksteran elŝuton)"
 }

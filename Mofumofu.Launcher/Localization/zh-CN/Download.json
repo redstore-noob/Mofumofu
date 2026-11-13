@@ -182,5 +182,7 @@
   "Download.Version.Type.Snapshot": "快照",
   "Download.Modpack.Drop.NotModpack": "拖入的不是整合包文件（支持 .mrpack / .zip）",
   "Download.Modpack.Drop.ReadFailed": "读取整合包失败：{0}",
-  "Download.Modpack.Drop.CurseForge": "暂不支持 CurseForge 格式整合包，请选择 Modrinth（.mrpack）版本"
+  "Download.Modpack.Drop.CurseForge": "暂不支持 CurseForge 格式整合包，请选择 Modrinth（.mrpack）版本",
+  "Download.Modpack.Drop.CurseForgeNoKey": "CurseForge 整合包需要 API Key，请先到「设置 → 下载」填写",
+  "Download.Modpack.Drop.CurseForgePartial": "已安装「{0}」，但有 {1} 个文件未装上（作者可能关闭了第三方下载）"
 }

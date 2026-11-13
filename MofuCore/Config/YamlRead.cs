@@ -24,6 +24,7 @@ public class YamlRead
 
     private const int MinimumWindowWidth = 320;
     private const int MinimumWindowHeight = 240;
+    private const int MaximumWindowDimension = 7680;
     private const int DefaultGameWindowWidth = 854;
     private const int DefaultGameWindowHeight = 480;
     private const int MinimumMemoryMb = MemoryAllocation.MinimumMb;
@@ -505,8 +506,8 @@ public class YamlRead
     {
         return new GlobalLaunchSettings
         {
-            WindowWidth = ReadInt(Keys.GameWindowWidth, DefaultGameWindowWidth, MinimumWindowWidth),
-            WindowHeight = ReadInt(Keys.GameWindowHeight, DefaultGameWindowHeight, MinimumWindowHeight),
+            WindowWidth = ReadInt(Keys.GameWindowWidth, DefaultGameWindowWidth, MinimumWindowWidth, MaximumWindowDimension),
+            WindowHeight = ReadInt(Keys.GameWindowHeight, DefaultGameWindowHeight, MinimumWindowHeight, MaximumWindowDimension),
             JavaExecutable = ReadGameJavaExecutable(),
             AdditionalJvmArguments = ReadArguments(Keys.GameJvmArguments),
             AdditionalGameArguments = ReadArguments(Keys.GameArguments),
@@ -537,7 +538,8 @@ public class YamlRead
     public static bool SaveGlobalLaunchSettings(GlobalLaunchSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (settings.WindowWidth < MinimumWindowWidth || settings.WindowHeight < MinimumWindowHeight)
+        if (settings.WindowWidth < MinimumWindowWidth || settings.WindowHeight < MinimumWindowHeight ||
+            settings.WindowWidth > MaximumWindowDimension || settings.WindowHeight > MaximumWindowDimension)
         {
             return false;
         }
@@ -751,9 +753,11 @@ public class YamlRead
         return bool.TryParse(value.Trim(), out bool result) ? result : fallback;
     }
 
-    private static int ReadInt(string key, int fallback, int minimum)
+    private static int ReadInt(string key, int fallback, int minimum, int maximum = int.MaxValue)
     {
-        return int.TryParse(GetValue(key), out int value) && value >= minimum ? value : fallback;
+        return int.TryParse(GetValue(key), out int value) && value >= minimum && value <= maximum
+            ? value
+            : fallback;
     }
 
     private static string FormatBool(bool value)
@@ -804,8 +808,13 @@ public class YamlRead
             return result;
         }
 
-        foreach (string argument in arguments)
+        foreach (string? argument in arguments)
         {
+            if (argument is null)
+            {
+                continue;
+            }
+
             string trimmed = argument.Trim();
             if (trimmed.Length > 0)
             {
@@ -1074,6 +1083,7 @@ internal sealed class YamlFileStore
             {
                 if (!mutation(_document))
                 {
+                    _document = previous;
                     return false;
                 }
 

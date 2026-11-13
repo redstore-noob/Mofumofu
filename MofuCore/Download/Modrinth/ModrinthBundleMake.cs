@@ -94,6 +94,8 @@ public sealed class ModrinthBundleImportResult
 /// </summary>
 public sealed class ModrinthBundleMake
 {
+    private const int MaxReportedExclusions = 8;
+
     public const string CategoryMods = "mods";
     public const string CategoryConfig = "config";
     public const string CategoryRoot = "root";
@@ -319,8 +321,8 @@ public sealed class ModrinthBundleMake
             payload = kept;
             if (excluded.Count > 0)
             {
-                IEnumerable<string> shown = excluded.Take(8);
-                string suffix = excluded.Count > 8 ? " 等" : string.Empty;
+                IEnumerable<string> shown = excluded.Take(MaxReportedExclusions);
+                string suffix = excluded.Count > MaxReportedExclusions ? " 等" : string.Empty;
                 result.Warnings.Add($"只允许 Modrinth 直链：已排除 {excluded.Count} 个内容文件（{string.Join("、", shown)}{suffix}），玩家安装后需自行补装。");
             }
             if (payload.Count == 0 && declaredByPath.Count == 0)
@@ -365,7 +367,27 @@ public sealed class ModrinthBundleMake
         await using Stream indexStream = entry.Open();
         try
         {
-            ModrinthIndex? index = await JsonSerializer.DeserializeAsync<ModrinthIndex>(indexStream, ReadOptions, cancellationToken).ConfigureAwait(false);
+            const long indexLimit = MofuCore.Config.SizeLimits.BundleIndexMaximumBytes;
+            if (entry.Length > indexLimit)
+            {
+                throw new InvalidOperationException("整合包索引体积超过上限。");
+            }
+            using MemoryStream buffer = new();
+            byte[] chunk = new byte[81920];
+            long total = 0;
+            while (true)
+            {
+                int read = await indexStream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false);
+                if (read <= 0) break;
+                total += read;
+                if (total > indexLimit)
+                {
+                    throw new InvalidOperationException("整合包索引体积超过上限。");
+                }
+                buffer.Write(chunk, 0, read);
+            }
+            buffer.Position = 0;
+            ModrinthIndex? index = await JsonSerializer.DeserializeAsync<ModrinthIndex>(buffer, ReadOptions, cancellationToken).ConfigureAwait(false);
             return index ?? throw new InvalidOperationException("整合包索引为空。");
         }
         catch (JsonException e)
@@ -417,7 +439,19 @@ public sealed class ModrinthBundleMake
             {
                 await using Stream source = entry.Open();
                 await using FileStream destination = new(target, FileMode.Create, FileAccess.Write, FileShare.None);
-                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                byte[] buffer = new byte[81920];
+                long written = 0;
+                while (true)
+                {
+                    int read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                    if (read <= 0) break;
+                    written += read;
+                    if (written > MofuCore.Config.SizeLimits.BundleEntryMaximumBytes)
+                    {
+                        throw new InvalidOperationException($"条目 {relativePath} 超过单文件体积上限，疑似压缩炸弹。");
+                    }
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                }
                 result.ExtractedFiles.Add(relativePath);
             }
             catch (OperationCanceledException)

@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
+using MofuCore.Config;
 namespace MofuCore.Download;
 
 /// <summary>一个待下载文件：支持多个备用 URL 与可选的 SHA1 校验。</summary>
@@ -33,7 +34,7 @@ public sealed record FastDownloadProgress(
 public static class FastDownloader
 {
     private const int BufferSize = 128 * 1024;
-    private const long MinSegmentedSize = 8L * 1024 * 1024;
+    private const long MinSegmentedSize = SizeLimits.SegmentedDownloadMinimumBytes;
     private const int DefaultAttempts = 3;
 
     private static readonly HttpClient Http = CreateHttpClient();
@@ -45,7 +46,7 @@ public static class FastDownloader
             AutomaticDecompression = DecompressionMethods.All,
             MaxConnectionsPerServer = 1024,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-            ConnectTimeout = TimeSpan.FromSeconds(6),
+            ConnectTimeout = NetworkDefaults.ConnectTimeout,
             AllowAutoRedirect = true,
         };
 

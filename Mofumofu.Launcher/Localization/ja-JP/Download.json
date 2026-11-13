@@ -182,5 +182,7 @@
   "Download.Version.Type.Snapshot": "スナップショット",
   "Download.Modpack.Drop.NotModpack": "Modpack ファイルではありません（.mrpack / .zip に対応）",
   "Download.Modpack.Drop.ReadFailed": "Modpack の読み取りに失敗しました：{0}",
-  "Download.Modpack.Drop.CurseForge": "CurseForge 形式の Modpack には未対応です。Modrinth（.mrpack）のバージョンを選択してください"
+  "Download.Modpack.Drop.CurseForge": "CurseForge 形式の Modpack には未対応です。Modrinth（.mrpack）のバージョンを選択してください",
+  "Download.Modpack.Drop.CurseForgeNoKey": "CurseForge 整合包には API キーが必要です。「設定 → ダウンロード」で入力してください",
+  "Download.Modpack.Drop.CurseForgePartial": "「{0}」をインストールしましたが、{1} 個のファイルを取得できませんでした（第三者配布が無効の可能性）"
 }

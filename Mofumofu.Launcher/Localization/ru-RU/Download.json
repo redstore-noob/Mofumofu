@@ -182,5 +182,7 @@
   "Download.Version.Type.Snapshot": "Снапшоты",
   "Download.Modpack.Drop.NotModpack": "Перетащен не файл сборки (поддерживаются .mrpack / .zip)",
   "Download.Modpack.Drop.ReadFailed": "Не удалось прочитать сборку: {0}",
-  "Download.Modpack.Drop.CurseForge": "Сборки формата CurseForge пока не поддерживаются — выберите версию Modrinth (.mrpack)"
+  "Download.Modpack.Drop.CurseForge": "Сборки формата CurseForge пока не поддерживаются — выберите версию Modrinth (.mrpack)",
+  "Download.Modpack.Drop.CurseForgeNoKey": "Для сборок CurseForge нужен API-ключ — укажите его в «Настройки → Загрузки»",
+  "Download.Modpack.Drop.CurseForgePartial": "«{0}» установлена, но {1} файлов не загружено (возможно, автор запретил сторонние загрузки)"
 }
