@@ -5,6 +5,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// <summary>
 /// 一个用于控制启动器本体弹出信息的接口
 /// </summary>
+/// <remarks>弹窗 / 轻提示需要 <see cref="PluginPermissionZones.Notify"/> 权限；<c>content</c> 按非 null 处理（可用 <c>IPluginContext.CreateIcon</c> 结果时先判空兜底）。</remarks>
 public interface IPopup
 {
     /// <summary>

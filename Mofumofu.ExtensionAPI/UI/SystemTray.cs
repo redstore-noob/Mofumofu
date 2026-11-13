@@ -11,11 +11,11 @@ public interface ISystemTray
     /// </summary>
     /// <param name="label">菜单文字</param>
     /// <param name="click">点击回调（UI 线程）</param>
-    /// <returns>撤销句柄：从托盘菜单移除；插件停用/卸载时宿主代为调用。需要 widget 权限。</returns>
+    /// <returns>撤销句柄：从托盘菜单移除；插件停用/卸载时宿主代为调用。需要 <see cref="PluginPermissionZones.Widget"/> 权限。</returns>
     IDisposable AddMenuItem(string label, Action click);
 
     /// <summary>
-    /// 发一条托盘气泡通知（系统通知）；宿主所在平台不支持气泡时回退为启动器内 Toast。需要 notify 权限。
+    /// 发一条托盘气泡通知（系统通知）；宿主所在平台不支持气泡时回退为启动器内 Toast。需要 <see cref="PluginPermissionZones.Notify"/> 权限。
     /// </summary>
     void ShowNotification(string title, string message);
 }

@@ -3,17 +3,17 @@ namespace Mofumofu.ExtensionAPI.Data;
 /// <summary>实例使用的模组加载器类型；原版（无加载器）不在此列，用 null 表示。</summary>
 public enum ModLoaderType
 {
-    /// <summary>NeoForge</summary>
-    NeoForge,
+    /// <summary>NeoForge；显式固定序号，禁止依赖隐式序号，新增成员只能追加在末尾</summary>
+    NeoForge = 0,
 
     /// <summary>Fabric</summary>
-    Fabric,
+    Fabric = 1,
 
     /// <summary>Quilt</summary>
-    Quilt,
+    Quilt = 2,
 
     /// <summary>Forge</summary>
-    Forge,
+    Forge = 3,
 }
 
 /// <summary>官方清单中的一个可下载版本。</summary>

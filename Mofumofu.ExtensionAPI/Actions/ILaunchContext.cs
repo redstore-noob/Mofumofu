@@ -15,11 +15,83 @@ public interface ILaunchContext
     string GameDirectory { get; }
 
     /// <summary>
-    /// JVM 参数（可变列表）：插件 Add 进去的参数会被宿主在装配启动命令时采用。
-    /// 这是钩子唯一的可写面，其余成员均为只读事实。
+    /// JVM 参数列表。保留此签名仅为兼容既有插件与宿主实现；请不要直接改写它——
+    /// Clear / Remove / Insert 会清掉宿主或其他插件注入的参数，Add 也应改用
+    /// <see cref="TryAddJvmArgument"/>。只读查看请用 <see cref="JvmArgumentsSnapshot"/>。
     /// </summary>
     IList<string> JvmArguments { get; }
 
+    /// <summary>
+    /// JVM 参数的只读快照（每次读取生成新副本，插件即便强转也无法改动宿主内部集合）。
+    /// 其它插件此后追加的参数不会反映到已取到的快照里。
+    /// </summary>
+    IReadOnlyList<string> JvmArgumentsSnapshot =>
+        Array.AsReadOnly(JvmArguments.ToArray());
+
+    /// <summary>
+    /// 追加一条 JVM 参数（新增参数的推荐、受控入口）。会先按 <see cref="JvmArgumentPolicy"/>
+    /// 白名单校验：仅放行常见调优参数，拒绝改写类路径 / 挂载代理 / 触发外部命令的高危参数，
+    /// 也拒绝空白与控制字符注入。通过校验返回 true，否则返回 false 且不改动列表。
+    /// </summary>
+    /// <param name="argument">单条 JVM 参数（如 <c>-Xmx4G</c>、<c>-Dkey=value</c>）</param>
+    /// <returns>true = 已通过白名单并追加；false = 被拒绝（空值 / 非法字符 / 不在白名单内）</returns>
+    bool TryAddJvmArgument(string argument)
+    {
+        if (!JvmArgumentPolicy.IsAllowed(argument))
+            return false;
+        JvmArguments.Add(argument);
+        return true;
+    }
+
     /// <summary>阻止本次启动；reason 会展示给玩家。调用后宿主短路后续钩子。</summary>
     void Cancel(string reason);
+}
+
+/// <summary>
+/// 插件可注入的 JVM 参数白名单校验（供 <see cref="ILaunchContext.TryAddJvmArgument"/> 使用）。
+/// 采用「前缀白名单 + 高危子串黑名单」双重约束，默认拒绝一切未显式放行的参数。
+/// </summary>
+public static class JvmArgumentPolicy
+{
+    /// <summary>放行的安全前缀（大小写敏感）。这些是标准 JVM 调优参数，不能改写 classpath / 挂载代理。</summary>
+    private static readonly string[] AllowedPrefixes =
+    {
+        "-Xms", "-Xmx", "-Xss", "-Xmn",
+        "-XX:",
+        "-D",
+        "-ea", "-da", "-esa", "-dsa",
+        "-verbose:",
+        "--add-opens=", "--add-exports=",
+    };
+
+    /// <summary>即便命中前缀也必须拒绝的高危子串（改写类路径 / 挂载代理 / 引导类路径 / 触发外部命令）。</summary>
+    private static readonly string[] ForbiddenSubstrings =
+    {
+        "javaagent", "agentlib", "agentpath",
+        "bootclasspath", "patch-module", "module-path", "class-path",
+        "-cp", "-jar",
+        "OnError=", "OnOutOfMemoryError=",
+    };
+
+    /// <summary>校验一条待注入的 JVM 参数是否落在白名单内。</summary>
+    public static bool IsAllowed(string? argument)
+    {
+        if (string.IsNullOrWhiteSpace(argument))
+            return false;
+
+        // 拒绝空白 / 控制字符，避免一次 Add 注入额外参数或换行。
+        foreach (char c in argument)
+            if (char.IsWhiteSpace(c) || char.IsControl(c))
+                return false;
+
+        foreach (string forbidden in ForbiddenSubstrings)
+            if (argument.Contains(forbidden, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+        foreach (string prefix in AllowedPrefixes)
+            if (argument.StartsWith(prefix, StringComparison.Ordinal))
+                return true;
+
+        return false;
+    }
 }

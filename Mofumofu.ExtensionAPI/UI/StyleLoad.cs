@@ -7,6 +7,11 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// 这个修改功能多个插件叠一起可能会爆💥
 /// 资源键请加插件 Id 前缀（如 MyPlugin.BackgroundBrush），避免多个插件互相覆盖。
 /// </summary>
+/// <remarks>
+/// 注册 / 替换宿主全局样式属于写操作，需要 <see cref="PluginPermissionZones.Widget"/> 权限；
+/// 多个插件叠加会互相覆盖，资源键请加插件 Id 前缀，插件停用 / 卸载时宿主应撤销本次样式。
+/// <c>xamlStream</c> / <c>xamlPath</c> / <c>styles</c> 按非 null 处理。
+/// </remarks>
 public interface IStyleLoad
 {
     /// <summary>

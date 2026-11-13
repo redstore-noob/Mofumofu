@@ -6,12 +6,12 @@ namespace Mofumofu.ExtensionAPI.Data;
 /// </summary>
 public enum PageSlot
 {
-    /// <summary>页面顶部，占布局高度。</summary>
-    Banner,
+    /// <summary>页面顶部，占布局高度；显式固定序号，禁止依赖隐式序号</summary>
+    Banner = 0,
 
     /// <summary>页面底部，占布局高度。</summary>
-    Footer,
+    Footer = 1,
 
     /// <summary>悬浮在页面之上，不占布局高度，适合浮球、角标一类内容。</summary>
-    Overlay,
+    Overlay = 2,
 }

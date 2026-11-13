@@ -7,6 +7,13 @@ namespace Mofumofu.ExtensionAPI.Downloads;
 /// 为什么有这个专门的接口，好难猜啊😭
 /// 如果启动器本体被举报了，你可以试着利用这一套API去重新写一个下载界面
 /// </summary>
+/// <remarks>
+/// 权限：版本 / 加载器清单等只读查询需要 <see cref="PluginPermissionZones.NetworkReadonly"/>，
+/// 下载并安装整个实例需要 <see cref="PluginPermissionZones.Network"/>；写操作同样要权限，
+/// 纠正「只读查询要权限、写实例不要」的倒挂。所有 <c>IReadOnlyList</c> 返回值均为只读快照。
+/// null 契约：网络失败 / 版本不存在等异常直接抛出，不返回 null；<c>request</c> 按非 null 处理，
+/// <c>progress</c> 可为 null；<c>InstanceDownloadRequest.Loader</c> 为 null 表示原版。
+/// </remarks>
 public interface IInstanceDownload
 {
     /// <summary>

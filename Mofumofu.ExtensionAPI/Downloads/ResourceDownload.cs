@@ -6,6 +6,16 @@ namespace Mofumofu.ExtensionAPI.Downloads;
 /// 资源下载接口：搜索 Modrinth 上的模组 / 光影 / 资源包并安装到实例。
 /// CurseForge 源暂未开放（需要 API Key 策略），当前所有查询走 Modrinth。
 /// </summary>
+/// <remarks>
+/// 权限：搜索 / 查询版本等只读操作需要 <see cref="PluginPermissionZones.NetworkReadonly"/>，
+/// 下载并写入实例需要 <see cref="PluginPermissionZones.Network"/>；写操作同样要权限，
+/// 纠正「读要权限、写不要」的倒挂。所有 <c>IReadOnlyList</c> 返回值均为只读快照，
+/// 插件不要强转后修改。
+/// null / 加载器契约：各方法的 <c>loader</c> 字符串统一用小写
+/// <c>fabric</c> / <c>forge</c> / <c>neoforge</c> / <c>quilt</c>，传 null 一律表示「不过滤」；
+/// 这与 <c>InstanceDownloadRequest.Loader</c> 的「null = 原版」语义不同，请勿混用。
+/// <c>gameVersion</c> 为 null 也表示不过滤，<c>query</c> 为空串表示浏览热门。
+/// </remarks>
 public interface IResourceDownload
 {
     /// <summary>

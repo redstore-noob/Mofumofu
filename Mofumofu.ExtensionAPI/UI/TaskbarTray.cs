@@ -6,6 +6,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// 任务栏右侧扩展：追加小图标组件，玩家点击时由插件决定弹 Popup 还是跳页面。
 /// 图标出现在版本选择框左侧，样式与任务栏按钮一致。
 /// </summary>
+/// <remarks>追加任务栏图标 / 跳转页面属于写操作，需要 <see cref="PluginPermissionZones.Widget"/> 权限；<c>icon</c> 建议用 <c>IPluginContext.CreateIcon</c> 取内置图标并先判空兜底，按非 null 处理。</remarks>
 public interface ITaskbarTray
 {
     /// <summary>

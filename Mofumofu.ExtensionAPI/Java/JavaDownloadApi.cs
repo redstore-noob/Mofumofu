@@ -6,9 +6,15 @@ namespace Mofumofu.ExtensionAPI.Java;
 /// Java 运行时下载接口：按主版本安装 Mojang 官方运行时（自动放进游戏目录 runtime/），
 /// 并查询本机已检测到的 Java。
 /// </summary>
+/// <remarks>
+/// 权限：清单 / 已安装列表查询需要 <see cref="PluginPermissionZones.NetworkReadonly"/>，
+/// 安装运行时需要 <see cref="PluginPermissionZones.Network"/>；写入游戏目录属于写操作，同样要权限。
+/// 所有 <c>IReadOnlyList</c> 返回值都应是宿主提供的不可变快照，插件不要强转后修改。
+/// <c>InstallAsync</c> 在清单里没有该主版本时返回 null。
+/// </remarks>
 public interface IJavaDownload
 {
-    /// <summary>宿主支持安装的 Java 主版本列表（当前 8 / 11 / 17 / 21 / 25）。</summary>
+    /// <summary>宿主支持安装的 Java 主版本列表（当前 8 / 11 / 17 / 21 / 25）；只读快照，不要强转修改。</summary>
     IReadOnlyList<int> SupportedMajorVersions { get; }
 
     /// <summary>

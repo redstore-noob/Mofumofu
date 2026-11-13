@@ -16,7 +16,9 @@ public interface ILaunchAction
     /// </summary>
     /// <param name="launch">
     /// 本次启动的上下文：要启动哪个实例、游戏目录；
-    /// <see cref="ILaunchContext.JvmArguments"/> 是可变列表，Add 进去的参数会被宿主采用；
+    /// 追加 JVM 参数请用 <see cref="ILaunchContext.TryAddJvmArgument"/>（带白名单校验），
+    /// 只读查看用 <see cref="ILaunchContext.JvmArgumentsSnapshot"/>，不要再直接改
+    /// <see cref="ILaunchContext.JvmArguments"/>；
     /// 调用 <see cref="ILaunchContext.Cancel"/> 可阻止本次启动。
     /// </param>
     /// <returns>true = 放行本次启动；false = 阻止本次启动（配合 Cancel(reason) 把原因展示给玩家）</returns>

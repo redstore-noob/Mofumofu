@@ -6,6 +6,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// 往组件盒中增加一个自定义的小组件
 /// 我觉得这功能很牛逼
 /// </summary>
+/// <remarks>注册 / 修改小组件属于写操作，三个方法都需要 <see cref="PluginPermissionZones.Widget"/> 权限；传入的控件 / id / 标题按非 null 处理。</remarks>
 public interface IWidgetAdd
 {
     /// <summary>

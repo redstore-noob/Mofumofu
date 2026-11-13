@@ -6,6 +6,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// <summary>
 /// 往任意页面插入内容。按页面标识注册，宿主每次进入页面时按注册顺序重建。
 /// </summary>
+/// <remarks>向页面注入任意 <c>Control</c> 属于写操作，需要 <see cref="PluginPermissionZones.Widget"/> 权限；<c>factory</c> 按非 null 处理，且每次进入页面都要返回新控件。</remarks>
 public interface IPageContentHost
 {
     /// <summary>

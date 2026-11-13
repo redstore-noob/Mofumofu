@@ -6,6 +6,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// 对启动器壁纸进行修改
 /// 视频壁纸原本所需的libvlc过大，不适合随启动器发行，作为可选插件更好
 /// </summary>
+/// <remarks>接管启动器壁纸属于写操作，需要 <see cref="PluginPermissionZones.Widget"/> 权限；多个插件同时接管会互相覆盖，<c>wallpaperContent</c> 按非 null 处理。</remarks>
 public interface IWallpaperEdit
 {
     /// <summary>

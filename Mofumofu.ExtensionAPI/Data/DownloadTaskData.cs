@@ -1,13 +1,14 @@
 namespace Mofumofu.ExtensionAPI.Data;
 
 /// <summary>下载任务状态（与宿主下载页展示一致）。</summary>
+/// <remarks>序号显式固定，禁止依赖隐式序号；持久化 / 跨进程传递时不要假设成员顺序。</remarks>
 public enum DownloadTaskState
 {
-    Downloading,
-    Paused,
-    Done,
-    Cancelled,
-    Failed,
+    Downloading = 0,
+    Paused = 1,
+    Done = 2,
+    Cancelled = 3,
+    Failed = 4,
 }
 
 /// <summary>

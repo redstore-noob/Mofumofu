@@ -6,6 +6,11 @@ namespace Mofumofu.ExtensionAPI.Game;
 /// 插件的游戏启动接口：查询本地实例、启动玩家选中的实例。
 /// 出于安全考虑，插件只能启动「玩家在启动器里选中的实例」，不能指定任意实例。
 /// </summary>
+/// <remarks>
+/// 权限：实例列表 / 选中实例 / 启动事件的查询需要 <see cref="PluginPermissionZones.Readonly"/>；
+/// 启动玩家选中的实例是写操作，同样需要 <see cref="PluginPermissionZones.Readonly"/> 权限。
+/// 返回的 <c>IReadOnlyList</c> 均为只读快照；<c>GetSelectedInstanceAsync</c> 在未选中实例时返回 null。
+/// </remarks>
 public interface IGameLaunch
 {
     /// <summary>
@@ -33,13 +38,13 @@ public interface IGameLaunch
 
     /// <summary>
     /// 游戏进程成功启动后触发（在 UI 线程回调）。
-    /// 订阅需要 readonly 权限；插件停用/卸载时宿主会自动退订。
+    /// 订阅需要 <see cref="PluginPermissionZones.Readonly"/> 权限；插件停用/卸载时宿主会自动退订。
     /// </summary>
     event Action GameLaunched;
 
     /// <summary>
     /// 游戏退出后触发（在 UI 线程回调），参数为进程退出码（手动停止时为 -1）。
-    /// 订阅需要 readonly 权限；插件停用/卸载时宿主会自动退订。
+    /// 订阅需要 <see cref="PluginPermissionZones.Readonly"/> 权限；插件停用/卸载时宿主会自动退订。
     /// </summary>
     event Action<int> GameExited;
 }

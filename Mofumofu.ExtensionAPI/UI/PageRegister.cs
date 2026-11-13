@@ -5,6 +5,7 @@ namespace Mofumofu.ExtensionAPI.UI;
 /// <summary>
 /// 注册一个新的标签页(就是启动器左下角长得跟开始菜单一样的东西里面的一个一个项那个)
 /// </summary>
+/// <remarks>注册导航页面属于写操作，需要 <see cref="PluginPermissionZones.Widget"/> 权限；<c>createPage</c> / <c>icon</c> 按非 null 处理（<c>icon</c> 可用 <c>IPluginContext.CreateIcon</c> 结果，但请先判空兜底）。</remarks>
 public interface IPageRegister
 {
     /// <summary>
