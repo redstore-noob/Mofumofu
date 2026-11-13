@@ -192,7 +192,10 @@ public sealed class LaunchProgress
         get { lock (_sync) return _running; }
     }
 
-    public TimeSpan Elapsed => _running ? _stopwatch.Elapsed : _lastDuration;
+    public TimeSpan Elapsed
+    {
+        get { lock (_sync) return _running ? _stopwatch.Elapsed : _lastDuration; }
+    }
 
     public CancellationToken CancellationToken
     {
@@ -524,18 +527,27 @@ public sealed class LaunchProgress
     {
         AppendLog(isError ? LaunchLogLevel.Error : LaunchLogLevel.Info, line);
 
-        if (_windowReady) return;
-        foreach (string hint in WindowReadyHints)
+        bool justReady = false;
+        lock (_sync)
         {
-            if (line.Contains(hint, StringComparison.OrdinalIgnoreCase))
+            if (!_windowReady)
             {
-                _windowReady = true;
-                MarkStage("process", L.T("Launch.Detail.ProcessStart", "Java 进程已启动"));
-                MarkStage("window", L.T("Launch.Detail.WindowReady", "游戏窗口已就绪（检测到渲染线程输出）"));
-                AppendLog(LaunchLogLevel.Success, L.T("Launch.Log.Real.WindowReady", "[launcher] 检测到游戏渲染线程输出，窗口已就绪"));
-                break;
+                foreach (string hint in WindowReadyHints)
+                {
+                    if (line.Contains(hint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _windowReady = true;
+                        justReady = true;
+                        break;
+                    }
+                }
             }
         }
+        if (!justReady) return;
+
+        MarkStage("process", L.T("Launch.Detail.ProcessStart", "Java 进程已启动"));
+        MarkStage("window", L.T("Launch.Detail.WindowReady", "游戏窗口已就绪（检测到渲染线程输出）"));
+        AppendLog(LaunchLogLevel.Success, L.T("Launch.Log.Real.WindowReady", "[launcher] 检测到游戏渲染线程输出，窗口已就绪"));
     }
 
     private string DiagnoseCrash(MinecraftLaunchOptions options, int exitCode)

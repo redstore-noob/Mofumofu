@@ -19,11 +19,12 @@ public static class PluginPermissions
     public const string Readonly = "readonly";
     public const string ServerStatus = "serverStatus";
     public const string InstanceWrite = "instanceWrite";
+    public const string Launch = "launch";
 
     /// <summary>全部已知权限区。</summary>
     public static readonly string[] All =
     {
-        Notify, Widget, Network, NetworkReadonly, Storage, Readonly, ServerStatus, InstanceWrite,
+        Notify, Widget, Network, NetworkReadonly, Storage, Readonly, ServerStatus, InstanceWrite, Launch,
     };
 
     public static bool IsKnown(string zone) => All.Contains(zone);
@@ -37,6 +38,15 @@ public static class PluginPermissions
         {
             throw new PluginPermissionException(zone,
                 $"插件 {runtime.Manifest.Name} 未在清单中声明权限 {zone}，调用被拒绝。");
+        }
+
+        // 同意阶段授予的权限集必须参与运行时鉴权：未经本次同意授权的权限域一律拒绝（fail-closed）。
+        var consent = LocalSettings.Current.PluginStates
+            .FirstOrDefault(entry => string.Equals(entry.Id, runtime.Manifest.Id, StringComparison.OrdinalIgnoreCase));
+        if (consent is null || consent.ConsentPermissions.Contains(zone, StringComparer.OrdinalIgnoreCase) == false)
+        {
+            throw new PluginPermissionException(zone,
+                $"插件 {runtime.Manifest.Name} 的 {zone} 权限未经玩家同意，调用被拒绝。");
         }
 
         if (IsAllowedByUser(runtime.Manifest.Id, zone) == false)

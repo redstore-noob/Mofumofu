@@ -8,7 +8,7 @@
              Background="Transparent">
 
     <UserControl.Resources>
-        <!-- 终端一行日志：时间 · 级别 · 正文 -->
+<!-- 终端一行日志：时间 · 级别 · 正文 -->        
         <DataTemplate x:Key="LogLineTemplate">
             <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,1">
                 <TextBlock Text="{Binding Time}" FontSize="11"
@@ -43,9 +43,8 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
-        <!-- ================= 页头 ================= -->
-        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Launch.Page.Title}"
-                             ShowBack="False">
+<!-- ================= 页头 ================= -->        
+        <controls:PageHeader Grid.Row="0" ShowBack="False">
             <controls:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="ghost" Height="36" Padding="14,0" Click="OnCancelClick">
@@ -65,7 +64,7 @@
         </controls:PageHeader>
 
         <Grid Grid.Row="1" RowDefinitions="Auto,12,*">
-            <!-- ================= 阶段时间线 ================= -->
+<!-- ================= 阶段时间线 ================= -->            
             <Border Grid.Row="0" Classes="card" Padding="16,12">
                 <StackPanel Spacing="9">
                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -97,13 +96,13 @@
                 </StackPanel>
             </Border>
 
-            <!-- ================= 终端 ================= -->
+<!-- ================= 终端 ================= -->            
             <Border Grid.Row="2" CornerRadius="12" BorderThickness="1"
                     Background="{DynamicResource NekoTerminalBrush}"
                     BorderBrush="{DynamicResource NekoBorderBrush}"
                     ClipToBounds="True">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- 终端标题栏 -->
+<!-- 终端标题栏 -->                    
                     <Border Grid.Row="0" Padding="14,8"
                             BorderThickness="0,0,0,1"
                             BorderBrush="{DynamicResource NekoBorderBrush}">
@@ -136,7 +135,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- 输出区 -->
+<!-- 输出区 -->                    
                     <ScrollViewer x:Name="LogScroll" Grid.Row="1" Padding="14,10"
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
@@ -145,7 +144,7 @@
                                       FontFamily="Consolas, Cascadia Mono, Menlo" />
                     </ScrollViewer>
 
-                    <!-- 命令行 -->
+<!-- 命令行 -->                    
                     <Border Grid.Row="2" Padding="14,6" IsVisible="False"
                             BorderThickness="0,1,0,0"
                             BorderBrush="{DynamicResource NekoBorderBrush}">

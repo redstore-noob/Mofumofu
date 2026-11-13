@@ -1,0 +1,13 @@
+{
+  "Memory.Automatic": "Aŭtomate disponigi memoron",
+  "Memory.Manual": "Permane disponigi memoron",
+  "Memory.Inherit": "Heredi ĝeneralajn agordojn",
+  "Memory.Save": "Konservi memoragordojn",
+  "Memory.Saved": "Memoragordoj konservitaj",
+  "Memory.SaveFailed": "Malsukcesis konservi memoragordojn",
+  "Memory.Preview": "Taksata haldigo {0}–{1} MiB · sistema memoro {2:0.##} GiB · disponebla {3:0.##} GiB",
+  "Memory.Hint": "Aŭtomata reĝimo rekalkulas ĉe lanĉo kaj lasas lokon por la sistemo kaj ne-halda Java memoro. Permana reĝimo konservas la agorditan valoron.",
+  "Memory.Unknown": "Iuj informoj pri sistema memoro ne disponeblas — aŭtomata disponigo uzas singardan takson.",
+  "Memory.Pressure": "La limo superas la disponeblan memoron — eblas memoraĵa interŝanĝo aŭ lanĉa fiasko.",
+  "Memory.BelowRecommendation": "La aŭtomata supra limo malpli grandas ol la rekomendita {0} MiB por tiu grando — eble mankos memoro. Fermu aliajn programojn aŭ malpliigu modojn."
+}

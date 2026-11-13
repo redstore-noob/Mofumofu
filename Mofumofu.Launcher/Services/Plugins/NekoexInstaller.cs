@@ -32,8 +32,11 @@ public static class NekoexInstaller
         string pluginsRoot = PluginManager.PluginsRoot;
         Directory.CreateDirectory(pluginsRoot);
 
+        // id 白名单 + 路径包含校验：复制/解压/删除目标都落在 pluginsRoot 之内
+        string canonical = PluginManager.ResolvePluginPath(id, ".nekoex");
+        string target = PluginManager.ResolvePluginPath(id);
+
         // 安装源统一收进 plugins 根（同目录则原位使用）
-        string canonical = Path.Combine(pluginsRoot, id + ".nekoex");
         if (!string.Equals(source, canonical, StringComparison.OrdinalIgnoreCase))
         {
             File.Copy(source, canonical, overwrite: true);
@@ -41,7 +44,6 @@ public static class NekoexInstaller
 
         // 更新场景：先热卸载旧运行时、清掉旧目录（注意不能删 canonical——它就是要解压的源）
         PluginManager.Unload(id);
-        string target = Path.Combine(pluginsRoot, id);
         if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
         await Task.Run(() => ZipFile.ExtractToDirectory(canonical, target, overwriteFiles: true), cancellationToken)
             .ConfigureAwait(false);
@@ -74,11 +76,10 @@ public static class NekoexInstaller
 
     private static void UninstallFiles(string pluginId)
     {
-        string pluginsRoot = PluginManager.PluginsRoot;
-        string directory = Path.Combine(pluginsRoot, pluginId);
+        string directory = PluginManager.ResolvePluginPath(pluginId);
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
 
-        string package = Path.Combine(pluginsRoot, pluginId + ".nekoex");
+        string package = PluginManager.ResolvePluginPath(pluginId, ".nekoex");
         if (File.Exists(package)) File.Delete(package);
     }
 
@@ -103,7 +104,7 @@ public static class NekoexInstaller
                 if (line[..colon].Trim().Equals("id", StringComparison.OrdinalIgnoreCase) == false) continue;
 
                 string value = line[(colon + 1)..].Trim().Trim('"', '\'');
-                if (value.Length > 0) return value;
+                if (PluginManifest.IsValidPluginId(value)) return value;
             }
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
@@ -65,17 +66,45 @@ public static class PluginConsent
         LocalSettings.Save();
     }
 
-    /// <summary>插件主 DLL 的 SHA256（十六进制小写）；解析不到 DLL 时返回 null。</summary>
+    /// <summary>插件目录整包聚合 SHA256（十六进制小写）：覆盖所有 dll/axaml/yaml/manifest 等文件。</summary>
     public static string? ComputeDllHash(PluginManifest manifest)
     {
-        string? dllPath = PluginManager.ResolveDllPath(manifest);
-        if (dllPath is null) return null;
+        string directory = manifest.Directory;
+        if (string.IsNullOrEmpty(directory) || Directory.Exists(directory) == false) return null;
 
         try
         {
-            using SHA256 sha = SHA256.Create();
-            using FileStream stream = File.OpenRead(dllPath);
-            return Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
+            string rootFull = Path.GetFullPath(directory);
+            string[] files = Directory.GetFiles(rootFull, "*", SearchOption.AllDirectories);
+            if (files.Length == 0) return null;
+
+            // 逐文件把「相对路径 + 内容」哈希成固定 32 字节，再按相对路径排序聚合：
+            // 任意文件（依赖 DLL / AXAML / 清单 / 资源）增删改都会改变最终指纹。
+            var perFile = new List<(string Relative, byte[] Hash)>();
+            foreach (string file in files)
+            {
+                string relative = Path.GetRelativePath(rootFull, file)
+                    .Replace(Path.DirectorySeparatorChar, '/');
+                using IncrementalHash fileHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                fileHash.AppendData(Encoding.UTF8.GetBytes(relative));
+                using (FileStream stream = File.OpenRead(file))
+                {
+                    byte[] buffer = new byte[81920];
+                    int read;
+                    while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        fileHash.AppendData(buffer, 0, read);
+                    }
+                }
+                perFile.Add((relative, fileHash.GetHashAndReset()));
+            }
+
+            using IncrementalHash aggregate = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            foreach (var pair in perFile.OrderBy(p => p.Relative, StringComparer.OrdinalIgnoreCase))
+            {
+                aggregate.AppendData(pair.Hash);
+            }
+            return Convert.ToHexString(aggregate.GetHashAndReset()).ToLowerInvariant();
         }
         catch
         {

@@ -6,7 +6,7 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.PluginsView">
     <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <controls:PageHeader Grid.Row="0" Title="{DynamicResource L.Pages.Plugins.Title}">
+        <controls:PageHeader Grid.Row="0">
             <controls:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Height="34" Click="OnOpenStoreClick">
@@ -44,7 +44,7 @@
                        VerticalAlignment="Center" Margin="12,0,0,0" />
         </Grid>
 
-        <!-- 常驻风险提示条：插件与启动器同权限运行 -->
+<!-- 常驻风险提示条：插件与启动器同权限运行 -->        
         <Border Grid.Row="2" Margin="0,0,0,10" CornerRadius="10" Padding="14,9"
                 Background="{DynamicResource NekoWarningSoftBrush}"
                 BorderBrush="{DynamicResource NekoWarningBrush}" BorderThickness="1">
@@ -173,7 +173,7 @@
                         </TabItem>
 
                         <TabItem Header="{DynamicResource L.Pages.Plugins.Tab.Settings}">
-                            <!-- 插件设置项：等 API 支持插件声明设置页后在这里渲染插件的配置 UI -->
+<!-- 插件设置项：等 API 支持插件声明设置页后在这里渲染插件的配置 UI -->                            
                             <TextBlock Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
                                        TextWrapping="Wrap"
                                        Text="{DynamicResource L.Pages.Plugins.Settings.None}" />

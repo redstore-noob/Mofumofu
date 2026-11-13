@@ -1,0 +1,13 @@
+{
+  "Memory.Automatic": "Speicher automatisch zuweisen",
+  "Memory.Manual": "Speicher manuell zuweisen",
+  "Memory.Inherit": "Globale Einstellung übernehmen",
+  "Memory.Save": "Speichereinstellung speichern",
+  "Memory.Saved": "Speichereinstellung gespeichert",
+  "Memory.SaveFailed": "Speichereinstellung konnte nicht gespeichert werden",
+  "Memory.Preview": "Geschätzter Heap {0}–{1} MiB · Systemspeicher {2:0.##} GiB · verfügbar {3:0.##} GiB",
+  "Memory.Hint": "Der automatische Modus rechnet beim Start neu und lässt Platz für System und Java-Nicht-Heap. Der manuelle Modus behält den eingestellten Wert.",
+  "Memory.Unknown": "Einige Systemspeicher-Infos fehlen — die automatische Zuweisung nutzt eine konservative Schätzung.",
+  "Memory.Pressure": "Das Limit übersteigt den verfügbaren Speicher — das kann Auslagerung oder Startfehler verursachen.",
+  "Memory.BelowRecommendation": "Die automatische Obergrenze liegt unter dem Richtwert {0} MiB für diese Größe — es kann an Speicher fehlen. Schließe andere Programme oder reduziere Mods."
+}

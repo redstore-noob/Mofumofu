@@ -33,6 +33,10 @@ public class GameLaunch
 
     private MinecraftLaunchResult? _current;
 
+    // 原子启动闸门：同一时刻只允许一个 LaunchAsync 进入"拉起 Java 进程"的临界区，
+    // 避免两个并发启动都通过 IsGameRunning 检查后各拉起一个进程、后者覆盖 _current。
+    private int _launchInProgress;
+
     /// <summary>当前运行中的游戏进程；没有运行时为 null。</summary>
     public MinecraftLaunchResult? Current
     {
@@ -63,57 +67,98 @@ public class GameLaunch
         string gameDirectory = string.IsNullOrWhiteSpace(options.GameDirectory)
             ? ResolveDefaultGameDirectory(minecraftDirectory, options.VersionId)
             : NormalizeDirectory(options.GameDirectory, "实例游戏目录不存在：");
-        await Task.Yield();
 
-        if (options.Account is MicrosoftLaunchAccount microsoft && microsoft.IsExpired)
+        SemaphoreSlim instanceLock = MofuCore.Download.Minecraft.InstanceUpdate.GetInstanceLock(
+            minecraftDirectory, options.VersionId);
+        if (!await instanceLock.WaitAsync(TimeSpan.Zero, cancellationToken).ConfigureAwait(false))
         {
-            throw new MinecraftLaunchException("正版账号的访问令牌已过期，请先通过认证器刷新或重新登录。");
+            throw new MinecraftLaunchException("该实例正在更新，请等待更新完成后再启动。");
         }
 
-        if (options.MinimumMemoryMb <= 0 || options.MaximumMemoryMb < options.MinimumMemoryMb)
-        {
-            throw new MinecraftLaunchException("内存设置无效：最大内存必须大于等于最小内存。");
-        }
-
-        options.LogCallback?.Invoke("正在解析版本、依赖库与 Java 运行时。");
-        LaunchProfile profile = await _profileLoader
-            .LoadAsync(minecraftDirectory, options.VersionId, cancellationToken).ConfigureAwait(false);
-
-        Dictionary<string, bool> features = MinecraftRuleEvaluator.CreateDefaultFeatures(
-            options.WindowWidth > 0 && options.WindowHeight > 0);
-        ResolvedLibraries resolved = await _libraryResolver
-            .ResolveAsync(profile, minecraftDirectory, features, cancellationToken).ConfigureAwait(false);
-        string nativeDirectory = await _libraryResolver
-            .ExtractNativesAsync(profile.Id, resolved.Natives, minecraftDirectory, cancellationToken)
-            .ConfigureAwait(false);
-
+        FileStream? processLock = null;
+        bool gateAcquired = false;
         try
         {
-            int? requiredJavaMajorVersion = profile.RequiredJavaMajorVersion;
-            string javaExecutable = await ResolveJavaExecutableAsync(
-                options, minecraftDirectory, requiredJavaMajorVersion, cancellationToken).ConfigureAwait(false);
-
-            IReadOnlyList<string> additionalJvmArguments = await PrepareAccountJvmArgumentsAsync(
-                options, minecraftDirectory, cancellationToken).ConfigureAwait(false);
-
-            IReadOnlyList<string> arguments = _argumentBuilder.Build(
-                profile, options, options.Account!, nativeDirectory, resolved.Classpath, profile.MainClass,
-                additionalJvmArguments);
-            ValidateFinalArguments(arguments);
-
-            MinecraftLaunchResult result = StartProcess(options, profile, gameDirectory, javaExecutable,
-                nativeDirectory, arguments, requiredJavaMajorVersion);
-            lock (_gate)
+            // 原子占位：与 IsGameRunning 检查配合，跨所有 await 保证只有一个启动能进入临界区。
+            if (Interlocked.CompareExchange(ref _launchInProgress, 1, 0) != 0)
             {
-                _current = result;
+                throw new MinecraftLaunchException("游戏已经在运行或正在启动中。");
+            }
+            gateAcquired = true;
+
+            string lockPath = MofuCore.Download.Minecraft.InstanceUpdate.GetCrossProcessLockPath(
+                minecraftDirectory, "instance:" + options.VersionId.Trim());
+            processLock = await MofuCore.Download.Minecraft.InstanceUpdate.AcquireCrossProcessLockAsync(
+                lockPath, false, cancellationToken).ConfigureAwait(false);
+            if (processLock is null)
+            {
+                throw new MinecraftLaunchException("该实例正在另一个启动器进程中运行或更新。");
             }
 
-            return result;
+            await Task.Yield();
+
+            if (options.Account is MicrosoftLaunchAccount microsoft && microsoft.IsExpired)
+            {
+                throw new MinecraftLaunchException("正版账号的访问令牌已过期，请先通过认证器刷新或重新登录。");
+            }
+
+            if (options.MinimumMemoryMb <= 0 || options.MaximumMemoryMb < options.MinimumMemoryMb)
+            {
+                throw new MinecraftLaunchException("内存设置无效：最大内存必须大于等于最小内存。");
+            }
+
+            options.LogCallback?.Invoke("正在解析版本、依赖库与 Java 运行时。");
+            LaunchProfile profile = await _profileLoader
+                .LoadAsync(minecraftDirectory, options.VersionId, cancellationToken).ConfigureAwait(false);
+
+            Dictionary<string, bool> features = MinecraftRuleEvaluator.CreateDefaultFeatures(
+                options.WindowWidth > 0 && options.WindowHeight > 0);
+            ResolvedLibraries resolved = await _libraryResolver
+                .ResolveAsync(profile, minecraftDirectory, features, cancellationToken).ConfigureAwait(false);
+            string nativeDirectory = await _libraryResolver
+                .ExtractNativesAsync(profile.Id, resolved.Natives, minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
+
+            try
+            {
+                int? requiredJavaMajorVersion = profile.RequiredJavaMajorVersion;
+                string javaExecutable = await ResolveJavaExecutableAsync(
+                    options, minecraftDirectory, requiredJavaMajorVersion, cancellationToken).ConfigureAwait(false);
+
+                IReadOnlyList<string> additionalJvmArguments = await PrepareAccountJvmArgumentsAsync(
+                    options, minecraftDirectory, cancellationToken).ConfigureAwait(false);
+
+                IReadOnlyList<string> arguments = _argumentBuilder.Build(
+                    profile, options, options.Account!, nativeDirectory, resolved.Classpath, profile.MainClass,
+                    additionalJvmArguments);
+                ValidateFinalArguments(arguments);
+
+                MinecraftLaunchResult result = StartProcess(options, profile, gameDirectory, javaExecutable,
+                    nativeDirectory, arguments, requiredJavaMajorVersion);
+                result.HoldInstanceUpdateLock(processLock);
+                processLock = null;
+                lock (_gate)
+                {
+                    _current = result;
+                }
+
+                return result;
+            }
+            catch
+            {
+                LibraryResolver.TryDeleteDirectory(nativeDirectory);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            LibraryResolver.TryDeleteDirectory(nativeDirectory);
-            throw;
+            processLock?.Dispose();
+            instanceLock.Release();
+            // 只有成功占用闸门的启动才归还，避免被拒绝的启动误清掉正在进行的启动的标志。
+            if (gateAcquired)
+            {
+                Interlocked.Exchange(ref _launchInProgress, 0);
+            }
         }
     }
 
@@ -345,13 +390,24 @@ public class GameLaunch
 
     private static void ValidateFinalArguments(IReadOnlyList<string> arguments)
     {
+        const int maxArguments = 4096;
+        const int maxArgumentLength = 1_048_576;
+        if (arguments.Count > maxArguments)
+        {
+            throw new MinecraftLaunchException($"最终 Java 命令参数过多（{arguments.Count} 项）。");
+        }
+
         for (int index = 0; index < arguments.Count; index++)
         {
             string argument = arguments[index];
             if (argument.Length == 0)
             {
-                string previous = index > 0 ? arguments[index - 1] : string.Empty;
-                throw new MinecraftLaunchException($"最终 Java 命令出现空参数（下标 {index}，前一项 {previous}）。");
+                throw new MinecraftLaunchException($"最终 Java 命令出现空参数（下标 {index}）。");
+            }
+
+            if (argument.Length > maxArgumentLength)
+            {
+                throw new MinecraftLaunchException($"最终 Java 命令在下标 {index} 处参数过长。");
             }
 
             if (argument.Contains('\0'))
@@ -615,6 +671,35 @@ public sealed class MinecraftLaunchOptions
 public sealed class MinecraftLaunchResult
 {
     private readonly TaskCompletionSource<int> _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly object _instanceUpdateLockSync = new();
+    private FileStream? _instanceUpdateLock;
+    private bool _instanceUpdateLockReleased;
+
+    internal void HoldInstanceUpdateLock(FileStream? stream)
+    {
+        if (stream is null) return;
+        lock (_instanceUpdateLockSync)
+        {
+            if (_instanceUpdateLockReleased)
+            {
+                stream.Dispose();
+            }
+            else
+            {
+                _instanceUpdateLock = stream;
+            }
+        }
+    }
+
+    private void ReleaseInstanceUpdateLock()
+    {
+        lock (_instanceUpdateLockSync)
+        {
+            _instanceUpdateLockReleased = true;
+            _instanceUpdateLock?.Dispose();
+            _instanceUpdateLock = null;
+        }
+    }
 
     internal MinecraftLaunchResult(
         Process process,
@@ -694,9 +779,9 @@ public sealed class MinecraftLaunchResult
 
     internal void StartExitMonitor()
     {
-        _ = Task.Run(async () =>
+        Task monitor = Task.Run(async () =>
         {
-            int exitCode;
+            int exitCode = -1;
             try
             {
                 await Process.WaitForExitAsync().ConfigureAwait(false);
@@ -706,14 +791,41 @@ public sealed class MinecraftLaunchResult
             {
                 exitCode = -1;
             }
+            catch (Exception)
+            {
+                // 兜底观察：任何未预期的异常都不得让退出信号永久挂起。
+                exitCode = -1;
+            }
             finally
             {
-                LibraryResolver.TryDeleteDirectory(NativeDirectory);
+                // 清理失败不得跳过退出信号；保证 WaitForExitAsync() 总能完成。
+                try
+                {
+                    LibraryResolver.TryDeleteDirectory(NativeDirectory);
+                }
+                catch (Exception)
+                {
+                    // 清理失败不影响退出信号。
+                }
+                try
+                {
+                    ReleaseInstanceUpdateLock();
+                }
+                catch (Exception)
+                {
+                    // 清理失败不影响退出信号。
+                }
+                ExitCode = exitCode;
+                _exit.TrySetResult(exitCode);
             }
-
-            ExitCode = exitCode;
-            _exit.TrySetResult(exitCode);
         });
+
+        // 观察后台任务异常，避免 fire-and-forget 变成未观察异常。
+        _ = monitor.ContinueWith(
+            static completed => { _ = completed.Exception; },
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 }
 
@@ -727,6 +839,28 @@ public sealed class MinecraftArgumentBuilder
     {
         "clientid", "auth_xuid", "user_type",
     };
+
+    // 版本 JSON 的 arguments.jvm 来自磁盘上的外部文件，可能被整合包篡改。
+    // 严格白名单：仅放行不能加载/执行外部代码的选项；命中可执行/代理类参数或
+    // 不在白名单内的选项一律拒绝启动（fail-closed）。
+    private static readonly string[] ForbiddenJvmArgumentPrefixes =
+    [
+        "-javaagent:", "-agentlib:", "-agentpath:", "-Xrunjdwp", "-Xdebug",
+        "-XX:OnError", "-XX:OnOutOfMemoryError", "-XX:StartFlightRecording",
+        "-XX:FlightRecorderOptions", "-XX:CompilerCommandFile",
+        "-Djava.system.class.loader", "-Dcom.sun.management",
+        "-Djava.rmi.server.codebase", "-Djava.security.policy=",
+    ];
+
+    private static readonly string[] AllowedJvmArgumentPrefixes =
+    [
+        "-D", "-Xms", "-Xmx", "-Xmn", "-Xss", "-Xint", "-Xcomp", "-Xmixed", "-Xbatch",
+        "-Xshare:", "-Xverify:", "-Xlog:", "-Xloggc:", "-XshowSettings:", "-XX:",
+        "-cp", "-classpath", "--add-opens", "--add-exports", "--add-reads", "--add-modules",
+        "--upgrade-module-path", "--module-path", "--patch-module", "--enable-preview",
+        "--illegal-access=", "-verbose:", "-ea", "-da", "-esa", "-dsa",
+        "-client", "-server", "-d64", "-showversion", "-version",
+    ];
 
     /// <summary>生成最终 Java 命令行参数。</summary>
     public IReadOnlyList<string> Build(
@@ -829,7 +963,7 @@ public sealed class MinecraftArgumentBuilder
         int launcherJvmArgsStart = result.Count;
         if (profile.JvmArguments.Count > 0)
         {
-            AppendModernArguments(result, profile.JvmArguments, features, placeholders);
+            AppendModernArguments(result, profile.JvmArguments, features, placeholders, jvmWhitelist: true);
         }
         else
         {
@@ -973,14 +1107,15 @@ public sealed class MinecraftArgumentBuilder
         List<string> target,
         IReadOnlyList<JsonElement> elements,
         IReadOnlyDictionary<string, bool> features,
-        IReadOnlyDictionary<string, string> placeholders)
+        IReadOnlyDictionary<string, string> placeholders,
+        bool jvmWhitelist = false)
     {
         foreach (JsonElement element in elements)
         {
             if (element.ValueKind == JsonValueKind.String)
             {
                 string text = element.GetString() ?? string.Empty;
-                AppendResolvedArgument(target, text, ReplacePlaceholders(text, placeholders));
+                AppendVersionArgument(target, text, placeholders, jvmWhitelist);
                 continue;
             }
 
@@ -997,7 +1132,7 @@ public sealed class MinecraftArgumentBuilder
             if (value.ValueKind == JsonValueKind.String)
             {
                 string text = value.GetString() ?? string.Empty;
-                AppendResolvedArgument(target, text, ReplacePlaceholders(text, placeholders));
+                AppendVersionArgument(target, text, placeholders, jvmWhitelist);
                 continue;
             }
 
@@ -1011,7 +1146,7 @@ public sealed class MinecraftArgumentBuilder
                 if (item.ValueKind == JsonValueKind.String)
                 {
                     string text = item.GetString() ?? string.Empty;
-                    AppendResolvedArgument(target, text, ReplacePlaceholders(text, placeholders));
+                    AppendVersionArgument(target, text, placeholders, jvmWhitelist);
                 }
             }
         }
@@ -1033,6 +1168,44 @@ public sealed class MinecraftArgumentBuilder
         {
             target.RemoveAt(target.Count - 1);
         }
+    }
+
+    private static void AppendVersionArgument(List<string> target, string text,
+        IReadOnlyDictionary<string, string> placeholders, bool jvmWhitelist)
+    {
+        string resolved = ReplacePlaceholders(text, placeholders);
+        if (jvmWhitelist)
+        {
+            EnsureAllowedVersionJvmArgument(resolved);
+        }
+        AppendResolvedArgument(target, text, resolved);
+    }
+
+    private static void EnsureAllowedVersionJvmArgument(string argument)
+    {
+        // 不以 '-' 开头的是前面选项的取值（classpath、模块名、路径等），无可执行语义。
+        if (argument.Length == 0 || argument[0] != '-')
+        {
+            return;
+        }
+
+        foreach (string prefix in ForbiddenJvmArgumentPrefixes)
+        {
+            if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new MinecraftLaunchException("版本配置包含被禁止的 JVM 参数：" + prefix + "…");
+            }
+        }
+
+        foreach (string prefix in AllowedJvmArgumentPrefixes)
+        {
+            if (argument.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        throw new MinecraftLaunchException("版本配置包含不在白名单内的 JVM 参数，已拒绝启动。");
     }
 
     private static bool IsNullablePlaceholder(string source)
@@ -1614,6 +1787,23 @@ public static class MinecraftLanguage
 /// </summary>
 public sealed class CrashDiagnosis
 {
+    private const int MaxCrashEvidenceLines = 8;
+
+    // 崩溃日志/证据里可能回显启动参数，令牌必须在进入诊断与对外展示前脱敏。
+    private static readonly Regex SensitiveArgumentPattern = new(
+        @"(?i)(--accessToken|auth_access_token|auth_session|access_token|refresh_token|Bearer|token:)([\s:=]+)(\S+)",
+        RegexOptions.Compiled);
+
+    private static string RedactSecrets(string? text)
+    {
+        return text is null
+            ? string.Empty
+            : SensitiveArgumentPattern.Replace(text,
+                match => match.Groups[1].Value + match.Groups[2].Value + "[REDACTED]");
+    }
+
+
+
     /// <summary>最新崩溃报告路径；没找到为空串。</summary>
     public string ReportPath { get; set; } = string.Empty;
 
@@ -1641,7 +1831,7 @@ public sealed class CrashDiagnosis
         ArgumentNullException.ThrowIfNull(input);
         LogAnalysisResult analysis = LogAnalysis.Analyze(new LogAnalysisInput
         {
-            LogText = input.LogText,
+            LogText = RedactSecrets(input.LogText),
             CrashReportsDirectory = input.CrashReportsDirectory,
             MinecraftVersion = input.MinecraftVersion,
             JavaVersion = input.JavaVersion,
@@ -1651,22 +1841,23 @@ public sealed class CrashDiagnosis
         List<string> details = analysis.Findings
             .SelectMany(finding => finding.Evidence)
             .Where(line => line.Length > 0)
+            .Select(line => RedactSecrets(line))
             .Distinct(StringComparer.Ordinal)
-            .Take(8)
+            .Take(MaxCrashEvidenceLines)
             .ToList();
 
         CrashDiagnosis diagnosis = new()
         {
             ReportPath = analysis.CrashReportPath,
-            Description = analysis.CrashDescription,
-            Exception = analysis.CrashException,
+            Description = RedactSecrets(analysis.CrashDescription),
+            Exception = RedactSecrets(analysis.CrashException),
             Suspected = analysis.Findings.Select(finding => finding.Title).ToList(),
             Suggestions = analysis.Findings
                 .Select(finding => string.Join("；", finding.Decisions))
                 .ToList(),
             Details = details,
         };
-        diagnosis.Summary = analysis.Summary;
+        diagnosis.Summary = RedactSecrets(analysis.Summary);
         return diagnosis;
     }
 }
@@ -2060,7 +2251,7 @@ public sealed class MinecraftVersionJsonFlattener
             string? jarVersion = TryGetNodeString(root, "jar");
             if (!string.IsNullOrWhiteSpace(jarVersion))
             {
-                providerId = jarVersion;
+                providerId = VersionLoader.ValidateVersionId(jarVersion);
             }
         }
 

@@ -99,10 +99,16 @@ public sealed class PluginContextImpl : IPluginContext
     /// <summary>解析实例的某个资源子目录（mods / shaderpacks / resourcepacks），并做路径穿越防护。</summary>
     internal static string ResolveInstanceSubDirectory(PluginContextImpl owner, string instanceId, ResourceKind kind)
     {
-        string versionsRoot = Path.Combine(
-            MofuCore.Config.YamlRead.GameDirectory ?? string.Empty, "versions");
-        string instanceDirectory = Path.GetFullPath(Path.Combine(versionsRoot, instanceId));
-        if (instanceDirectory.StartsWith(Path.GetFullPath(versionsRoot), StringComparison.OrdinalIgnoreCase) == false
+        string rootFull = Path.GetFullPath(Path.Combine(
+            MofuCore.Config.YamlRead.GameDirectory ?? string.Empty, "versions"));
+        string rootPrefix = rootFull.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                            + Path.DirectorySeparatorChar;
+        if (instanceId.Contains(Path.DirectorySeparatorChar) || instanceId.Contains(Path.AltDirectorySeparatorChar))
+        {
+            throw new InvalidOperationException("实例不存在：" + instanceId);
+        }
+        string instanceDirectory = Path.GetFullPath(Path.Combine(rootFull, instanceId));
+        if (instanceDirectory.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) == false
             || Directory.Exists(instanceDirectory) == false)
         {
             throw new InvalidOperationException("实例不存在：" + instanceId);
@@ -174,6 +180,7 @@ public sealed class PluginContextImpl : IPluginContext
     {
         public IDisposable Add(string pageId, PageSlot slot, Func<Control> factory, int order = 0)
         {
+            owner.Demand(PluginPermissions.Widget);
             IDisposable registration = PageComposer.Current.Add(pageId, slot, WrapFactory(owner, factory), order);
             return owner.Track(registration);
         }
@@ -222,10 +229,11 @@ public sealed class PluginContextImpl : IPluginContext
     {
         public IDisposable RegisterPage(string pageName, Func<Control> createPage, Control icon, bool isTool)
         {
+            owner.Demand(PluginPermissions.Widget);
             // isTool（注册到工具下拉栏）暂未接入宿主路由，行为与普通页面一致
             string pageId = $"ext:{owner.Runtime.Manifest.Id}:{Guid.NewGuid():N}";
             IDisposable registration = MainWindow.RegisterPluginPage(
-                pageId, pageName, icon, WrapFactory(owner, createPage));
+                pageId, pageName, icon, WrapFactory(owner, createPage), isTool);
             return owner.Track(registration);
         }
     }
@@ -271,6 +279,7 @@ public sealed class PluginContextImpl : IPluginContext
     {
         public IDisposable WallpaperTakeOver(Control wallpaperContent)
         {
+            owner.Demand(PluginPermissions.Widget);
             IDisposable registration = MainWindow.TakeOverWallpaper(wallpaperContent);
             return owner.Track(registration);
         }
@@ -282,11 +291,23 @@ public sealed class PluginContextImpl : IPluginContext
 
     private sealed class StyleImpl(PluginContextImpl owner) : IStyleLoad
     {
-        public IDisposable StyleEdit(Stream xamlStream) => Load(owner, ReadAll(xamlStream));
+        public IDisposable StyleEdit(Stream xamlStream)
+        {
+            owner.Demand(PluginPermissions.Widget);
+            return Load(owner, ReadAll(xamlStream));
+        }
 
         public IDisposable StyleEdit(string xamlPath)
         {
-            string full = Path.Combine(owner.Runtime.Manifest.Directory, xamlPath);
+            owner.Demand(PluginPermissions.Widget);
+            string pluginDir = Path.GetFullPath(owner.Runtime.Manifest.Directory);
+            string pluginPrefix = pluginDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                                  + Path.DirectorySeparatorChar;
+            string full = Path.GetFullPath(Path.Combine(pluginDir, xamlPath));
+            if (full.StartsWith(pluginPrefix, StringComparison.OrdinalIgnoreCase) == false)
+            {
+                throw new InvalidOperationException("axaml 路径越出插件目录：" + xamlPath);
+            }
             if (File.Exists(full) == false)
             {
                 throw new FileNotFoundException("插件目录下找不到 axaml 文件：" + xamlPath);
@@ -297,6 +318,7 @@ public sealed class PluginContextImpl : IPluginContext
 
         public IDisposable StyleEdit(IStyle styles)
         {
+            owner.Demand(PluginPermissions.Widget);
             // 主题库（Material.Avalonia 等）的标准入口：直接合入现成实例
             IDisposable registration = new StyleRegistration(styles);
             RunOnUi(() => App.Current!.Styles.Add(styles));
@@ -335,9 +357,24 @@ public sealed class PluginContextImpl : IPluginContext
         private static readonly HashSet<string> HostedThemeAssemblies = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// 把插件随包的主题库 DLL（Material.Avalonia 等）装进宿主默认 ALC：
+        /// 允许装入宿主默认 ALC 的已知主题库程序集名白名单。
+        /// 只放行这些随包主题依赖，其它 DLL 一律不进入宿主默认上下文（改由插件专属 collectible ALC 按需解析），
+        /// 避免把插件目录里的任意 DLL 当成可信依赖钉死在宿主进程。
+        /// </summary>
+        private static readonly HashSet<string> AllowedThemeAssemblies = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Material.Avalonia",
+            "Material.Colors",
+            "Material.Icons.Avalonia",
+            "Material.Ripple.Avalonia",
+            "Material.Styles",
+        };
+
+        /// <summary>
+        /// 把插件随包的主题库 DLL（白名单内）装进宿主默认 ALC：
         /// DefaultAssetLoader 只认默认上下文里的程序集，装进去后 avares:// 才能解析。
         /// 代价：这些 DLL 被钉住（无法热卸载）——主题库本来就长驻，可接受。
+        /// 白名单外的随包 DLL 不再装入宿主，避免任意代码借此进入宿主进程。
         /// </summary>
         private static void LoadThemeDependenciesIntoHost(PluginContextImpl owner)
         {
@@ -345,6 +382,7 @@ public sealed class PluginContextImpl : IPluginContext
             {
                 string name = System.IO.Path.GetFileNameWithoutExtension(dll);
                 if (string.Equals(name, "extension", StringComparison.OrdinalIgnoreCase)) continue;
+                if (AllowedThemeAssemblies.Contains(name) == false) continue;
                 lock (HostedThemeAssemblies)
                 {
                     if (HostedThemeAssemblies.Contains(name)) continue;
@@ -507,7 +545,8 @@ public sealed class PluginContextImpl : IPluginContext
 
         public Task LaunchSelectedAsync(CancellationToken cancellationToken = default)
         {
-            // 只启动玩家选中的实例——玩家意图即授权，不设权限区
+            owner.Demand(PluginPermissions.Launch);
+            // 启动真实游戏进程：要求插件显式声明 launch 权限区（同意时一并授权）
             return Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (GameLaunch.Shared.IsGameRunning)
@@ -960,7 +999,11 @@ public sealed class PluginContextImpl : IPluginContext
             return owner.Track(registration);
         }
 
-        public void NavigateTo(string pageId) => MainWindow.NavigateFromPlugin(pageId);
+        public void NavigateTo(string pageId)
+        {
+            owner.Demand(PluginPermissions.Widget);
+            MainWindow.NavigateFromPlugin(pageId);
+        }
     }
 
     // ==================================================================

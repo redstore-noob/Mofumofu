@@ -55,10 +55,15 @@ public static class MemoryAllocation
                 ? instance.MaxMemoryMB : global.MaximumMemoryMb);
         }
 
-        int minimum = automatic ? MinimumMb : Math.Clamp(
-            instance is { MinMemoryMB: > 0 } ? instance.MinMemoryMB : global.MinimumMemoryMb,
+        // 统一钳制：无论走哪条分支，结果都必须落在合法区间，且最小堆不超过最大堆。
+        maximum = NormalizeMaximum(maximum);
+        int minimum = Math.Clamp(automatic ? MinimumMb :
+            (instance is { MinMemoryMB: > 0 } ? instance.MinMemoryMB : global.MinimumMemoryMb),
             MinimumMb, maximum);
-        return new(minimum, maximum, automatic, totalMb, availableMb) { RecommendedMb = recommended };
+        return new(minimum, maximum, automatic, totalMb, availableMb)
+        {
+            RecommendedMb = NormalizeMaximum(recommended),
+        };
     }
 
     public static int SliderMaximum(long totalMb, int configuredMb) =>

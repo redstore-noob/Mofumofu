@@ -32,6 +32,23 @@ public sealed class PluginManifest
     public bool HasDll => File.Exists(DllPath);
     public bool HasIcon => File.Exists(IconPath);
 
+    /// <summary>
+    /// 插件 id 白名单：仅 [A-Za-z0-9._-]，且拒绝 "." / ".." 等目录语义值。
+    /// 所有把 id 拼进文件系统路径之前先过此校验（配合调用方的 GetFullPath 包含性断言）。
+    /// </summary>
+    internal static bool IsValidPluginId(string id)
+    {
+        if (string.IsNullOrEmpty(id) || id is "." or "..") return false;
+        foreach (char c in id)
+        {
+            bool allowed = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                           || (c >= '0' && c <= '9')
+                           || c == '.' || c == '_' || c == '-';
+            if (allowed == false) return false;
+        }
+        return true;
+    }
+
     /// <summary>description.md 全文；不存在时为空串。</summary>
     public string ReadDescriptionMarkdown()
     {
@@ -62,6 +79,7 @@ public sealed class PluginManifest
             string id = values.TryGetValue("id", out string? declared) && declared.Length > 0
                 ? declared
                 : Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar));
+            if (IsValidPluginId(id) == false) continue;
             return new PluginManifest
             {
                 Id = id,

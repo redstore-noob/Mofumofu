@@ -82,6 +82,29 @@ public static class PluginManager
         MofuCore.Config.YamlRead.DataDirectoryName,
         "plugins");
 
+    /// <summary>
+    /// 校验插件 id 白名单并把基于它的路径规范化到 pluginsRoot 之下。
+    /// 含路径分隔符、..、绝对路径或规范化后越出 pluginsRoot 的 id 一律拒绝（fail-closed）。
+    /// suffix 用于拼 ".nekoex" 等文件名后缀；返回规范化后的绝对路径。
+    /// </summary>
+    internal static string ResolvePluginPath(string id, string? suffix = null)
+    {
+        if (PluginManifest.IsValidPluginId(id) == false)
+        {
+            throw new InvalidOperationException("非法的插件 id：" + id);
+        }
+
+        string rootFull = Path.GetFullPath(PluginsRoot);
+        string rootPrefix = rootFull.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                            + Path.DirectorySeparatorChar;
+        string full = Path.GetFullPath(Path.Combine(rootFull, id + (suffix ?? string.Empty)));
+        if (full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) == false)
+        {
+            throw new InvalidOperationException("插件路径越出 pluginsRoot：" + id);
+        }
+        return full;
+    }
+
     // ------------------------------------------------------------------
     // 扫描 / 加载
     // ------------------------------------------------------------------
@@ -235,7 +258,10 @@ public static class PluginManager
         });
     }
 
-    /// <summary>ILaunchContext 宿主实现：JvmArguments 直接引用启动参数列表（Add 即生效）。</summary>
+    /// <summary>
+    /// ILaunchContext 宿主实现：JvmArguments 经白名单守卫包装，插件即便绕过 TryAddJvmArgument
+    /// 直接 Add/Insert/索引赋值，危险参数（代理 / 类路径 / 外部命令）也会被拒绝落地。
+    /// </summary>
     private sealed class LaunchContextImpl(
         string instanceId,
         string versionId,
@@ -245,7 +271,7 @@ public static class PluginManager
         public string InstanceId { get; } = instanceId;
         public string VersionId { get; } = versionId;
         public string GameDirectory { get; } = gameDirectory;
-        public IList<string> JvmArguments { get; } = jvmArguments;
+        public IList<string> JvmArguments { get; } = new GuardedJvmArguments(jvmArguments);
 
         public bool IsCancelled { get; private set; }
         public string CancelReason { get; private set; } = string.Empty;
@@ -255,6 +281,42 @@ public static class PluginManager
             IsCancelled = true;
             CancelReason = reason;
         }
+    }
+
+    /// <summary>
+    /// JVM 参数写入守卫：所有增改一律过 <see cref="Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy"/>
+    /// 白名单，被拒参数静默丢弃（与 TryAddJvmArgument 返回 false 且不改动列表的语义一致）；读取透传。
+    /// 仅拦截插件经上下文的写入——宿主自身在副本上追加的 authlib 注入与用户预设参数不受影响。
+    /// </summary>
+    private sealed class GuardedJvmArguments(IList<string> inner) : IList<string>
+    {
+        public string this[int index]
+        {
+            get => inner[index];
+            set { if (Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(value)) inner[index] = value; }
+        }
+
+        public int Count => inner.Count;
+        public bool IsReadOnly => false;
+
+        public void Add(string item)
+        {
+            if (Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(item)) inner.Add(item);
+        }
+
+        public void Insert(int index, string item)
+        {
+            if (Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(item)) inner.Insert(index, item);
+        }
+
+        public void Clear() => inner.Clear();
+        public bool Contains(string item) => inner.Contains(item);
+        public void CopyTo(string[] array, int arrayIndex) => inner.CopyTo(array, arrayIndex);
+        public IEnumerator<string> GetEnumerator() => inner.GetEnumerator();
+        public int IndexOf(string item) => inner.IndexOf(item);
+        public bool Remove(string item) => inner.Remove(item);
+        public void RemoveAt(int index) => inner.RemoveAt(index);
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => inner.GetEnumerator();
     }
 
     /// <summary>
@@ -277,14 +339,17 @@ public static class PluginManager
             if (int.TryParse(snapshot.ShortId, out var parsed) == false) return;
             taskNumber = parsed;
 
+            // 锁内只取待派发快照；第三方回调一律移到锁外执行，避免单个插件阻塞/重入拖住插件管理。
+            var targets = new List<(Mofumofu.ExtensionAPI.Actions.IDownloadAction Action, string Id)>();
             lock (Gate)
             {
                 foreach (var runtime in Plugins.Where(p => p.State == PluginRuntimeState.Loaded))
                 {
                     if (runtime.Instance is not Mofumofu.ExtensionAPI.Actions.IDownloadAction action) continue;
+                    if (runtime.Context is not { } context) continue; // Context 缺失不派发（fail-closed）
                     try
                     {
-                        runtime.Context?.Demand(PluginPermissions.NetworkReadonly);
+                        context.Demand(PluginPermissions.NetworkReadonly);
                     }
                     catch (PluginPermissionException)
                     {
@@ -296,21 +361,26 @@ public static class PluginManager
                         continue;
                     }
 
-                    try
+                    targets.Add((action, runtime.Manifest.Id));
+                }
+            }
+
+            foreach (var (action, id) in targets)
+            {
+                try
+                {
+                    if (snapshot.State == Services.DownloadTaskState.Done)
                     {
-                        if (snapshot.State == Services.DownloadTaskState.Done)
-                        {
-                            action.DownloadCompletedHook(taskNumber, snapshot.Title);
-                        }
-                        else
-                        {
-                            action.DownloadFailedHook(taskNumber, snapshot.Title, snapshot.Detail);
-                        }
+                        action.DownloadCompletedHook(taskNumber, snapshot.Title);
                     }
-                    catch (Exception error)
+                    else
                     {
-                        PluginLog.Write(runtime.Manifest.Id, "下载通知钩子异常：" + error.Message);
+                        action.DownloadFailedHook(taskNumber, snapshot.Title, snapshot.Detail);
                     }
+                }
+                catch (Exception error)
+                {
+                    PluginLog.Write(id, "下载通知钩子异常：" + error.Message);
                 }
             }
         };
@@ -659,7 +729,12 @@ public static class PluginManager
             foreach (string package in Directory.GetFiles(PluginsRoot, "*.nekoex"))
             {
                 string id = Path.GetFileNameWithoutExtension(package);
-                string target = Path.Combine(PluginsRoot, id);
+                if (PluginManifest.IsValidPluginId(id) == false)
+                {
+                    PluginLog.Host("跳过 id 非法的 .nekoex：" + Path.GetFileName(package));
+                    continue;
+                }
+                string target = ResolvePluginPath(id);
                 if (Directory.Exists(target) && Directory.EnumerateFiles(target).Any()) continue;
 
                 ZipFile.ExtractToDirectory(package, target, overwriteFiles: true);
@@ -688,9 +763,36 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
         Resolving += FallbackToHost;
     }
 
+    /// <summary>宿主/框架程序集名：这些程序集不得从插件目录加载同名副本，以免类型被劫持或拆分。</summary>
+    private static bool IsHostOwnedAssembly(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        return name.StartsWith("Mofumofu", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("MofuCore", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+               || name is "netstandard" or "mscorlib";
+    }
+
+    /// <summary>允许与插件共享（保持类型同一性）的宿主程序集白名单：仅契约层与框架/UI 程序集。</summary>
+    private static bool IsShareableAssembly(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        return string.Equals(name, "Mofumofu.ExtensionAPI", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+               || name is "netstandard" or "mscorlib";
+    }
+
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        // 插件自带的依赖 DLL（与 extension.dll 同目录）优先
+        // 宿主/框架程序集不允许从插件目录加载同名副本（避免插件用伪造的
+        // Mofumofu.ExtensionAPI.dll / MofuCore.dll 等劫持类型解析），统一交给 Resolving 兜底到宿主同一份。
+        if (IsHostOwnedAssembly(assemblyName.Name)) return null;
+
+        // 插件自带依赖 DLL（与 extension.dll 同目录）优先
         string local = Path.Combine(_pluginDirectory, assemblyName.Name + ".dll");
         if (File.Exists(local))
         {
@@ -703,8 +805,12 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
 
     private Assembly? FallbackToHost(AssemblyLoadContext context, AssemblyName name)
     {
-        Assembly? shared = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(assembly => assembly.GetName().Name == name.Name);
+        // 只把契约层/框架程序集交回插件以维持类型同一性；
+        // MofuCore、Mofumofu.Launcher 等含内部状态的宿主程序集一律不交回（避免反射读取账号令牌等私有状态）。
+        if (IsShareableAssembly(name.Name) == false) return null;
+
+        Assembly? shared = AssemblyLoadContext.Default.Assemblies
+            .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, name.Name, StringComparison.OrdinalIgnoreCase));
         if (shared is not null) return shared;
 
         string hostPath = Path.Combine(AppContext.BaseDirectory, name.Name + ".dll");

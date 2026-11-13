@@ -240,7 +240,8 @@ public class VersionLoader
                 if (loggingClient.TryGetProperty("file", out JsonElement file) &&
                     TryGetString(file, "id") is { Length: > 0 } fileId)
                 {
-                    loggingFileId = fileId.Trim();
+                    // 日志配置 id 会拼进 assets/log_configs 路径，先过版本 id 白名单杜绝 .. / 分隔符穿越
+                    loggingFileId = ValidateVersionId(fileId);
                 }
             }
 
@@ -252,9 +253,9 @@ public class VersionLoader
             }
 
             string? explicitJarVersion = TryGetString(root, "jar");
-            if (explicitJarVersion is not null)
+            if (!string.IsNullOrWhiteSpace(explicitJarVersion))
             {
-                clientJarVersionId = explicitJarVersion;
+                clientJarVersionId = ValidateVersionId(explicitJarVersion);
             }
 
             if (root.TryGetProperty("arguments", out JsonElement arguments) &&
