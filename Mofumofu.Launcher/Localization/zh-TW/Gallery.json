@@ -1,0 +1,13 @@
+{
+  "Gallery.Title": "截圖畫廊",
+  "Gallery.Refresh": "重新掃描",
+  "Gallery.OpenFolder": "開啟截圖目錄",
+  "Gallery.Scanning": "正在掃描…",
+  "Gallery.Empty": "還沒有截圖。在遊戲裡按 F2，第一張就會出現在這裡。",
+  "Gallery.Filter.All": "全部截圖",
+  "Gallery.Filter.Shared": "共用目錄",
+  "Gallery.Summary": "{0} 張 · 最近 {1}",
+  "Gallery.SummaryEmpty": "沒有截圖",
+  "Gallery.SummaryCapped": "{0} 張 · 最近 {1} · 僅顯示最近 {2} 張",
+  "Gallery.OpenFolderFailed": "找不到截圖目錄，先進遊戲截一張吧"
+}

@@ -1,0 +1,10 @@
+{
+  "Screenshots.Preview": "スクリーンショットプレビュー",
+  "Screenshots.Prev": "前へ",
+  "Screenshots.Next": "次へ",
+  "Screenshots.OpenFolder": "フォルダを開く",
+  "Screenshots.CopyPath": "パスをコピー",
+  "Screenshots.OpenFolderFailed": "スクリーンショットフォルダを開けませんでした",
+  "Screenshots.NoClipboard": "クリップボードが使えません",
+  "Screenshots.PathCopied": "スクリーンショットのパスをコピーしました"
+}

@@ -1,0 +1,10 @@
+{
+  "Screenshots.Preview": "Screenshot preview",
+  "Screenshots.Prev": "Previous",
+  "Screenshots.Next": "Next",
+  "Screenshots.OpenFolder": "Open folder",
+  "Screenshots.CopyPath": "Copy path",
+  "Screenshots.OpenFolderFailed": "Could not open the screenshot folder",
+  "Screenshots.NoClipboard": "Clipboard unavailable",
+  "Screenshots.PathCopied": "Screenshot path copied"
+}

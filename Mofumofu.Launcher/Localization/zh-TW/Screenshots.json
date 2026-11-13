@@ -1,0 +1,10 @@
+{
+  "Screenshots.Preview": "截圖預覽",
+  "Screenshots.Prev": "上一張",
+  "Screenshots.Next": "下一張",
+  "Screenshots.OpenFolder": "開啟所在資料夾",
+  "Screenshots.CopyPath": "複製路徑",
+  "Screenshots.OpenFolderFailed": "開啟截圖目錄失敗",
+  "Screenshots.NoClipboard": "剪貼簿不可用",
+  "Screenshots.PathCopied": "已複製截圖路徑"
+}

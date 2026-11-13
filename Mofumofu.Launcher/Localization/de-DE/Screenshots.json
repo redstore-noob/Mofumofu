@@ -1,0 +1,10 @@
+{
+  "Screenshots.Preview": "Screenshot-Vorschau",
+  "Screenshots.Prev": "Zurück",
+  "Screenshots.Next": "Weiter",
+  "Screenshots.OpenFolder": "Ordner öffnen",
+  "Screenshots.CopyPath": "Pfad kopieren",
+  "Screenshots.OpenFolderFailed": "Screenshot-Ordner konnte nicht geöffnet werden",
+  "Screenshots.NoClipboard": "Zwischenablage nicht verfügbar",
+  "Screenshots.PathCopied": "Screenshot-Pfad kopiert"
+}

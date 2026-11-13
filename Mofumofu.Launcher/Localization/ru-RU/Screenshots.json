@@ -1,0 +1,10 @@
+{
+  "Screenshots.Preview": "Просмотр скриншота",
+  "Screenshots.Prev": "Назад",
+  "Screenshots.Next": "Вперёд",
+  "Screenshots.OpenFolder": "Открыть папку",
+  "Screenshots.CopyPath": "Копировать путь",
+  "Screenshots.OpenFolderFailed": "Не удалось открыть папку скриншотов",
+  "Screenshots.NoClipboard": "Буфер обмена недоступен",
+  "Screenshots.PathCopied": "Путь к скриншоту скопирован"
+}

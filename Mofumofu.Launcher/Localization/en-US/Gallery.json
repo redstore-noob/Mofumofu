@@ -1,0 +1,13 @@
+{
+  "Gallery.Title": "Screenshot Gallery",
+  "Gallery.Refresh": "Rescan",
+  "Gallery.OpenFolder": "Open folder",
+  "Gallery.Scanning": "Scanning…",
+  "Gallery.Empty": "No screenshots yet. Press F2 in game and the first one lands here.",
+  "Gallery.Filter.All": "All screenshots",
+  "Gallery.Filter.Shared": "Shared folder",
+  "Gallery.Summary": "{0} shots · latest {1}",
+  "Gallery.SummaryEmpty": "No screenshots",
+  "Gallery.SummaryCapped": "{0} shots · latest {1} · showing latest {2}",
+  "Gallery.OpenFolderFailed": "Screenshot folder not found — grab one in game first."
+}

@@ -1,0 +1,13 @@
+{
+  "Gallery.Title": "截图画廊",
+  "Gallery.Refresh": "重新扫描",
+  "Gallery.OpenFolder": "打开截图目录",
+  "Gallery.Scanning": "正在扫描…",
+  "Gallery.Empty": "还没有截图。在游戏里按 F2，第一张就会出现在这里。",
+  "Gallery.Filter.All": "全部截图",
+  "Gallery.Filter.Shared": "共享目录",
+  "Gallery.Summary": "{0} 张 · 最近 {1}",
+  "Gallery.SummaryEmpty": "没有截图",
+  "Gallery.SummaryCapped": "{0} 张 · 最近 {1} · 仅显示最近 {2} 张",
+  "Gallery.OpenFolderFailed": "没有找到截图目录，先进游戏截一张吧"
+}
