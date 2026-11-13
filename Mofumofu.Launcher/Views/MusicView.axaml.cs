@@ -201,17 +201,6 @@ public partial class MusicView : UserControl
         SearchBox.PlaceholderText = placeholder;
         ListSearch.PlaceholderText = placeholder;
         _suppressSearch = false;
-
-        Header.Subtitle = _source switch
-        {
-            MusicSource.Cloud => _client.IsLoggedIn
-                ? L.T("Pages.Music.Subtitle.CloudLogged", "网易云 · {0}", _client.Nickname)
-                : L.T("Pages.Music.Subtitle.Cloud", "网易云音乐 · 未登录"),
-            MusicSource.Favorites => L.T("Pages.Music.Subtitle.Favorites", "{0} 首收藏",
-                _settings.Favorites.Count + _cloudLiked.Count(detail => !_settings.Favorites.Contains(detail.Id))),
-            MusicSource.Roam => L.T("Pages.Music.Subtitle.Roam", "私人漫游 · {0} 首", _roam.Count),
-            _ => L.T("Pages.Music.Subtitle.Local", "{0} 首本地歌曲", _local.Count),
-        };
     }
 
     private void RefreshView()

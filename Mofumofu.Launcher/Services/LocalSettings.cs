@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MofuCore.Config;
+using MofuCore.Log;
+using Mofumofu.Launcher.Services.Agent;
 using YamlDotNet.Serialization;
 
 namespace Mofumofu.Launcher;
@@ -99,8 +101,17 @@ public sealed class LocalSettings
     /// <summary>并行下载线程数（1 - 16，实际生效前会再按 MofuCore 的限制夹取）。</summary>
     public int ParallelDownloads { get; set; } = 32;
 
-    /// <summary>CurseForge API Key（仅保存在本机设置文件）。</summary>
+    /// <summary>CurseForge API Key（内存中为明文；落盘时由 AgentSecretProtector 字段级加密）。</summary>
+    [YamlIgnore]
     public string CurseForgeApiKey { get; set; } = string.Empty;
+
+    /// <summary>settings.yaml 中 CurseForgeApiKey 的加密表示，复用 Agent 凭据加密并兼容旧明文。</summary>
+    [YamlMember(Alias = "CurseForgeApiKey")]
+    public string CurseForgeApiKeyProtected
+    {
+        get => AgentSecretProtector.Protect(CurseForgeApiKey);
+        set => CurseForgeApiKey = AgentSecretProtector.Unprotect(value);
+    }
 
     /// <summary>安装模组时自动补齐缺失的前置模组。</summary>
     public bool AutoInstallDependencies { get; set; } = true;
@@ -134,12 +145,18 @@ public sealed class LocalSettings
 
     public static LocalSettings Current { get; private set; } = new();
 
+    private static readonly object Gate = new();
+
     public static void Load()
     {
-        try
+        lock (Gate)
         {
-            if (File.Exists(SettingsPath))
+            if (!File.Exists(SettingsPath)) return;
+            bool migrate = false;
+            bool decryptFailed = false;
+            try
             {
+                AgentSecretProtector.ResetFlags();
                 var parsed = Deserializer.Deserialize<LocalSettings>(File.ReadAllText(SettingsPath));
                 if (parsed is not null)
                 {
@@ -159,26 +176,85 @@ public sealed class LocalSettings
                     parsed.DownloadFallbackSource ??= "official";
                     parsed.CustomDownloadSourceName ??= "自定义源";
                     parsed.CustomDownloadSourceUrl ??= "";
+                    // 兼容反序列化直接命中明文属性的情形：仍带密文前缀时补做解密。
+                    if (AgentSecretProtector.LooksEncrypted(parsed.CurseForgeApiKey))
+                        parsed.CurseForgeApiKey = AgentSecretProtector.Unprotect(parsed.CurseForgeApiKey);
                     Current = parsed;
+                    migrate = AgentSecretProtector.LegacyPlaintextFound && !AgentSecretProtector.DecryptFailed;
+                    decryptFailed = AgentSecretProtector.DecryptFailed;
                 }
             }
+            catch (Exception ex)
+            {
+                // 损坏时不再静默重置为默认；先备份原文件，让后续 Save 无法覆盖原始数据。
+                LogWrite.Write("ERROR", "[LocalSettings] 设置文件读取/解析失败，已改用默认设置：" + ex.Message);
+                BackupCorruptedFile();
+            }
+            finally
+            {
+                // 清除与 Agent 子系统共享的全局标志，避免串扰。
+                AgentSecretProtector.ResetFlags();
+            }
+
+            if (decryptFailed)
+                LogWrite.Write("ERROR", "[LocalSettings] 部分加密凭据无法解密（可能换过账户/机器或主密钥丢失），未改动的值不会被覆盖。");
+            if (migrate)
+                SaveCore(); // 一次性把旧明文凭据回写为加密版本
         }
-        catch
+    }
+
+    /// <summary>把损坏的设置文件重命名备份，避免后续 Save 覆盖原始内容。</summary>
+    private static void BackupCorruptedFile()
+    {
+        try
         {
-            Current = new LocalSettings();
+            if (!File.Exists(SettingsPath)) return;
+            string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            string backup = SettingsPath + ".bad-" + stamp;
+            int index = 0;
+            while (File.Exists(backup)) backup = SettingsPath + ".bad-" + stamp + "-" + (++index);
+            File.Move(SettingsPath, backup);
+            LogWrite.Write("WARN", "[LocalSettings] 已将损坏的设置文件备份为 " + Path.GetFileName(backup) + "，原数据可手动恢复。");
+        }
+        catch (Exception ex)
+        {
+            LogWrite.Write("ERROR", "[LocalSettings] 损坏文件备份失败，原文件仍保留在磁盘：" + ex.Message);
         }
     }
 
     public static void Save()
     {
+        lock (Gate)
+        {
+            SaveCore();
+        }
+    }
+
+    private static void SaveCore()
+    {
+        // 先写临时文件再原子替换，避免写一半把原文件损坏。
+        string temp = SettingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            File.WriteAllText(SettingsPath, Serializer.Serialize(Current));
+            File.WriteAllText(temp, Serializer.Serialize(Current));
+            File.Move(temp, SettingsPath, overwrite: true);
         }
-        catch
+        catch (Exception ex)
         {
-            // 设置写失败不影响运行
+            // 写入失败必须记录，不再静默吞掉，避免用户误以为已保存。
+            LogWrite.Write("ERROR", "[LocalSettings] 设置保存失败：" + ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temp)) File.Delete(temp);
+            }
+            catch
+            {
+                // 临时文件清理失败不影响主流程
+            }
         }
     }
 
@@ -188,12 +264,15 @@ public sealed class LocalSettings
     /// </summary>
     public static void ResetToDefaults()
     {
-        Current = new LocalSettings
+        lock (Gate)
         {
-            SelectedInstanceId = Current.SelectedInstanceId,
-            SelectedAccountName = Current.SelectedAccountName,
-        };
-        Save();
+            Current = new LocalSettings
+            {
+                SelectedInstanceId = Current.SelectedInstanceId,
+                SelectedAccountName = Current.SelectedAccountName,
+            };
+            SaveCore();
+        }
     }
 }
 

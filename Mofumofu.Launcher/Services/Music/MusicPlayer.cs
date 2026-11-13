@@ -18,6 +18,9 @@ public sealed class MusicPlayer : IDisposable
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(45) };
 
+    // 单个在线音频的体积上限，防止恶意/异常响应把缓存文件无限写盘。
+    private const int MaxAudioBytes = 256 * 1024 * 1024;
+
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private WaveOutEvent? _output;
     private WaveStream? _reader;
@@ -62,7 +65,10 @@ public sealed class MusicPlayer : IDisposable
     {
         try
         {
-            Stop();
+            // Stop 也要在 UI 线程执行：调用方可能已经用 ConfigureAwait(false) 切到线程池，
+            // 直接在这里碰 _timer / _output / _reader 会和 UI 线程产生竞态。
+            await Dispatcher.UIThread.InvokeAsync(() => { Stop(); });
+
             string path = remote
                 ? await CacheRemoteAsync(source, cancellationToken).ConfigureAwait(false)
                 : source;
@@ -73,27 +79,9 @@ public sealed class MusicPlayer : IDisposable
                 return false;
             }
 
-            WaveStream reader;
-            try
-            {
-                reader = new MediaFoundationReader(path);
-            }
-            catch (Exception)
-            {
-                // Media Foundation 不支持时退回 NAudio 的 mp3/wav 解码器
-                reader = new AudioFileReader(path);
-            }
-
-            _reader = reader;
-            CurrentPath = path;
-            _output = new WaveOutEvent { DesiredLatency = 180 };
-            _output.Init(_reader);
-            _output.Volume = _volume / 100f;
-            _output.PlaybackStopped += OnPlaybackStopped;
-            _output.Play();
-            _timer.Start();
-            RaiseProgress();
-            return true;
+            // 缓存下载用了 ConfigureAwait(false)，之后已在线程池线程；播放器字段、
+            // WaveOutEvent 与 Timer 统一回到 UI 线程重建，避免跨线程竞态。
+            return await Dispatcher.UIThread.InvokeAsync<bool>(() => StartPlayback(path));
         }
         catch (OperationCanceledException)
         {
@@ -104,6 +92,32 @@ public sealed class MusicPlayer : IDisposable
             Failed?.Invoke(exception.Message);
             return false;
         }
+    }
+
+    /// <summary>只在 UI 线程调用：写入播放器字段并启动播放。</summary>
+    private bool StartPlayback(string path)
+    {
+        WaveStream reader;
+        try
+        {
+            reader = new MediaFoundationReader(path);
+        }
+        catch (Exception)
+        {
+            // Media Foundation 不支持时退回 NAudio 的 mp3/wav 解码器
+            reader = new AudioFileReader(path);
+        }
+
+        _reader = reader;
+        CurrentPath = path;
+        _output = new WaveOutEvent { DesiredLatency = 180 };
+        _output.Init(_reader);
+        _output.Volume = _volume / 100f;
+        _output.PlaybackStopped += OnPlaybackStopped;
+        _output.Play();
+        _timer.Start();
+        RaiseProgress();
+        return true;
     }
 
     public void Pause()
@@ -213,7 +227,28 @@ public sealed class MusicPlayer : IDisposable
             return path;
         }
 
-        byte[] data = await Http.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(false);
+        // 外部响应加体积与长度校验：拒绝超大/伪造长度的音频，避免无上限写盘。
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using HttpResponseMessage response = await Http.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        if (response.Content.Headers.ContentLength is long declared && declared > MaxAudioBytes)
+            throw new InvalidOperationException("音频文件过大");
+
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[81920];
+        int total = 0;
+        while (true)
+        {
+            int read = await source.ReadAsync(chunk, 0, chunk.Length, cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            total += read;
+            if (total > MaxAudioBytes) throw new InvalidOperationException("音频文件过大");
+            buffer.Write(chunk, 0, read);
+        }
+
+        byte[] data = buffer.ToArray();
         if (data.Length < 1024)
         {
             throw new InvalidOperationException("下载到的音频为空");

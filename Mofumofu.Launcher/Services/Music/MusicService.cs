@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using L = Mofumofu.Launcher.Localization.Localization;
 
@@ -14,6 +15,9 @@ namespace Mofumofu.Launcher.Services.Music;
 public sealed class MusicService
 {
     public static MusicService Instance { get; } = new();
+
+    // 所有播放请求（连点 / 自动连播 / 页面点播）串行执行，避免并发覆盖播放器输出。
+    private readonly SemaphoreSlim _playGate = new(1, 1);
 
     private MusicService()
     {
@@ -65,6 +69,7 @@ public sealed class MusicService
     /// <summary>播放一首歌；网易云歌曲会先解析直链（带缓存下载）。</summary>
     public async Task<bool> PlayAsync(MusicItem item)
     {
+        await _playGate.WaitAsync();
         try
         {
             if (item.IsCloud && string.IsNullOrWhiteSpace(item.RemoteUrl))
@@ -118,6 +123,10 @@ public sealed class MusicService
         {
             Status?.Invoke(L.T("Pages.Music.PlayFailed", "播放失败：{0}", exception.Message));
             return false;
+        }
+        finally
+        {
+            _playGate.Release();
         }
     }
 

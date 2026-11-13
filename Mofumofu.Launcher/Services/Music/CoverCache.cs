@@ -16,6 +16,9 @@ public static class CoverCache
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
 
+    // 单张封面（远程或内嵌）的体积上限，防止超大/伪造长度响应打满内存。
+    private const int MaxCoverBytes = 8 * 1024 * 1024;
+
     private static readonly ConcurrentDictionary<string, Task<Bitmap?>> Cache = new();
 
     public static Task<Bitmap?> GetAsync(MusicItem item)
@@ -42,7 +45,7 @@ public static class CoverCache
                 ? await DownloadAsync(item.CoverUrl).ConfigureAwait(false)
                 : await Task.Run(() => LocalCoverExtractor.Extract(item.LocalPath)).ConfigureAwait(false);
 
-            if (data is { Length: > 0 })
+            if (data is { Length: > 0 } && data.Length <= MaxCoverBytes)
             {
                 using var stream = new MemoryStream(data);
                 return new Bitmap(stream);
@@ -67,9 +70,25 @@ public static class CoverCache
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36");
-        using HttpResponseMessage response = await Http.SendAsync(request).ConfigureAwait(false);
+        using HttpResponseMessage response = await Http.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) return null;
-        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+        if (response.Content.Headers.ContentLength is long declared && declared > MaxCoverBytes) return null;
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[81920];
+        int total = 0;
+        while (true)
+        {
+            int read = await stream.ReadAsync(chunk, 0, chunk.Length).ConfigureAwait(false);
+            if (read == 0) break;
+            total += read;
+            if (total > MaxCoverBytes) return null; // 体积校验：拒绝超大封面
+            buffer.Write(chunk, 0, read);
+        }
+
+        return buffer.ToArray();
     }
 }
 
@@ -225,15 +244,23 @@ public static class LocalCoverExtractor
     private static byte[]? ParseFlacPicture(byte[] data)
     {
         int offset = 4;
-        if (!ReadInt32(data, ref offset, out int mimeLength) || mimeLength <= 0) return null;
+        if (!ReadInt32(data, ref offset, out int mimeLength) || mimeLength <= 0 ||
+            (long)offset + mimeLength > data.Length)
+        {
+            return null;
+        }
         string mime = System.Text.Encoding.Latin1.GetString(data, offset, mimeLength);
         offset += mimeLength;
 
-        if (!ReadInt32(data, ref offset, out int descLength)) return null;
+        if (!ReadInt32(data, ref offset, out int descLength) || descLength < 0 ||
+            (long)offset + descLength + 16 > data.Length)
+        {
+            return null;
+        }
         offset += descLength + 16; // 描述 + 宽/高/色深/色数
 
         if (!ReadInt32(data, ref offset, out int dataLength) || dataLength <= 0 ||
-            offset + dataLength > data.Length)
+            (long)offset + dataLength > data.Length)
         {
             return null;
         }

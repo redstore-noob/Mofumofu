@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -40,12 +41,17 @@ public sealed class PageComposer : IPageContentHost
         {
             if (_entry is null) return;
 
-            owner._entries.Remove(_entry);
+            var entry = _entry;
             _entry = null;
+            lock (owner._sync)
+            {
+                owner._entries.Remove(entry);
+            }
             Changed?.Invoke();
         }
     }
 
+    private readonly object _sync = new();
     private readonly List<Entry> _entries = [];
     private int _sequence;
 
@@ -67,10 +73,13 @@ public sealed class PageComposer : IPageContentHost
             Slot = slot,
             Factory = factory,
             Order = order,
-            Sequence = _sequence++,
+            Sequence = Interlocked.Increment(ref _sequence) - 1,
         };
 
-        _entries.Add(entry);
+        lock (_sync)
+        {
+            _entries.Add(entry);
+        }
         Changed?.Invoke();
         return new Subscription(this, entry);
     }
@@ -133,14 +142,22 @@ public sealed class PageComposer : IPageContentHost
         return panel;
     }
 
-    private List<Entry> Match(string pageId, PageSlot slot) =>
-        _entries
+    private List<Entry> Match(string pageId, PageSlot slot)
+    {
+        Entry[] snapshot;
+        lock (_sync)
+        {
+            snapshot = _entries.ToArray();
+        }
+
+        return snapshot
             .Where(entry => entry.Slot == slot &&
                             (entry.PageId == AnyPage ||
                              string.Equals(entry.PageId, pageId, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(entry => entry.Order)
             .ThenBy(entry => entry.Sequence)
             .ToList();
+    }
 
     /// <summary>插件内容由外部代码创建，单个插件抛异常不能拖垮页面。</summary>
     private static Control? Create(Entry entry)

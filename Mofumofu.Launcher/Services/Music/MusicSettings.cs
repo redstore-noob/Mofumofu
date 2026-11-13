@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Mofumofu.Launcher.Services.Agent;
+using YamlDotNet.Serialization;
 
 namespace Mofumofu.Launcher.Services.Music;
 
@@ -19,8 +21,17 @@ public sealed class MusicSettings
 
     public bool Loop { get; set; }
 
-    /// <summary>网易云 MUSIC_U Cookie（只保存登录凭证，不保存密码）。</summary>
+    /// <summary>网易云 MUSIC_U Cookie（内存中为明文；落盘时由 AgentSecretProtector 字段级加密）。</summary>
+    [YamlIgnore]
     public string NetEaseCookie { get; set; } = string.Empty;
+
+    /// <summary>music.yaml 中 NetEaseCookie 的加密表示，复用 Agent 凭据加密并兼容旧明文。</summary>
+    [YamlMember(Alias = "NetEaseCookie")]
+    public string NetEaseCookieProtected
+    {
+        get => AgentSecretProtector.Protect(NetEaseCookie);
+        set => NetEaseCookie = AgentSecretProtector.Unprotect(value);
+    }
 
     public string NetEaseNickname { get; set; } = string.Empty;
 
@@ -101,6 +112,7 @@ public static class MusicStore
     {
         try
         {
+            AgentSecretProtector.ResetFlags();
             if (File.Exists(SettingsPath))
             {
                 MusicSettings? parsed = Deserializer.Deserialize<MusicSettings>(
@@ -111,6 +123,13 @@ public static class MusicStore
                     parsed.Favorites ??= new();
                     parsed.FavoriteDetails ??= new();
                     if (parsed.Volume <= 0) parsed.Volume = 72;
+                    // 兼容旧版本明文 Cookie：立刻回写为加密版本，避免凭证继续明文驻留磁盘。
+                    if (!string.IsNullOrEmpty(parsed.NetEaseCookie) &&
+                        AgentSecretProtector.LegacyPlaintextFound &&
+                        !AgentSecretProtector.DecryptFailed)
+                    {
+                        Save(parsed);
+                    }
                     return parsed;
                 }
             }
@@ -118,6 +137,11 @@ public static class MusicStore
         catch (Exception)
         {
             // 损坏的设置按默认值处理
+        }
+        finally
+        {
+            // 清除与 Agent 子系统共享的全局标志，避免串扰。
+            AgentSecretProtector.ResetFlags();
         }
 
         return new MusicSettings();

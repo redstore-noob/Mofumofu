@@ -46,9 +46,13 @@ public sealed class NetEaseMusicClient
 
     private long? _likedPlaylistId;
 
+    /// <summary>去掉 CRLF 与控制字符，防止粘贴的 Cookie 在写请求头时注入额外头部。</summary>
+    private static string SanitizeCookieValue(string value) =>
+        new string(value.Where(ch => !char.IsControl(ch)).ToArray());
+
     private static string NormalizeCookie(string? cookie)
     {
-        string value = (cookie ?? string.Empty).Trim();
+        string value = SanitizeCookieValue((cookie ?? string.Empty).Trim());
         if (value.Length == 0) return DefaultCookie;
 
         if (!value.Contains('='))
@@ -449,7 +453,8 @@ public sealed class NetEaseMusicClient
             request.Content = new FormUrlEncodedContent(form);
         }
 
-        request.Headers.TryAddWithoutValidation("Cookie", _cookie);
+        // 即便 _cookie 已被净化，出站前再收一遍，确保写请求头的值不含 CRLF/控制字符。
+        request.Headers.TryAddWithoutValidation("Cookie", SanitizeCookieValue(_cookie));
 
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
