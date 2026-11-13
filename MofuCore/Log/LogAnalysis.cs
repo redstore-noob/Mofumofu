@@ -295,6 +295,9 @@ public sealed class LogAnalysisResult
 /// </summary>
 public static class LogAnalysis
 {
+    private const int MaxEvidenceLines = 3;
+    private const int MaxTopItems = 3;
+
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(2);
 
     // ------------------------------------------------------------------
@@ -1061,7 +1064,7 @@ public static class LogAnalysis
                 .Split('\n')
                 .Select(TrimLine)
                 .Where(line => line.StartsWith('#'))
-                .Take(3)],
+                .Take(MaxEvidenceLines)],
             Decisions = decisions,
         });
     }
@@ -1253,7 +1256,7 @@ public static class LogAnalysis
                 Category = "mod.dependencies",
                 Severity = LogAnalysisSeverity.Critical,
                 Title = $"模组依赖 / 冲突问题，共 {modIssues.Count} 条（加载器：{modIssues[0].Loader}）",
-                Evidence = [.. modIssues.Select(issue => issue.EvidenceLine).Distinct().Take(3)],
+                Evidence = [.. modIssues.Select(issue => issue.EvidenceLine).Distinct().Take(MaxEvidenceLines)],
                 Decisions = decisions,
             });
         }
@@ -1435,7 +1438,7 @@ public static class LogAnalysis
             counts[suspect] = counts.TryGetValue(suspect, out int value) ? value + 1 : 1;
         }
 
-        string[] top = [.. counts.OrderByDescending(pair => pair.Value).Take(3).Select(pair => pair.Key)];
+        string[] top = [.. counts.OrderByDescending(pair => pair.Value).Take(MaxTopItems).Select(pair => pair.Key)];
         if (top.Length == 0)
         {
             return;

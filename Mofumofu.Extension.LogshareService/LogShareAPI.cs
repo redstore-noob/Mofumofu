@@ -30,7 +30,12 @@ public class LogShareAPI
         "上传即表示同意 LogShare 的服务协议与隐私政策：日志内容会公开，保留 7 天后自动删除，且请勿包含密码、令牌等敏感信息。";
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(60);
-    private static readonly HttpClient Http = new() { Timeout = RequestTimeout };
+    private static readonly HttpClient Http = new()
+    {
+        Timeout = RequestTimeout,
+        // 外部响应体积上限（fail-closed）：避免一次性 ReadAsStringAsync 无上限读入导致 OOM。
+        MaxResponseContentBufferSize = MaximumContentBytes + 1024 * 1024,
+    };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly string _baseUrl;
@@ -83,14 +88,23 @@ public class LogShareAPI
         };
         if (files is { Count: > 0 })
         {
-            payload["files"] = files
-                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
-                .Select(pair => new Dictionary<string, string>
+            List<Dictionary<string, string>> attachments = [];
+            foreach (KeyValuePair<string, string> pair in files)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key)) continue;
+                // 附加文件同样受单条日志大小/行数上限约束（fail-closed）。
+                if (Encoding.UTF8.GetByteCount(pair.Value) > MaximumContentBytes
+                    || CountLines(pair.Value) > MaximumLines)
+                {
+                    return LogShareUploadResult.Fail("附加文件内容超过限制，无法上传。");
+                }
+                attachments.Add(new Dictionary<string, string>
                 {
                     ["name"] = pair.Key,
                     ["content"] = pair.Value,
-                })
-                .ToList();
+                });
+            }
+            payload["files"] = attachments;
         }
 
         try
@@ -504,7 +518,16 @@ public class LogShareAPI
             throw new JsonException($"服务端返回空响应（HTTP {(int)response.StatusCode}）。");
         }
 
-        return JsonDocument.Parse(text);
+        JsonDocument document = JsonDocument.Parse(text);
+        // 解析后先校验根元素类型：数组/字符串/null 等顶层 JSON 会让后续 TryGetProperty
+        // 抛 InvalidOperationException，而上层只过滤 HttpRequestException/JsonException/IOException。
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            document.Dispose();
+            throw new JsonException($"服务端返回了非对象的 JSON 根元素（HTTP {(int)response.StatusCode}）。");
+        }
+
+        return document;
     }
 
     private static LogShareInsights ParseInsights(JsonElement root)
@@ -518,6 +541,7 @@ public class LogShareAPI
             Title = ReadString(root, "title"),
         };
 
+        if (root.ValueKind != JsonValueKind.Object) return insights;
         if (!root.TryGetProperty("analysis", out JsonElement analysis) || analysis.ValueKind != JsonValueKind.Object)
         {
             return insights;
@@ -531,6 +555,7 @@ public class LogShareAPI
     private static List<LogShareMessage> ReadMessages(JsonElement parent, string propertyName)
     {
         List<LogShareMessage> messages = [];
+        if (parent.ValueKind != JsonValueKind.Object) return messages;
         if (!parent.TryGetProperty(propertyName, out JsonElement array) || array.ValueKind != JsonValueKind.Array)
         {
             return messages;
@@ -552,11 +577,14 @@ public class LogShareAPI
 
     private static bool IsSuccess(JsonElement root)
     {
-        return root.TryGetProperty("success", out JsonElement success) && success.ValueKind == JsonValueKind.True;
+        return root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("success", out JsonElement success)
+            && success.ValueKind == JsonValueKind.True;
     }
 
     private static string ReadString(JsonElement root, string propertyName)
     {
+        if (root.ValueKind != JsonValueKind.Object) return string.Empty;
         if (!root.TryGetProperty(propertyName, out JsonElement value))
         {
             return string.Empty;
@@ -573,6 +601,7 @@ public class LogShareAPI
 
     private static int? ReadInt(JsonElement root, string propertyName)
     {
+        if (root.ValueKind != JsonValueKind.Object) return null;
         if (!root.TryGetProperty(propertyName, out JsonElement value))
         {
             return null;
@@ -588,6 +617,7 @@ public class LogShareAPI
 
     private static long? ReadLong(JsonElement root, string propertyName)
     {
+        if (root.ValueKind != JsonValueKind.Object) return null;
         if (!root.TryGetProperty(propertyName, out JsonElement value))
         {
             return null;
@@ -610,6 +640,7 @@ public class LogShareAPI
     private static List<string> ReadStringArray(JsonElement root, string propertyName)
     {
         List<string> result = [];
+        if (root.ValueKind != JsonValueKind.Object) return result;
         if (!root.TryGetProperty(propertyName, out JsonElement array) || array.ValueKind != JsonValueKind.Array)
         {
             return result;

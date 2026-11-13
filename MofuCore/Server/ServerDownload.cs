@@ -59,6 +59,10 @@ public sealed class ServerDownload
     public const string EulaUrl = "https://aka.ms/MinecraftEULA";
     public const string ServerJarName = "server.jar";
 
+    private const long MaxCoreDownloadBytes = 512L * 1024 * 1024;
+
+    private static readonly char[] ScriptUnsafeChars = new[] { '"', '\'', '&', '|', '<', '>', '^', '%', '!', '$', '`', ';', '\r', '\n', '\0' };
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HttpClient Http = CreateClient();
     private static readonly TimeSpan MinecraftVersionCacheTtl = TimeSpan.FromHours(6);
@@ -101,6 +105,7 @@ public sealed class ServerDownload
     public static Task<IReadOnlyList<string>> ListCoreVersionsAsync(CoreKind core, string minecraftVersion, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(minecraftVersion)) throw new InvalidOperationException("minecraftVersion 不能为空。");
+        ValidateVersionId(minecraftVersion.Trim(), "minecraftVersion");
         string key = $"core:{core}:{minecraftVersion}";
         return FetchCachedAsync<IReadOnlyList<string>>(key, CoreVersionCacheTtl, async () =>
         {
@@ -263,6 +268,8 @@ public sealed class ServerDownload
             MinecraftVersion = options.MinecraftVersion.Trim(),
             CoreVersion = options.CoreVersion.Trim(),
         };
+        ValidateVersionId(result.MinecraftVersion, "Minecraft 版本");
+        if (result.CoreVersion.Length > 0) ValidateVersionId(result.CoreVersion, "核心版本");
         Directory.CreateDirectory(result.ServerDirectory);
 
         progress?.Report(new InstallProgress(1, "正在下载服务端核心"));
@@ -310,6 +317,8 @@ public sealed class ServerDownload
             MinecraftVersion = minecraftVersion.Trim(),
             CoreVersion = coreVersion.Trim(),
         };
+        ValidateVersionId(result.MinecraftVersion, "Minecraft 版本");
+        if (result.CoreVersion.Length > 0) ValidateVersionId(result.CoreVersion, "核心版本");
         Directory.CreateDirectory(result.ServerDirectory);
         InstallOptions options = new() { Core = core, MinecraftVersion = minecraftVersion, CoreVersion = coreVersion, ServerDirectory = targetDirectory };
         switch (core)
@@ -368,7 +377,7 @@ public sealed class ServerDownload
         PaperDownloadPayload? download = build.Downloads.Values.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.Url));
         if (download is null) throw new InvalidOperationException("Paper 构建缺少下载地址。");
 
-        string jarName = string.IsNullOrWhiteSpace(download.Name) ? "paper.jar" : download.Name;
+        string jarName = SanitizeFileName(string.IsNullOrWhiteSpace(download.Name) ? "paper.jar" : download.Name);
         result.CoreJarPath = Path.Combine(result.ServerDirectory, jarName);
         await DownloadFileAsync(download.Url, result.CoreJarPath, progress, cancellationToken).ConfigureAwait(false);
     }
@@ -459,21 +468,28 @@ public sealed class ServerDownload
             }
         }
 
-        existing.TryAdd("server-port", options.Port.ToString());
+        int port = options.Port > 0 && options.Port <= 65535 ? options.Port : 25565;
+        existing.TryAdd("server-port", port.ToString());
         existing.TryAdd("max-players", options.MaxPlayers.ToString());
         existing.TryAdd("motd", options.Motd);
         existing.TryAdd("online-mode", "true");
 
         StringBuilder builder = new();
         builder.Append("#Minecraft server properties\n");
-        foreach ((string key, string value) in existing) builder.Append(key).Append('=').Append(value).Append('\n');
+        foreach ((string key, string value) in existing)
+        {
+            builder.Append(ServerManage.SanitizePropertyValue(key))
+                   .Append('=')
+                   .Append(ServerManage.SanitizePropertyValue(value))
+                   .Append('\n');
+        }
         await File.WriteAllTextAsync(path, builder.ToString(), new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>写入启动脚本（Windows 写 start.bat，非 Windows 写 start.sh）。</summary>
     public static async Task<string> WriteStartScriptAsync(InstallResult result, InstallOptions options, CancellationToken cancellationToken = default)
     {
-        string jarName = Path.GetFileName(result.CoreJarPath);
+        string jarName = SanitizeFileName(Path.GetFileName(result.CoreJarPath));
         string launchArguments = options.Core switch
         {
             CoreKind.Vanilla => $"-jar {jarName} nogui",
@@ -482,8 +498,9 @@ public sealed class ServerDownload
             CoreKind.NeoForge => $"@libraries/net/neoforged/neoforge/{result.CoreVersion}/{(OperatingSystem.IsWindows() ? "win_args.txt" : "unix_args.txt")} nogui",
             _ => $"-jar {jarName} nogui",
         };
+        launchArguments = SanitizeScriptValue(launchArguments);
 
-        string javaPath = ResolveJavaPath(options.JavaPath);
+        string javaPath = SanitizeScriptValue(ResolveJavaPath(options.JavaPath));
         string command = $"\"{javaPath}\" -Xms2G -Xmx4G {launchArguments}";
 
         string scriptPath;
@@ -512,6 +529,53 @@ public sealed class ServerDownload
             if (File.Exists(candidate)) return candidate;
         }
         return "java";
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        string fileName = Path.GetFileName((name ?? string.Empty).Replace('\\', '/').Trim());
+        if (string.IsNullOrEmpty(fileName) || fileName == "." || fileName == ".." ||
+            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            fileName.IndexOfAny(ScriptUnsafeChars) >= 0)
+        {
+            return ServerJarName;
+        }
+        return fileName;
+    }
+
+    private static string SanitizeScriptValue(string? value)
+    {
+        StringBuilder builder = new(value?.Length ?? 0);
+        foreach (char character in value ?? string.Empty)
+        {
+            // 禁止换行 / NUL 注入新的命令行；拒绝会脱离引号或触发 shell 展开的元字符
+            if (character is '\r' or '\n' or '\0') continue;
+            if (Array.IndexOf(ScriptUnsafeChars, character) >= 0)
+            {
+                throw new InvalidOperationException("启动参数包含非法字符，无法生成启动脚本");
+            }
+            builder.Append(character);
+        }
+        return builder.ToString();
+    }
+
+    private static void ValidateVersionId(string value, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 64)
+        {
+            throw new InvalidOperationException($"{name} 无效");
+        }
+        foreach (char character in value)
+        {
+            bool asciiLetterOrDigit = (character >= '0' && character <= '9') ||
+                                      (character >= 'a' && character <= 'z') ||
+                                      (character >= 'A' && character <= 'Z');
+            if (!asciiLetterOrDigit && character != '.' && character != '-' &&
+                character != '_' && character != '+')
+            {
+                throw new InvalidOperationException($"{name} 包含非法字符");
+            }
+        }
     }
 
     private static async Task<string> RunProcessAsync(string fileName, string[] arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
@@ -584,6 +648,7 @@ public sealed class ServerDownload
         {
             throw new InvalidOperationException($"下载地址不是有效的 HTTPS URL：{url}");
         }
+        await ServerNetworkGuard.ValidatePublicHttpUrlAsync(url, cancellationToken).ConfigureAwait(false);
         string? directory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
@@ -593,6 +658,10 @@ public sealed class ServerDownload
                    .ConfigureAwait(false))
         {
             total = probe.Content.Headers.ContentLength ?? 0;
+            if (total > MaxCoreDownloadBytes)
+            {
+                throw new InvalidOperationException("服务端核心下载超过体积上限");
+            }
         }
 
         long downloaded = 0;

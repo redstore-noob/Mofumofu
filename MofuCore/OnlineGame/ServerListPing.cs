@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using MofuCore.Config;
 namespace MofuCore.OnlineGame;
 
 /// <summary>一次 Server List Ping 的结果；不在线时 <see cref="Online"/> 为 false，其余字段为默认值。</summary>
@@ -117,7 +118,7 @@ public static class ServerListPing
     private static async Task<string> ReadStatusPayloadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         var length = await ReadVarIntAsync(stream, cancellationToken).ConfigureAwait(false);
-        if (length <= 0 || length > 8 * 1024 * 1024) throw new IOException("bad packet length");
+        if (length <= 0 || length > SizeLimits.ServerListPacketMaximumBytes) throw new IOException("bad packet length");
 
         var buffer = new byte[length];
         var read = 0;
@@ -134,7 +135,7 @@ public static class ServerListPing
         if (packetId != 0x00) throw new IOException("unexpected packet id");
 
         var jsonLength = ReadVarInt(buffer, ref cursor);
-        if (jsonLength <= 0 || cursor + jsonLength > buffer.Length) throw new IOException("bad json length");
+        if (jsonLength <= 0 || jsonLength > buffer.Length - cursor) throw new IOException("bad json length");
         return Encoding.UTF8.GetString(buffer, cursor, jsonLength);
     }
 
@@ -191,7 +192,8 @@ public static class ServerListPing
 
     private static int ReadInt(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
-            ? value.GetInt32()
+            && value.TryGetInt32(out var number)
+            ? number
             : 0;
 
     private static void WriteVarInt(MemoryStream stream, int value)
@@ -215,15 +217,16 @@ public static class ServerListPing
 
     private static async Task<int> ReadVarIntAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
-        var result = 0;
+        uint result = 0;
         var buffer = new byte[1];
         for (var shift = 0; shift < 35; shift += 7)
         {
             var read = await stream.ReadAsync(buffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
             if (read <= 0) throw new IOException("connection closed");
             var b = buffer[0];
-            result |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) return result;
+            if (shift == 28 && (b & 0x7F) > 0x07) throw new IOException("varint overflow");
+            result |= (uint)(b & 0x7F) << shift;
+            if ((b & 0x80) == 0) return unchecked((int)result);
         }
 
         throw new IOException("varint too long");
@@ -231,13 +234,14 @@ public static class ServerListPing
 
     private static int ReadVarInt(byte[] buffer, ref int cursor)
     {
-        var result = 0;
+        uint result = 0;
         for (var shift = 0; shift < 35; shift += 7)
         {
             if (cursor >= buffer.Length) throw new IOException("varint truncated");
             var b = buffer[cursor++];
-            result |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) return result;
+            if (shift == 28 && (b & 0x7F) > 0x07) throw new IOException("varint overflow");
+            result |= (uint)(b & 0x7F) << shift;
+            if ((b & 0x80) == 0) return unchecked((int)result);
         }
 
         throw new IOException("varint too long");

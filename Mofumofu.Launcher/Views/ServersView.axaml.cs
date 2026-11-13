@@ -197,10 +197,6 @@ public partial class ServersView : UserControl
         TotalChipText.Text = L.T("Servers.Chip.Total", "共 {0} 台服务器", _allServers.Count);
         StoppedChipText.Text = L.T("Servers.Chip.Stopped", "已停止 {0}", stopped);
         PlayersChipText.Text = L.T("Servers.Chip.Players", "在线玩家 {0}", players);
-        Header.Subtitle = _localMode
-            ? L.T("Servers.Page.SubtitleLocal", "{0} 台服务器 · {1} 台运行中 · {2} 名玩家在线",
-                _allServers.Count, running, players)
-            : L.T("Servers.Page.NoLocal", "未找到本机服务器");
     }
 
     private void OnServerSelectionChanged(object? sender, SelectionChangedEventArgs e)

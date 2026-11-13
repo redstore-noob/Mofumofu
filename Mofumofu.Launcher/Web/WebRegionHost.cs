@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -38,7 +39,10 @@ public sealed class WebRegionHost : IDisposable
     private bool _ready;
     private bool _attached;
     private bool _suspended;
-    private string _pendingScript = string.Empty;
+    // 待执行脚本改为队列 + 单一串行泵，避免单槽覆盖与并发 ExecuteScriptAsync 乱序。
+    private readonly Queue<string> _pendingScripts = new();
+    private readonly object _scriptLock = new();
+    private Task _scriptTail = Task.CompletedTask;
 
     // 弹窗打开时统一挂起所有 WebView2 子窗口：它们是独立 HWND，永远压在 Avalonia 内容
     // （包括弹窗遮罩）之上，只能整体隐藏，弹窗关闭后再恢复。
@@ -189,10 +193,7 @@ public sealed class WebRegionHost : IDisposable
                 Log($"navigation completed success={args.IsSuccess} status={args.WebErrorStatus}");
                 if (!args.IsSuccess) return;
                 _ready = true;
-                if (!string.IsNullOrWhiteSpace(_pendingScript))
-                {
-                    _ = _core.ExecuteScriptAsync(_pendingScript);
-                }
+                DrainScripts();
             };
 
             if (_core is { } core)
@@ -256,15 +257,60 @@ public sealed class WebRegionHost : IDisposable
 
     public string PageUrl => BuildPageUrl();
 
-    /// <summary>在页面里执行一段脚本；页面未就绪时排队，就绪后立刻补执行。</summary>
+    /// <summary>在页面里执行一段脚本；页面未就绪时按顺序排队，就绪后串行补执行。</summary>
     public void Execute(string script)
     {
         if (string.IsNullOrWhiteSpace(script)) return;
 
-        _pendingScript = script;
-        if (_ready && _core is not null)
+        lock (_scriptLock)
         {
-            _ = _core.ExecuteScriptAsync(script);
+            _pendingScripts.Enqueue(script);
+        }
+
+        DrainScripts();
+    }
+
+    /// <summary>把队列里的脚本串行送进 WebView2；前一个没跑完不会并发发起下一个。</summary>
+    private void DrainScripts()
+    {
+        if (!IsReady) return;
+        lock (_scriptLock)
+        {
+            // 链接到上一条任务之后，保证串行；任务由字段持有，异常内部消化，可观察。
+            _scriptTail = RunScriptsAsync(_scriptTail);
+        }
+    }
+
+    private async Task RunScriptsAsync(Task previous)
+    {
+        try
+        {
+            await previous.ConfigureAwait(false);
+        }
+        catch
+        {
+            // 上一条泵异常不应阻断本次排空
+        }
+
+        while (IsReady)
+        {
+            string script;
+            lock (_scriptLock)
+            {
+                if (_pendingScripts.Count == 0) return;
+                script = _pendingScripts.Dequeue();
+            }
+
+            CoreWebView2? core = _core;
+            if (core is null) return;
+            try
+            {
+                await core.ExecuteScriptAsync(script).ConfigureAwait(false);
+            }
+            catch
+            {
+                // 单条脚本执行失败不影响后续脚本，也不产生未观察的异常
+            }
         }
     }
 
@@ -367,6 +413,13 @@ public sealed class WebRegionHost : IDisposable
         }
 
         Detach();
+        // 取消仍在写截图文件的后台任务，并让脚本队列停止，避免宿主关闭后继续操作 WebView2。
+        WebViewAssets.StopPreviewCapture(_core);
+        _ready = false;
+        lock (_scriptLock)
+        {
+            _pendingScripts.Clear();
+        }
         _controller?.Close();
         _controller = null;
         _core = null;

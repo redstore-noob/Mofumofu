@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using MofuCore;
+using MofuCore.Server;
 
 namespace MofuCore.OnlineGame;
 
@@ -44,6 +45,7 @@ public class Terracotta
 
     private const string Provider = "terracotta";
     private const string LatestJsonUrl = "https://api.github.com/repos/burningtnt/Terracotta/releases/latest";
+    private const long MaxDownloadBytes = 512L * 1024 * 1024;
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan PortPollInterval = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan StateInterval = TimeSpan.FromMilliseconds(700);
@@ -53,6 +55,7 @@ public class Terracotta
 
     private static readonly HttpClient LocalHttp = new() { Timeout = RequestTimeout };
     private static readonly HttpClient RemoteHttp = new() { Timeout = TimeSpan.FromMinutes(2) };
+    private static readonly HttpClient DownloadHttp = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(2) };
 
     private readonly object _gate = new();
     private readonly SemaphoreSlim _operationGate = new(1, 1);
@@ -902,7 +905,7 @@ public class Terracotta
         // 按版本号分子目录：升级后旧版本文件留在原地，定位只在新目录里做
         string directory = Path.Combine(root, release.TagName.TrimStart('v', 'V'));
         Directory.CreateDirectory(directory);
-        string archivePath = Path.Combine(root, asset.Name);
+        string archivePath = Path.Combine(root, Path.GetFileName(asset.Name));
 
         await DownloadFileAsync(asset.Url, archivePath, token).ConfigureAwait(false);
         try
@@ -1100,16 +1103,8 @@ public class Terracotta
 
     private static async Task DownloadFileAsync(string url, string targetPath, CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await RemoteHttp
-            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException($"下载 {Path.GetFileName(targetPath)} 失败（HTTP {(int)response.StatusCode}）");
-        }
-
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using FileStream target = new(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await source.CopyToAsync(target, cancellationToken).ConfigureAwait(false);
+        await ServerNetworkGuard.DownloadToFileAsync(DownloadHttp, url, targetPath, MaxDownloadBytes, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static void ExtractArchive(string archivePath, string targetDirectory)

@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -21,11 +22,14 @@ namespace Mofumofu.Extension.LogshareService;
 public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
 {
     private IPluginContext _context = null!;
-    private string? _pendingCrashLog;
+    private readonly object _stateLock = new();
+    private string _pendingCrashLog = string.Empty;   // 已脱敏
     private LogShareInsights? _insights;
     private volatile bool _analysisDone;
     private volatile bool _ballDismissed;
     private IDisposable? _ballRegistration;
+    private CancellationTokenSource? _shareCts;
+    private Task? _shareTask;
 
     public string Name => "LogShare 崩溃分析";
 
@@ -42,25 +46,29 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         return true;
     }
 
-    /// <summary>游戏崩溃钩子：立即挂悬浮球，后台自动分析，完成后球变成可点状态。</summary>
+    /// <summary>游戏崩溃钩子：缓存脱敏后的日志并挂悬浮球；任何网络外发都等用户在弹窗里同意。</summary>
     public void GameCrashedHook(string crashedLog)
     {
         if (string.IsNullOrWhiteSpace(crashedLog)) return;
 
-        _pendingCrashLog = crashedLog;
-        _insights = null;
-        _analysisDone = false;
-        _ballDismissed = false;
-        RefreshBall();
-
-        _ = Task.Run(async () =>
+        string redacted = Redact(crashedLog);
+        CancellationTokenSource? previous;
+        lock (_stateLock)
         {
-            _insights = await new LogShareAPI().AnalyseAsync(crashedLog).ConfigureAwait(false);
-            _analysisDone = true;
-            RefreshBall();
-            await Dispatcher.UIThread.InvokeAsync(() =>
-                _context.Popup.Toast("崩溃分析完成，点击右下角悬浮球查看"));
-        });
+            previous = _shareCts;
+            _shareCts = null;
+            _pendingCrashLog = redacted;
+            _insights = null;
+            _analysisDone = false;
+            _ballDismissed = false;
+        }
+        // 取消上一次仍在进行的外发，避免旧会话结果覆盖新会话（串行/加锁）。
+        if (previous is not null)
+        {
+            try { previous.Cancel(); } catch (ObjectDisposedException) { }
+        }
+
+        RefreshBall();
     }
 
     // ------------------------------------------------------------------
@@ -78,8 +86,8 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
 
     private Control BuildBall()
     {
-        // 已看过结果 / 分析未完成时返回零尺寸占位（不可见），Overlay 注册保留
-        if (_ballDismissed || _analysisDone == false)
+        // 崩溃后即可点开查看同意说明；同意并完成分享前保持可见，之后返回零尺寸占位。
+        if (_ballDismissed || _analysisDone)
         {
             return new Control { Width = 0, Height = 0 };
         }
@@ -98,12 +106,12 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
             Cursor = new Cursor(StandardCursorType.Hand),
             Child = new WarningGlyph(),
         };
-        ToolTip.SetTip(ball, "崩溃分析完成，点我查看");
+        ToolTip.SetTip(ball, "游戏崩溃了，点我查看崩溃说明");
         ball.Tapped += (_, _) =>
         {
             _ballDismissed = true;
             RefreshBall();
-            ShowAnalysisDialog(_pendingCrashLog ?? string.Empty, _insights);
+            ShowAnalysisDialog(_insights, allowShare: true);
         };
         return ball;
     }
@@ -129,12 +137,12 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
     // 分析结果弹窗
     // ------------------------------------------------------------------
 
-    private void ShowAnalysisDialog(string crashedLog, LogShareInsights? insights)
+    private void ShowAnalysisDialog(LogShareInsights? insights, bool allowShare)
     {
         var content = new StackPanel { Spacing = 10, Width = 460 };
         content.Children.Add(new TextBlock
         {
-            Text = "游戏崩溃了。LogShare 自动分析结果：",
+            Text = "游戏崩溃了。LogShare 分析结果：",
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -143,7 +151,9 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         {
             content.Children.Add(new TextBlock
             {
-                Text = "分析服务暂不可用或未能识别已知问题。",
+                Text = allowShare
+                    ? "点击下方按钮同意后，才会对日志（已脱敏）进行分析并上传。"
+                    : "分析服务暂不可用或未能识别已知问题。",
                 FontSize = 12.5,
                 TextWrapping = TextWrapping.Wrap,
             });
@@ -162,19 +172,23 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
             Foreground = Brushes.Gray,
         });
 
-        var share = new Button
+        if (allowShare)
         {
-            Content = "同意并上传分享",
-            Classes = { "primary" },
-            Height = 30,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        share.Click += async (_, _) =>
-        {
-            share.IsEnabled = false;
-            await UploadCrashLogAsync(crashedLog);
-        };
-        content.Children.Add(share);
+            var share = new Button
+            {
+                Content = "同意并上传分享",
+                Classes = { "primary" },
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            // 同步事件处理器：把外发交给可观察、可取消的 Task，避免 async void 异常无法捕获。
+            share.Click += (_, _) =>
+            {
+                share.IsEnabled = false;
+                StartShare();
+            };
+            content.Children.Add(share);
+        }
         content.Children.Add(new TextBlock
         {
             Text = "点击弹窗外空白处关闭本窗口。",
@@ -185,25 +199,91 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         _context.Popup.Dialog(content, "崩溃分析 · LogShare");
     }
 
-    private async Task UploadCrashLogAsync(string crashedLog)
+    private void StartShare()
     {
-        LogShareUploadResult result = await new LogShareAPI().UploadAsync(
-            crashedLog, source: "Mofumofu-Plugin/LogshareService").ConfigureAwait(false);
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        string content;
+        CancellationTokenSource cts;
+        CancellationTokenSource? previous;
+        lock (_stateLock)
         {
-            if (result.Success)
+            content = _pendingCrashLog;
+            previous = _shareCts;
+            cts = new CancellationTokenSource();
+            _shareCts = cts;
+        }
+        if (previous is not null)
+        {
+            try { previous.Cancel(); } catch (ObjectDisposedException) { }
+        }
+
+        // 可观察：保存 Task 字段并显式观察异常；通过 CTS 支持取消。
+        Task share = ShareAsync(content, cts.Token);
+        _shareTask = share;
+        _ = share.ContinueWith(
+            t => Dispatcher.UIThread.Post(() =>
+                _context.Log("分享任务异常：" + (t.Exception?.GetBaseException().Message ?? "未知"))),
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+    }
+
+    private async Task ShareAsync(string content, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(content)) return;
+
+            // 用户已点击「同意」，此处才发生外发；content 在 GameCrashedHook 已脱敏。
+            LogShareInsights? insights = await new LogShareAPI()
+                .AnalyseAsync(content, cancellationToken).ConfigureAwait(false);
+            LogShareUploadResult result = await new LogShareAPI()
+                .UploadAsync(content, source: "Mofumofu-Plugin/LogshareService",
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            lock (_stateLock)
             {
-                _context.Popup.Toast(result.HasUrl
-                    ? "崩溃日志已上传：" + result.Url
-                    : "崩溃日志已上传");
-                _context.Log("崩溃日志已上传：" + result.Id);
+                if (cancellationToken.IsCancellationRequested) return;
+                _insights = insights;
+                _analysisDone = true;
             }
-            else
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                _context.Popup.Toast("上传失败：" + (result.Error.Length > 0 ? result.Error : result.Message));
-            }
-        });
+                _context.Popup.Toast(result.Success
+                    ? (result.HasUrl ? "崩溃日志已上传：" + result.Url : "崩溃日志已上传")
+                    : "上传失败：" + (result.Error.Length > 0 ? result.Error : result.Message));
+                _context.Log("崩溃日志上传：" + (result.Success ? result.Id : "失败"));
+                // 同意后展示分析结果（不再提供上传按钮，避免重复外发）。
+                ShowAnalysisDialog(insights, allowShare: false);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // 新的崩溃会话取代了本次分享
+        }
+        catch (Exception e)
+        {
+            string message = "崩溃日志分享失败：" + e.Message;
+            Dispatcher.UIThread.Post(() => _context.Log(message));
+        }
+    }
+
+    /// <summary>
+    /// 外发前脱敏：尽力过滤令牌、密码、Cookie、Authorization 与命令行里的 accessToken 等。
+    /// 完整保证依赖全局输入消毒层（需架构决策），此处为可安全落地的局部收敛。
+    /// </summary>
+    private static string Redact(string log)
+    {
+        if (string.IsNullOrEmpty(log)) return string.Empty;
+
+        string redacted = Regex.Replace(log,
+            @"(--accessToken|--uuid|--username|auth_access_token|auth_session|accessToken|clientToken)\s*[=:]\s*\S+",
+            "${1}=[已脱敏]", RegexOptions.IgnoreCase);
+        redacted = Regex.Replace(redacted,
+            @"(Authorization|Cookie|Set-Cookie|token|password|secret|api[_-]?key)\s*[:=]\s*\S+",
+            "${1}: [已脱敏]", RegexOptions.IgnoreCase);
+        redacted = Regex.Replace(redacted,
+            @"(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+",
+            "${1} [已脱敏]", RegexOptions.IgnoreCase);
+        return redacted;
     }
 
     private void AppendMessages(StackPanel content, string title, IReadOnlyList<LogShareMessage> messages)

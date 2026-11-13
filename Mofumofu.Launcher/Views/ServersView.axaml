@@ -7,10 +7,7 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.ServersView">
     <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <controls:PageHeader x:Name="Header"
-                             Grid.Row="0"
-                             Title="{DynamicResource L.Servers.Page.Title}"
->
+        <controls:PageHeader Grid.Row="0">
             <controls:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="ghost" Height="36" Padding="13,0" Click="OnRefreshClick">
@@ -35,7 +32,7 @@
             </controls:PageHeader.Actions>
         </controls:PageHeader>
 
-        <!-- 本机没有服务器实例时的提示 -->
+<!-- 本机没有服务器实例时的提示 -->        
         <Border x:Name="FallbackHint" Grid.Row="1" IsVisible="False"
                 Classes="card-soft" Padding="12,8" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -47,7 +44,7 @@
             </StackPanel>
         </Border>
 
-        <!-- ================= 顶部统计 chips ================= -->
+<!-- ================= 顶部统计 chips ================= -->        
         <Border Grid.Row="2" Classes="card" Padding="12,10" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Border CornerRadius="12" Padding="11,5" Background="{DynamicResource NekoFieldSoftBrush}">
@@ -76,7 +73,7 @@
         </Border>
 
         <Grid Grid.Row="3" ColumnDefinitions="248,*">
-            <!-- ================= 左栏：服务器列表 ================= -->
+<!-- ================= 左栏：服务器列表 ================= -->            
             <Border Grid.Column="0" Classes="card" Padding="10" Margin="0,0,12,0">
                 <Grid RowDefinitions="Auto,*">
                     <Grid ColumnDefinitions="Auto,*" Margin="2,0,2,8">
@@ -116,7 +113,7 @@
                 </Grid>
             </Border>
 
-            <!-- ================= 右栏：服务器详情 ================= -->
+<!-- ================= 右栏：服务器详情 ================= -->            
             <Border Grid.Column="1" Classes="card" Padding="10">
                 <Grid ColumnDefinitions="132,*">
                     <StackPanel x:Name="DetailTabRail" Spacing="4">
@@ -203,7 +200,7 @@
                         <TextBlock Text="{DynamicResource L.Servers.Players.Title}" Classes="section-title" />
                         <WrapPanel x:Name="PlayersPanel" />
 
-                        <!-- 白名单 / OP：运行中走服务器指令，停止时直接改名单文件 -->
+<!-- 白名单 / OP：运行中走服务器指令，停止时直接改名单文件 -->                        
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBox x:Name="PlayerNameInput" Width="150" Height="30" FontSize="11.5"
                                      Classes="search"
@@ -360,7 +357,7 @@
             </Border>
         </Grid>
 
-    <!-- 文本编辑器遮罩层 -->
+<!-- 文本编辑器遮罩层 -->    
     <Grid x:Name="FileEditorOverlay" Grid.RowSpan="4" IsVisible="False"
           Background="#B3000000" ClipToBounds="True"
           Focusable="True" KeyDown="OnFileEditorOverlayKeyDown"

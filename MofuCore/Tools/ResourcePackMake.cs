@@ -498,15 +498,39 @@ public class ResourcePackMake
                 throw new InvalidOperationException($"{name} 超过单文件上限（{limit >> 20} MB）。");
             }
 
-            total += entry.Length;
-            if (total > MaximumTotalBytes)
-            {
-                throw new InvalidOperationException($"资源包总体积超过上限（{MaximumTotalBytes >> 20} MB）。");
-            }
-
             await using Stream entryStream = entry.Open();
             using MemoryStream buffer = new();
-            await entryStream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+            byte[] chunk = new byte[81920];
+            long readTotal = 0;
+            while (true)
+            {
+                int read = await entryStream.ReadAsync(chunk, 0, chunk.Length, cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                readTotal += read;
+                if (readTotal > limit)
+                {
+                    throw new InvalidOperationException($"{name} 解压数据超过单文件上限，疑似 Zip 炸弹。");
+                }
+
+                total += read;
+                if (total > MaximumTotalBytes)
+                {
+                    throw new InvalidOperationException($"资源包总体积超过上限（{MaximumTotalBytes >> 20} MB）。");
+                }
+
+                buffer.Write(chunk, 0, read);
+            }
+
+            // 声明长度与实际解压长度必须一致，防止伪造小 Length 的 Zip 炸弹
+            if (readTotal != entry.Length)
+            {
+                throw new InvalidOperationException($"{name} 解压长度与声明不一致。");
+            }
+
             project.Files.Add(BuildImportedFile(name, buffer.ToArray()));
             if (project.Files.Count > MaximumFiles)
             {

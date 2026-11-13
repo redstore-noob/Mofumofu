@@ -279,7 +279,7 @@ public class RewindSystem
         string snapshotId,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(snapshotId))
+        if (!IsValidSnapshotId(snapshotId))
         {
             return false;
         }
@@ -289,7 +289,7 @@ public class RewindSystem
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            string manifestPath = Path.Combine(RepoDirectory(normalized), ManifestsDirectoryName, snapshotId + ".json");
+            string manifestPath = SafeManifestPath(RepoDirectory(normalized), snapshotId);
             if (!File.Exists(manifestPath))
             {
                 return true;
@@ -495,32 +495,37 @@ public class RewindSystem
             actualInterval = TimeSpan.FromMinutes(15);
         }
 
+        RewindScheduler? existing;
+        RewindScheduler scheduler;
         lock (SyncRoot)
         {
             string key = RepoKey(normalized);
-            if (Schedulers.Remove(key, out RewindScheduler? existing))
-            {
-                existing.Dispose();
-            }
-
-            RewindScheduler scheduler = new(normalized, kind, actualInterval);
+            Schedulers.Remove(key, out existing);
+            scheduler = new RewindScheduler(normalized, kind, actualInterval);
             Schedulers[key] = scheduler;
             scheduler.Start();
-            return scheduler;
         }
+
+        // 在锁外停止被替换的旧调度器：Dispose 会等待后台 _loop，
+        // 若持锁等待会与循环内获取 SyncRoot 的快照任务互锁
+        existing?.Dispose();
+        return scheduler;
     }
 
     /// <summary>停止全部定时快照调度器。</summary>
     public static void StopAllSchedulers()
     {
+        RewindScheduler[] toStop;
         lock (SyncRoot)
         {
-            foreach (RewindScheduler scheduler in Schedulers.Values)
-            {
-                scheduler.Dispose();
-            }
-
+            toStop = Schedulers.Values.ToArray();
             Schedulers.Clear();
+        }
+
+        // 在锁外停止：Dispose 会等待后台 _loop，避免与循环内获取 SyncRoot 的快照任务互锁
+        foreach (RewindScheduler scheduler in toStop)
+        {
+            scheduler.Dispose();
         }
     }
 
@@ -537,7 +542,7 @@ public class RewindSystem
         };
 
         if (long.TryParse(YamlRead.GetValue(YamlDomain.Config, "rewindMaximumBytes"), out long maximumBytes)
-            && maximumBytes >= 64L * 1024 * 1024)
+            && maximumBytes >= SizeLimits.RewindMinimumBytes)
         {
             settings.MaximumBytes = maximumBytes;
         }
@@ -556,7 +561,7 @@ public class RewindSystem
             document["rewindMaxAutoSnapshots"] = Math.Clamp(settings.MaximumAutoSnapshots, 1, 500).ToString();
             document["rewindKeepLastCount"] = Math.Max(0, settings.KeepLastCount).ToString();
             document["rewindKeepDays"] = Math.Max(0, settings.KeepDays).ToString();
-            document["rewindMaximumBytes"] = Math.Max(64L * 1024 * 1024, settings.MaximumBytes).ToString();
+            document["rewindMaximumBytes"] = Math.Max(SizeLimits.RewindMinimumBytes, settings.MaximumBytes).ToString();
             return true;
         });
     }
@@ -1112,9 +1117,9 @@ public class RewindSystem
         int removed = 0;
         foreach (string id in remove)
         {
-            string manifestPath = Path.Combine(repo, ManifestsDirectoryName, id + ".json");
             try
             {
+                string manifestPath = SafeManifestPath(repo, id);
                 File.Delete(manifestPath);
                 removed++;
             }
@@ -1264,18 +1269,27 @@ public class RewindSystem
         lock (GcLock)
         {
             HashSet<string> referenced = new(StringComparer.Ordinal);
-            if (Directory.Exists(ReposRootDirectory))
+            try
             {
-                foreach (string repoDirectory in Directory.GetDirectories(ReposRootDirectory))
+                if (Directory.Exists(ReposRootDirectory))
                 {
-                    foreach (RewindSnapshotManifest manifest in LoadManifests(repoDirectory))
+                    foreach (string repoDirectory in Directory.GetDirectories(ReposRootDirectory))
                     {
-                        foreach (RewindSnapshotFile file in manifest.Files)
+                        // 任一清单损坏/为空即抛错中止回收，避免漏记其数据块被误删致快照不可恢复
+                        foreach (RewindSnapshotManifest manifest in LoadManifests(repoDirectory, failClosed: true))
                         {
-                            referenced.Add(file.Hash);
+                            foreach (RewindSnapshotFile file in manifest.Files)
+                            {
+                                referenced.Add(file.Hash);
+                            }
                         }
                     }
                 }
+            }
+            catch (Exception)
+            {
+                // 存在损坏清单时禁止回收数据块（fail-closed）
+                return;
             }
 
             if (!Directory.Exists(BlobsDirectory))
@@ -1320,7 +1334,78 @@ public class RewindSystem
 
     // ---- 清单读写 ----
 
-    private static List<RewindSnapshotManifest> LoadManifests(string repo)
+    // 快照 id / 清单 id 白名单：仅允许字母、数字、点、连字符、下划线，
+    // 杜绝路径分隔符、".." 段与超长值，避免拼出越界路径
+    private static bool IsValidSnapshotId(string id)
+    {
+        if (string.IsNullOrEmpty(id) || id.Length > 128 || id == "." || id == "..")
+        {
+            return false;
+        }
+
+        foreach (char c in id)
+        {
+            bool allowed = (c >= 'a' && c <= 'z')
+                || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9')
+                || c == '.' || c == '-' || c == '_';
+            if (!allowed)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // 拼清单路径前先净化 id，并断言拼出的目标仍在 manifests 目录（备份仓库）内
+    private static string SafeManifestPath(string repo, string id)
+    {
+        if (!IsValidSnapshotId(id))
+        {
+            throw new InvalidDataException("快照 id 非法：" + id);
+        }
+
+        string directory = Path.GetFullPath(Path.Combine(repo, ManifestsDirectoryName));
+        string target = Path.GetFullPath(Path.Combine(directory, id + ".json"));
+        if (!PathWithinDirectory(directory, target))
+        {
+            throw new InvalidDataException("快照清单路径越出备份仓库目录。");
+        }
+
+        return target;
+    }
+
+    // 回滚/回收前校验清单：文件列表非空且每项的摘要与路径格式合法，
+    // 防止零值清单（{}）让回滚把目标目录换名成空 staging 后删掉原目录
+    private static void ValidateManifest(RewindSnapshotManifest manifest, string snapshotId)
+    {
+        if (manifest.Files is null || manifest.Files.Count == 0)
+        {
+            throw new InvalidDataException($"快照清单文件列表为空（{snapshotId}），拒绝回滚。");
+        }
+
+        foreach (RewindSnapshotFile file in manifest.Files)
+        {
+            if (file is null
+                || string.IsNullOrEmpty(file.Hash)
+                || file.Hash.Length != 64
+                || !file.Hash.All(Uri.IsHexDigit))
+            {
+                throw new InvalidDataException($"快照清单含非法摘要（{snapshotId}）。");
+            }
+
+            string relative = (file.Path ?? string.Empty).Replace('\\', '/');
+            if (string.IsNullOrWhiteSpace(file.Path)
+                || Path.IsPathRooted(file.Path)
+                || relative.Split('/').Any(segment => segment.Length == 0 || segment == "." || segment == ".."))
+            {
+                throw new InvalidDataException($"快照清单含非法路径（{snapshotId}）。");
+            }
+        }
+    }
+
+    private static List<RewindSnapshotManifest> LoadManifests(string repo, bool failClosed = false)
     {
         List<RewindSnapshotManifest> result = [];
         string directory = Path.Combine(repo, ManifestsDirectoryName);
@@ -1337,6 +1422,11 @@ public class RewindSystem
                     File.ReadAllText(path, Encoding.UTF8), ReadJsonOptions);
                 if (manifest is null)
                 {
+                    if (failClosed)
+                    {
+                        throw new InvalidDataException("快照清单为空：" + path);
+                    }
+
                     continue;
                 }
 
@@ -1347,7 +1437,7 @@ public class RewindSystem
 
                 result.Add(manifest);
             }
-            catch (Exception)
+            catch (Exception) when (!failClosed)
             {
                 // 单个清单损坏时跳过，不让整个列表失败
             }
@@ -1378,7 +1468,7 @@ public class RewindSystem
 
     private static RewindSnapshotManifest LoadManifest(string repo, string snapshotId)
     {
-        string path = Path.Combine(repo, ManifestsDirectoryName, snapshotId + ".json");
+        string path = SafeManifestPath(repo, snapshotId);
         if (!File.Exists(path))
         {
             throw new FileNotFoundException("快照不存在：" + snapshotId, path);
@@ -1394,6 +1484,14 @@ public class RewindSystem
                 manifest.Id = snapshotId;
             }
 
+            // 反序列化得来的 Id 也要过白名单，避免随后 WriteManifest 用它拼出越界路径
+            if (!IsValidSnapshotId(manifest.Id))
+            {
+                throw new InvalidDataException("快照清单 id 非法：" + manifest.Id);
+            }
+
+            // 零值/缺项清单（Files 为空或格式非法）必须报错，禁止回滚后删除原目录
+            ValidateManifest(manifest, snapshotId);
             return manifest;
         }
         catch (JsonException e)
@@ -1407,7 +1505,7 @@ public class RewindSystem
     {
         string directory = Path.Combine(repo, ManifestsDirectoryName);
         Directory.CreateDirectory(directory);
-        string target = Path.Combine(directory, manifest.Id + ".json");
+        string target = SafeManifestPath(repo, manifest.Id);
         string temporary = target + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(manifest, WriteJsonOptions), new UTF8Encoding(false));
         File.Move(temporary, target, overwrite: true);
@@ -1840,7 +1938,7 @@ public class RewindSettings
         return new RewindRetention
         {
             MaximumAutoSnapshots = Math.Max(1, MaximumAutoSnapshots),
-            MaximumBytes = Math.Max(64L * 1024 * 1024, MaximumBytes),
+            MaximumBytes = Math.Max(SizeLimits.RewindMinimumBytes, MaximumBytes),
             KeepLastCount = Math.Max(0, KeepLastCount),
             KeepDays = Math.Max(0, KeepDays),
         };
@@ -1927,6 +2025,23 @@ public sealed class RewindScheduler : IDisposable
     public void Dispose()
     {
         _cancellation.Cancel();
+        Task? loop = _loop;
+        if (loop is { IsCompleted: false })
+        {
+            try
+            {
+                loop.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                // 正常停止
+            }
+            catch (Exception)
+            {
+                // 后台循环内部异常已在 LoopAsync 处理，释放阶段不再抛出
+            }
+        }
+
         _cancellation.Dispose();
     }
 

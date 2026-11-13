@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
+using MofuCore.Config;
 namespace MofuCore.Log;
 
 /// <summary>
@@ -7,11 +9,20 @@ namespace MofuCore.Log;
 /// </summary>
 public class LogWrite
 {
-    private const long MaximumFileSizeBytes = 8 * 1024 * 1024;
+    private const long MaximumFileSizeBytes = SizeLimits.LogFileMaximumBytes;
 
     private static readonly object __writeLock = new();
     private static readonly string __fileName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff") + ".txt";
     private static string __dataRoot = AppContext.BaseDirectory;
+
+    // 日志写入前统一脱敏：只编译一次，避免逐条重编译
+    private static readonly Regex SecretAssignment = new(
+        @"\b(?<key>access[_-]?token|refresh[_-]?token|auth[_-]?session|client[_-]?secret|client[_-]?token|api[_-]?key|password|passwd|pwd|authorization|cookie|secret|token)(?<sep>\s*[:=]\s*|""\s*:\s*"")(?<value>[^\s,;""'}\]&]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex SecretScheme = new(
+        @"\b(?<key>bearer|basic)(?<sep>\s+)(?<value>[A-Za-z0-9._~+/=-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>
     /// 启动器数据根目录，日志写在 {DataRoot}/Mofumofu/log 下。
@@ -71,11 +82,51 @@ public class LogWrite
     }
 
     /// <summary>
+    /// 写一条日志前统一净化：转义换行/控制字符防止伪造日志注入，并脱敏令牌与凭据。
+    /// </summary>
+    private static string SanitizeLogText(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        StringBuilder builder = new(text.Length);
+        foreach (char c in text)
+        {
+            if (c == '\r')
+            {
+                builder.Append("\\r");
+            }
+            else if (c == '\n')
+            {
+                builder.Append("\\n");
+            }
+            else if (c == '\t')
+            {
+                builder.Append("\\t");
+            }
+            else if (char.IsControl(c))
+            {
+                builder.Append("\\u").Append(((int)c).ToString("x4"));
+            }
+            else
+            {
+                builder.Append(c);
+            }
+        }
+
+        string sanitized = builder.ToString();
+        sanitized = SecretScheme.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
+        return SecretAssignment.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
+    }
+
+    /// <summary>
     /// 写一条日志。文件写入加锁，控制台输出在锁外。
     /// </summary>
     public static bool Write(string type, string message)
     {
-        string line = $"[{DateTimeString()}][{type}]{message}";
+        string line = $"[{DateTimeString()}][{SanitizeLogText(type)}]{SanitizeLogText(message)}";
         Exception? failure = null;
         try
         {

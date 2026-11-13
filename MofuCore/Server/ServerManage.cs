@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -31,6 +32,7 @@ public class ServerManage
     private const int ConsoleCapacity = 800;
     private const int MaxAutoRestarts = 3;
     private const int PidPollMilliseconds = 200;
+    private const int ProcessExitPollMilliseconds = 50;
 
     private static readonly TimeSpan StopGracePeriod = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PlayerListPeriod = TimeSpan.FromSeconds(10);
@@ -158,7 +160,7 @@ public class ServerManage
         {
             // 属性文件损坏时回退默认世界目录
         }
-        return Path.Combine(directory, levelName);
+        return Path.Combine(directory, SanitizeLevelName(levelName));
     }
 
     /// <summary>全部服务器摘要（元数据 + 运行状态/在线数）。</summary>
@@ -233,7 +235,7 @@ public class ServerManage
             default:
                 throw new InvalidOperationException($"不支持的服务器核心：{options.Core}");
         }
-        if (options.Port <= 0)
+        if (options.Port <= 0 || options.Port > 65535)
         {
             options.Port = 25565;
         }
@@ -771,7 +773,7 @@ public class ServerManage
                     gone = true;
                     break;
                 }
-                await Task.Delay(50).ConfigureAwait(false);
+                await Task.Delay(ProcessExitPollMilliseconds).ConfigureAwait(false);
             }
             if (gone)
             {
@@ -817,26 +819,28 @@ public class ServerManage
     }
 
     /// <summary>向控制台写入一条指令。</summary>
-    public static async Task SendCommandAsync(string id, string command)
+    public static Task SendCommandAsync(string id, string command)
     {
         ServerRuntime? runtime = FindRuntime(id);
         if (runtime is null)
         {
             throw new InvalidOperationException("服务器未运行");
         }
-        StreamWriter? stdin;
-        string status;
+        // 取引用、判状态与实际写入必须同处临界区：AwaitExitAsync 会在此锁内把
+        // Stdin 置空并随后 Dispose 进程，锁外 await 写入可能落到已释放的 StreamWriter，
+        // 且多个调用会并发写同一 writer。
         lock (runtime.Sync)
         {
-            stdin = runtime.Stdin;
-            status = runtime.Status;
+            StreamWriter? stdin = runtime.Stdin;
+            string status = runtime.Status;
+            if (stdin is null || (status != StatusRunning && status != StatusStarting))
+            {
+                throw new InvalidOperationException("服务器未运行");
+            }
+            stdin.Write(command.TrimEnd('\r', '\n') + "\n");
+            stdin.Flush();
         }
-        if (stdin is null || (status != StatusRunning && status != StatusStarting))
-        {
-            throw new InvalidOperationException("服务器未运行");
-        }
-        await stdin.WriteAsync(command.TrimEnd('\r', '\n') + "\n").ConfigureAwait(false);
-        await stdin.FlushAsync().ConfigureAwait(false);
+        return Task.CompletedTask;
     }
 
     internal static async Task SendCommandAnyAsync(string id, string command)
@@ -1032,7 +1036,7 @@ public class ServerManage
         File.WriteAllText(Path.Combine(directory, "server.properties"), content);
     }
 
-    private static string SanitizePropertyValue(string value)
+    internal static string SanitizePropertyValue(string? value)
     {
         StringBuilder builder = new(value?.Length ?? 0);
         foreach (char character in value ?? string.Empty)
@@ -1043,6 +1047,19 @@ public class ServerManage
             }
         }
         return builder.ToString();
+    }
+
+    /// <summary>level-name 会被直接当作世界/回滚目录，必须限制为单个合法目录名，防止越出服务器目录。</summary>
+    internal static string SanitizeLevelName(string levelName)
+    {
+        if (string.IsNullOrWhiteSpace(levelName) || levelName == "." || levelName == ".." ||
+            levelName.IndexOfAny(new[] { '/', '\\', ':' }) >= 0 ||
+            levelName.Contains("..", StringComparison.Ordinal) ||
+            levelName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            return "world";
+        }
+        return levelName;
     }
 
     internal static string SanitizeServerName(string name)
@@ -1646,8 +1663,17 @@ public class ServerManage
         {
             try
             {
-                await stdin.WriteAsync("list\n").ConfigureAwait(false);
-                await stdin.FlushAsync().ConfigureAwait(false);
+                // 与 SendCommandAsync / AwaitExitAsync 串行化：在锁内复核 Stdin
+                // 仍有效后再同步写入，避免写已释放的 StreamWriter 或并发写。
+                lock (runtime.Sync)
+                {
+                    StreamWriter? current = runtime.Stdin;
+                    if (current is not null)
+                    {
+                        current.Write("list\n");
+                        current.Flush();
+                    }
+                }
             }
             catch (Exception)
             {
@@ -1978,13 +2004,13 @@ public static class ServerProperties
             }
             seen.Add(line.Key);
             string value = wanted.TryGetValue(line.Key, out string? updated) ? updated : line.Value;
-            builder.Append(line.Key).Append('=').Append(value).Append('\n');
+            builder.Append(line.Key).Append('=').Append(ServerManage.SanitizePropertyValue(value)).Append('\n');
         }
         foreach (ServerProperty property in updates)
         {
             if (!string.IsNullOrEmpty(property.Key) && seen.Add(property.Key))
             {
-                builder.Append(property.Key).Append('=').Append(property.Value).Append('\n');
+                builder.Append(property.Key).Append('=').Append(ServerManage.SanitizePropertyValue(property.Value)).Append('\n');
             }
         }
         File.WriteAllText(Path.Combine(directory, "server.properties"), builder.ToString());
@@ -2021,6 +2047,8 @@ public sealed class RconClient : IDisposable
     private const int TypeAuth = 3;
     private const int AuthFailedRequestId = -1;
     private const int PacketLimit = 4096;
+    private const int MaxResponsePackets = 128;
+    private const int MaxResponseLength = 1 << 20;
 
     private static readonly TimeSpan DialTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(8);
@@ -2085,10 +2113,15 @@ public sealed class RconClient : IDisposable
     {
         await WritePacketAsync(TypeCommand, command, cancellationToken).ConfigureAwait(false);
         StringBuilder builder = new();
+        int packets = 0;
         while (true)
         {
             (_, int type, string body) = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
             builder.Append(body);
+            if (++packets >= MaxResponsePackets || builder.Length > MaxResponseLength)
+            {
+                throw new InvalidOperationException("RCON 响应过长");
+            }
             if (type != TypeResponse || body.Length < PacketLimit - 16)
             {
                 break;
@@ -2101,6 +2134,11 @@ public sealed class RconClient : IDisposable
     {
         _requestId++;
         byte[] bodyBytes = Encoding.UTF8.GetBytes(body ?? string.Empty);
+        // RCON 输入长度上限：单包正文不得超过 PacketLimit，避免构造超长报文与无界分配
+        if (bodyBytes.Length > PacketLimit - 16)
+        {
+            throw new InvalidOperationException("RCON 输入超过长度上限");
+        }
         byte[] payload = new byte[12 + bodyBytes.Length + 2];
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(0, 4), bodyBytes.Length + 10);
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(4, 4), _requestId);
@@ -3103,7 +3141,7 @@ public static class ServerFiles
         {
             if (property.Key == "level-name" && !string.IsNullOrWhiteSpace(property.Value))
             {
-                return property.Value.Trim();
+                return ServerManage.SanitizeLevelName(property.Value.Trim());
             }
         }
         return "world";
@@ -3244,6 +3282,131 @@ public class ServerContentEntry
     public string Path { get; set; } = string.Empty;
 }
 
+/// <summary>服务端下载共用的 URL 与体积安全校验（SSRF 收敛）。</summary>
+internal static class ServerNetworkGuard
+{
+    private const int MaxRedirects = 5;
+
+    /// <summary>校验下载地址：仅 HTTP(S) 绝对地址，且主机不得解析到回环/私网/链路本地地址。</summary>
+    internal static async Task<Uri> ValidatePublicHttpUrlAsync(string url, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri is null ||
+            (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            throw new InvalidOperationException("下载地址必须是 HTTP(S) 绝对地址");
+        }
+        if (!string.IsNullOrEmpty(uri.UserInfo) || string.IsNullOrWhiteSpace(uri.Host) ||
+            uri.HostNameType == UriHostNameType.Unknown)
+        {
+            throw new InvalidOperationException("下载地址主机不合法");
+        }
+        string host = uri.Host.Trim('[', ']');
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("下载地址不允许指向本机");
+        }
+        IPAddress[] addresses;
+        if (IPAddress.TryParse(host, out IPAddress? literal) && literal is not null)
+        {
+            addresses = new[] { literal };
+        }
+        else
+        {
+            try
+            {
+                addresses = await Dns.GetHostAddressesAsync(host, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is SocketException or ArgumentException)
+            {
+                throw new InvalidOperationException("下载地址主机无法解析");
+            }
+        }
+        if (addresses.Length == 0)
+        {
+            throw new InvalidOperationException("下载地址主机无法解析");
+        }
+        foreach (IPAddress address in addresses)
+        {
+            if (IsBlockedAddress(address))
+            {
+                throw new InvalidOperationException("下载地址不允许指向回环/私网/链路本地地址");
+            }
+        }
+        return uri;
+    }
+
+    /// <summary>逐跳校验重定向后把响应体限长写入文件（调用方需提供 AllowAutoRedirect=false 的 HttpClient）。</summary>
+    internal static async Task DownloadToFileAsync(HttpClient client, string url, string targetPath,
+        long maxBytes, CancellationToken cancellationToken)
+    {
+        Uri current = await ValidatePublicHttpUrlAsync(url, cancellationToken).ConfigureAwait(false);
+        for (int hop = 0; ; hop++)
+        {
+            if (hop > MaxRedirects)
+            {
+                throw new InvalidOperationException("下载地址重定向次数过多");
+            }
+            using HttpResponseMessage response = await client
+                .GetAsync(current, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            int status = (int)response.StatusCode;
+            if (status >= 300 && status < 400 && response.Headers.Location is { } location)
+            {
+                current = await ValidatePublicHttpUrlAsync(new Uri(current, location).ToString(), cancellationToken)
+                    .ConfigureAwait(false);
+                continue;
+            }
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength > maxBytes)
+            {
+                throw new InvalidOperationException("下载内容超过体积上限");
+            }
+            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using FileStream destination = new(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            byte[] buffer = new byte[81920];
+            long written = 0;
+            int read;
+            while ((read = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                written += read;
+                if (written > maxBytes)
+                {
+                    throw new InvalidOperationException("下载内容超过体积上限");
+                }
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            }
+            return;
+        }
+    }
+
+    private static bool IsBlockedAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) ||
+            address.Equals(IPAddress.IPv6Any))
+        {
+            return true;
+        }
+        byte[] bytes = address.GetAddressBytes();
+        if (bytes.Length == 4)
+        {
+            if (bytes[0] == 0 || bytes[0] == 10 || bytes[0] == 127) return true;
+            if (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127) return true;
+            if (bytes[0] == 169 && bytes[1] == 254) return true;
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            if (bytes[0] == 192 && bytes[1] == 0 && bytes[2] == 0) return true;
+            if (bytes[0] == 198 && (bytes[1] == 18 || bytes[1] == 19)) return true;
+            if (bytes[0] >= 224) return true;
+            return false;
+        }
+        if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast) return true;
+        if ((bytes[0] & 0xFE) == 0xFC) return true;
+        if (address.IsIPv4MappedToIPv6) return IsBlockedAddress(address.MapToIPv4());
+        return false;
+    }
+}
+
 /// <summary>服务端内容管理：mods / plugins 的列表、启停、删除与安装。</summary>
 public static class ServerContent
 {
@@ -3251,7 +3414,8 @@ public static class ServerContent
     public const string KindPlugins = "plugins";
 
     private const string DisabledSuffix = ".disabled";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
+    private const long MaxContentDownloadBytes = 512L * 1024 * 1024;
+    private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) };
 
     /// <summary>服务器核心对应的内容目录类型。</summary>
     public static string KindForCore(string core)
@@ -3377,14 +3541,9 @@ public static class ServerContent
         string temporary = target + ".part";
         try
         {
-            using HttpResponseMessage response = await Http
-                .GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            // 逐跳校验 URL（scheme/主机/私网）并限制下载体积，避免 SSRF 与无上限写盘
+            await ServerNetworkGuard.DownloadToFileAsync(Http, downloadUrl, temporary, MaxContentDownloadBytes, cancellationToken)
                 .ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-            await using FileStream destination = File.Create(temporary);
-            await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
             File.Move(temporary, target);
         }
         catch
