@@ -44,6 +44,7 @@
   "Oobe.Account.Type.Authlib": "Внешний вход (скин-сервер)",
   "Oobe.Account.MicrosoftHint": "Войдите в Microsoft в браузере — аккаунт сохранится автоматически.",
   "Oobe.Account.MicrosoftLogin": "Войти через Microsoft",
+  "Oobe.Account.CancelLogin": "Отменить вход",
   "Oobe.Account.AuthlibHint": "Укажите Yggdrasil API скин-сервера, имя и пароль.",
   "Oobe.Account.AuthlibServer": "Адрес сервера, например https://littleskin.cn/api/yggdrasil",
   "Oobe.Account.AuthlibUsername": "Имя / эл. почта",

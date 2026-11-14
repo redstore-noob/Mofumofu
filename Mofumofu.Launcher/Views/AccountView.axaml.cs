@@ -55,7 +55,6 @@ public partial class AccountView : UserControl
 
     private CancellationTokenSource? _skinCts;
     private CancellationTokenSource? _loginCts;
-    private LoginBrowserWindow? _loginWindow;
     private string? _loginBrowserError;
     private SkinTexture? _skinTexture;
     private bool? _modelChoice;
@@ -285,7 +284,7 @@ public partial class AccountView : UserControl
         Shell.Toast(L.T("Account.Toast.Deleted", "已删除账号「{0}」", row.Name));
     }
 
-    // ---------------- 添加账号（正版内置浏览器登录 / 离线账号） ----------------
+    // ---------------- 添加账号（正版系统浏览器登录 / 离线账号） ----------------
 
     private void OnAddAccountClick(object? sender, RoutedEventArgs e)
     {
@@ -308,7 +307,7 @@ public partial class AccountView : UserControl
         var form = MofuDialog.Stack(width: 340);
         form.Children.Add(MofuDialog.Message(L.T(
             "Account.Add.Hint",
-            "正版登录会打开启动器内置浏览器，登录完成后回到这里显示处理过程；离线账号直接输入名称即可。")));
+            "正版登录会打开系统浏览器，登录完成后回到这里显示处理过程；离线账号直接输入名称即可。")));
         form.Children.Add(premiumButton);
         form.Children.Add(new Border { Height = 1, Background = ThemeTokens.Brush("NekoBorderBrush") });
         form.Children.Add(MofuDialog.Field(L.T("Account.Add.OfflineSection", "或添加离线账号"), nameBox));
@@ -361,7 +360,7 @@ public partial class AccountView : UserControl
         }
     }
 
-    // ---------------- 正版登录（内置浏览器 + 主窗口内分步处理过程） ----------------
+    // ---------------- 正版登录（系统浏览器 + 主窗口内分步处理过程） ----------------
 
     private async void StartPremiumLogin()
     {
@@ -393,7 +392,7 @@ public partial class AccountView : UserControl
             var account = await MinecraftTokenHandle.StartBrowserLoginAsync(
                 url =>
                 {
-                    Dispatcher.UIThread.Post(() => _ = ShowLoginBrowserAsync(url));
+                    Dispatcher.UIThread.Post(() => OpenLoginPage(url, cts));
 
                     return Task.CompletedTask;
                 },
@@ -432,71 +431,20 @@ public partial class AccountView : UserControl
         }
         finally
         {
-            CloseLoginBrowserWindow();
             _loginBrowserError = null;
             _loginCts = null;
             cts.Dispose();
         }
     }
 
-    /// <summary>打开（或复用）内置浏览器窗口并导航到授权页。</summary>
-    private async Task ShowLoginBrowserAsync(string url)
+    /// <summary>用系统原生浏览器打开 Microsoft 授权页；打不开就取消本次登录并给出原因。</summary>
+    private void OpenLoginPage(string url, CancellationTokenSource cts)
     {
-        var window = _loginWindow;
-        if (window is null)
-        {
-            window = new LoginBrowserWindow();
-            _loginWindow = window;
-            window.Closed += (_, _) =>
-            {
-                if (!ReferenceEquals(_loginWindow, window)) return;
+        if (OpenLinkBrowser.TryOpen(url, out string error)) return;
 
-                _loginWindow = null;
-
-                // 用户手动关掉内置浏览器 = 取消这次登录
-                if (!window.CloseByHost)
-                {
-                    _loginCts?.Cancel();
-                }
-            };
-
-            if (TopLevel.GetTopLevel(this) is Window owner)
-            {
-                window.Show(owner);
-            }
-            else
-            {
-                window.Show();
-            }
-        }
-
-        try
-        {
-            await window.NavigateAsync(url);
-        }
-        catch (Exception error)
-        {
-            SkinLog("login browser failed", error);
-            _loginBrowserError = error.Message;
-            _loginCts?.Cancel();
-        }
-    }
-
-    private void CloseLoginBrowserWindow()
-    {
-        var window = _loginWindow;
-        _loginWindow = null;
-        if (window is null) return;
-
-        try
-        {
-            window.CloseByHost = true;
-            window.Close();
-        }
-        catch (Exception error)
-        {
-            SkinLog("close login browser failed", error);
-        }
+        SkinLog("open login browser failed", new InvalidOperationException(error));
+        _loginBrowserError = L.T("Account.Login.WindowError", "无法打开系统浏览器：{0}", error);
+        cts.Cancel();
     }
 
     /// <summary>把登录成功的账号加进列表并选中（同名离线账号会被升级成正版）。</summary>

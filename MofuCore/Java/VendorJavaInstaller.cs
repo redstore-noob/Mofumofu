@@ -155,6 +155,9 @@ public sealed class VendorJavaInstaller
         var result = new List<VendorJavaRuntime>();
         foreach (var directory in Directory.EnumerateDirectories(runtimeDirectory))
         {
+            // 跳过安装中的临时解压目录，避免把半个 JDK 当成已安装运行时
+            if (Path.GetFileName(directory).StartsWith(".java-extract-", StringComparison.Ordinal))
+                continue;
             var javaPath = FindJavaExecutable(directory);
             if (javaPath is null)
                 continue;
@@ -406,9 +409,11 @@ public sealed class VendorJavaInstaller
                     .ConfigureAwait(false);
             }
 
-            // 解压到临时目录（防部分解压污染已有安装）
+            // 解压到临时目录（防部分解压污染已有安装）。
+            // 临时目录必须与目标同分区：Linux 的 /tmp 常为 tmpfs，Windows 的 %TEMP% 也可能与游戏目录不同盘，
+            // 跨设备 Directory.Move 会直接失败，因此放在 runtimeDirectory 内。
             var extractionDirectory = Path.Combine(
-                Path.GetTempPath(), $"nyalauncher-java-extract-{Guid.NewGuid():N}");
+                runtimeDirectory, $".java-extract-{Guid.NewGuid():N}");
             try
             {
                 Directory.CreateDirectory(extractionDirectory);

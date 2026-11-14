@@ -44,6 +44,7 @@
   "Oobe.Account.Type.Authlib": "外置登录（皮肤站）",
   "Oobe.Account.MicrosoftHint": "点击后在浏览器中完成 Microsoft 登录，成功后会自动保存账号。",
   "Oobe.Account.MicrosoftLogin": "登录 Microsoft",
+  "Oobe.Account.CancelLogin": "取消登录",
   "Oobe.Account.AuthlibHint": "填写皮肤站的 Yggdrasil API 地址与账号密码，登录后自动保存角色。",
   "Oobe.Account.AuthlibServer": "服务器地址，例如 https://littleskin.cn/api/yggdrasil",
   "Oobe.Account.AuthlibUsername": "用户名 / 邮箱",

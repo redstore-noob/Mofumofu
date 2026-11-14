@@ -593,7 +593,7 @@ public partial class MusicView : UserControl
         };
         cookie.Classes.Add("field");
 
-        var browserButton = MofuDialog.Primary(L.T("Pages.Music.LoginBrowser", "使用内置浏览器登录"), () => { });
+        var browserButton = MofuDialog.Primary(L.T("Pages.Music.LoginBrowser", "使用浏览器扫码登录"), () => { });
         browserButton.HorizontalAlignment = HorizontalAlignment.Stretch;
 
         var cookieButton = MofuDialog.Secondary(L.T("Pages.Music.LoginCookie", "用 Cookie 登录"), () => { });
@@ -607,7 +607,7 @@ public partial class MusicView : UserControl
 
         var content = MofuDialog.Stack(width: 340, spacing: 10);
         content.Children.Add(MofuDialog.Message(L.T("Pages.Music.LoginHint",
-            "在启动器内置浏览器里完成手机号 / 邮箱 / 扫码登录，登录状态只会保存在本机。")));
+            "在系统浏览器中打开网易云扫码页，用网易云 App 扫码确认后会自动完成登录；也可以直接粘贴 Cookie。")));
         content.Children.Add(browserButton);
         content.Children.Add(new Border { Height = 1, Background = ThemeTokens.Brush("NekoBorderBrush") });
         content.Children.Add(MofuDialog.Field(L.T("Pages.Music.CookieLabel", "已有 Cookie？直接粘贴"), cookie));
@@ -632,7 +632,7 @@ public partial class MusicView : UserControl
         browserButton.Click += async (_, _) =>
         {
             CloseActiveDialog(browserButton);
-            await LoginWithBrowserAsync();
+            await LoginWithQrCodeAsync();
         };
 
         cookieButton.Click += async (_, _) =>
@@ -671,71 +671,75 @@ public partial class MusicView : UserControl
     }
 
     /// <summary>
-    /// 用内置 WebView2 打开网易云登录页，登录成功后从 CookieManager 读取 MUSIC_U。
-    /// 比手机号密码接口稳：不会被网易的风险控制/验证码拦截，也不需要用户手动复制 Cookie。
+    /// 用系统浏览器打开网易云扫码页，轮询扫码状态；确认后从响应 Cookie 自动完成登录。
     /// </summary>
-    private async Task LoginWithBrowserAsync()
+    private async Task LoginWithQrCodeAsync()
     {
-        var owner = TopLevel.GetTopLevel(this) as Window;
-        var window = new LoginBrowserWindow
-        {
-            Title = L.T("Pages.Music.LoginTitle", "连接网易云音乐"),
-            ReadyStatusText = L.T("Pages.Music.LoginBrowserReady",
-                "请登录网易云音乐，登录成功后会自动返回启动器"),
-        };
-
         try
         {
-            if (owner is not null) window.Show(owner);
-            else window.Show();
-
-            await window.NavigateAsync("https://music.163.com/login?targetUrl=%2F");
-
-            string? cookie = null;
-            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            while (!window.IsClosed && !timeout.IsCancellationRequested)
+            var probe = new NetEaseMusicClient();
+            string? key = await probe.CreateQrLoginKeyAsync();
+            if (string.IsNullOrWhiteSpace(key))
             {
-                cookie = await window.ReadCookieHeaderAsync(
-                    "https://music.163.com", "MUSIC_U", timeout.Token);
-                if (!string.IsNullOrWhiteSpace(cookie)) break;
-
-                await Task.Delay(1200, timeout.Token);
-            }
-
-            if (string.IsNullOrWhiteSpace(cookie))
-            {
-                Shell.Toast(window.IsClosed
-                    ? L.T("Pages.Music.LoginCancelled", "已取消网易云登录")
-                    : L.T("Pages.Music.LoginTimeout", "登录超时，请重新打开登录窗口"));
+                Shell.Toast(L.T("Pages.Music.QrKeyFailed", "获取网易云二维码失败，请重试"));
                 return;
             }
 
-            var client = new NetEaseMusicClient(cookie);
-            if (!await client.LoginWithCookieAsync(cookie))
+            string pageUrl = "https://music.163.com/login?codekey=" + Uri.EscapeDataString(key);
+            if (!OpenLinkBrowser.TryOpen(pageUrl, out string error))
             {
-                Shell.Toast(L.T("Pages.Music.CookieInvalid", "Cookie 无效或已过期"));
+                Shell.Toast(L.T("Pages.Music.QrOpenFailed", "无法打开系统浏览器：{0}", error));
                 return;
             }
 
-            await FinishCloudLoginAsync(client);
+            Shell.Toast(L.T("Pages.Music.LoginBrowserReady", "请用网易云 App 扫描浏览器中的二维码"));
+
+            bool scanned = false;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            while (true)
+            {
+                await Task.Delay(2000, timeout.Token);
+                (int code, string cookie) = await probe.CheckQrLoginAsync(key, timeout.Token);
+
+                switch (code)
+                {
+                    case 800:
+                        Shell.Toast(L.T("Pages.Music.QrExpired", "二维码已过期，请重新登录"));
+                        return;
+
+                    case 802 when !scanned:
+                        scanned = true;
+                        Shell.Toast(L.T("Pages.Music.QrScanned", "已扫码，请在手机上确认登录"));
+                        break;
+
+                    case 803:
+                        if (string.IsNullOrWhiteSpace(cookie))
+                        {
+                            Shell.Toast(L.T("Pages.Music.QrNoCookie", "登录成功但未获取到 Cookie，请改用 Cookie 登录"));
+                            return;
+                        }
+
+                        var client = new NetEaseMusicClient(cookie);
+                        if (await client.LoginWithCookieAsync(cookie))
+                        {
+                            await FinishCloudLoginAsync(client);
+                        }
+                        else
+                        {
+                            Shell.Toast(L.T("Pages.Music.CookieInvalid", "Cookie 无效或已过期"));
+                        }
+
+                        return;
+                }
+            }
         }
         catch (OperationCanceledException)
         {
-            Shell.Toast(L.T("Pages.Music.LoginTimeout", "登录超时，请重新打开登录窗口"));
+            Shell.Toast(L.T("Pages.Music.LoginTimeout", "扫码登录超时，请重试"));
         }
         catch (Exception exception)
         {
-            Shell.Toast(window.IsClosed
-                ? L.T("Pages.Music.LoginCancelled", "已取消网易云登录")
-                : L.T("Pages.Music.LoginFailedDetail", "登录失败：{0}", exception.Message));
-        }
-        finally
-        {
-            if (!window.IsClosed)
-            {
-                window.CloseByHost = true;
-                window.Close();
-            }
+            Shell.Toast(L.T("Pages.Music.LoginFailedDetail", "登录失败：{0}", exception.Message));
         }
     }
 

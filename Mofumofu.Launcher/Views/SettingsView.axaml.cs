@@ -1677,7 +1677,12 @@ public partial class SettingsView : UserControl
                 MofuDialog.Close(content);
                 if (release.AssetUrl is null)
                 {
-                    OpenLinkBrowser.OpenLink($"https://github.com/{GitHubUpdater.Repo}/releases/latest");
+                    if (!OpenLinkBrowser.TryOpen(
+                            $"https://github.com/{GitHubUpdater.Repo}/releases/latest", out string error))
+                    {
+                        Shell.Toast(L.T("Settings.About.HomeOpenFailed", "打开项目主页失败：{0}", error));
+                    }
+
                     return;
                 }
 
@@ -1768,20 +1773,18 @@ public partial class SettingsView : UserControl
 
     private void OnOpenProjectHomeClick(object? sender, RoutedEventArgs e)
     {
-        // 用 OpenLinkBrowser 打开项目主页（Windows shell / Linux xdg-open）
-        var result = OpenLinkBrowser.OpenLink("https://github.com/redstore-noob/Mofumofu");
-        Shell.Toast(result == "success"
+        bool opened = OpenLinkBrowser.TryOpen("https://github.com/redstore-noob/Mofumofu", out string error);
+        Shell.Toast(opened
             ? L.T("Settings.About.HomeOpened", "已在浏览器打开项目主页")
-            : L.T("Settings.About.HomeOpenFailed", "打开项目主页失败：{0}", result));
+            : L.T("Settings.About.HomeOpenFailed", "打开项目主页失败：{0}", error));
     }
 
     private void OnOpenProjectSiteClick(object? sender, RoutedEventArgs e)
     {
-        // 宣传页：同一个 OpenLinkBrowser
-        var result = OpenLinkBrowser.OpenLink("https://redstore-noob.github.io/");
-        Shell.Toast(result == "success"
+        bool opened = OpenLinkBrowser.TryOpen("https://redstore-noob.github.io/", out string error);
+        Shell.Toast(opened
             ? L.T("Settings.About.SiteOpened", "已在浏览器打开宣传页")
-            : L.T("Settings.About.HomeOpenFailed", "打开项目主页失败：{0}", result));
+            : L.T("Settings.About.HomeOpenFailed", "打开项目主页失败：{0}", error));
     }
 
     private void OnShowLicenseClick(object? sender, RoutedEventArgs e)

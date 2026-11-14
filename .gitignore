@@ -36,6 +36,14 @@ dist/
 payload.zip
 artifacts/
 
+# 本地打包中间目录（与 .github/workflows/release.yml 的 stage 路径保持一致）
+pkgroot/
+deb/
+rpm/
+arch/
+dmgroot/
+dmgroot-arm/
+
 # .NET 构建诊断与测试产物（tests/ 下的检查工程）
 *.binlog
 TestResults/

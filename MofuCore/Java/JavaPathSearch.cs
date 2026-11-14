@@ -419,11 +419,21 @@ public class JavaPathSearch
 
     private static IEnumerable<string> CommonInstallDirectories()
     {
-        if (!OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
         {
-            return [];
+            return WindowsInstallDirectories();
         }
 
+        if (OperatingSystem.IsMacOS())
+        {
+            return MacOsInstallDirectories();
+        }
+
+        return LinuxInstallDirectories();
+    }
+
+    private static IEnumerable<string> WindowsInstallDirectories()
+    {
         List<string> roots = [];
         foreach (string variable in new[] { "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA" })
         {
@@ -464,6 +474,76 @@ public class JavaPathSearch
                 {
                     // 目录不可读时忽略
                 }
+            }
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<string> LinuxInstallDirectories()
+    {
+        string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] roots =
+        [
+            "/usr/lib/jvm", "/usr/java", "/opt/java", "/opt",
+            Path.Combine(userHome, ".jdks"),
+            Path.Combine(userHome, ".sdkman", "candidates", "java"),
+        ];
+
+        List<string> result = [];
+        foreach (string root in roots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            result.Add(root);
+            try
+            {
+                result.AddRange(Directory.GetDirectories(root));
+            }
+            catch (Exception)
+            {
+                // 目录不可读时忽略
+            }
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<string> MacOsInstallDirectories()
+    {
+        string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] bases =
+        [
+            "/Library/Java/JavaVirtualMachines",
+            Path.Combine(userHome, "Library", "Java", "JavaVirtualMachines"),
+        ];
+
+        List<string> result = [];
+        foreach (string baseDirectory in bases)
+        {
+            if (!Directory.Exists(baseDirectory))
+            {
+                continue;
+            }
+
+            try
+            {
+                foreach (string bundle in Directory.GetDirectories(baseDirectory))
+                {
+                    // macOS 的 JDK home 在 <bundle>.jdk/Contents/Home
+                    string home = Path.Combine(bundle, "Contents", "Home");
+                    if (Directory.Exists(home))
+                    {
+                        result.Add(home);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // 目录不可读时忽略
             }
         }
 

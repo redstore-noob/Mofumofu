@@ -1256,6 +1256,8 @@ public class ServerManage
 
         foreach (string root in CommonJavaRoots())
         {
+            // root 本身可能就是 JDK home（如 macOS 的 Contents/Home）
+            AddIfExists(Path.Combine(root, "bin", executable));
             string[] directories;
             try
             {
@@ -1284,20 +1286,53 @@ public class ServerManage
             }
         }
 
-        string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        foreach (string vendor in new[]
-                 {
-                     "Java", "Eclipse Adoptium", "Microsoft", "Zulu", "BellSoft", "Amazon Corretto",
-                     "Semeru", "OpenJDK",
-                 })
-        {
-            Add(Path.Combine(programFiles, vendor));
-        }
-        string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        Add(Path.Combine(programFilesX86, "Java"));
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        Add(Path.Combine(localAppData, "Programs", "Eclipse Adoptium"));
         string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (OperatingSystem.IsWindows())
+        {
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            foreach (string vendor in new[]
+                     {
+                         "Java", "Eclipse Adoptium", "Microsoft", "Zulu", "BellSoft", "Amazon Corretto",
+                         "Semeru", "OpenJDK",
+                     })
+            {
+                Add(Path.Combine(programFiles, vendor));
+            }
+            string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            Add(Path.Combine(programFilesX86, "Java"));
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            Add(Path.Combine(localAppData, "Programs", "Eclipse Adoptium"));
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            Add("/usr/lib/jvm");
+            Add("/usr/java");
+            Add("/opt/java");
+            Add("/opt");
+            Add(Path.Combine(userProfile, ".sdkman", "candidates", "java"));
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            // macOS 的 JDK home 在 <bundle>.jdk/Contents/Home
+            foreach (string baseDirectory in new[]
+                     {
+                         "/Library/Java/JavaVirtualMachines",
+                         Path.Combine(userProfile, "Library", "Java", "JavaVirtualMachines"),
+                     })
+            {
+                try
+                {
+                    foreach (string bundle in Directory.GetDirectories(baseDirectory))
+                    {
+                        Add(Path.Combine(bundle, "Contents", "Home"));
+                    }
+                }
+                catch (Exception)
+                {
+                    // 目录不存在或不可读时忽略
+                }
+            }
+        }
         Add(Path.Combine(userProfile, ".jdks"));
         Add(Path.Combine("Mofumofu", "java"));
         return roots;

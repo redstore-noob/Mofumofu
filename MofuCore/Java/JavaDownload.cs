@@ -48,6 +48,12 @@ public class JavaDownload
                 return arm64 ? "mac-os-arm64" : "mac-os";
             }
 
+            // Mojang 清单目前没有 linux-arm64 条目：返回该键会得到空的可用列表，
+            // 比误装 x86_64 运行时（在 ARM64 上无法执行）更诚实；ARM64 应走供应商 Java。
+            if (arm64)
+            {
+                return "linux-arm64";
+            }
             return x86 ? "linux-i386" : "linux";
         }
     }
@@ -64,7 +70,7 @@ public class JavaDownload
                 : OperatingSystem.IsMacOS() ? "macOS" : "Linux";
             string architecture = PlatformKey switch
             {
-                "windows-arm64" or "mac-os-arm64" => OperatingSystem.IsMacOS() ? "Apple Silicon" : "ARM64",
+                "windows-arm64" or "mac-os-arm64" or "linux-arm64" => OperatingSystem.IsMacOS() ? "Apple Silicon" : "ARM64",
                 "windows-x86" or "linux-i386" => "x86",
                 _ => "x64",
             };

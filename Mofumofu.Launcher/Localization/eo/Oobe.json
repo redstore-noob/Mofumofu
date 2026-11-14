@@ -44,6 +44,7 @@
   "Oobe.Account.Type.Authlib": "Ekstera ensaluto (haŭtservilo)",
   "Oobe.Account.MicrosoftHint": "Kompletigu la Microsoft-ensaluton en la retumilo; la konto aŭtomate konserviĝos.",
   "Oobe.Account.MicrosoftLogin": "Ensaluti per Microsoft",
+  "Oobe.Account.CancelLogin": "Nuligi ensaluton",
   "Oobe.Account.AuthlibHint": "Entajpu la Yggdrasil-API-adreson de via haŭtservilo kun uzantnomo kaj pasvorto.",
   "Oobe.Account.AuthlibServer": "Servila adreso, ekz-e https://littleskin.cn/api/yggdrasil",
   "Oobe.Account.AuthlibUsername": "Uzantnomo / retpoŝto",

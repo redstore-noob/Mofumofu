@@ -238,13 +238,12 @@ public partial class OnlineView : UserControl
 
     private void OnProviderHomepageClick(object? sender, RoutedEventArgs e)
     {
-        // 供应商项目主页：用 OpenLinkBrowser 直接在浏览器打开
         if (sender is not Button { Tag: string url }) return;
 
-        var result = OpenLinkBrowser.OpenLink(url);
-        Shell.Toast(result == "success"
+        bool opened = OpenLinkBrowser.TryOpen(url, out string error);
+        Shell.Toast(opened
             ? L.T("Pages.Online.Toast.HomeOpened", "已在浏览器打开项目主页")
-            : L.T("Pages.Online.Toast.HomeOpenFailed", "打开项目主页失败：{0}", result));
+            : L.T("Pages.Online.Toast.HomeOpenFailed", "打开项目主页失败：{0}", error));
     }
 
     private async void OnCreateTerracottaClick(object? sender, RoutedEventArgs e)

@@ -44,6 +44,7 @@
   "Oobe.Account.Type.Authlib": "Externer Login (Skinserver)",
   "Oobe.Account.MicrosoftHint": "Melde dich im Browser bei Microsoft an – das Konto wird automatisch gespeichert.",
   "Oobe.Account.MicrosoftLogin": "Bei Microsoft anmelden",
+  "Oobe.Account.CancelLogin": "Anmeldung abbrechen",
   "Oobe.Account.AuthlibHint": "Yggdrasil-API-Adresse des Skinserveres sowie Benutzername und Passwort eingeben.",
   "Oobe.Account.AuthlibServer": "Serveradresse, z. B. https://littleskin.cn/api/yggdrasil",
   "Oobe.Account.AuthlibUsername": "Benutzername / E-Mail",

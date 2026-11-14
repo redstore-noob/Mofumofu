@@ -44,6 +44,7 @@
   "Oobe.Account.Type.Authlib": "Authlib (skin server)",
   "Oobe.Account.MicrosoftHint": "Sign in through the browser; the account is saved automatically.",
   "Oobe.Account.MicrosoftLogin": "Sign in with Microsoft",
+  "Oobe.Account.CancelLogin": "Cancel sign-in",
   "Oobe.Account.AuthlibHint": "Enter the skin server Yggdrasil API URL, username and password; the profile is saved after sign-in.",
   "Oobe.Account.AuthlibServer": "Server URL, e.g. https://littleskin.cn/api/yggdrasil",
   "Oobe.Account.AuthlibUsername": "Username / email",

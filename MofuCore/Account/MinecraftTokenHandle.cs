@@ -36,7 +36,7 @@ public class MinecraftTokenHandle
 
     private const int DeviceCodeTransientRetryLimit = 3;
 
-    /// <summary>内置浏览器登录的整体预算：从打开登录页到整条链路结束。</summary>
+    /// <summary>浏览器登录的整体预算：从打开登录页到整条链路结束。</summary>
     private static readonly TimeSpan BrowserLoginTimeout = TimeSpan.FromMinutes(10);
 
     private const int LoopbackListenRetryLimit = 5;
@@ -233,15 +233,15 @@ public class MinecraftTokenHandle
     }
 
     // ------------------------------------------------------------------
-    // 内置浏览器登录（授权码 + PKCE + 本地回环回调）
+    // 浏览器登录（授权码 + PKCE + 本地回环回调）
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// 正版登录（启动器内置浏览器）：生成 PKCE 与 state，在 127.0.0.1 随机端口起本地回环
+    /// 正版登录（系统浏览器）：生成 PKCE 与 state，在 127.0.0.1 随机端口起本地回环
     /// HTTP 服务，把微软授权地址交给 <paramref name="openLoginPage"/> 打开，收到授权码后
     /// 依次换取 Microsoft 令牌 → XBL → XSTS → Minecraft → 档案，最后加密落盘。
     /// </summary>
-    /// <param name="openLoginPage">打开内置浏览器的回调（参数为微软授权页 URL）；不要等用户登录完成。</param>
+    /// <param name="openLoginPage">打开系统浏览器的回调（参数为微软授权页 URL）；不要等用户登录完成。</param>
     /// <param name="onStep">链路阶段回调：Authorized → MicrosoftToken → XboxLive → Xsts → Minecraft → Done。</param>
     /// <param name="cancellationToken">取消登录（会关闭回环服务并抛 <see cref="OperationCanceledException"/>）。</param>
     /// <returns>登录成功且已落盘的账号（<see cref="MicrosoftAccount"/>）。</returns>
@@ -1285,7 +1285,7 @@ public sealed class MicrosoftAccount
     }
 }
 
-/// <summary>Microsoft 认证流程的链路阶段（设备码 / 内置浏览器登录共用的进度回调）。</summary>
+/// <summary>Microsoft 认证流程的链路阶段（设备码 / 浏览器登录共用的进度回调）。</summary>
 public enum LoginStep
 {
     /// <summary>已在登录页完成授权（拿到授权码）。</summary>
@@ -1679,10 +1679,17 @@ public class MinecraftTokenCrypto
             bool stored = OperatingSystem.IsMacOS()
                 ? WriteKeyToKeychain(generated)
                 : WriteKeyToSecretService(generated);
+            if (!stored && !OperatingSystem.IsMacOS())
+            {
+                // Linux 等没有系统凭据库（secret-tool / 钥匙环守护进程缺失）的环境：
+                // 退回仅当前用户可读（0600）的密钥文件，保证账号功能可用。
+                // 读取侧本就按 secret-tool → 密钥文件的顺序取键，两条路径一致。
+                stored = WriteKeyToFile(generated, storageDirectory);
+            }
             if (!stored)
             {
-                // fail-closed：系统凭据库不可用时不落明文主密钥，也不使用未持久化的临时密钥
-                throw new CryptographicException("无法持久化主密钥：系统凭据库不可用。");
+                // fail-closed：所有持久化途径都失败时，不使用未持久化的临时密钥
+                throw new CryptographicException("无法持久化主密钥：系统凭据库与密钥文件均不可用。");
             }
 
             _masterKey = generated;
@@ -1707,8 +1714,56 @@ public class MinecraftTokenCrypto
         (int exitCode, _) = RunProcess("secret-tool",
             ["store", "--label=MofuCore 账号令牌", "service", KeychainService, "key", KeychainAccount],
             encoded);
-        // 不再以 base64 明文落盘兜底：无系统凭据库时直接失败（由调用方 fail-closed）
+        // 失败时由调用方退回 0600 密钥文件；两者都失败才 fail-closed
         return exitCode == 0;
+    }
+
+    private static bool WriteKeyToFile(byte[] key, string storageDirectory)
+    {
+        string temporaryPath = string.Empty;
+        try
+        {
+            Directory.CreateDirectory(storageDirectory);
+            string path = Path.Combine(storageDirectory, KeyFileName);
+            temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            // 创建时即限定 0600，避免密钥短暂以默认权限暴露
+            FileStreamOptions options = new()
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+            };
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            }
+            using (FileStream stream = new(temporaryPath, options))
+            using (StreamWriter writer = new(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(Convert.ToBase64String(key));
+            }
+            File.Move(temporaryPath, path, true);
+            temporaryPath = string.Empty;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            if (temporaryPath.Length > 0)
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch
+                {
+                    // 临时文件清理失败不影响结果
+                }
+            }
+        }
     }
 
     private static byte[]? ReadKeyFromKeychain()

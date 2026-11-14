@@ -41,7 +41,6 @@ public partial class OobeWindow : Window
     private string? _microsoftAccountName;
     private string? _authlibAccountName;
     private CancellationTokenSource? _loginCts;
-    private LoginBrowserWindow? _loginWindow;
 
     public event Action? Completed;
 
@@ -126,6 +125,12 @@ public partial class OobeWindow : Window
 
     private async void OnMicrosoftLoginClick(object? sender, RoutedEventArgs e)
     {
+        if (_loginCts is not null)
+        {
+            _loginCts.Cancel();
+            return;
+        }
+
         if (_microsoftAccountName is not null)
         {
             MicrosoftStatusText.Text = L.T("Oobe.Account.LoggedIn", "已登录：{0}", _microsoftAccountName);
@@ -133,15 +138,12 @@ public partial class OobeWindow : Window
         }
 
         _loginCts?.Dispose();
-        _loginCts = new CancellationTokenSource();
-        _loginWindow = new LoginBrowserWindow();
-        _loginWindow.Closed += (_, _) =>
-        {
-            if (!_loginWindow?.CloseByHost == true) _loginCts?.Cancel();
-        };
+        var cts = new CancellationTokenSource();
+        _loginCts = cts;
 
-        MicrosoftLoginButton.IsEnabled = false;
+        MicrosoftLoginButton.Content = L.T("Oobe.Account.CancelLogin", "取消登录");
         MicrosoftStatusText.Text = L.T("Oobe.Account.WaitingBrowser", "请在浏览器完成 Microsoft 登录…");
+        string? openError = null;
         try
         {
             MicrosoftAccount account = await MinecraftTokenHandle.StartBrowserLoginAsync(
@@ -149,12 +151,14 @@ public partial class OobeWindow : Window
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (_loginWindow is not null && !_loginWindow.IsVisible) _loginWindow.Show(this);
-                        _ = _loginWindow?.NavigateAsync(url);
+                        if (OpenLinkBrowser.TryOpen(url, out string error)) return;
+
+                        openError = error;
+                        cts.Cancel();
                     });
                     return Task.CompletedTask;
                 },
-                cancellationToken: _loginCts.Token);
+                cancellationToken: cts.Token);
 
             _microsoftAccountName = account.Username;
             LocalSettings.Current.SelectedAccountName = account.Username;
@@ -163,7 +167,9 @@ public partial class OobeWindow : Window
         }
         catch (OperationCanceledException)
         {
-            MicrosoftStatusText.Text = L.T("Oobe.Account.LoginCancelled", "已取消 Microsoft 登录");
+            MicrosoftStatusText.Text = openError is { Length: > 0 }
+                ? L.T("Oobe.Account.LoginFailed", "登录失败：{0}", openError)
+                : L.T("Oobe.Account.LoginCancelled", "已取消 Microsoft 登录");
         }
         catch (Exception error)
         {
@@ -171,14 +177,9 @@ public partial class OobeWindow : Window
         }
         finally
         {
-            _loginCts?.Dispose();
+            cts.Dispose();
             _loginCts = null;
-            if (_loginWindow is not null)
-            {
-                _loginWindow.CloseByHost = true;
-                _loginWindow.Close();
-                _loginWindow = null;
-            }
+            MicrosoftLoginButton.Content = L.T("Oobe.Account.MicrosoftLogin", "登录 Microsoft");
             MicrosoftLoginButton.IsEnabled = true;
         }
     }

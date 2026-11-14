@@ -433,6 +433,88 @@ public sealed class NetEaseMusicClient
         return false;
     }
 
+    /// <summary>扫码登录第一步：申请二维码 key，失败返回 null。</summary>
+    public async Task<string?> CreateQrLoginKeyAsync(CancellationToken cancellationToken = default)
+    {
+        using JsonDocument document = await SendAsync(HttpMethod.Post, "/api/login/qrcode/unikey",
+            new Dictionary<string, string> { ["type"] = "1" }, null, cancellationToken).ConfigureAwait(false);
+
+        if (GetInt(document.RootElement, "code") != 200) return null;
+
+        string key = GetString(document.RootElement, "unikey");
+        return key.Length > 0 ? key : null;
+    }
+
+    /// <summary>
+    /// 扫码登录状态轮询：800 二维码过期 / 801 等待扫码 / 802 已扫描待确认 / 803 登录成功。
+    /// 成功时返回从 Set-Cookie 提取的登录 Cookie（可能为空，调用方需兜底）。
+    /// </summary>
+    public async Task<(int Code, string Cookie)> CheckQrLoginAsync(
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        string url = BaseUrl + "/api/login/qrcode/client/login?type=1&key=" + Uri.EscapeDataString(key);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("Cookie", SanitizeCookieValue(_cookie));
+
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"网易云扫码接口请求失败（HTTP {(int)response.StatusCode}）");
+        }
+
+        string cookie = ReadSetCookie(response);
+        int code;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            code = GetInt(document.RootElement, "code");
+
+            // 部分版本把 Cookie 直接放进响应体
+            if (code == 803 && string.IsNullOrWhiteSpace(cookie))
+            {
+                cookie = GetString(document.RootElement, "cookie");
+            }
+        }
+        catch (JsonException)
+        {
+            code = 0;
+        }
+
+        return (code, cookie);
+    }
+
+    private static readonly HashSet<string> CookieAttributes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "expires", "path", "domain", "max-age", "httponly", "secure", "samesite", "priority", "partitioned",
+    };
+
+    /// <summary>把 803 响应的 Set-Cookie 拼成请求头；只保留 name=value，过滤属性。</summary>
+    private static string ReadSetCookie(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values)) return string.Empty;
+
+        List<string> pairs = [];
+        foreach (string value in values)
+        {
+            foreach (string line in value.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string pair = line.Split(';', 2)[0].Trim();
+                int separator = pair.IndexOf('=');
+                if (separator <= 0) continue;
+
+                string name = pair[..separator].Trim();
+                if (CookieAttributes.Contains(name)) continue;
+
+                pairs.Add(pair);
+            }
+        }
+
+        return string.Join("; ", pairs.Distinct(StringComparer.Ordinal));
+    }
+
     private async Task<JsonDocument> SendAsync(
         HttpMethod method,
         string path,

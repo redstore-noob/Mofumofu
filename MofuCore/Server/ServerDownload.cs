@@ -515,6 +515,17 @@ public sealed class ServerDownload
             scriptPath = Path.Combine(result.ServerDirectory, "start.sh");
             string content = "#!/bin/sh\ncd \"$(dirname \"$0\")\"\n" + command + "\n";
             await File.WriteAllTextAsync(scriptPath, content, new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                File.SetUnixFileMode(scriptPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                    UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+            catch (IOException)
+            {
+                // 文件系统不支持权限位时保持原样，用户可手动 chmod
+            }
         }
         return scriptPath;
     }
