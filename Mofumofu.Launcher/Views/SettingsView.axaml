@@ -70,20 +70,13 @@
             <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
         </Style>
         <Style Selector="Border.setting-row">
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0,10" />
             <Setter Property="MinHeight" Value="44" />
-            <Setter Property="CornerRadius" Value="8" />
         </Style>
-        <Style Selector="Border.setting-row:pointerover">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-        <Style Selector="Border.setting-row:last-child">
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0,10,0,8" />
+        <Style Selector="suki|GlassCard">
+            <Setter Property="IsInteractive" Value="False" />
         </Style>
         <Style Selector="Border.setting-row > Grid > StackPanel">
             <Setter Property="VerticalAlignment" Value="Center" />
