@@ -469,13 +469,28 @@ public partial class InstancesView : UserControl
     private void OnContentIconLoaded(object? sender, RoutedEventArgs e)
     {
         if (sender is not Image { Tag: ContentEntry entry } image) return;
-        if (string.IsNullOrWhiteSpace(entry.IconPath) || !File.Exists(entry.IconPath)) return;
+        if (string.IsNullOrWhiteSpace(entry.IconPath) || !File.Exists(entry.IconPath))
+        {
+            // 没有可用图标：一直显示占位图标
+            IconPlaceholder.SetVisible(image, true);
+            return;
+        }
 
         string key = $"instance:{_current?.Id}:{Path.GetFileName(entry.FilePath)}";
         _ = ResourceIconCache.LoadAsync(entry.IconPath, key).ContinueWith(task =>
         {
-            if (!task.IsCompletedSuccessfully || task.Result is null) return;
-            Dispatcher.UIThread.Post(() => image.Source = task.Result);
+            if (!task.IsCompletedSuccessfully || task.Result is null)
+            {
+                Dispatcher.UIThread.Post(() => IconPlaceholder.SetVisible(image, true));
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                image.Source = task.Result;
+                // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
+                IconPlaceholder.SetVisible(image, false);
+            });
         }, TaskScheduler.Default);
     }
 
@@ -589,13 +604,28 @@ public partial class InstancesView : UserControl
     private void OnModUpdateIconLoaded(object? sender, RoutedEventArgs e)
     {
         if (sender is not Image { Tag: ModrinthUpdateCandidate candidate } image) return;
-        if (string.IsNullOrWhiteSpace(candidate.ProjectIcon)) return;
+        if (string.IsNullOrWhiteSpace(candidate.ProjectIcon))
+        {
+            // 没有图标地址：一直显示占位图标
+            IconPlaceholder.SetVisible(image, true);
+            return;
+        }
 
         _ = ResourceIconCache.LoadAsync(candidate.ProjectIcon, $"modrinth:{candidate.ProjectId}")
             .ContinueWith(task =>
             {
-                if (!task.IsCompletedSuccessfully || task.Result is null) return;
-                Dispatcher.UIThread.Post(() => image.Source = task.Result);
+                if (!task.IsCompletedSuccessfully || task.Result is null)
+                {
+                    Dispatcher.UIThread.Post(() => IconPlaceholder.SetVisible(image, true));
+                    return;
+                }
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    image.Source = task.Result;
+                    // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
+                    IconPlaceholder.SetVisible(image, false);
+                });
             }, TaskScheduler.Default);
     }
 

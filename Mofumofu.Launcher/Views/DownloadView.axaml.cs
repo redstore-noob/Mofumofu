@@ -29,6 +29,7 @@ using MofuCore.Download.Minecraft;
 using MofuCore.Download.Modrinth;
 using MofuCore.Java;
 using MofuCore.Tools;
+using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Models;
 using Mofumofu.Launcher.Services;
@@ -1419,16 +1420,32 @@ public partial class DownloadView : UserControl
     {
         if (sender is not Image { Tag: ResourceItem item } image) return;
         if (!_resourceProjects.TryGetValue(item, out ModrinthProject? project)) return;
-        if (string.IsNullOrWhiteSpace(project.IconUrl)) return;
+
+        // 没有图标地址：一直显示占位图标
+        if (string.IsNullOrWhiteSpace(project.IconUrl))
+        {
+            IconPlaceholder.SetVisible(image, true);
+            return;
+        }
 
         try
         {
             Bitmap? bitmap = await ResourceIconCache.LoadAsync(project.IconUrl, $"modrinth:{project.ProjectId}");
-            if (bitmap is not null) image.Source = bitmap;
+            if (bitmap is null)
+            {
+                // 图标加载失败保留占位图标
+                IconPlaceholder.SetVisible(image, true);
+                return;
+            }
+
+            image.Source = bitmap;
+            // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
+            IconPlaceholder.SetVisible(image, false);
         }
         catch (Exception)
         {
             // 图标加载失败保留占位图标
+            IconPlaceholder.SetVisible(image, true);
         }
     }
 
