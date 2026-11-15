@@ -30,6 +30,9 @@ public static class ServerListPing
 {
     private const int TimeoutMs = 4000;
 
+    /// <summary>PNG 文件头：89 50 4E 47 0D 0A 1A 0A。</summary>
+    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
     /// <summary>状态请求包：长度 1 + 包 id 0x00（必须带长度前缀，否则服务端会挂起）。</summary>
     private static readonly byte[] StatusRequestPacket = [0x01, 0x00];
 
@@ -174,11 +177,20 @@ public static class ServerListPing
             && faviconElement.GetString() is { } dataUrl)
         {
             var comma = dataUrl.IndexOf(',', StringComparison.Ordinal);
-            if (dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && comma > 0)
+            // base64 约为原始字节的 4/3，先按编码后长度设上限，避免一次分配超大数组
+            long maxEncodedLength = SizeLimits.IconDownloadMaximumBytes / 3 * 4 + 4;
+            if (dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && comma > 0
+                && dataUrl.Length - (comma + 1) <= maxEncodedLength)
             {
                 try
                 {
-                    favicon = Convert.FromBase64String(dataUrl[(comma + 1)..]);
+                    byte[] decoded = Convert.FromBase64String(dataUrl[(comma + 1)..]);
+                    // 只接受不超过上限且带 PNG 魔数的图标，避免把任意数据交给渲染器
+                    if (decoded.Length <= SizeLimits.IconDownloadMaximumBytes &&
+                        decoded.AsSpan().StartsWith(PngSignature))
+                    {
+                        favicon = decoded;
+                    }
                 }
                 catch (FormatException)
                 {

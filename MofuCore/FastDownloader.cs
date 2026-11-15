@@ -141,17 +141,33 @@ public static class FastDownloader
                 cancellationToken.ThrowIfCancellationRequested();
                 DeleteFile(item.TargetPath);
 
+                // 每次尝试单独兜底超时，避免只依赖外部 CancellationToken 时连接永久挂起
+                using CancellationTokenSource attemptCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                attemptCts.CancelAfter(NetworkDefaults.DownloadHttpTimeout);
+
+                // 本次尝试累计的字节；失败或分片回退时按同一数值扣回，保证增减同源
+                long attemptBytes = 0;
+                Action<long>? countedOnBytes = onBytes is null
+                    ? null
+                    : delta =>
+                    {
+                        Interlocked.Add(ref attemptBytes, delta);
+                        onBytes(delta);
+                    };
+
                 try
                 {
                     var segmented = item.Size >= MinSegmentedSize &&
                                     segments > 1 &&
                                     await TryDownloadSegmentedAsync(
-                                        url, item.TargetPath, item.Size, segments, onBytes, cancellationToken)
+                                        url, item.TargetPath, item.Size, segments, countedOnBytes, attemptCts.Token)
                                         .ConfigureAwait(false);
 
                     if (!segmented)
                     {
-                        await DownloadSingleAsync(url, item.TargetPath, onBytes, cancellationToken)
+                        // 分段不可用回退单连接：先扣回分段阶段已计入的字节，避免重复累计
+                        RollbackAttemptProgress(onBytes, ref attemptBytes);
+                        await DownloadSingleAsync(url, item.TargetPath, countedOnBytes, attemptCts.Token)
                             .ConfigureAwait(false);
                     }
 
@@ -166,7 +182,7 @@ public static class FastDownloader
                     }
 
                     if (!string.IsNullOrWhiteSpace(item.Sha1) &&
-                        !await MatchesSha1Async(item.TargetPath, item.Sha1!, cancellationToken).ConfigureAwait(false))
+                        !await MatchesSha1Async(item.TargetPath, item.Sha1!, attemptCts.Token).ConfigureAwait(false))
                     {
                         throw new InvalidOperationException($"下载文件校验失败：{item.TargetPath}");
                     }
@@ -175,6 +191,7 @@ public static class FastDownloader
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
+                    RollbackAttemptProgress(onBytes, ref attemptBytes);
                     DeleteFile(item.TargetPath);
                     throw;
                 }
@@ -182,6 +199,7 @@ public static class FastDownloader
                 {
                     lastError = error;
                     DeleteFile(item.TargetPath);
+                    RollbackAttemptProgress(onBytes, ref attemptBytes);
                     try
                     {
                         await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt), cancellationToken)
@@ -331,6 +349,16 @@ public static class FastDownloader
             throw new RangeNotSupportedException();
         }
 
+        // 只判断 206 不够：服务器可能忽略 Range 返回整包或错位分片。
+        // 核对 Content-Range 起止与请求一致，并在读取后核对实际分片长度。
+        long expected = end - start + 1;
+        ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
+        if (contentRange is null || !contentRange.HasRange ||
+            contentRange.From != start || contentRange.To != end)
+        {
+            throw new RangeNotSupportedException();
+        }
+
         await using Stream source = await response.Content
             .ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -340,13 +368,26 @@ public static class FastDownloader
             BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
         byte[] buffer = new byte[BufferSize];
+        long written = 0;
         while (true)
         {
             int read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (read <= 0) break;
 
+            written += read;
+            if (written > expected)
+            {
+                throw new InvalidOperationException($"分片 {start}-{end} 返回内容超过请求范围。");
+            }
+
             await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             onBytes?.Invoke(read);
+        }
+
+        if (written != expected)
+        {
+            throw new InvalidOperationException(
+                $"分片 {start}-{end} 实际长度与 Content-Range 不符（{written} != {expected}）。");
         }
     }
 
@@ -377,6 +418,13 @@ public static class FastDownloader
         {
             return false;
         }
+    }
+
+    /// <summary>把本次尝试已计入的进度按同一数值扣回，避免重试 / 回退后进度超过 100%。</summary>
+    private static void RollbackAttemptProgress(Action<long>? onBytes, ref long attemptBytes)
+    {
+        long accrued = Interlocked.Exchange(ref attemptBytes, 0);
+        if (accrued > 0) onBytes?.Invoke(-accrued);
     }
 
     private static void DeleteFile(string path)

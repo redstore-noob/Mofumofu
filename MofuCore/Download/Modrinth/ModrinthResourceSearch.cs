@@ -7,6 +7,8 @@ using System.Text.Json.Serialization;
 
 using MofuCore;
 
+using MofuCore.Config;
+
 namespace MofuCore.Download.Modrinth;
 
 /// <summary>Modrinth search 接口的命中项。</summary>
@@ -170,6 +172,11 @@ internal static class ModrinthApiClient
     private const long MaximumDownloadBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(8);
     private static readonly HttpClient Client = CreateClient();
+    // 文件下载专用：禁用自动重定向，交给 DownloadUrlGuard 逐跳校验；API 请求仍用上面的 Client
+    private static readonly HttpClient DownloadClient = new(new HttpClientHandler { AllowAutoRedirect = false })
+    {
+        Timeout = Timeout.InfiniteTimeSpan,
+    };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly object Gate = new();
 
@@ -425,27 +432,47 @@ internal static class ModrinthApiClient
         string? directory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        using HttpResponseMessage response = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using FileStream destination = new(targetPath + ".mofu-download", FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, true);
-        byte[] buffer = new byte[128 * 1024];
-        long downloaded = 0;
-        while (true)
+        // 唯一临时名，避免并发下载同名文件互相覆盖；无论成功失败都在 finally 清理残留
+        string temporary = targetPath + ".mofu-download-" + Guid.NewGuid().ToString("N");
+        try
         {
-            int read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (read <= 0) break;
-            downloaded += read;
-            if (downloaded > MaximumDownloadBytes)
+            // 逐跳校验（含 DNS 私网拦截），最终 RequestUri 也会兜底校验
+            using HttpResponseMessage response = await DownloadUrlGuard
+                .SendWithRedirectGuardAsync(DownloadClient, url, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using FileStream destination = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, true);
+            byte[] buffer = new byte[128 * 1024];
+            long downloaded = 0;
+            while (true)
             {
-                throw new InvalidOperationException("下载文件超过单文件体积上限。");
+                int read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (read <= 0) break;
+                downloaded += read;
+                if (downloaded > MaximumDownloadBytes)
+                {
+                    throw new InvalidOperationException("下载文件超过单文件体积上限。");
+                }
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                progress?.Report(downloaded);
             }
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            progress?.Report(downloaded);
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            destination.Close();
+
+            File.Move(temporary, targetPath, true);
         }
-        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
-        destination.Close();
-        File.Move(targetPath + ".mofu-download", targetPath, true);
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+            catch (IOException)
+            {
+                // 清理失败不影响主流程
+            }
+        }
     }
 }
 

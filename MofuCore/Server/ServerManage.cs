@@ -3322,13 +3322,17 @@ internal static class ServerNetworkGuard
 {
     private const int MaxRedirects = 5;
 
-    /// <summary>校验下载地址：仅 HTTP(S) 绝对地址，且主机不得解析到回环/私网/链路本地地址。</summary>
+    /// <summary>
+    /// 校验下载地址：仅 HTTPS 绝对地址，且主机不得解析到回环/私网/链路本地地址。
+    /// 明文 http 一律拒绝（内容缺少哈希校验时尤其危险）；若将来确有本地 http 服务需要放行，
+    /// 应由调用方通过显式的 allowInsecureHttp 例外并把主机单独限制到本机，而不是在这里整体放开。
+    /// </summary>
     internal static async Task<Uri> ValidatePublicHttpUrlAsync(string url, CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri is null ||
-            (uri.Scheme != "http" && uri.Scheme != "https"))
+            uri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new InvalidOperationException("下载地址必须是 HTTP(S) 绝对地址");
+            throw new InvalidOperationException("下载地址必须是 HTTPS 绝对地址");
         }
         if (!string.IsNullOrEmpty(uri.UserInfo) || string.IsNullOrWhiteSpace(uri.Host) ||
             uri.HostNameType == UriHostNameType.Unknown)
@@ -3399,7 +3403,8 @@ internal static class ServerNetworkGuard
             }
             await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             await using FileStream destination = new(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            byte[] buffer = new byte[81920];
+            // 缓冲区大小统一引用 SizeLimits，避免各处硬编码口径不一致
+            byte[] buffer = new byte[MofuCore.Config.SizeLimits.StreamCopyBufferBytes];
             long written = 0;
             int read;
             while ((read = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) > 0)
@@ -3557,9 +3562,12 @@ public static class ServerContent
         File.Delete(target);
     }
 
-    /// <summary>下载一个 jar 到内容目录，返回实际写入的文件名（同名不覆盖）。</summary>
+    /// <summary>
+    /// 下载一个 jar 到内容目录，返回实际写入的文件名（同名不覆盖）。
+    /// <paramref name="expectedSha256"/> 为可选的内容哈希：提供时强校验，未提供时至少记录警告。
+    /// </summary>
     public static async Task<string> InstallFromUrlAsync(string id, string kind, string downloadUrl,
-        string fileName, CancellationToken cancellationToken = default)
+        string fileName, CancellationToken cancellationToken = default, string? expectedSha256 = null)
     {
         string directory = ContentDirectory(id, kind);
         if (string.IsNullOrWhiteSpace(downloadUrl))
@@ -3579,6 +3587,23 @@ public static class ServerContent
             // 逐跳校验 URL（scheme/主机/私网）并限制下载体积，避免 SSRF 与无上限写盘
             await ServerNetworkGuard.DownloadToFileAsync(Http, downloadUrl, temporary, MaxContentDownloadBytes, cancellationToken)
                 .ConfigureAwait(false);
+
+            // 服务端内容 jar 的完整性校验：提供 SHA256 时强校验；未提供时至少记录警告。
+            // 上面的地址校验已强制 HTTPS，缺少哈希的明文 http 来源会在校验阶段被直接拒绝。
+            if (!string.IsNullOrWhiteSpace(expectedSha256))
+            {
+                await using FileStream stream = new(temporary, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
+                if (!string.Equals(Convert.ToHexString(hash), expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"服务端内容 jar 的 SHA256 校验失败：{safe}");
+                }
+            }
+            else
+            {
+                ServerManage.LogWarn($"服务端内容 jar 未提供 SHA256，仅依赖 HTTPS 来源校验：{safe}");
+            }
+
             File.Move(temporary, target);
         }
         catch

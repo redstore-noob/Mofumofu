@@ -85,6 +85,8 @@ public static class DownloadSourceProvider
     private static readonly HttpClient Client = CreateClient();
     private static DownloadSource _active = DownloadSources.Bmcl;
     private static DownloadSource? _fallback = DownloadSources.Bmcl;
+    // 允许主机集合随主源 / 回退源切换重建，供文件下载前做主机白名单校验
+    private static volatile HashSet<string> _allowedHosts = BuildAllowedHosts(DownloadSources.Bmcl, DownloadSources.Bmcl);
 
     private static HttpClient CreateClient()
     {
@@ -109,12 +111,20 @@ public static class DownloadSourceProvider
 
     public static void SetActive(DownloadSource source)
     {
-        lock (Gate) _active = source;
+        lock (Gate)
+        {
+            _active = source;
+            _allowedHosts = BuildAllowedHosts(_active, _fallback);
+        }
     }
 
     public static void SetFallback(DownloadSource? source)
     {
-        lock (Gate) _fallback = source;
+        lock (Gate)
+        {
+            _fallback = source;
+            _allowedHosts = BuildAllowedHosts(_active, _fallback);
+        }
     }
 
     public static string Resolve(string officialUrl)
@@ -262,6 +272,75 @@ public static class DownloadSourceProvider
             throw new InvalidOperationException($"下载地址不是有效的 HTTPS URL：{url}");
         }
         return url;
+    }
+
+    /// <summary>
+    /// 校验实际下载地址：必须是 HTTPS，且主机在允许列表内。
+    /// 版本 JSON 里的 URL 可被篡改成任意 https 地址，仅靠 <see cref="EnsureHttps"/> 挡不住；
+    /// 允许列表 = 官方 / 内置源域 + 当前主源 / 回退源（含用户自定义镜像）的主机，
+    /// 因此 Resolve 替换 base URL 之后的镜像域名同样放行，镜像回退保持可用。
+    /// </summary>
+    internal static void EnsureAllowedUrl(string url)
+    {
+        EnsureHttps(url);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri is null ||
+            string.IsNullOrWhiteSpace(uri.Host) || !_allowedHosts.Contains(uri.Host))
+        {
+            throw new InvalidOperationException($"下载地址主机不在允许列表：{url}");
+        }
+    }
+
+    private static HashSet<string> BuildAllowedHosts(DownloadSource active, DownloadSource? fallback)
+    {
+        HashSet<string> hosts = new(StringComparer.OrdinalIgnoreCase);
+
+        void AddEndpoint(string? endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) return;
+            if (Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? uri) && uri is not null &&
+                !string.IsNullOrWhiteSpace(uri.Host))
+            {
+                hosts.Add(uri.Host);
+            }
+        }
+
+        void AddSource(DownloadSource source)
+        {
+            AddEndpoint(source.LauncherMeta);
+            AddEndpoint(source.Meta);
+            AddEndpoint(source.Data);
+            AddEndpoint(source.DataBase);
+            AddEndpoint(source.FabricMeta);
+            AddEndpoint(source.FabricMetaBase);
+            AddEndpoint(source.Libraries);
+            AddEndpoint(source.Resources);
+            AddEndpoint(source.Maven);
+        }
+
+        // 内置官方源与 BMCLAPI 源
+        foreach (DownloadSource source in DownloadSources.All) AddSource(source);
+        // 当前主源 / 回退源可能是用户自定义镜像，其主机必须放行
+        AddSource(active);
+        if (fallback is not null) AddSource(fallback);
+
+        // 官方静态入口（加载器元数据、Maven、GitHub 等域）
+        AddEndpoint(ApiEndpoints.MojangManifest);
+        AddEndpoint(ApiEndpoints.MojangLauncherMeta);
+        AddEndpoint(ApiEndpoints.MojangLibraries);
+        AddEndpoint(ApiEndpoints.FabricMeta);
+        AddEndpoint(ApiEndpoints.FabricMaven);
+        AddEndpoint(ApiEndpoints.QuiltMeta);
+        AddEndpoint(ApiEndpoints.QuiltMaven);
+        AddEndpoint(ApiEndpoints.ForgeMaven);
+        AddEndpoint(ApiEndpoints.ForgeFiles);
+        AddEndpoint(ApiEndpoints.NeoForgeMaven);
+        AddEndpoint(ApiEndpoints.BmclApi);
+        AddEndpoint(ApiEndpoints.GitHubApi);
+        AddEndpoint(ApiEndpoints.ModrinthApi);
+        AddEndpoint(ApiEndpoints.OptiFine);
+        AddEndpoint(ApiEndpoints.GitHubReleasesApi);
+        AddEndpoint(ApiEndpoints.GitHubReleasesPage);
+        return hosts;
     }
 
     private static string ReplaceBaseUrl(string rawUrl, DownloadSource target)
@@ -1333,7 +1412,13 @@ public sealed class MinecraftDownload
 
                 try
                 {
-                    await DownloadToTemporaryAsync(url, temporaryPath, file.Size, bytes => Interlocked.Add(ref attemptBytes, bytes), reportProgress, watchdog, attemptCts.Token).ConfigureAwait(false);
+                    // 下载字节既计入本次尝试的 attemptBytes，也计入全局 counters；
+                    // 失败时按同一个 attemptBytes 从全局扣回，保证增减同源、不会停滞或变负。
+                    await DownloadToTemporaryAsync(url, temporaryPath, file.Size, bytes =>
+                    {
+                        Interlocked.Add(ref attemptBytes, bytes);
+                        addProgressBytes(bytes);
+                    }, reportProgress, watchdog, attemptCts.Token).ConfigureAwait(false);
                     watchdog.Touch();
                     await ValidateTemporaryFileAsync(file, temporaryPath, cancellationToken).ConfigureAwait(false);
                     File.Move(temporaryPath, file.TargetPath, true);
@@ -1368,7 +1453,9 @@ public sealed class MinecraftDownload
         StallWatchdog watchdog,
         CancellationToken cancellationToken)
     {
-        DownloadSourceProvider.EnsureHttps(url);
+        // 版本 JSON 里的地址先做主机白名单校验，防止被篡改成任意 https 主机；
+        // 镜像源替换后的主机已在允许列表内，官方 / BMCLAPI / 自定义镜像回退均保持可用。
+        DownloadSourceProvider.EnsureAllowedUrl(url);
 
         // 大文件（jar / 大 library）走多连接分段下载；未设置限速且没有断点临时文件时启用
         bool canSegment = expectedSize >= SizeLimits.SegmentedDownloadMinimumBytes
@@ -1383,7 +1470,8 @@ public sealed class MinecraftDownload
                 onBytes: bytes =>
                 {
                     watchdog.Touch();
-                    watchdog.AddBytes(bytes);
+                    // FastDownloader 重试 / 分片回退会回滚字节（负 delta），不参与涓流窗口统计
+                    if (bytes > 0) watchdog.AddBytes(bytes);
                     addProgressBytes(bytes);
                     reportProgress?.Invoke();
                 },

@@ -359,11 +359,14 @@ public sealed class ServerDownload
         if (string.IsNullOrWhiteSpace(metadataUrl)) throw new InvalidOperationException($"未找到 Minecraft 版本：{result.MinecraftVersion}");
 
         VersionMetadataPayload? metadata = await HttpGetJsonAsync<VersionMetadataPayload>(metadataUrl, cancellationToken).ConfigureAwait(false);
-        string? serverUrl = metadata?.Downloads?.Server?.Url;
+        DownloadInfoPayload? server = metadata?.Downloads?.Server;
+        string? serverUrl = server?.Url;
         if (string.IsNullOrWhiteSpace(serverUrl)) throw new InvalidOperationException("版本元数据中没有 server 下载地址。");
 
         result.CoreJarPath = Path.Combine(result.ServerDirectory, ServerJarName);
-        await DownloadFileAsync(serverUrl, result.CoreJarPath, null, cancellationToken).ConfigureAwait(false);
+        // 把版本元数据里的 size / sha1 传给下载器：镜像不返回 Content-Length 时仍有体积与哈希校验
+        await DownloadFileAsync(serverUrl, result.CoreJarPath, null, cancellationToken,
+            server?.Size ?? 0, server?.Sha1).ConfigureAwait(false);
     }
 
     private static async Task InstallPaperAsync(InstallResult result, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
@@ -653,7 +656,8 @@ public sealed class ServerDownload
         return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task DownloadFileAsync(string url, string targetPath, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
+    private static async Task DownloadFileAsync(string url, string targetPath, IProgress<InstallProgress>? progress,
+        CancellationToken cancellationToken, long expectedSize = 0, string? expectedSha1 = null)
     {
         if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
@@ -675,14 +679,23 @@ public sealed class ServerDownload
             }
         }
 
+        // 镜像不返回 Content-Length 时 total 为 0，优先用版本元数据里的 size / sha1 兜底校验
+        long verifiedSize = expectedSize > 0 ? expectedSize : total;
+        string? verifiedSha1 = string.IsNullOrWhiteSpace(expectedSha1) ? null : expectedSha1;
+        if (verifiedSize > MaxCoreDownloadBytes)
+        {
+            throw new InvalidOperationException("服务端核心下载超过体积上限");
+        }
+        long progressTotal = verifiedSize > 0 ? verifiedSize : total;
+
         long downloaded = 0;
         await FastDownloader.DownloadFileAsync(
-            new FastDownloadItem(url, targetPath, total),
+            new FastDownloadItem(url, targetPath, verifiedSize, verifiedSha1),
             segments: 4,
             onBytes: bytes =>
             {
                 long current = Interlocked.Add(ref downloaded, bytes);
-                progress?.Report(new InstallProgress(1, $"正在下载 {Path.GetFileName(targetPath)}", current, total));
+                progress?.Report(new InstallProgress(1, $"正在下载 {Path.GetFileName(targetPath)}", current, progressTotal));
             },
             cancellationToken).ConfigureAwait(false);
     }
@@ -757,5 +770,9 @@ public sealed class ServerDownload
     private sealed class DownloadInfoPayload
     {
         [System.Text.Json.Serialization.JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha1")] public string? Sha1 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("size")] public long Size { get; set; }
     }
 }

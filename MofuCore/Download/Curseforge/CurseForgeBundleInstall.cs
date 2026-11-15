@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MofuCore.Download.Modrinth;
 
+using MofuCore.Config;
+
 namespace MofuCore.Download.CurseForge;
 
 public sealed class CurseForgeMinecraft
@@ -53,10 +55,22 @@ public static class CurseForgeBundleInstall
 {
     private const string ApiRoot = "https://api.curseforge.com/v1";
     private const int MaxParallelDownloads = 8;
+    // 清单文本与解压条目沿用 Bundle* 口径；整包体积上限沿用 Package* 口径
     private const long MaximumManifestBytes = MofuCore.Config.SizeLimits.BundleIndexMaximumBytes;
+    private const long MaximumArchiveBytes = MofuCore.Config.SizeLimits.PackageArchiveMaximumBytes;
     private const long MaximumDownloadBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
+    // 解压条目数 / 单条目 / 累计解压体积上限（复用 SizeLimits 的 Bundle* 常量）
+    private const int MaximumExtractedEntries = 20000;
+    private const long MaximumEntryBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
+    private const long MaximumExtractedBytes = MofuCore.Config.SizeLimits.BundleExtractedMaximumBytes;
+    private const int CopyBufferSize = 128 * 1024;
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(30) };
+    // 文件下载专用：禁用自动重定向，交给 DownloadUrlGuard 逐跳校验；API 请求仍用上面的 Http
+    private static readonly HttpClient DownloadHttp = new(new HttpClientHandler { AllowAutoRedirect = false })
+    {
+        Timeout = TimeSpan.FromMinutes(30),
+    };
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -90,6 +104,12 @@ public static class CurseForgeBundleInstall
         }
 
         if (!File.Exists(packagePath)) throw new FileNotFoundException("整合包文件不存在。", packagePath);
+
+        // 整包体积上限（Package* 口径），避免超大 zip 直接交给解压流程
+        if (new FileInfo(packagePath).Length > MaximumArchiveBytes)
+        {
+            throw new InvalidOperationException("整合包体积超过上限。");
+        }
 
         Directory.CreateDirectory(gameDirectory);
 
@@ -325,6 +345,7 @@ public static class CurseForgeBundleInstall
         CancellationToken cancellationToken)
     {
         int count = 0;
+        long extracted = 0;
 
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
@@ -348,17 +369,37 @@ public static class CurseForgeBundleInstall
             {
                 continue;
             }
+
+            // 条目数 / 声明体积 / 累计体积上限：防压缩炸弹
+            if (count >= MaximumExtractedEntries)
+            {
+                throw new InvalidOperationException("整合包解压条目数超过上限，疑似压缩炸弹。");
+            }
+            if (entry.Length > MaximumEntryBytes || extracted + entry.Length > MaximumExtractedBytes)
+            {
+                throw new InvalidOperationException($"整合包解压体积超过上限：{entry.FullName}");
+            }
+
             string? directory = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-            try
+            // 逐块读取并累计实际解压字节，避免声明大小被伪造；读写失败显式抛出，不再静默跳过
+            using Stream source = entry.Open();
+            using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferSize);
+            byte[] buffer = new byte[CopyBufferSize];
+            long written = 0;
+            int read;
+            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
             {
-                entry.ExtractToFile(target, overwrite: true);
-                count++;
+                written += read;
+                if (written > MaximumEntryBytes || extracted + written > MaximumExtractedBytes)
+                {
+                    throw new InvalidOperationException($"条目 {entry.FullName} 实际解压大小超过上限，疑似压缩炸弹。");
+                }
+                output.Write(buffer, 0, read);
             }
-            catch (IOException)
-            {
-            }
+            extracted += written;
+            count++;
         }
 
         return count;
@@ -426,8 +467,9 @@ public static class CurseForgeBundleInstall
             throw new InvalidOperationException($"下载地址不是允许的 HTTPS URL：{url}");
         }
 
-        using HttpResponseMessage response = await Http
-            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        // 逐跳校验（含 DNS 私网拦截），最终 RequestUri 也会兜底校验
+        using HttpResponseMessage response = await DownloadUrlGuard
+            .SendWithRedirectGuardAsync(DownloadHttp, url, cancellationToken)
             .ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();

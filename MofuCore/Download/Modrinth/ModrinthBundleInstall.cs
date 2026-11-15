@@ -130,7 +130,8 @@ public class ModrinthBundleInstall
     private const long MaximumDownloadBytes = SizeLimits.BundleEntryMaximumBytes;
     private const int CopyBufferSize = 128 * 1024;
     private const string ServerOverridesPrefix = "server-overrides/";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(30) };
+    // 禁用自动重定向，交由 DownloadUrlGuard 逐跳校验，防止 302 把下载引向内网 / 元数据地址
+    private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(30) };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static readonly (string Prefix, int Layer)[] ContentRoots =
@@ -603,8 +604,9 @@ public class ModrinthBundleInstall
             throw new InvalidOperationException($"下载地址不是允许的 HTTPS URL：{url}");
         }
 
-        using HttpResponseMessage response = await Http
-            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        // 逐跳校验（含 DNS 私网拦截），最终 RequestUri 也会兜底校验
+        using HttpResponseMessage response = await DownloadUrlGuard
+            .SendWithRedirectGuardAsync(Http, url, cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);

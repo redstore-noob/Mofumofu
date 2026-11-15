@@ -276,7 +276,13 @@ public class Terracotta
 
         if (hadSession && port != 0)
         {
-            _ = await RequestAsync("/state/ide", null, cancellationToken).ConfigureAwait(false);
+            var (_, statusCode, error) = await RequestAsync("/state/ide", null, cancellationToken)
+                .ConfigureAwait(false);
+            if (error is not null)
+            {
+                // 退出是尽力而为，不阻断状态回收，但要记录失败便于排查
+                Log?.Invoke($"退出陶瓦联机会话失败（HTTP {statusCode}）：{error.Message}");
+            }
         }
 
         Publish(new TerracottaStatus
