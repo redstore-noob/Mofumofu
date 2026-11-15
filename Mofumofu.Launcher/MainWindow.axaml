@@ -198,6 +198,33 @@
                     Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeBottomRight" />
         </Grid>
 
+<!-- ================= 文件拖入提示层：只做视觉反馈，不拦截拖拽事件 ================= -->
+        <Border x:Name="FileDropOverlay" IsVisible="False" IsHitTestVisible="False"
+                Background="{DynamicResource NekoBackdropDimBrush}">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MinWidth="320" MaxWidth="520" Padding="28,24" CornerRadius="14"
+                    Background="{DynamicResource NekoDialogBrush}"
+                    BorderBrush="{DynamicResource NekoAccentBrush}"
+                    BorderThickness="2">
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <Border Width="42" Height="42" CornerRadius="12"
+                            Background="{DynamicResource NekoAccentSoftBrush}"
+                            HorizontalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconFluentDownload" Width="20" Height="20"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock x:Name="FileDropTitle" Text="{DynamicResource L.Drop.Overlay.Title}"
+                               FontSize="16" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Foreground="{DynamicResource NekoTextBrush}" />
+                    <TextBlock x:Name="FileDropDetail" Text="{DynamicResource L.Drop.Overlay.Default}" FontSize="12.5"
+                               TextWrapping="Wrap" TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource NekoMutedBrush}" />
+                </StackPanel>
+            </Border>
+        </Border>
+
 <!-- ================= 顶层叠加层：弹窗 + Toast（永远在内容之上） ================= -->        
         <Grid>
             <controls:MofuDialogHost x:Name="DialogHost" />

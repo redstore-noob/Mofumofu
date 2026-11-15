@@ -113,6 +113,123 @@ public partial class MainWindow : Window
 
         KeyDown += OnWindowKeyDown;
 
+        // 全局文件拖入：交给 DragImportService 统一识别类型、挑实例、确认落点。
+        // handledEventsToo: true —— 即使某个子页面自己处理了 Drop，窗口层仍要拿到一次。
+        AddHandler(DragDrop.DragOverEvent, OnFileDragOver, RoutingStrategies.Bubble, true);
+        AddHandler(DragDrop.DropEvent, OnFileDrop, RoutingStrategies.Bubble, true);
+        AddHandler(DragDrop.DragLeaveEvent, OnFileDragLeave, RoutingStrategies.Bubble, true);
+        Deactivated += (_, _) => HideFileDropOverlay();
+    }
+
+    // ---------------- 全局文件拖入 ----------------
+
+    private string _dropPreviewKey = string.Empty;
+    private IReadOnlyList<DropImportPlan> _dropPreviewPlans = Array.Empty<DropImportPlan>();
+
+    private void OnFileDragOver(object? sender, DragEventArgs e)
+    {
+        bool hasFiles;
+        try
+        {
+            hasFiles = e.DataTransfer.Formats.Contains(DataFormat.File);
+        }
+        catch
+        {
+            hasFiles = false;
+        }
+
+        e.DragEffects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        if (!hasFiles)
+        {
+            HideFileDropOverlay();
+            return;
+        }
+
+        // DragOver 会高频触发，按路径集合缓存识别结果，避免每次移动都去读一遍 zip
+        var paths = DragImportService.ExtractPaths(e);
+        string key = paths.Count == 0 ? string.Empty : string.Join('\u0001', paths);
+        if (key.Length > 0 && key != _dropPreviewKey)
+        {
+            _dropPreviewKey = key;
+            _dropPreviewPlans = DragImportService.Classify(paths);
+        }
+        else if (key.Length == 0)
+        {
+            _dropPreviewKey = string.Empty;
+            _dropPreviewPlans = Array.Empty<DropImportPlan>();
+        }
+
+        string detail = _dropPreviewPlans.Count > 0
+            ? L.T("Drop.Overlay.Kinds", "识别到：{0}", DragImportService.Describe(_dropPreviewPlans))
+            : L.T("Drop.Overlay.Hint", "整合包 / 模组 / 资源包 / 存档… 松开后自动识别导入位置");
+
+        if (_dropPreviewPlans.Any(plan => plan.Scope == DropImportScope.InstanceContent))
+        {
+            string? instanceId = ResolveDropInstance(e.Source) ?? BuildDefaultInstanceId();
+            if (!string.IsNullOrWhiteSpace(instanceId))
+            {
+                detail += "\n" + L.T("Drop.Overlay.Instance", "目标实例：{0}", instanceId);
+            }
+        }
+
+        ShowFileDropOverlay(detail);
+    }
+
+    private void OnFileDragLeave(object? sender, DragEventArgs e) => HideFileDropOverlay();
+
+    private void OnFileDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        HideFileDropOverlay();
+        _dropPreviewKey = string.Empty;
+        _dropPreviewPlans = Array.Empty<DropImportPlan>();
+
+        var paths = DragImportService.ExtractPaths(e);
+        if (paths.Count == 0)
+        {
+            Shell.Toast(L.T("Drop.NoFiles", "没有读到可导入的文件"));
+            return;
+        }
+
+        var plans = DragImportService.Classify(paths);
+        DragImportService.ConfirmAndImport(plans, BuildDropImportContext(e.Source));
+    }
+
+    private void ShowFileDropOverlay(string detail)
+    {
+        FileDropDetail.Text = detail;
+        FileDropOverlay.IsVisible = true;
+    }
+
+    private void HideFileDropOverlay() => FileDropOverlay.IsVisible = false;
+
+    /// <summary>拖到实例列表某一行时，以那一行的实例为准，否则用当前选中的实例。</summary>
+    private string? ResolveDropInstance(object? source)
+        => _currentPage == "instances" ? InstancesView.ResolveDroppedInstanceId(source) : null;
+
+    private string? BuildDefaultInstanceId()
+    {
+        if (_pageCache.TryGetValue("instances", out var page) && page is InstancesView view &&
+            !string.IsNullOrWhiteSpace(view.CurrentInstanceId))
+        {
+            return view.CurrentInstanceId;
+        }
+
+        string saved = LocalSettings.Current.SelectedInstanceId;
+        return string.IsNullOrWhiteSpace(saved) && GameState.HasSelectedVersion
+            ? GameState.SelectedVersion
+            : saved;
+    }
+
+    private DropImportContext BuildDropImportContext(object? source)
+    {
+        var instances = BuildVersionChoices()
+            .Select(choice => new DropInstanceChoice(choice.Id, choice.DisplayName))
+            .ToList();
+
+        string? instanceId = ResolveDropInstance(source) ?? BuildDefaultInstanceId();
+        return new DropImportContext(_currentPage, instanceId, instances, null);
     }
 
     /// <summary>InformationalVersion 含 "beta" 时在标题栏显示 BETA 徽章（正式版自动消失）。</summary>

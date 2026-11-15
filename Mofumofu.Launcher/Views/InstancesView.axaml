@@ -569,6 +569,8 @@
 <!-- ===== 内容 ===== -->                            
                             <StackPanel x:Name="ContentPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
+                                <TextBlock Text="{DynamicResource L.Drop.ContentHint}" Classes="caption"
+                                           TextWrapping="Wrap" />
                                 <Border Classes="card-soft" Padding="12">
                                     <StackPanel Spacing="6">
                                         <Grid ColumnDefinitions="*,Auto">

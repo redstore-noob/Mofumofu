@@ -173,6 +173,34 @@ public partial class InstancesView : UserControl
         _ready = true;
     }
 
+    /// <summary>供全局拖拽用：当前详情页展示的实例 id。</summary>
+    public string? CurrentInstanceId => _current?.Id;
+
+    /// <summary>
+    /// 文件被拖到实例列表的某一行上时，解析出那一行的实例 id。
+    /// 没落在列表行上就返回 null，由外层回退到当前选中的实例。
+    /// </summary>
+    public static string? ResolveDroppedInstanceId(object? source)
+    {
+        if (source is not Visual visual) return null;
+        ListBoxItem? item = visual as ListBoxItem ?? visual.FindAncestorOfType<ListBoxItem>();
+        if (item is null || item.FindAncestorOfType<InstancesView>() is null) return null;
+        return (item.DataContext as InstanceInfo)?.Id;
+    }
+
+    /// <summary>任意页面拖入文件完成导入后，刷新实例数与内容列表。</summary>
+    private void OnDragImported()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnDragImported);
+            return;
+        }
+
+        RefreshInstanceList();
+        if (_current is not null) LoadContentLists(_current);
+    }
+
     // ---------------- 初始化 / 真实实例扫描 ----------------
 
     private static string EnsureGameDirectory()
@@ -894,6 +922,7 @@ public partial class InstancesView : UserControl
     {
         base.OnAttachedToVisualTree(e);
         GameState.Changed += SyncLaunchState;
+        DragImportService.Imported += OnDragImported;
         SyncLaunchState();
         _ = LoadJavaAsync();
     }
@@ -901,6 +930,7 @@ public partial class InstancesView : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         GameState.Changed -= SyncLaunchState;
+        DragImportService.Imported -= OnDragImported;
         CancelCts(ref _javaCts);
         base.OnDetachedFromVisualTree(e);
     }
