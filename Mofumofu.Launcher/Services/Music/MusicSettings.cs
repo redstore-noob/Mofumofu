@@ -103,6 +103,15 @@ public static class MusicStore
     private static readonly YamlDotNet.Serialization.IDeserializer Deserializer =
         new YamlDotNet.Serialization.DeserializerBuilder().IgnoreUnmatchedProperties().Build();
 
+    /// <summary>最近一次读 / 写失败的说明（供界面或诊断查看，不阻断播放）。</summary>
+    public static string? LastError { get; private set; }
+
+    private static void LogFailure(string message)
+    {
+        LastError = message;
+        System.Diagnostics.Debug.WriteLine("[music] " + message);
+    }
+
     /// <summary>音乐设置：{DataRoot}/Mofumofu/config/music.yaml（与主设置同目录）。</summary>
     public static string SettingsPath => Path.Combine(
         MofuCore.Config.YamlRead.ConfigDirectory,
@@ -110,6 +119,7 @@ public static class MusicStore
 
     public static MusicSettings Load()
     {
+        LastError = null;
         try
         {
             AgentSecretProtector.ResetFlags();
@@ -123,10 +133,19 @@ public static class MusicStore
                     parsed.Favorites ??= new();
                     parsed.FavoriteDetails ??= new();
                     if (parsed.Volume <= 0) parsed.Volume = 72;
+
+                    // Unprotect 解密失败时会原样返回密文，绝不能把它当作 Cookie 使用或回写。
+                    // 检查全局标志后回退到未登录态，并记录失败原因（finally 里会清标志，必须先读）。
+                    if (AgentSecretProtector.DecryptFailed)
+                    {
+                        parsed.NetEaseCookie = string.Empty;
+                        parsed.NetEaseNickname = string.Empty;
+                        LogFailure("网易云 Cookie 解密失败（可能换过账户 / 机器或主密钥丢失），" +
+                                   "已回退到未登录态，请重新登录。");
+                    }
                     // 兼容旧版本明文 Cookie：立刻回写为加密版本，避免凭证继续明文驻留磁盘。
-                    if (!string.IsNullOrEmpty(parsed.NetEaseCookie) &&
-                        AgentSecretProtector.LegacyPlaintextFound &&
-                        !AgentSecretProtector.DecryptFailed)
+                    else if (!string.IsNullOrEmpty(parsed.NetEaseCookie) &&
+                             AgentSecretProtector.LegacyPlaintextFound)
                     {
                         Save(parsed);
                     }
@@ -134,9 +153,9 @@ public static class MusicStore
                 }
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // 损坏的设置按默认值处理
+            LogFailure("读取音乐设置失败，已改用默认值：" + exception.Message);
         }
         finally
         {
@@ -156,9 +175,10 @@ public static class MusicStore
             File.WriteAllText(temporary, Serializer.Serialize(settings));
             File.Move(temporary, SettingsPath, true);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // 写失败不影响播放
+            // 写失败不影响播放，但要留下可诊断的记录。
+            LogFailure("保存音乐设置失败：" + exception.Message);
         }
     }
 }

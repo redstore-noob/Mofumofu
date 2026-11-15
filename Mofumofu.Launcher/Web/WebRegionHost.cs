@@ -201,8 +201,11 @@ public sealed class WebRegionHost : IDisposable
                 core.Navigate(BuildPageUrl());
             }
 
-            _topLevel.LayoutUpdated += OnLayoutUpdated;
-            _topLevel.SizeChanged += OnSizeChanged;
+            if (_topLevel is { } topLevel)
+            {
+                topLevel.LayoutUpdated += OnLayoutUpdated;
+                topLevel.SizeChanged += OnSizeChanged;
+            }
             _initialized = true;
             Log($"initialized, navigating {BuildPageUrl()}");
         }

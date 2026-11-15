@@ -18,21 +18,29 @@ public sealed class NetEaseMusicClient
     private const string BaseUrl = "https://music.163.com";
     private const string DefaultCookie = "os=pc; appver=2.9.7";
 
-    private readonly HttpClient _http;
+    // 共享静态 client：Cookie 每次请求自带（UseCookies=false），不放在 handler 状态里，
+    // 多个实例共用一条连接不会串号；替换实例也不再丢弃 handler / 泄漏 HttpClient。
+    private static readonly HttpClient SharedHttp = CreateSharedClient();
+
     private string _cookie;
 
     public NetEaseMusicClient(string? cookie = null)
     {
         _cookie = NormalizeCookie(cookie);
+    }
+
+    private static HttpClient CreateSharedClient()
+    {
         var handler = new HttpClientHandler
         {
             UseCookies = false,
             AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
         };
-        _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.TryAddWithoutValidation("Referer", BaseUrl);
-        _http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Referer", BaseUrl);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36");
+        return client;
     }
 
     public bool IsLoggedIn => _cookie.Contains("MUSIC_U=", StringComparison.Ordinal);
@@ -457,7 +465,7 @@ public sealed class NetEaseMusicClient
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("Cookie", SanitizeCookieValue(_cookie));
 
-        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await SharedHttp.SendAsync(request, cancellationToken).ConfigureAwait(false);
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
@@ -538,7 +546,7 @@ public sealed class NetEaseMusicClient
         // 即便 _cookie 已被净化，出站前再收一遍，确保写请求头的值不含 CRLF/控制字符。
         request.Headers.TryAddWithoutValidation("Cookie", SanitizeCookieValue(_cookie));
 
-        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await SharedHttp.SendAsync(request, cancellationToken).ConfigureAwait(false);
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)

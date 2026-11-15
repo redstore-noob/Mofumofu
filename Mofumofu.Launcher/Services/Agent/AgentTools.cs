@@ -35,6 +35,12 @@ public sealed class AgentToolContext
     public string Model { get; init; } = string.Empty;
 
     public AgentSettings Settings { get; init; } = new();
+
+    /// <summary>
+    /// 当前供应商是否为受信任的官方端点。默认 false 是 fail-closed：未显式确认信任时，
+    /// 注册表不会把读取本机信息的工具暴露给模型，也不会允许它们被执行。
+    /// </summary>
+    public bool TrustEndpoint { get; init; }
 }
 
 /// <summary>一个可被模型调用的工具。</summary>
@@ -50,6 +56,9 @@ public sealed class AgentToolDefinition
 
     /// <summary>写操作是否默认要求确认。</summary>
     public bool RequiresConfirm { get; init; }
+
+    /// <summary>该工具会读取本机环境信息（游戏目录 / 账号 / 实例 / 模组等），非官方端点应禁用。</summary>
+    public bool ExposesLocalInfo { get; init; }
 
     public required Func<JsonElement, AgentToolContext, CancellationToken, Task<string>> Handler { get; init; }
 
@@ -68,12 +77,16 @@ public sealed class AgentToolRegistry
 
     public void Register(AgentToolDefinition tool) => _tools[tool.Name] = tool;
 
-    /// <summary>按设置过滤出本轮真正暴露给模型的工具。</summary>
-    public IReadOnlyList<AgentToolDefinition> Resolve(AgentToolSettings settings) =>
+    /// <summary>
+    /// 按设置过滤出本轮真正暴露给模型的工具。trustEndpoint 为 false（自定义/本机端点）时，
+    /// 额外剔除读取本机信息的工具，避免本地路径 / 账号 / 实例等被带出到不可信端点。
+    /// </summary>
+    public IReadOnlyList<AgentToolDefinition> Resolve(AgentToolSettings settings, bool trustEndpoint = true) =>
         settings.Enabled
             ? _tools.Values
                 .Where(tool => !settings.DisabledTools.Contains(tool.Name, StringComparer.OrdinalIgnoreCase))
                 .Where(tool => settings.LauncherControl || !tool.Name.StartsWith("launcher.", StringComparison.Ordinal))
+                .Where(tool => trustEndpoint || !tool.ExposesLocalInfo)
                 .OrderBy(tool => tool.Name, StringComparer.Ordinal)
                 .ToList()
             : Array.Empty<AgentToolDefinition>();
@@ -86,7 +99,7 @@ public sealed class AgentToolRegistry
         if (tool is null)
             return ($"错误：不存在名为 {call.Name} 的工具。可用工具见系统提示。", true);
 
-        if (!Resolve(context.Settings.Tools).Any(active =>
+        if (!Resolve(context.Settings.Tools, context.TrustEndpoint).Any(active =>
                 string.Equals(active.Name, call.Name, StringComparison.OrdinalIgnoreCase)))
         {
             return ($"错误：工具 {call.Name} 已被玩家停用，请改用其它方式回答。", true);
@@ -143,6 +156,7 @@ public sealed class AgentToolRegistry
             Name = "launcher.list_instances",
             Description = "列出本机所有 Minecraft 实例（版本目录），包含游戏版本、模组数量、上次游玩时间。需要了解玩家装了什么时调用。",
             ParametersSchema = """{"type":"object","properties":{},"required":[]}""",
+            ExposesLocalInfo = true,
             Handler = LauncherAgentTools.ListInstancesAsync,
         });
 
@@ -151,6 +165,7 @@ public sealed class AgentToolRegistry
             Name = "launcher.get_status",
             Description = "读取启动器当前状态：选中的实例与账号、游戏是否在运行、游戏目录。回答「现在什么情况」类问题前先调用。",
             ParametersSchema = """{"type":"object","properties":{},"required":[]}""",
+            ExposesLocalInfo = true,
             Handler = LauncherAgentTools.GetStatusAsync,
         });
 
@@ -172,6 +187,7 @@ public sealed class AgentToolRegistry
                 {"type":"object","properties":{"page":{"type":"string","description":"页面 id","enum":["home","account","download","instances","music","online","servers","plugins","settings"]}},"required":["page"]}
                 """,
             Risk = AgentToolRisk.Write,
+            RequiresConfirm = true,
             Handler = LauncherAgentTools.OpenPageAsync,
         });
 
@@ -188,6 +204,7 @@ public sealed class AgentToolRegistry
             Name = "launcher.list_mods",
             Description = "列出某个实例 mods 目录里的模组文件名。不传 instance 时使用当前选中实例。",
             ParametersSchema = """{"type":"object","properties":{"instance":{"type":"string","description":"实例目录名，可省略"}},"required":[]}""",
+            ExposesLocalInfo = true,
             Handler = LauncherAgentTools.ListModsAsync,
         });
 

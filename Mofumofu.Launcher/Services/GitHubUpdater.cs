@@ -235,6 +235,14 @@ public static class GitHubUpdater
             throw new InvalidOperationException("更新包文件名包含非法字符，已中止下载。");
         }
 
+        // fail-closed：GitHub Release API 的 assets 现已提供 digest。摘要缺失或格式非法一律中止，
+        // 绝不让未经 SHA256 校验的包进入后续 xcopy 覆盖程序目录的安装流程。
+        string? expectedDigest = NormalizeSha256(release.AssetDigest);
+        if (expectedDigest is null)
+        {
+            throw new InvalidOperationException("release 未提供合法的 SHA256 摘要，已中止更新以确保安装包完整性。");
+        }
+
         string directory = UpdateDirectory();
         Directory.CreateDirectory(directory);
         string targetPath = Path.Combine(directory, assetName);
@@ -274,20 +282,12 @@ public static class GitHubUpdater
                 throw new InvalidOperationException("更新包下载不完整，已中止下载。");
             }
 
-            // release 绑定了 sha256 摘要时校验落盘文件哈希；摘要存在但格式非法一律中止
-            if (!string.IsNullOrWhiteSpace(release.AssetDigest))
+            // 落盘后按 release 绑定的 SHA256 摘要校验（摘要缺失/非法已在下载前 fail-closed 拦截）。
+            await using var verify = new FileStream(targetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            byte[] hash = await SHA256.HashDataAsync(verify, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(Convert.ToHexString(hash), expectedDigest, StringComparison.OrdinalIgnoreCase))
             {
-                string? expected = NormalizeSha256(release.AssetDigest);
-                if (expected is null)
-                {
-                    throw new InvalidOperationException("release 绑定的 SHA256 摘要格式非法，已中止下载。");
-                }
-                await using var verify = new FileStream(targetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                byte[] hash = await SHA256.HashDataAsync(verify, cancellationToken).ConfigureAwait(false);
-                if (!string.Equals(Convert.ToHexString(hash), expected, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException("更新包 SHA256 校验失败，已中止下载。");
-                }
+                throw new InvalidOperationException("更新包 SHA256 校验失败，已中止下载。");
             }
 
             return targetPath;

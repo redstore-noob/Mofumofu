@@ -213,13 +213,19 @@ public sealed class MusicPlayer : IDisposable
     /// <summary>在线音频缓存：同一 URL 只下载一次。</summary>
     private static async Task<string> CacheRemoteAsync(string url, CancellationToken cancellationToken)
     {
+        // 出站前强制 HTTPS + 网易云 CDN 白名单（http 升级为 https），拒绝任意外站 / 内网地址。
+        if (!MusicUrlPolicy.TryNormalize(url, out string safeUrl))
+        {
+            throw new InvalidOperationException("音频地址不在允许的网易云 CDN 域内");
+        }
+
         string directory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Mofumofu.Launcher",
             "music-cache");
         Directory.CreateDirectory(directory);
 
-        byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(url));
+        byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(safeUrl));
         string path = Path.Combine(directory, Convert.ToHexString(hash).ToLowerInvariant() + ".audio");
 
         if (File.Exists(path) && new FileInfo(path).Length > 1024)
@@ -228,10 +234,13 @@ public sealed class MusicPlayer : IDisposable
         }
 
         // 外部响应加体积与长度校验：拒绝超大/伪造长度的音频，避免无上限写盘。
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, safeUrl);
         using HttpResponseMessage response = await Http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+        // 格式：明确声明为 HTML / 文本 / JSON 错误页的响应不当作音频写盘。
+        if (!MusicUrlPolicy.IsAllowedAudioContentType(response.Content.Headers.ContentType?.MediaType))
+            throw new InvalidOperationException("音频地址返回了非音频内容");
         if (response.Content.Headers.ContentLength is long declared && declared > MaxAudioBytes)
             throw new InvalidOperationException("音频文件过大");
 
@@ -253,11 +262,29 @@ public sealed class MusicPlayer : IDisposable
         {
             throw new InvalidOperationException("下载到的音频为空");
         }
+        // 再按文件头校验，避免把文本错误页当成音频缓存。
+        if (LooksLikeText(data))
+        {
+            throw new InvalidOperationException("音频地址返回了非音频内容");
+        }
 
         string temporary = path + ".tmp";
         await File.WriteAllBytesAsync(temporary, data, cancellationToken).ConfigureAwait(false);
         File.Move(temporary, path, true);
         return path;
+    }
+
+    /// <summary>前若干字节全是可打印文本时视为错误页 / 非音频内容。</summary>
+    private static bool LooksLikeText(byte[] data)
+    {
+        int probe = Math.Min(data.Length, 64);
+        for (int i = 0; i < probe; i++)
+        {
+            byte b = data[i];
+            if (b == 0) return false; // 含 NUL，几乎必然是二进制
+            if (b < 0x20 && b != (byte)'\r' && b != (byte)'\n' && b != (byte)'\t') return false;
+        }
+        return true;
     }
 
     public void Dispose()

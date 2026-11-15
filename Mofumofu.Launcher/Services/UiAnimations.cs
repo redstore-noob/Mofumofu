@@ -214,13 +214,27 @@ public static class UiAnimations
     {
         if (!Enabled || target is null) return;
 
-        var half = Math.Max(60, milliseconds / 2);
-        target.Transitions = BuildTransitions(half, new CubicEaseOut());
-        target.RenderTransform = ParseOrIdentity($"scale({Number(peak)})");
-        await Task.Delay(half);
+        // 记录调用时是否已在可视树里：从未上树的控件（弹窗构造期）仍需正常恢复动画状态，
+        // 只有「原本在树里、延迟后被移除」才属于页面销毁，需要跳过写 UI 属性。
+        bool checkAlive = TopLevel.GetTopLevel(target) is not null;
 
-        target.Transitions = BuildTransitions(half, new CubicEaseOut());
-        target.RenderTransform = ParseOrIdentity("scale(1)");
+        try
+        {
+            var half = Math.Max(60, milliseconds / 2);
+            target.Transitions = BuildTransitions(half, new CubicEaseOut());
+            target.RenderTransform = ParseOrIdentity($"scale({Number(peak)})");
+            await Task.Delay(half);
+
+            // 延迟期间控件若已从可视树移除，不再继续写 UI 属性。
+            if (checkAlive && !IsAlive(target)) return;
+            target.Transitions = BuildTransitions(half, new CubicEaseOut());
+            target.RenderTransform = ParseOrIdentity("scale(1)");
+        }
+        catch (Exception exception)
+        {
+            // async void 的异常无法被外部观察，必须在这里兜底，避免跑到同步上下文里崩进程。
+            System.Diagnostics.Debug.WriteLine("[ui-animation] Pulse: " + exception.Message);
+        }
     }
 
     /// <summary>错峰入场：一组控件依次淡入（崩溃报告卡片、时间轴节点这类「一次建一批」的场景）。</summary>
@@ -249,18 +263,33 @@ public static class UiAnimations
             target.Opacity = 0;
             target.RenderTransform = ParseOrIdentity(
                 $"translateY({Number(offsetY)}px) scale(0.99)");
-            _ = RevealLaterAsync(target, delay, milliseconds);
+            // 即发即忘但观察异常，避免未观察异常；控件存活检查在 RevealLaterAsync 内部。
+            // 记录调用时是否已上树：从未上树的控件仍要恢复可见，不能被存活检查误跳过。
+            bool checkAlive = TopLevel.GetTopLevel(target) is not null;
+            _ = RevealLaterAsync(target, delay, milliseconds, checkAlive).ContinueWith(
+                static t => { _ = t.Exception; }, TaskScheduler.Default);
             delay += step;
         }
     }
 
-    private static async Task RevealLaterAsync(Control target, int delay, int milliseconds)
+    private static async Task RevealLaterAsync(
+        Control target, int delay, int milliseconds, bool checkAlive)
     {
-        if (delay > 0) await Task.Delay(delay);
+        try
+        {
+            if (delay > 0) await Task.Delay(delay);
 
-        target.Transitions = BuildTransitions(milliseconds, new CubicEaseOut());
-        target.Opacity = 1;
-        target.RenderTransform = ParseOrIdentity("translateY(0px) scale(1)");
+            // 仅当控件原本挂在可视树里、如今已被移除（页面 / 窗口销毁）时跳过，
+            // 避免继续写 UI 属性；从未上树的控件仍正常恢复，不破坏入场动画。
+            if (checkAlive && !IsAlive(target)) return;
+            target.Transitions = BuildTransitions(milliseconds, new CubicEaseOut());
+            target.Opacity = 1;
+            target.RenderTransform = ParseOrIdentity("translateY(0px) scale(1)");
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine("[ui-animation] RevealLater: " + exception.Message);
+        }
     }
 
     /// <summary>展开 / 收起：高度从 0 过渡到实测高度，结束后还原 NaN 让内容自适应。</summary>
@@ -350,4 +379,8 @@ public static class UiAnimations
 
     private static string Number(double value) =>
         value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>控件是否仍挂在可视化树上（页面 / 窗口销毁后会返回 false）。</summary>
+    private static bool IsAlive(Control? target) =>
+        target is not null && TopLevel.GetTopLevel(target) is not null;
 }

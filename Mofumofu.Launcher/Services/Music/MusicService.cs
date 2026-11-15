@@ -58,6 +58,8 @@ public sealed class MusicService
 
     public void SetClient(NetEaseMusicClient client)
     {
+        // NetEaseMusicClient 现在复用共享静态 HttpClient，旧实例不再持有需释放的 handler，
+        // 直接替换即可，不会有连接资源泄漏。
         Client = client;
         StateChanged?.Invoke();
     }
@@ -82,14 +84,16 @@ public sealed class MusicService
 
                 Status?.Invoke(L.T("Pages.Music.Resolving", "正在获取「{0}」的播放地址…", item.Title));
                 string? url = await Client.GetSongUrlAsync(songId).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                // 外部音频地址必须落在已知网易云 CDN 域并强制 HTTPS，http 统一升级；
+                // 非法 / 内网 / 任意外站地址一律拒绝，避免把请求打到不受控目标。
+                if (!MusicUrlPolicy.TryNormalize(url, out string safeUrl))
                 {
                     Status?.Invoke(L.T("Pages.Music.NoUrl",
                         "「{0}」没有可用的播放地址（可能需要 VIP 或已下架）", item.Title));
                     return false;
                 }
 
-                item.RemoteUrl = url;
+                item.RemoteUrl = safeUrl;
             }
 
             string source = item.IsCloud ? item.RemoteUrl : item.LocalPath;
@@ -147,7 +151,10 @@ public sealed class MusicService
 
         int index = Current is null ? -1 : Queue.ToList().FindIndex(item => item.Id == Current.Id);
         index = index < 0 ? 0 : (index + delta + Queue.Count) % Queue.Count;
-        _ = PlayAsync(Queue[index]);
+        // 即发即忘但观察异常：PlayAsync 内部已兜底，这里再挂一个 continuation 读取 Exception，
+        // 避免任何漏出的异常变成未观察异常。
+        _ = PlayAsync(Queue[index]).ContinueWith(
+            static t => { _ = t.Exception; }, TaskScheduler.Default);
     }
 
     private void OnPlaybackEnded()

@@ -280,7 +280,10 @@ public sealed class LaunchProgress
         SetStage("verify", 0, LaunchStageState.Running,
             L.T("Launch.Detail.PreVerifying", "MofuCore：解析版本 / 继承链 / 依赖库 / natives / Java"));
 
-        _ = RunRealAsync(options, token);
+        // 即发即忘但观察异常：RunRealAsync 内部已兜底，这里再挂 continuation 读取 Exception，
+        // 避免任何漏出的异常（例如非取消型 OperationCanceledException）变成未观察异常。
+        _ = RunRealAsync(options, token).ContinueWith(
+            static t => { _ = t.Exception; }, TaskScheduler.Default);
         return true;
     }
 

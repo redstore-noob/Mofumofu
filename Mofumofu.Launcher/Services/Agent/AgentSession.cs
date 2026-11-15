@@ -61,7 +61,14 @@ public sealed class AgentSession
     public bool IsBusy => State is AgentSessionState.Thinking or AgentSessionState.Streaming
         or AgentSessionState.RunningTool or AgentSessionState.WaitingUser;
 
-    public IReadOnlyList<AgentToolDefinition> ActiveTools => _tools.Resolve(Settings.Tools);
+    /// <summary>
+    /// 当前供应商是否为受信任的官方 HTTPS 端点。非官方 / 自定义 / 本机端点一律按不可信处理：
+    /// 不把本机环境信息拼进系统提示，也不暴露读取本机信息的工具，避免隐私外带。
+    /// </summary>
+    private bool TrustsLocalInfo =>
+        AgentProviderPresets.IsOfficialEndpoint(Settings.ActiveProvider?.BaseUrl);
+
+    public IReadOnlyList<AgentToolDefinition> ActiveTools => _tools.Resolve(Settings.Tools, TrustsLocalInfo);
 
     public event Action<AgentMessage>? MessageAdded;
     public event Action<AgentMessage>? MessageUpdated;
@@ -253,6 +260,7 @@ public sealed class AgentSession
             ConfirmHandler is null ? Task.FromResult(false) : ConfirmHandler(tool, arguments, ct),
         Model = Settings.ActiveModel,
         Settings = Settings,
+        TrustEndpoint = TrustsLocalInfo,
     };
 
     private AgentRequest BuildRequest(AgentProviderConfig provider)
@@ -265,7 +273,7 @@ public sealed class AgentSession
             Provider = provider,
             Model = Settings.ActiveModel,
             SystemPrompt = BuildSystemPrompt(toolTokens),
-            Messages = NormalizeForRequest(Conversation.Messages),
+            Messages = NormalizeForRequest(Conversation.Messages, TrustsLocalInfo),
             Tools = ActiveTools,
             TopP = Settings.TopP,
             MaxOutputTokens = Settings.MaxOutputTokens,
@@ -273,7 +281,15 @@ public sealed class AgentSession
         };
     }
 
-    private static List<AgentMessage> NormalizeForRequest(IEnumerable<AgentMessage> source)
+    private const string RedactedToolResult =
+        "（历史工具结果可能包含本机信息，当前供应商不是官方端点，已按隐私策略隐去）";
+
+    /// <summary>
+    /// 把会话消息整理成供应商请求格式。trustEndpoint 为 false 时，工具结果里的本机信息
+    /// 一律脱敏（保留 tool_call_id 以维持协议结构），避免历史结果被带到不可信端点。
+    /// </summary>
+    private static List<AgentMessage> NormalizeForRequest(
+        IEnumerable<AgentMessage> source, bool trustEndpoint)
     {
         var result = new List<AgentMessage>();
         var pending = new List<(string Id, string Name)>();
@@ -323,18 +339,35 @@ public sealed class AgentSession
                     int index = string.IsNullOrEmpty(message.ToolCallId)
                         ? -1
                         : pending.FindIndex(p => p.Id == message.ToolCallId);
+                    string toolText = trustEndpoint ? message.Text : RedactedToolResult;
                     if (index < 0)
                     {
                         FlushPending();
                         var orphan = AgentMessage.User(
-                            $"（工具 {message.ToolName ?? "未知"} 返回）{message.Text}");
+                            $"（工具 {message.ToolName ?? "未知"} 返回）{toolText}");
                         orphan.Tokens = TokenEstimator.EstimateMessage(orphan);
                         result.Add(orphan);
                     }
                     else
                     {
                         pending.RemoveAt(index);
-                        result.Add(message);
+                        if (trustEndpoint)
+                        {
+                            result.Add(message);
+                        }
+                        else
+                        {
+                            // 保留 ToolCallId / ToolName 以维持工具消息协议结构，只替换正文。
+                            result.Add(new AgentMessage
+                            {
+                                Role = AgentRole.Tool,
+                                ToolCallId = message.ToolCallId,
+                                ToolName = message.ToolName,
+                                Text = toolText,
+                                IsError = message.IsError,
+                                Time = message.Time,
+                            });
+                        }
                     }
                     break;
             }
@@ -352,13 +385,21 @@ public sealed class AgentSession
         builder.AppendLine();
         builder.AppendLine("【运行环境】");
         builder.Append("时间：").AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
-        builder.Append("系统：").AppendLine(Environment.OSVersion.VersionString);
-        builder.Append("游戏目录：").AppendLine(YamlRead.GameDirectory ?? "（未设置）");
-        builder.Append("选中实例：").AppendLine(string.IsNullOrWhiteSpace(LocalSettings.Current.SelectedInstanceId)
-            ? "（未选择）"
-            : LocalSettings.Current.SelectedInstanceId);
-        builder.Append("当前账号：").AppendLine(GameState.AccountName);
-        builder.Append("游戏运行中：").AppendLine(GameLaunch.Shared.IsGameRunning ? "是" : "否");
+        if (TrustsLocalInfo)
+        {
+            builder.Append("系统：").AppendLine(Environment.OSVersion.VersionString);
+            builder.Append("游戏目录：").AppendLine(YamlRead.GameDirectory ?? "（未设置）");
+            builder.Append("选中实例：").AppendLine(string.IsNullOrWhiteSpace(LocalSettings.Current.SelectedInstanceId)
+                ? "（未选择）"
+                : LocalSettings.Current.SelectedInstanceId);
+            builder.Append("当前账号：").AppendLine(GameState.AccountName);
+            builder.Append("游戏运行中：").AppendLine(GameLaunch.Shared.IsGameRunning ? "是" : "否");
+        }
+        else
+        {
+            // 非官方 / 自定义端点按隐私策略不提供本机路径、账号、系统版本、选中实例等信息。
+            builder.AppendLine("（当前供应商不是官方端点，按隐私策略不提供本机路径、账号、系统版本等信息。）");
+        }
 
         if (ActiveTools.Count > 0)
         {

@@ -84,8 +84,35 @@ public static class WebViewAssets
         core.AddWebResourceRequestedFilter(
             $"https://{VirtualHost}/*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += OnWebResourceRequested;
+        AttachNavigationGuard(core);
 
         AttachPreviewCapture(core, previewName);
+    }
+
+    /// <summary>
+    /// 导航白名单：本地虚拟域页面只允许停留在 https://mofumofu.local/*。
+    /// 主框架 / 子框架导航到任意其它地址一律取消，新窗口请求直接阻止（不交给系统浏览器，
+    /// 避免打开不受控的远程页面）。本地资源仍由 WebResourceRequested 的既有路径校验把关。
+    /// </summary>
+    private static void AttachNavigationGuard(CoreWebView2 core)
+    {
+        bool IsAllowed(string? uriText) =>
+            Uri.TryCreate(uriText, UriKind.Absolute, out Uri? uri) &&
+            uri.Scheme == Uri.UriSchemeHttps &&
+            string.Equals(uri.Host, VirtualHost, StringComparison.OrdinalIgnoreCase);
+
+        core.NavigationStarting += (_, args) =>
+        {
+            if (!IsAllowed(args.Uri)) args.Cancel = true;
+        };
+        core.FrameNavigationStarting += (_, args) =>
+        {
+            if (!IsAllowed(args.Uri)) args.Cancel = true;
+        };
+        core.NewWindowRequested += (_, args) =>
+        {
+            args.Handled = true;
+        };
     }
 
     private static void OnWebResourceRequested(
@@ -175,7 +202,7 @@ public static class WebViewAssets
     /// <summary>宿主关闭 WebView2 前调用：取消仍在写截图文件的后台任务。</summary>
     internal static void StopPreviewCapture(CoreWebView2? core)
     {
-        if (core is null || !PreviewStates.TryGetValue(core, out PreviewState state)) return;
+        if (core is null || !PreviewStates.TryGetValue(core, out PreviewState? state) || state is null) return;
         try
         {
             state.Cancellation.Cancel();

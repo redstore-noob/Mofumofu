@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,17 @@ public static class CoverCache
     // 单张封面（远程或内嵌）的体积上限，防止超大/伪造长度响应打满内存。
     private const int MaxCoverBytes = 8 * 1024 * 1024;
 
-    private static readonly ConcurrentDictionary<string, Task<Bitmap?>> Cache = new();
+    // 有界 LRU：超过上限时按最后访问序号淘汰最久未用的条目，避免缓存无限增长。
+    private const int MaxCacheEntries = 128;
+
+    private sealed class CacheEntry
+    {
+        public long LastAccess;
+        public required Lazy<Task<Bitmap?>> Loader { get; init; }
+    }
+
+    private static long _accessCounter;
+    private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.Ordinal);
 
     public static Task<Bitmap?> GetAsync(MusicItem item)
     {
@@ -27,14 +38,43 @@ public static class CoverCache
             ? "net:" + item.CoverUrl
             : "local:" + item.LocalPath.ToLowerInvariant();
 
-        if (Cache.TryGetValue(key, out Task<Bitmap?>? existing))
+        // GetOrAdd 保证同一 key 只入缓存一个条目；Lazy 保证加载任务只启动一次，
+        // 避免并发请求重复下载同一封面（ConcurrentDictionary 的工厂可能被调用多次）。
+        CacheEntry entry = Cache.GetOrAdd(key, _ => new CacheEntry
         {
-            return existing;
-        }
+            Loader = new Lazy<Task<Bitmap?>>(
+                () => LoadAsync(item), LazyThreadSafetyMode.ExecutionAndPublication),
+        });
+        entry.LastAccess = Interlocked.Increment(ref _accessCounter);
+        TrimToLimit();
 
-        Task<Bitmap?> task = LoadAsync(item);
-        Cache[key] = task;
-        return task;
+        // 失败（null）不缓存：任务完成后移除该条目，让下次可以重试。
+        return ObserveFailureAsync(key, entry, entry.Loader.Value);
+    }
+
+    private static async Task<Bitmap?> ObserveFailureAsync(
+        string key, CacheEntry entry, Task<Bitmap?> task)
+    {
+        Bitmap? bitmap = await task.ConfigureAwait(false);
+        if (bitmap is null &&
+            Cache.TryGetValue(key, out CacheEntry? current) && ReferenceEquals(current, entry))
+        {
+            // 只移除仍是自己这条的缓存，避免误删后来重新加载的条目。
+            Cache.TryRemove(key, out _);
+        }
+        return bitmap;
+    }
+
+    private static void TrimToLimit()
+    {
+        if (Cache.Count <= MaxCacheEntries) return;
+        // 按最后访问序号淘汰最旧的条目，保持缓存有界（LRU）。
+        foreach (var pair in Cache
+                     .OrderBy(pair => pair.Value.LastAccess)
+                     .Take(Cache.Count - MaxCacheEntries))
+        {
+            Cache.TryRemove(pair.Key, out _);
+        }
     }
 
     private static async Task<Bitmap?> LoadAsync(MusicItem item)
@@ -61,18 +101,21 @@ public static class CoverCache
 
     private static async Task<byte[]?> DownloadAsync(string url)
     {
-        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // 强制 HTTPS + 网易云 CDN 白名单；http 升级为 https，其它地址一律拒绝。
+        if (!MusicUrlPolicy.TryNormalize(url, out string safeUrl))
         {
             return null;
         }
 
         // 网易图床会按请求头拦截，带上 UA 就够了
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, safeUrl);
         request.Headers.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36");
         using HttpResponseMessage response = await Http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) return null;
+        // 格式：明确声明为文本 / HTML 等非图片类型的响应不下载。
+        if (!MusicUrlPolicy.IsAllowedImageContentType(response.Content.Headers.ContentType?.MediaType)) return null;
         if (response.Content.Headers.ContentLength is long declared && declared > MaxCoverBytes) return null;
 
         await using Stream stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -88,7 +131,21 @@ public static class CoverCache
             buffer.Write(chunk, 0, read);
         }
 
-        return buffer.ToArray();
+        byte[] data = buffer.ToArray();
+        // 再按文件头校验图片格式，避免把错误页 / 任意二进制交给解码器。
+        return IsSupportedImage(data) ? data : null;
+    }
+
+    private static bool IsSupportedImage(byte[] data)
+    {
+        if (data.Length < 12) return false;
+        if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return true; // JPEG
+        if (data[0] == 0x89 && data[1] == (byte)'P' && data[2] == (byte)'N' && data[3] == (byte)'G') return true; // PNG
+        if (data[0] == (byte)'G' && data[1] == (byte)'I' && data[2] == (byte)'F') return true; // GIF
+        if (data[0] == (byte)'R' && data[1] == (byte)'I' && data[2] == (byte)'F' && data[3] == (byte)'F' &&
+            data[8] == (byte)'W' && data[9] == (byte)'E' && data[10] == (byte)'B' && data[11] == (byte)'P') return true; // WebP
+        if (data[0] == (byte)'B' && data[1] == (byte)'M') return true; // BMP
+        return false;
     }
 }
 
@@ -286,5 +343,69 @@ public static class LocalCoverExtractor
         bool png = data[0] == 0x89 && data[1] == (byte)'P' && data[2] == (byte)'N' && data[3] == (byte)'G';
         return jpeg || png || mime.Contains("jpeg", StringComparison.OrdinalIgnoreCase) ||
                mime.Contains("png", StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>
+/// 外部媒体 URL 白名单：网易云封面 / 音频只允许 HTTPS 的已知 CDN 域，http 统一升级为 https。
+/// 其它主机（内网、file、任意外站）一律拒绝，防止接口或缓存里被塞入的地址把请求打到不受控目标。
+/// </summary>
+internal static class MusicUrlPolicy
+{
+    // 网易云图片 / 音频 CDN 及其接口域，只放行这些域本身与子域。
+    private static readonly string[] AllowedHostSuffixes =
+    {
+        "music.126.net",
+        "music.163.com",
+        "126.net",
+    };
+
+    public static bool TryNormalize(string? url, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return false;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+        // 拒绝带凭据、非默认端口以及不在白名单内的主机。
+        if (!string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort || !IsAllowedHost(uri.Host)) return false;
+
+        // 统一升级为 HTTPS：这些 CDN 都支持 https，避免明文 http 出站。
+        var builder = new UriBuilder(uri)
+        {
+            Scheme = Uri.UriSchemeHttps,
+            Port = -1,
+            Fragment = string.Empty,
+        };
+        normalized = builder.Uri.AbsoluteUri;
+        return true;
+    }
+
+    /// <summary>
+    /// 内容类型只做「拒绝明确的文本 / 错误页」：CDN 的 octet-stream 写法五花八门，
+    /// 白名单过严会误伤正常音频 / 图片；真正的格式限制交给文件头 magic 校验。
+    /// </summary>
+    public static bool IsAllowedImageContentType(string? mediaType) =>
+        !IsTextContentType(mediaType);
+
+    public static bool IsAllowedAudioContentType(string? mediaType) =>
+        !IsTextContentType(mediaType);
+
+    private static bool IsTextContentType(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType)) return false;
+        return mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) ||
+               mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
+               mediaType.Equals("application/xml", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllowedHost(string host)
+    {
+        foreach (string suffix in AllowedHostSuffixes)
+        {
+            if (host.Equals(suffix, StringComparison.OrdinalIgnoreCase) ||
+                host.EndsWith("." + suffix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 }

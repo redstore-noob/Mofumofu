@@ -98,14 +98,24 @@ public sealed class MusicItem : INotifyPropertyChanged
     {
         if (_coverLoading) return;
         _coverLoading = true;
-        _ = LoadCoverAsync();
+        // 即发即忘但观察异常，避免封面加载 / 绑定回调的异常变成未观察异常。
+        _ = LoadCoverAsync().ContinueWith(
+            static t => { _ = t.Exception; }, TaskScheduler.Default);
     }
 
     private async Task LoadCoverAsync()
     {
-        Bitmap? bitmap = await CoverCache.GetAsync(this).ConfigureAwait(false);
-        _coverImage = bitmap;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CoverImage)));
+        try
+        {
+            Bitmap? bitmap = await CoverCache.GetAsync(this).ConfigureAwait(false);
+            _coverImage = bitmap;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CoverImage)));
+        }
+        catch (Exception exception)
+        {
+            // 页面 / 控件销毁后绑定回调可能抛异常，这里兜底，封面失败不影响其它功能。
+            System.Diagnostics.Debug.WriteLine("[music] 封面加载失败：" + exception.Message);
+        }
     }
 
     private static string FormatSize(long bytes)

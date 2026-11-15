@@ -417,29 +417,37 @@ internal sealed class DownloadTaskCore
 
         _ = Task.Run(() =>
         {
-            foreach (string path in paths)
+            try
             {
-                try
+                foreach (string path in paths)
                 {
-                    if (File.Exists(path))
+                    try
                     {
-                        File.Delete(path);
-                        AppendLog(entry.Id, L.T("Download.Log.DeletedFile", "已删除文件 {0}", path));
+                        if (File.Exists(path))
+                        {
+                            File.Delete(path);
+                            AppendLog(entry.Id, L.T("Download.Log.DeletedFile", "已删除文件 {0}", path));
+                        }
+                        else if (Directory.Exists(path))
+                        {
+                            Directory.Delete(path, recursive: true);
+                            AppendLog(entry.Id, L.T("Download.Log.DeletedDirectory", "已删除目录 {0}", path));
+                        }
                     }
-                    else if (Directory.Exists(path))
+                    catch (Exception ex)
                     {
-                        Directory.Delete(path, recursive: true);
-                        AppendLog(entry.Id, L.T("Download.Log.DeletedDirectory", "已删除目录 {0}", path));
+                        AppendLog(entry.Id, L.T("Download.Log.CleanupFailed", "清理失败 {0}：{1}", path, ex.Message));
                     }
                 }
-                catch (Exception ex)
-                {
-                    AppendLog(entry.Id, L.T("Download.Log.CleanupFailed", "清理失败 {0}：{1}", path, ex.Message));
-                }
-            }
 
-            AppendLog(entry.Id, L.T("Download.Log.CleanupDone", "清理结束"));
-        });
+                AppendLog(entry.Id, L.T("Download.Log.CleanupDone", "清理结束"));
+            }
+            catch (Exception ex)
+            {
+                // 兜底：任何漏出的异常都写日志，绝不成为未观察异常。
+                AppendLog(entry.Id, L.T("Download.Log.CleanupFailed", "清理失败 {0}：{1}", "清理任务", ex.Message));
+            }
+        }).ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
     }
 
     /// <summary>任一可暂停任务处于暂停 → 合上全局下载闸门；全部恢复 → 打开。</summary>

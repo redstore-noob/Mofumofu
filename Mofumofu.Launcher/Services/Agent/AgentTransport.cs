@@ -129,15 +129,51 @@ public static partial class AgentClient
                          !AgentSecretProtector.LooksEncrypted(provider.ExtraHeaders)
             ? provider.ExtraHeaders
             : string.Empty;
-        foreach (string line in headers.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        // 按 \r\n / \n / \r 逐行切分；每行做控制字符过滤、头名 token 校验与头值校验，
+        // 非法项直接跳过，避免被篡改的配置变成请求头注入 / 走私。
+        foreach (string rawLine in headers.Split(
+                     new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries))
         {
-            int colon = line.IndexOf(':');
+            if (ContainsControlChar(rawLine)) continue;
+            int colon = rawLine.IndexOf(':');
             if (colon <= 0) continue;
-            message.Headers.TryAddWithoutValidation(line[..colon].Trim(), line[(colon + 1)..].Trim());
+
+            string name = rawLine[..colon].Trim();
+            string value = rawLine[(colon + 1)..].Trim();
+            if (!IsValidHeaderName(name) || !IsValidHeaderValue(value)) continue;
+
+            message.Headers.TryAddWithoutValidation(name, value);
         }
 
         return message;
     }
+
+    private static bool ContainsControlChar(string text)
+    {
+        foreach (char ch in text)
+        {
+            if (char.IsControl(ch)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>头名必须是 RFC 7230 tchar（token），拒绝空格、冒号、括号等分隔符。</summary>
+    private static bool IsValidHeaderName(string name)
+    {
+        if (name.Length == 0) return false;
+        foreach (char ch in name)
+        {
+            bool alphaNumeric = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                                (ch >= '0' && ch <= '9');
+            bool tchar = alphaNumeric || ch is '!' or '#' or '$' or '%' or '&' or '\'' or '*'
+                or '+' or '-' or '.' or '^' or '_' or '`' or '|' or '~';
+            if (!tchar) return false;
+        }
+        return true;
+    }
+
+    /// <summary>头值拒绝控制字符（含 CR/LF/NUL 与折叠续行），避免注入额外头部。</summary>
+    private static bool IsValidHeaderValue(string value) => !ContainsControlChar(value);
 
     internal static StringContent JsonBody(object body) =>
         new(JsonSerializer.Serialize(body, AgentJson.Options), Encoding.UTF8, "application/json");
