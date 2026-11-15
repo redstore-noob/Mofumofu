@@ -1540,6 +1540,9 @@ public partial class MainWindow : Window
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        // 设置页不再逐项落盘，关闭/退出时统一保存一次，避免改动丢失。
+        LocalSettings.Save();
+
         if (_forceClose) return;
 
         var action = LocalSettings.Current.CloseAction;

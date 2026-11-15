@@ -92,6 +92,9 @@ public partial class SettingsView : UserControl
                 }
             });
         };
+
+        // 设置不再逐项即时落盘：离开设置页时统一保存一次，退出时由主窗口兜底。
+        DetachedFromVisualTree += (_, _) => LocalSettings.Save();
     }
 
     // ==================== 初始化 ====================
@@ -167,12 +170,6 @@ public partial class SettingsView : UserControl
         AutoDependenciesToggle.IsChecked = settings.AutoInstallDependencies;
 
         RefreshAboutVersions();
-    }
-
-    private static void SaveAndToast(string message)
-    {
-        LocalSettings.Save();
-        Shell.Toast(message);
     }
 
     // ==================== 强调色 / 语言 / 主题色映射 ====================
@@ -691,16 +688,6 @@ public partial class SettingsView : UserControl
         var index = CloseActionCombo.SelectedIndex;
         var action = index >= 0 && index < CloseActions.Length ? CloseActions[index] : "exit";
         LocalSettings.Current.CloseAction = action;
-        LocalSettings.Save();
-
-        var label = action switch
-        {
-            "tray" => L.T("Settings.General.Window.CloseActionMinimize", "最小化到系统托盘"),
-            "ask" => L.T("Settings.General.Window.CloseActionAsk", "每次询问"),
-            _ => L.T("Settings.General.Window.CloseActionExit", "退出启动器"),
-        };
-
-        Shell.Toast(L.T("Settings.Toast.CloseAction", "已保存：关闭窗口时「{0}」", label));
     }
 
     private void OnSingleInstanceChanged(object? sender, RoutedEventArgs e)
@@ -708,9 +695,6 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.SingleInstance = SingleInstanceToggle.IsChecked == true;
-        SaveAndToast(SingleInstanceToggle.IsChecked == true
-            ? L.T("Settings.Toast.SingleInstanceOn", "已保存：单实例运行（重启后生效）")
-            : L.T("Settings.Toast.SingleInstanceOff", "已保存：允许多实例运行（重启后生效）"));
     }
 
     private void OnLanguageCardClick(object? sender, RoutedEventArgs e)
@@ -732,12 +716,7 @@ public partial class SettingsView : UserControl
 
         var colorful = IconPaletteCombo.SelectedIndex != 0;
         LocalSettings.Current.IconPalette = colorful ? "colorful" : "theme";
-        LocalSettings.Save();
-
         IconParkIcon.UseColorfulPalette = colorful;
-        Shell.Toast(colorful
-            ? L.T("Settings.Toast.IconPaletteColorful", "图标已切换为多彩配色")
-            : L.T("Settings.Toast.IconPaletteTheme", "图标已切换为跟随主题配色"));
     }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
@@ -752,17 +731,7 @@ public partial class SettingsView : UserControl
         };
 
         LocalSettings.Current.Theme = theme;
-        LocalSettings.Save();
         ThemeManager.Apply(theme, LocalSettings.Current.AccentColor);
-
-        var label = theme switch
-        {
-            "light" => L.T("Settings.Appearance.Theme.Light", "浅色"),
-            "system" => L.T("Settings.Appearance.Theme.System", "跟随系统"),
-            _ => L.T("Settings.Appearance.Theme.Dark", "深色"),
-        };
-
-        Shell.Toast(L.T("Settings.Toast.Theme", "已保存：UI 主题切换为「{0}」", label));
     }
 
     // ==================== 主题色色板 / 自定义颜色 ====================
@@ -835,13 +804,8 @@ public partial class SettingsView : UserControl
         }
 
         LocalSettings.Current.AccentColor = normalized;
-        LocalSettings.Save();
         ThemeManager.Apply(LocalSettings.Current.Theme, normalized);
         UpdateAccentSelection();
-
-        Shell.Toast(ThemeManager.IsCustomAccent(normalized)
-            ? L.T("Settings.Toast.AccentCustom", "已保存：自定义主题色 {0}", normalized.ToUpperInvariant())
-            : L.T("Settings.Toast.Accent", "已保存：主题色切换为「{0}」", AccentLabel(normalized)));
     }
 
     private void ShowCustomAccentDialog()
@@ -1160,7 +1124,6 @@ public partial class SettingsView : UserControl
         recent.RemoveAll(item => string.Equals(item, hex, StringComparison.OrdinalIgnoreCase));
         recent.Insert(0, hex);
         while (recent.Count > 8) recent.RemoveAt(recent.Count - 1);
-        LocalSettings.Save();
     }
 
     /// <summary>弹窗内容里的按钮：取它所在的 MofuDialogHost 关掉当前弹窗。</summary>
@@ -1180,7 +1143,6 @@ public partial class SettingsView : UserControl
 
         var enabled = AccentFollowToggle.IsChecked == true;
         LocalSettings.Current.AccentFollowBackground = enabled;
-        LocalSettings.Save();
 
         if (!enabled)
         {
@@ -1295,12 +1257,8 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.PanelBlur = PanelBlurToggle.IsChecked == true;
-        LocalSettings.Save();
         GlassEffects.SetEnabled(LocalSettings.Current.PanelBlur);
         RequestAppearanceApply();
-        Shell.Toast(PanelBlurToggle.IsChecked == true
-            ? L.T("Settings.Toast.BlurOn", "已开启面板毛玻璃")
-            : L.T("Settings.Toast.BlurOff", "已关闭面板毛玻璃"));
     }
 
     private void OnWindowOpacityChanged(object? sender, RangeBaseValueChangedEventArgs e)
@@ -1309,10 +1267,7 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.WindowOpacity = (int)Math.Round(e.NewValue);
-        LocalSettings.Save();
         RequestAppearanceApply();
-        Shell.Toast(L.T("Settings.Toast.WindowOpacity", "已保存：窗口不透明度 {0}%",
-            (int)Math.Round(e.NewValue)));
     }
 
     private void OnBackgroundOpacityChanged(object? sender, RangeBaseValueChangedEventArgs e)
@@ -1321,10 +1276,7 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.BackgroundOpacity = (int)Math.Round(e.NewValue);
-        LocalSettings.Save();
         RequestAppearanceApply();
-        Shell.Toast(L.T("Settings.Toast.BackgroundOpacity", "已保存：背景不透明度 {0}%",
-            (int)Math.Round(e.NewValue)));
     }
 
     private void OnSquareCornersChanged(object? sender, RoutedEventArgs e)
@@ -1332,11 +1284,7 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.SquareCorners = SquareCornerToggle.IsChecked == true;
-        LocalSettings.Save();
         RequestAppearanceApply();
-        Shell.Toast(SquareCornerToggle.IsChecked == true
-            ? L.T("Settings.Toast.SquareOn", "已开启直角模式")
-            : L.T("Settings.Toast.SquareOff", "已关闭直角模式"));
     }
 
     private void OnStartBarPlacementChanged(object? sender, SelectionChangedEventArgs e)
@@ -1350,16 +1298,6 @@ public partial class SettingsView : UserControl
             3 => "top",
             _ => "bottom",
         };
-
-        var label = StartBarPlacementCombo.SelectedIndex switch
-        {
-            1 => L.T("Settings.Appearance.StartBar.Left", "左侧"),
-            2 => L.T("Settings.Appearance.StartBar.Right", "右侧"),
-            3 => L.T("Settings.Appearance.StartBar.Top", "顶部"),
-            _ => L.T("Settings.Appearance.StartBar.Bottom", "底部"),
-        };
-
-        SaveAndToast(L.T("Settings.Toast.StartBarPlacement", "已保存：开始栏位置「{0}」，重启后生效", label));
     }
 
     private void OnStartBarAutoHideChanged(object? sender, RoutedEventArgs e)
@@ -1367,9 +1305,6 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.StartBarAutoHide = StartBarAutoHideToggle.IsChecked == true;
-        SaveAndToast(StartBarAutoHideToggle.IsChecked == true
-            ? L.T("Settings.Toast.StartBarAutoHideOn", "已保存：开始栏自动隐藏")
-            : L.T("Settings.Toast.StartBarAutoHideOff", "已保存：开始栏不再自动隐藏"));
     }
 
     // ==================== 下载与网络 ====================
@@ -1416,18 +1351,8 @@ public partial class SettingsView : UserControl
 
         string key = SourceKeyAt(DownloadSourceCombo.SelectedIndex);
         LocalSettings.Current.DownloadSource = key;
-        LocalSettings.Save();
         UpdateCustomSourceRowVisibility();
         DownloadSourceSettings.Apply(LocalSettings.Current);
-
-        string label = key switch
-        {
-            DownloadSourceSettings.Official => L.T("Settings.Network.Download.SourceOfficial", "官方源（Mojang）"),
-            DownloadSourceSettings.Custom => L.T("Settings.Network.Download.SourceCustom", "自定义源"),
-            _ => L.T("Settings.Network.Download.SourceMirror", "镜像源（BMCLAPI）"),
-        };
-
-        Shell.Toast(L.T("Settings.Toast.DownloadSource", "已保存：下载源「{0}」", label));
 
         if (DownloadSourceSettings.IsCustom(key) && DownloadSourceSettings.CreateCustom(LocalSettings.Current) is null)
         {
@@ -1441,10 +1366,8 @@ public partial class SettingsView : UserControl
 
         string key = FallbackKeyAt(DownloadFallbackCombo.SelectedIndex);
         LocalSettings.Current.DownloadFallbackSource = key;
-        LocalSettings.Save();
         UpdateCustomSourceRowVisibility();
         DownloadSourceSettings.Apply(LocalSettings.Current);
-        Shell.Toast(L.T("Settings.Toast.DownloadFallback", "已更新回退下载源"));
     }
 
     private void OnCustomSourceChanged(object? sender, RoutedEventArgs e)
@@ -1453,7 +1376,6 @@ public partial class SettingsView : UserControl
 
         LocalSettings.Current.CustomDownloadSourceName = CustomSourceNameBox.Text?.Trim() ?? string.Empty;
         LocalSettings.Current.CustomDownloadSourceUrl = CustomSourceUrlBox.Text?.Trim() ?? string.Empty;
-        LocalSettings.Save();
         DownloadSourceSettings.Apply(LocalSettings.Current);
 
         if (DownloadSourceSettings.CreateCustom(LocalSettings.Current) is null &&
@@ -1545,9 +1467,7 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.ParallelDownloads = parallel;
-        LocalSettings.Save();
         DownloadSettings.ParallelDownloads = parallel;
-        Shell.Toast(L.T("Settings.Toast.Parallel", "已保存：并行下载数 {0}", parallel));
     }
 
     private void OnCurseForgeKeyLostFocus(object? sender, RoutedEventArgs e)
@@ -1556,10 +1476,6 @@ public partial class SettingsView : UserControl
 
         var key = (CurseForgeKeyBox.Text ?? string.Empty).Trim();
         LocalSettings.Current.CurseForgeApiKey = key;
-        LocalSettings.Save();
-        Shell.Toast(key.Length == 0
-            ? L.T("Settings.Toast.CurseForgeEmpty", "已保存：未配置 CurseForge API Key")
-            : L.T("Settings.Toast.CurseForgeSet", "已保存：CurseForge API Key（仅保存在本机）"));
     }
 
     private void OnAutoDependenciesChanged(object? sender, RoutedEventArgs e)
@@ -1567,9 +1483,6 @@ public partial class SettingsView : UserControl
         if (_loading) return;
 
         LocalSettings.Current.AutoInstallDependencies = AutoDependenciesToggle.IsChecked == true;
-        SaveAndToast(AutoDependenciesToggle.IsChecked == true
-            ? L.T("Settings.Toast.AutoDepsOn", "已保存：安装模组时自动补齐前置")
-            : L.T("Settings.Toast.AutoDepsOff", "已保存：不再自动安装前置模组"));
     }
 
     // ==================== 关于 ====================
