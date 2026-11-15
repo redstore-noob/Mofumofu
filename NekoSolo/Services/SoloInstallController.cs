@@ -92,12 +92,19 @@ public sealed class SoloInstallController
         long writtenBytes = 0;
         string? error = null;
         bool cancelled = false;
+        string stageMarkerPath = string.Empty;
+        StreamWriter? stage = null;
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             options = options with { TargetPath = Path.GetFullPath(options.TargetPath) };
             Directory.CreateDirectory(options.TargetPath);
+
+            // 阶段标记：实时记录本次写出的文件；失败/取消时按清单回滚，避免重试时新旧文件混装。
+            stageMarkerPath = Path.Combine(options.TargetPath, ".nekosolo-installing");
+            stage = PrepareStageMarker(stageMarkerPath, options.TargetPath, Log);
+            Action<string> track = fullPath => TrackWritten(stage, options.TargetPath, fullPath);
 
             // 1) 检查安装包
             Begin(InstallStep.Check);
@@ -175,9 +182,12 @@ public sealed class SoloInstallController
             }
 
             manifest = Manifest!;
-            using (Stream package = OpenPackageStream(payload))
-            using (var archive = new ZipArchive(package, ZipArchiveMode.Read))
+            // 校验与全部释放共用同一个 ZipArchive 实例：先统一校验条目路径/体积/完整性，
+            // 再连续释放 files/、minecraft/、jre/，关闭「校验一个 archive、释放另一个 archive」的 TOCTOU 窗口。
+            using (Stream packageStream = OpenPackageStream(payload))
+            using (var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: false))
             {
+                // 2) 校验（Begin 已在步骤 1 之后调用）
                 // 释放/启动之前统一校验条目路径、体积上限与解压完整性，任一失败即终止（fail-closed）。
                 SoloPayload.VerifyArchive(archive, Log);
                 // 只接受包含主启动器的完整包，不能把普通 zip 或仅含实例内容的旧包标为安装成功。
@@ -185,20 +195,16 @@ public sealed class SoloInstallController
                         string.Equals(entry.FullName, "files/" + LauncherFileName, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(entry.FullName, "overrides/" + LauncherFileName, StringComparison.OrdinalIgnoreCase)))
                     throw new InvalidOperationException("安装包缺少 files/Mofumofu.Launcher.exe，请使用新版导出器重新打包。");
-            }
-            End(InstallStep.Verify);
+                End(InstallStep.Verify);
 
-            // 3) 释放启动器
-            Begin(InstallStep.Extract);
-            using (Stream payloadStream = OpenPackageStream(payload))
-            using (var archive = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: false))
-            {
+                // 3) 释放启动器
+                Begin(InstallStep.Extract);
                 var extractProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Extract"), string.Empty));
                 string extractedPrefix = archive.Entries.Any(entry => string.Equals(entry.FullName,
                     "files/" + LauncherFileName, StringComparison.OrdinalIgnoreCase)) ? "files/" : "overrides/";
                 long count = SoloPayload.ExtractPrefix(payload, archive, extractedPrefix, options.TargetPath, Log,
-                    extractProgress, cancellationToken);
+                    extractProgress, cancellationToken, onWritten: track);
 
                 if (count == 0) throw new InvalidOperationException("安装包没有可释放的启动器文件。");
                 fileCount += (int)count;
@@ -206,31 +212,28 @@ public sealed class SoloInstallController
                     .Where(entry => entry.FullName.StartsWith(extractedPrefix, StringComparison.OrdinalIgnoreCase))
                     .Sum(entry => entry.Length);
                 Log($"extract: {count} 个文件 → {options.TargetPath}");
-            }
+                End(InstallStep.Extract, SoloStrings.F("Progress.Files", fileCount));
 
-            End(InstallStep.Extract, SoloStrings.F("Progress.Files", fileCount));
+                // 4) 写配置
+                Begin(InstallStep.Config);
+                // 先登记会写出的配置/标记文件，写配置中途失败也能一并回滚；桌面快捷方式不在安装目录内，不回滚。
+                track(Path.Combine(options.TargetPath, "solo.json"));
+                if (options.Portable) track(Path.Combine(options.TargetPath, "portable.flag"));
+                await WriteConfigurationAsync(manifest, options, cancellationToken).ConfigureAwait(false);
+                End(InstallStep.Config);
 
-            // 4) 写配置
-            Begin(InstallStep.Config);
-            await WriteConfigurationAsync(manifest, options, cancellationToken).ConfigureAwait(false);
-
-            End(InstallStep.Config);
-
-            // 5) 补全游戏文件
-            Begin(InstallStep.Minecraft);
-            using (Stream payloadStream = OpenPackageStream(payload))
-            using (var archive = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: false))
-            {
+                // 5) 补全游戏文件
+                Begin(InstallStep.Minecraft);
                 string mcTarget = Path.Combine(options.TargetPath, ".minecraft");
                 var mcProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Minecraft"), string.Empty));
-                long count = SoloPayload.ExtractPrefix(payload, archive, "minecraft/", mcTarget, Log, mcProgress,
-                    cancellationToken);
-                fileCount += (int)count;
+                long mcCount = SoloPayload.ExtractPrefix(payload, archive, "minecraft/", mcTarget, Log, mcProgress,
+                    cancellationToken, onWritten: track);
+                fileCount += (int)mcCount;
 
-                if (count > 0)
+                if (mcCount > 0)
                 {
-                    Log($"minecraft: minecraft/ → {mcTarget} ({count} 个文件)");
+                    Log($"minecraft: minecraft/ → {mcTarget} ({mcCount} 个文件)");
                 }
                 else
                 {
@@ -240,23 +243,27 @@ public sealed class SoloInstallController
                 var jreProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Minecraft"), "jre"));
                 long jreCount = SoloPayload.ExtractPrefix(payload, archive, "jre/",
-                    Path.Combine(mcTarget, "runtime", "jre"), Log, jreProgress, cancellationToken);
+                    Path.Combine(mcTarget, "runtime", "jre"), Log, jreProgress, cancellationToken, onWritten: track);
                 fileCount += (int)jreCount;
                 writtenBytes += archive.Entries.Where(entry =>
                     entry.FullName.StartsWith("minecraft/", StringComparison.OrdinalIgnoreCase) ||
                     entry.FullName.StartsWith("jre/", StringComparison.OrdinalIgnoreCase)).Sum(entry => entry.Length);
                 if (jreCount > 0) Log($"java: jre/ → {Path.Combine(mcTarget, "runtime", "jre")} ({jreCount} 个文件)");
+                End(InstallStep.Minecraft);
+
+                // 6) 完成
+                Begin(InstallStep.Finish);
+                await WriteInstallMarkerAsync(manifest, options, stopwatch.Elapsed, cancellationToken).ConfigureAwait(false);
+
+                Progress(1, SoloStrings.T("Step.Finish"), string.Empty);
+                End(InstallStep.Finish);
+                Log($"done: {stopwatch.Elapsed.TotalSeconds:0.0}s");
             }
 
-            End(InstallStep.Minecraft);
+            // 安装完整成功后移除阶段标记；完成标记 .nekosolo-installed 仍只在 Finish 写入。
+            FinishStageMarker(stage, stageMarkerPath);
+            stage = null;
 
-            // 6) 完成
-            Begin(InstallStep.Finish);
-            await WriteInstallMarkerAsync(manifest, options, stopwatch.Elapsed, cancellationToken).ConfigureAwait(false);
-
-            Progress(1, SoloStrings.T("Step.Finish"), string.Empty);
-            End(InstallStep.Finish);
-            Log($"done: {stopwatch.Elapsed.TotalSeconds:0.0}s");
             if (options.LaunchAfterInstall)
             {
                 // 只启动经白名单与包内断言校验过的启动器；找不到时保持安装成功但跳过自动启动。
@@ -277,13 +284,21 @@ public sealed class SoloInstallController
         {
             cancelled = true;
             MarkRunningFailed();
+            RollbackStage(stage, stageMarkerPath, options.TargetPath, Log);
+            stage = null;
             Log("cancelled");
         }
         catch (Exception ex)
         {
             error = ex.Message;
             MarkRunningFailed();
+            RollbackStage(stage, stageMarkerPath, options.TargetPath, Log);
+            stage = null;
             Log("error: " + ex.Message);
+        }
+        finally
+        {
+            stage?.Dispose();
         }
 
         Finished?.Invoke(new InstallResult(error is null && !cancelled, cancelled, error, fileCount, writtenBytes,
@@ -454,8 +469,118 @@ public sealed class SoloInstallController
         CancellationToken cancellationToken)
     {
         string markerPath = Path.Combine(options.TargetPath, ".nekosolo-installed");
-        string text = $"pack={manifest.PackId}\nversion={manifest.VersionDisplay}\nelapsed={elapsed.TotalSeconds:0.0}s\n";
+        // .nekosolo-installed 是换行分隔的 key=value 文本：值里的换行/控制字符会伪造记录，
+        // 写入前统一剔除（FromJson 已校验，这里对直接构造的 manifest 做二次兜底）。
+        string text = $"pack={EscapeMarkerValue(manifest.PackId)}\n" +
+                      $"version={EscapeMarkerValue(manifest.VersionDisplay)}\n" +
+                      $"elapsed={elapsed.TotalSeconds:0.0}s\n";
         await File.WriteAllTextAsync(markerPath, text, cancellationToken).ConfigureAwait(false);
+    }
+
+    // ---------------- 安装阶段标记 / 失败回滚 ----------------
+
+    /// <summary>剔除 marker 值里的控制字符（含换行），防止伪造 key=value 记录。</summary>
+    private static string EscapeMarkerValue(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (char ch in value)
+        {
+            if (!char.IsControl(ch)) builder.Append(ch);
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// 准备阶段标记：若上次安装异常退出留下标记，先按其记录清理残留文件，避免重试时新旧文件混装；
+    /// 随后打开一个实时写入的清单，记录本次写出的文件相对路径。
+    /// </summary>
+    private static StreamWriter PrepareStageMarker(string markerPath, string target, Action<string> log)
+    {
+        if (File.Exists(markerPath))
+        {
+            int cleaned = 0;
+            try
+            {
+                foreach (string relative in File.ReadLines(markerPath).ToArray())
+                {
+                    if (!string.IsNullOrWhiteSpace(relative) && TryDeleteTracked(target, relative)) cleaned++;
+                }
+            }
+            catch (Exception) { /* 残留清理失败不阻断本次安装 */ }
+
+            if (cleaned > 0) log($"cleanup: 清理上次未完成安装残留的 {cleaned} 个文件");
+        }
+
+        return new StreamWriter(markerPath, append: false) { AutoFlush = true };
+    }
+
+    /// <summary>把本次写出的文件（仅安装目录内）追加到阶段标记清单。</summary>
+    private static void TrackWritten(StreamWriter? stage, string target, string fullPath)
+    {
+        if (stage is null) return;
+        string relative = Path.GetRelativePath(target, fullPath);
+        // 拒绝越界/绝对路径：桌面快捷方式等不在安装目录内，不纳入回滚范围。
+        if (relative == ".." ||
+            relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+            Path.IsPathRooted(relative)) return;
+        stage.WriteLine(relative);
+    }
+
+    /// <summary>安装成功：关闭并删除阶段标记，保留 Finish 写入的完成标记。</summary>
+    private static void FinishStageMarker(StreamWriter? stage, string markerPath)
+    {
+        stage?.Dispose();
+        TryDeleteFile(markerPath);
+    }
+
+    /// <summary>失败/取消：按阶段标记清单回滚本次已写出的文件，并删除标记（完成标记本就不会写入）。</summary>
+    private static void RollbackStage(StreamWriter? stage, string markerPath, string target, Action<string> log)
+    {
+        stage?.Dispose(); // 先释放句柄，下面才能安全读取清单
+        if (string.IsNullOrEmpty(markerPath)) return;
+
+        int removed = 0;
+        try
+        {
+            if (File.Exists(markerPath))
+            {
+                foreach (string relative in File.ReadLines(markerPath).ToArray())
+                {
+                    if (!string.IsNullOrWhiteSpace(relative) && TryDeleteTracked(target, relative)) removed++;
+                }
+            }
+        }
+        catch (Exception) { /* 回滚失败不覆盖原始安装异常 */ }
+
+        TryDeleteFile(markerPath);
+        if (removed > 0) log($"cleanup: 已回滚 {removed} 个文件");
+    }
+
+    /// <summary>删除清单里的一个相对路径文件；先规范化并断言仍落在安装目录内，防清单被篡改后越界删除。</summary>
+    private static bool TryDeleteTracked(string target, string relative)
+    {
+        try
+        {
+            string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(target));
+            string full = Path.GetFullPath(Path.Combine(root, relative));
+            string prefix = root + Path.DirectorySeparatorChar;
+            if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!File.Exists(full)) return false;
+            File.Delete(full);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }
 

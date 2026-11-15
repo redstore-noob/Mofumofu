@@ -19,6 +19,7 @@ public static class SoloPayload
     internal const long ArchiveMaximumBytes = 4L * 1024 * 1024 * 1024;
     internal const long EntryMaximumBytes = 2L * 1024 * 1024 * 1024;
     internal const long ExtractedMaximumBytes = 8L * 1024 * 1024 * 1024;
+    internal const int MaxExtractEntries = 100_000;
     internal const int CopyBufferBytes = 81920;
 
     private static readonly byte[] Magic = "NKSOLO1\x01"u8.ToArray();
@@ -198,7 +199,8 @@ public static class SoloPayload
 
     /// <summary>把载荷里的某个前缀目录解压到目标目录（files/ 与 minecraft/、jre/ 规则不同，由调用方决定）。</summary>
     public static long ExtractPrefix(SoloPayloadInfo info, ZipArchive archive, string prefix, string targetRoot,
-        Action<string>? log, IProgress<double>? progress, CancellationToken cancellationToken = default)
+        Action<string>? log, IProgress<double>? progress, CancellationToken cancellationToken = default,
+        Action<string>? onWritten = null)
     {
         string normalized = prefix.EndsWith('/') ? prefix : prefix + "/";
         List<ZipArchiveEntry> entries = archive.Entries
@@ -207,23 +209,56 @@ public static class SoloPayload
             .ToList();
         if (entries.Count == 0) return 0;
 
-        long total = entries.Sum(entry => entry.Length);
-        long written = 0;
-        long count = 0;
+        // public 入口独立设防：条目数、单条体积、累计体积都要在上限内，避免绕过 VerifyArchive 直接调用时被撑爆。
+        if (entries.Count > MaxExtractEntries)
+            throw new InvalidOperationException("安装包释放条目数超过上限：" + entries.Count);
+        long total = 0;
         foreach (ZipArchiveEntry entry in entries)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            string relative = entry.FullName[normalized.Length..].Replace('/', Path.DirectorySeparatorChar);
-            string destination = SafeCombine(targetRoot, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            entry.ExtractToFile(destination, overwrite: true);
-            written += entry.Length;
-            count++;
-            log?.Invoke(relative);
-            progress?.Report(total <= 0 ? 1 : written / (double)total);
+            if (entry.Length < 0 || entry.Length > EntryMaximumBytes)
+                throw new InvalidOperationException("安装包条目体积超限：" + entry.FullName);
+            total += entry.Length;
+            if (total > ExtractedMaximumBytes)
+                throw new InvalidOperationException("安装包解压后总体积超限");
         }
 
-        return count;
+        long written = 0;
+        long count = 0;
+        var writtenPaths = new List<string>();
+        bool completed = false;
+        try
+        {
+            foreach (ZipArchiveEntry entry in entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string relative = entry.FullName[normalized.Length..].Replace('/', Path.DirectorySeparatorChar);
+                string destination = SafeCombine(targetRoot, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                entry.ExtractToFile(destination, overwrite: true);
+                writtenPaths.Add(destination);
+                onWritten?.Invoke(destination);
+                written += entry.Length;
+                count++;
+                log?.Invoke(relative);
+                progress?.Report(total <= 0 ? 1 : written / (double)total);
+            }
+
+            completed = true;
+            return count;
+        }
+        finally
+        {
+            // 中途失败/取消：删除本次已释放的文件，避免半成品残留与下次安装新旧文件混装。
+            if (!completed)
+            {
+                foreach (string path in writtenPaths)
+                {
+                    try { if (File.Exists(path)) File.Delete(path); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            }
+        }
     }
 
     /// <summary>读取载荷里的顶层清单（文件名 + 大小），用于 UI 展示"包里有什么"。</summary>

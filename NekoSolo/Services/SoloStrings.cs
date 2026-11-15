@@ -46,6 +46,7 @@ public static class SoloStrings
         ["App.Subtitle"] = "单整合包启动器",
         ["App.PoweredBy"] = "Powered by Mofumofu Developer",
         ["App.Version"] = "版本 {0}",
+        ["App.AlreadyRunning"] = "NekoSolo 安装器已经在运行，请先关闭另一个窗口。",
         ["Nav.Install"] = "安装",
         ["Nav.About"] = "关于",
 
@@ -104,7 +105,7 @@ public static class SoloStrings
         ["Done.Failed"] = "安装失败",
         ["Done.FailedDesc"] = "安装没有完成，你可以查看日志后重试。",
         ["Done.Cancelled"] = "已取消安装",
-        ["Done.CancelledDesc"] = "安装过程被中断，已释放的文件会保留在目标目录。",
+        ["Done.CancelledDesc"] = "安装过程被中断，本次已释放的文件会自动清理。",
         ["Done.Files"] = "文件数",
         ["Done.Size"] = "写入大小",
         ["Done.Elapsed"] = "总耗时",
@@ -129,7 +130,7 @@ public static class SoloStrings
         ["Dialog.BrowseTitle"] = "选择安装位置",
         ["Dialog.Error"] = "出错了",
         ["Dialog.CancelConfirm"] = "确定要取消安装吗？",
-        ["Dialog.CancelConfirmDesc"] = "已经释放的文件不会自动删除。",
+        ["Dialog.CancelConfirmDesc"] = "本次已释放的文件会自动清理。",
         ["Dialog.Yes"] = "确定取消",
         ["Dialog.No"] = "继续安装",
 
@@ -146,6 +147,7 @@ public static class SoloStrings
         ["App.Subtitle"] = "Single-modpack launcher",
         ["App.PoweredBy"] = "Powered by Mofumofu Developer",
         ["App.Version"] = "Version {0}",
+        ["App.AlreadyRunning"] = "NekoSolo installer is already running. Please close the other window first.",
         ["Nav.Install"] = "Install",
         ["Nav.About"] = "About",
 
@@ -204,7 +206,7 @@ public static class SoloStrings
         ["Done.Failed"] = "Installation failed",
         ["Done.FailedDesc"] = "The installation did not finish. Check the log and try again.",
         ["Done.Cancelled"] = "Installation cancelled",
-        ["Done.CancelledDesc"] = "The process was interrupted; files already written are kept.",
+        ["Done.CancelledDesc"] = "The process was interrupted; files written in this run have been cleaned up.",
         ["Done.Files"] = "Files",
         ["Done.Size"] = "Written",
         ["Done.Elapsed"] = "Elapsed",
@@ -229,7 +231,7 @@ public static class SoloStrings
         ["Dialog.BrowseTitle"] = "Choose install location",
         ["Dialog.Error"] = "Something went wrong",
         ["Dialog.CancelConfirm"] = "Cancel the installation?",
-        ["Dialog.CancelConfirmDesc"] = "Files already unpacked are not removed.",
+        ["Dialog.CancelConfirmDesc"] = "Files unpacked in this run will be cleaned up.",
         ["Dialog.Yes"] = "Cancel installation",
         ["Dialog.No"] = "Keep installing",
 

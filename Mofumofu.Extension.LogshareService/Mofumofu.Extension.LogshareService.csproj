@@ -13,5 +13,5 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Mofumofu.ExtensionAPI\Mofumofu.ExtensionAPI.csproj" />
-    </ItemGroup>  <Import Project="../build/nekoex.target" Condition="Exists('../build/nekoex.target')" />
+    </ItemGroup>
 </Project>
