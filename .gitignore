@@ -15,6 +15,9 @@
 promo/
 *.log
 
+# 本地游戏目录（录制 promo 时生成的演示实例、截图等，不入库）
+.minecraft/
+
 # WebView 页面源码依赖（构建产物在 Mofumofu.Launcher/WebAssets，随仓库交付）
 node_modules/
 
