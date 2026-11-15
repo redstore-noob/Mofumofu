@@ -465,9 +465,11 @@ public static class MinecraftRuleEvaluator
             {
                 try
                 {
-                    return Regex.IsMatch(Environment.OSVersion.VersionString, osVersion);
+                    // os.version 来自外部 version JSON，是任意正则：必须带超时防病态回溯卡死规则评估
+                    return Regex.IsMatch(Environment.OSVersion.VersionString, osVersion,
+                        RegexOptions.None, TimeSpan.FromMilliseconds(200));
                 }
-                catch (ArgumentException)
+                catch (Exception e) when (e is ArgumentException or RegexMatchTimeoutException)
                 {
                     return false;
                 }

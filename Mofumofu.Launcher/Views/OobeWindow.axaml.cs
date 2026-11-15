@@ -199,10 +199,13 @@ public partial class OobeWindow : Window
         AuthlibStatusText.Text = L.T("Oobe.Account.AuthlibLoggingIn", "正在登录皮肤站…");
         try
         {
-            var manager = new AuthlibAccountManage();
+            var handle = new MinecraftTokenHandle();
+            AuthlibAccountManage manager = handle.Authlib;
+            // clientToken 与后续保活链路保持一致，避免 validate/refresh 因 clientToken 不一致被拒
+            string clientToken = handle.GetOrCreateClientToken();
             AuthlibServerInfo info = await manager.ResolveServerAsync(server);
             AuthlibLoginResult login = await manager.AuthenticateAsync(info.ApiRoot, username, password,
-                Guid.NewGuid().ToString("D"));
+                clientToken);
             AuthlibProfileInfo? profile = login.Profiles.FirstOrDefault();
             if (profile is null)
             {
@@ -210,13 +213,29 @@ public partial class OobeWindow : Window
                 return;
             }
 
-            var handle = new MinecraftTokenHandle();
+            // 登录即时保活：确认刚签发的令牌可用；若皮肤站回换新令牌，写回存储的就是新令牌
+            string accessToken = login.AccessToken;
+            try
+            {
+                accessToken = await manager.ValidateOrRefreshAsync(new AuthlibCredential
+                {
+                    ApiRoot = info.ApiRoot,
+                    AccessToken = login.AccessToken,
+                    ProfileUuid = profile.Id,
+                }, clientToken);
+            }
+            catch (Exception)
+            {
+                // 保活失败不阻断登录：保留登录时签发的令牌
+                accessToken = login.AccessToken;
+            }
+
             handle.SaveAuthlibCredential(new AuthlibCredential
             {
                 Username = username,
                 ProfileName = profile.Name,
                 ProfileUuid = profile.Id,
-                AccessToken = login.AccessToken,
+                AccessToken = accessToken,
                 ApiRoot = info.ApiRoot,
                 ServerName = info.ServerName,
             });

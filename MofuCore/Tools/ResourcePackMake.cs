@@ -353,9 +353,27 @@ public class ResourcePackMake
         }
 
         Directory.CreateDirectory(DraftDirectory);
-        string temporary = DraftFilePath + ".tmp";
-        await File.WriteAllBytesAsync(temporary, raw, cancellationToken).ConfigureAwait(false);
-        File.Move(temporary, DraftFilePath, overwrite: true);
+        // 唯一临时名，避免并发保存互相覆盖；无论成功失败都清理残留临时文件
+        string temporary = DraftFilePath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await File.WriteAllBytesAsync(temporary, raw, cancellationToken).ConfigureAwait(false);
+            File.Move(temporary, DraftFilePath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
+            catch (Exception)
+            {
+                // 临时文件清理失败不影响结果
+            }
+        }
     }
 
     /// <summary>读取草稿；不存在时返回 Found=false 的空草稿。</summary>

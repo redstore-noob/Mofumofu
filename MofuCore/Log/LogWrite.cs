@@ -15,14 +15,20 @@ public class LogWrite
     private static readonly string __fileName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff") + ".txt";
     private static string __dataRoot = AppContext.BaseDirectory;
 
-    // 日志写入前统一脱敏：只编译一次，避免逐条重编译
+    // 日志写入前统一脱敏：只编译一次，避免逐条重编译；设 MatchTimeout 防病态回溯卡死写日志
+    private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(200);
+
+    // 分隔符除原有的 : / = 外，还支持纯空白（--accessToken <token>）与引号形式
+    // （"accessToken": "jwt"、--accessToken="jwt"）；值前的开引号并入 sep，闭合引号留在原文。
     private static readonly Regex SecretAssignment = new(
-        @"\b(?<key>access[_-]?token|refresh[_-]?token|auth[_-]?session|client[_-]?secret|client[_-]?token|api[_-]?key|password|passwd|pwd|authorization|cookie|secret|token)(?<sep>\s*[:=]\s*|""\s*:\s*"")(?<value>[^\s,;""'}\]&]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        @"\b(?<key>access[_-]?token|refresh[_-]?token|auth[_-]?session|client[_-]?secret|client[_-]?token|api[_-]?key|password|passwd|pwd|authorization|cookie|secret|token)(?<sep>[""']?(?:\s*[:=]\s*|\s+)[""']?)(?<value>[^\s,;""'}\]&]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        MatchTimeout);
 
     private static readonly Regex SecretScheme = new(
-        @"\b(?<key>bearer|basic)(?<sep>\s+)(?<value>[A-Za-z0-9._~+/=-]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        @"\b(?<key>bearer|basic)(?<sep>\s+[""']?)(?<value>[A-Za-z0-9._~+/=-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        MatchTimeout);
 
     /// <summary>
     /// 启动器数据根目录，日志写在 {DataRoot}/Mofumofu/log 下。
@@ -117,8 +123,16 @@ public class LogWrite
         }
 
         string sanitized = builder.ToString();
-        sanitized = SecretScheme.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
-        return SecretAssignment.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
+        try
+        {
+            sanitized = SecretScheme.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
+            return SecretAssignment.Replace(sanitized, m => m.Groups["key"].Value + m.Groups["sep"].Value + "***");
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // 脱敏超时时不写出可能含令牌的原文
+            return "[日志脱敏超时，内容已丢弃]";
+        }
     }
 
     /// <summary>

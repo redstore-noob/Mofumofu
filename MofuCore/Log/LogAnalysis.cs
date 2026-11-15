@@ -450,7 +450,8 @@ public static class LogAnalysis
         // 崩溃发生时 stdout 会打出报告路径（相对实例目录），比按时间扫目录更可靠
         string reportPathFromLog = FirstMatch(logTail,
             Rx(@"This crash report has been saved to:\s*(?<value>.+?)\s*$"), "value");
-        string? reportPath = ResolveWithinDirectory(reportPathFromLog, input.GameDirectory);
+        string? reportPath = ResolveWithinDirectory(
+            reportPathFromLog, input.GameDirectory, input.CrashReportsDirectory);
         if (reportPath is null && !string.IsNullOrWhiteSpace(input.CrashReportsDirectory))
         {
             reportPath = NewestMatchingFile(input.CrashReportsDirectory, "*.txt", input.GameStartedAt);
@@ -1835,8 +1836,14 @@ public static class LogAnalysis
         return index >= 0 ? cut[(index + 1)..] : cut;
     }
 
-    /// <summary>日志里的崩溃报告路径是相对实例目录的，尝试解析成绝对路径；失败返回 null。</summary>
-    private static string? ResolveWithinDirectory(string relativePath, string directory)
+    /// <summary>
+    /// 日志里的崩溃报告路径解析成绝对路径；无论日志写的是相对还是绝对路径，
+    /// 都必须落在允许的游戏目录 / 崩溃报告目录内，越界一律拒绝（防止任意本地文件被读入诊断）。
+    /// </summary>
+    private static string? ResolveWithinDirectory(
+        string relativePath,
+        string directory,
+        string crashReportsDirectory)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
         {
@@ -1845,15 +1852,36 @@ public static class LogAnalysis
 
         try
         {
-            string candidate = Path.IsPathRooted(relativePath)
+            string candidate = Path.GetFullPath(Path.IsPathRooted(relativePath)
                 ? relativePath
-                : Path.GetFullPath(Path.Combine(directory ?? string.Empty, relativePath));
+                : Path.Combine(directory ?? string.Empty, relativePath));
+
+            if (!IsPathWithin(candidate, directory) &&
+                !IsPathWithin(candidate, crashReportsDirectory))
+            {
+                return null;
+            }
+
             return File.Exists(candidate) ? candidate : null;
         }
         catch (Exception e) when (e is ArgumentException or PathTooLongException or NotSupportedException)
         {
             return null;
         }
+    }
+
+    /// <summary>断言 path 位于 root 目录内（含自身）；root 为空时视为不允许。</summary>
+    private static bool IsPathWithin(string path, string? root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        string rootFull = Path.GetFullPath(root)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return string.Equals(path, rootFull, StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NewestMatchingFile(string directory, string pattern, DateTimeOffset? sinceUtc)

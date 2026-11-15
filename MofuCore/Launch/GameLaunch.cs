@@ -25,6 +25,12 @@ public class GameLaunch
 
     private static readonly Regex OfflineUsernamePattern = new(@"^[A-Za-z0-9_]{1,16}$", RegexOptions.Compiled);
 
+    // JVM 会自动读取这些环境变量并追加参数，可绕过 JVM 参数白名单注入 agent（如 -javaagent:）
+    private static readonly HashSet<string> ForbiddenEnvironmentVariableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTIONS", "IBM_JAVA_OPTIONS",
+    };
+
     private readonly object _gate = new();
     private readonly VersionLoader _profileLoader = new();
     private readonly LibraryResolver _libraryResolver = new();
@@ -57,6 +63,8 @@ public class GameLaunch
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
+        // 进入启动流程前先校验版本 ID：后续目录拼接、实例锁、版本加载都基于它
+        options.VersionId = VersionLoader.ValidateVersionId(options.VersionId);
         if (IsGameRunning)
         {
             throw new MinecraftLaunchException("游戏已经在运行。");
@@ -235,7 +243,8 @@ public class GameLaunch
         string minecraftDirectory,
         CancellationToken cancellationToken)
     {
-        List<string> arguments = [.. options.AdditionalJvmArguments];
+        // 只收集启动器内部注入的可信参数；用户配置参数由 Build 单独读取并走白名单
+        List<string> arguments = [];
         if (options.Account is AuthlibLaunchAccount authlib)
         {
             // 皮肤站账号：把游戏会话服务重定向到皮肤站，需要注入器 jar 在本地就绪
@@ -328,8 +337,20 @@ public class GameLaunch
             startInfo.ArgumentList.Add(argument);
         }
 
+        // 这些变量能让 JVM 在启动器白名单之外自行追加参数，无论是否来自用户配置都先剔除继承值
+        foreach (string dangerous in ForbiddenEnvironmentVariableNames)
+        {
+            startInfo.Environment.Remove(dangerous);
+        }
+
         foreach ((string name, string value) in options.EnvironmentVariables)
         {
+            if (!string.IsNullOrWhiteSpace(name) && ForbiddenEnvironmentVariableNames.Contains(name.Trim()))
+            {
+                options.LogCallback?.Invoke("已忽略危险环境变量：" + name);
+                continue;
+            }
+
             startInfo.Environment[name] = value;
         }
 
@@ -359,9 +380,9 @@ public class GameLaunch
         string wrapperCommand,
         Action<string>? log)
     {
-        string[] wrapper = (wrapperCommand ?? string.Empty)
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (wrapper.Length == 0)
+        // 支持双引号包裹带空格的程序路径，单纯按空白 Split 会把路径拆错
+        List<string> wrapper = TokenizeWrapperCommand(wrapperCommand ?? string.Empty);
+        if (wrapper.Count == 0)
         {
             return (javaExecutable, arguments);
         }
@@ -385,7 +406,54 @@ public class GameLaunch
             expanded.Add(part);
         }
 
-        return (expanded[0], expanded.Skip(1).ToList());
+        string program = expanded[0];
+        ValidateWrapperProgram(program);
+        return (program, expanded.Skip(1).ToList());
+    }
+
+    /// <summary>包装命令按空白分词，但双引号内的空白保留（支持带空格的程序路径）。</summary>
+    private static List<string> TokenizeWrapperCommand(string command)
+    {
+        List<string> tokens = [];
+        StringBuilder current = new();
+        bool quoted = false;
+        foreach (char character in command)
+        {
+            if (character == '"')
+            {
+                quoted = !quoted;
+                continue;
+            }
+
+            if (!quoted && char.IsWhiteSpace(character))
+            {
+                if (current.Length > 0)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                }
+
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        if (current.Length > 0)
+        {
+            tokens.Add(current.ToString());
+        }
+
+        return tokens;
+    }
+
+    /// <summary>包装命令解析出的程序做基本合法性校验，拒绝空值与控制字符。</summary>
+    private static void ValidateWrapperProgram(string program)
+    {
+        if (string.IsNullOrWhiteSpace(program) || program.Any(c => char.IsControl(c)))
+        {
+            throw new MinecraftLaunchException("包装命令解析出的程序名不合法。");
+        }
     }
 
     private static void ValidateFinalArguments(IReadOnlyList<string> arguments)
@@ -440,7 +508,8 @@ public class GameLaunch
 
         try
         {
-            string isolated = Path.Combine(minecraftDirectory, "versions", versionId.Trim());
+            string checkedVersionId = VersionLoader.ValidateVersionId(versionId);
+            string isolated = Path.Combine(minecraftDirectory, "versions", checkedVersionId);
             Directory.CreateDirectory(isolated);
             foreach (string sub in (string[])["mods", "saves", "resourcepacks", "config"])
             {
@@ -929,8 +998,8 @@ public sealed class MinecraftArgumentBuilder
 
         Dictionary<string, bool> features = MinecraftRuleEvaluator.CreateDefaultFeatures(
             options.WindowWidth > 0 && options.WindowHeight > 0);
-        IEnumerable<string> userJvmArguments =
-            additionalJvmArguments is not null ? additionalJvmArguments : options.AdditionalJvmArguments;
+        // 用户配置参数始终单独读取：与版本 JSON 的 JVM 参数走同一套白名单策略
+        IEnumerable<string> userJvmArguments = options.AdditionalJvmArguments;
         bool userSpecifiesXms = ContainsMemoryArgument(userJvmArguments, "-Xms");
         bool userSpecifiesXmx = ContainsMemoryArgument(userJvmArguments, "-Xmx");
 
@@ -958,7 +1027,20 @@ public sealed class MinecraftArgumentBuilder
         }
 
         result.AddRange(BuildTuningArguments(options.MaximumMemoryMb));
+
+        // 用户可控通道与版本 JSON 一样过白名单，禁止 -javaagent: 等可执行/代理参数
+        foreach (string argument in userJvmArguments)
+        {
+            EnsureAllowedJvmArgument(argument, "用户配置");
+        }
         result.AddRange(userJvmArguments);
+
+        // additionalJvmArguments 是启动器内部注入的可信参数（authlib-injector 的 -javaagent:）：
+        // 按来源与用户/版本参数区分，不套白名单，保证外置登录继续可用
+        if (additionalJvmArguments is not null)
+        {
+            result.AddRange(additionalJvmArguments);
+        }
 
         int launcherJvmArgsStart = result.Count;
         if (profile.JvmArguments.Count > 0)
@@ -1183,6 +1265,12 @@ public sealed class MinecraftArgumentBuilder
 
     private static void EnsureAllowedVersionJvmArgument(string argument)
     {
+        EnsureAllowedJvmArgument(argument, "版本配置");
+    }
+
+    /// <summary>按同一白名单策略校验任意来源的 JVM 参数；source 仅用于错误文案。</summary>
+    private static void EnsureAllowedJvmArgument(string argument, string source)
+    {
         // 不以 '-' 开头的是前面选项的取值（classpath、模块名、路径等），无可执行语义。
         if (argument.Length == 0 || argument[0] != '-')
         {
@@ -1193,7 +1281,7 @@ public sealed class MinecraftArgumentBuilder
         {
             if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                throw new MinecraftLaunchException("版本配置包含被禁止的 JVM 参数：" + prefix + "…");
+                throw new MinecraftLaunchException(source + "包含被禁止的 JVM 参数：" + prefix + "…");
             }
         }
 
@@ -1205,7 +1293,7 @@ public sealed class MinecraftArgumentBuilder
             }
         }
 
-        throw new MinecraftLaunchException("版本配置包含不在白名单内的 JVM 参数，已拒绝启动。");
+        throw new MinecraftLaunchException(source + "包含不在白名单内的 JVM 参数，已拒绝启动。");
     }
 
     private static bool IsNullablePlaceholder(string source)
@@ -1406,6 +1494,7 @@ public sealed class JavaRuntimeLocator
     {
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(3));
+        Process? process = null;
         try
         {
             ProcessStartInfo startInfo = new(javaExecutable, "-version")
@@ -1415,7 +1504,7 @@ public sealed class JavaRuntimeLocator
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
-            using Process process = Process.Start(startInfo) ?? throw new System.ComponentModel.Win32Exception();
+            process = Process.Start(startInfo) ?? throw new System.ComponentModel.Win32Exception();
             Task<string> stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
             Task<string> stderr = process.StandardError.ReadToEndAsync(timeout.Token);
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
@@ -1436,11 +1525,44 @@ public sealed class JavaRuntimeLocator
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            KillProbeProcess(process);
             throw;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            // 探测超时：必须终止整棵进程树，否则 java 进程会常驻不退出
+            KillProbeProcess(process);
+            return null;
         }
         catch
         {
+            KillProbeProcess(process);
             return null;
+        }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    /// <summary>终止 java -version 探测进程（整棵进程树）；已退出或无权终止时忽略。</summary>
+    private static void KillProbeProcess(Process? process)
+    {
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception)
+        {
+            // 进程已退出或无法终止：忽略，finally 里的 Dispose 仍会释放句柄
         }
     }
 
@@ -1851,9 +1973,11 @@ public sealed class CrashDiagnosis
             ReportPath = analysis.CrashReportPath,
             Description = RedactSecrets(analysis.CrashDescription),
             Exception = RedactSecrets(analysis.CrashException),
-            Suspected = analysis.Findings.Select(finding => finding.Title).ToList(),
+            Suspected = analysis.Findings
+                .Select(finding => RedactSecrets(finding.Title))
+                .ToList(),
             Suggestions = analysis.Findings
-                .Select(finding => string.Join("；", finding.Decisions))
+                .Select(finding => RedactSecrets(string.Join("；", finding.Decisions)))
                 .ToList(),
             Details = details,
         };
@@ -1948,18 +2072,50 @@ public sealed class MinecraftVersionJsonFlattener
         }
 
         string jsonPath = Path.Combine(versionDirectory, checkedVersionId + ".json");
-        string temporaryPath = jsonPath + ".mofu-flatten-tmp";
+        // 唯一临时名与备份名，避免并发扁平化互相覆盖；覆盖前先备份原文件以便失败回滚
+        string temporaryPath = jsonPath + ".mofu-flatten-tmp-" + Guid.NewGuid().ToString("N");
+        string backupPath = jsonPath + ".mofu-flatten-backup-" + Guid.NewGuid().ToString("N");
+        bool hasOriginal = File.Exists(jsonPath);
+        bool backupKept = false;
         try
         {
+            if (hasOriginal)
+            {
+                File.Copy(jsonPath, backupPath);
+            }
+
             await File.WriteAllTextAsync(temporaryPath, merged.ToJsonString(), new UTF8Encoding(false),
                 cancellationToken).ConfigureAwait(false);
             File.Move(temporaryPath, jsonPath, true);
         }
+        catch
+        {
+            // 失败回滚：有原文件则用备份还原，原本无文件则删掉刚写出的目标
+            try
+            {
+                if (hasOriginal)
+                {
+                    File.Copy(backupPath, jsonPath, true);
+                }
+                else if (File.Exists(jsonPath))
+                {
+                    File.Delete(jsonPath);
+                }
+            }
+            catch (Exception)
+            {
+                // 自动回滚失败时保留备份文件，便于用户手动恢复
+                backupKept = hasOriginal;
+            }
+
+            throw;
+        }
         finally
         {
-            if (File.Exists(temporaryPath))
+            TryDeleteQuietly(temporaryPath);
+            if (!backupKept)
             {
-                File.Delete(temporaryPath);
+                TryDeleteQuietly(backupPath);
             }
         }
 
@@ -1969,6 +2125,22 @@ public sealed class MinecraftVersionJsonFlattener
             ClientJarProviderId = jarProviderId,
             ConsumedParentIds = chain.Take(chain.Count - 1).Select(entry => entry.Id).ToList(),
         };
+    }
+
+    /// <summary>清理扁平化产生的临时/备份文件，清理失败不影响结果。</summary>
+    private static void TryDeleteQuietly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception)
+        {
+            // 临时文件清理失败不影响结果
+        }
     }
 
     /// <summary>检查指定版本是否仍被其它版本的 inheritsFrom 引用。</summary>

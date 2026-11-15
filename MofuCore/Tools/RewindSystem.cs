@@ -944,6 +944,13 @@ public class RewindSystem
             }
 
             await CopyFileAsync(source, destination, cancellationToken).ConfigureAwait(false);
+
+            // 物化后复核目标文件摘要，防止数据块损坏或复制不完整被写进目标目录
+            string writtenHash = await HashFileAsync(destination, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(writtenHash, file.Hash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("快照数据块物化后校验失败：" + file.Hash);
+            }
         }
     }
 
@@ -1216,10 +1223,24 @@ public class RewindSystem
         string temporary = Path.Combine(bucket, hash + ".tmp-" + Guid.NewGuid().ToString("N"));
         try
         {
+            // 复制时边算边校验：写盘内容必须与内容寻址摘要一致，防止源文件在读取期间被改动
+            using IncrementalHash hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[CopyBufferSize];
             await using (FileStream source = new(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, CopyBufferSize, useAsync: true))
             await using (FileStream destination = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferSize, useAsync: true))
             {
-                await source.CopyToAsync(destination, CopyBufferSize, cancellationToken).ConfigureAwait(false);
+                int read;
+                while ((read = await source.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    hasher.AppendData(buffer, 0, read);
+                    await destination.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            string actual = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+            if (!string.Equals(actual, hash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("数据块内容与摘要不符：" + hash);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -1508,9 +1529,27 @@ public class RewindSystem
         string directory = Path.Combine(repo, ManifestsDirectoryName);
         Directory.CreateDirectory(directory);
         string target = SafeManifestPath(repo, manifest.Id);
-        string temporary = target + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(manifest, WriteJsonOptions), new UTF8Encoding(false));
-        File.Move(temporary, target, overwrite: true);
+        // 唯一临时名，避免并发写清单互相覆盖；无论成功失败都清理残留临时文件
+        string temporary = target + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(manifest, WriteJsonOptions), new UTF8Encoding(false));
+            File.Move(temporary, target, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
+            catch (Exception)
+            {
+                // 临时文件清理失败不影响结果
+            }
+        }
     }
 
     private static string NewSnapshotId(string manifestsDirectory)

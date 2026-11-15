@@ -179,6 +179,50 @@ public partial class AccountView : UserControl
         {
             _ = LoadAccountHeadAsync(row);
         }
+
+        // 账户读取链路：给皮肤站凭据保活，刷新成功即把新令牌写回凭据存储
+        _ = RefreshAuthlibTokensAsync();
+    }
+
+    /// <summary>
+    /// 皮肤站凭据保活：validate 失效则 refresh，刷新成功后把新 AccessToken 写回凭据存储，
+    /// 供后续启动链路读取。皮肤站不可达时保持原凭据，不阻断界面。
+    /// </summary>
+    private async Task RefreshAuthlibTokensAsync()
+    {
+        try
+        {
+            var handle = new MinecraftTokenHandle();
+            string clientToken = handle.GetOrCreateClientToken();
+            foreach (AuthlibCredential credential in handle.LoadAuthlibCredentials())
+            {
+                if (string.IsNullOrWhiteSpace(credential.ApiRoot) ||
+                    string.IsNullOrWhiteSpace(credential.AccessToken))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string freshToken = await handle.Authlib
+                        .ValidateOrRefreshAsync(credential, clientToken).ConfigureAwait(false);
+                    if (!string.Equals(freshToken, credential.AccessToken, StringComparison.Ordinal))
+                    {
+                        AuthlibCredential updated = credential.Clone();
+                        updated.AccessToken = freshToken;
+                        handle.SaveAuthlibCredential(updated);
+                    }
+                }
+                catch (Exception error)
+                {
+                    SkinLog($"authlib token refresh failed for {credential.ProfileName}", error);
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            SkinLog("authlib token refresh failed", error);
+        }
     }
 
     /// <summary>给账号列表行补真实皮肤头像（双层皮肤会叠帽子层）；失败保持首字母占位。</summary>

@@ -91,8 +91,12 @@ public class AuthlibAccountManage
         }
 
         string input = serverUrl.Trim();
-        if (!input.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        {
+            // 明文通道会把含密码的登录请求直接暴露在链路上，统一强制升级为 HTTPS
+            input = "https://" + input["http://".Length..];
+        }
+        else if (!input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             input = "https://" + input;
         }
@@ -141,19 +145,52 @@ public class AuthlibAccountManage
 
     private static string ResolveLocation(string baseUrl, Uri? finalUri, string location)
     {
+        Uri baseUri = finalUri ?? new Uri(baseUrl);
+
         if (location.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             location.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            return location;
+            // authlib-injector 规范允许门户把 API 根指向同站的其他子域（如 api.example.com），
+            // 因此放行「HTTPS + 同一注册域」的跨源地址；明文、无关域名、本机/私网/带用户信息
+            // 一律回退到原 host，避免把含 password 的认证 POST 导向不可信目标。
+            if (Uri.TryCreate(location, UriKind.Absolute, out Uri? absolute))
+            {
+                if (string.Equals(absolute.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrEmpty(absolute.UserInfo) &&
+                    !IsLocalOrPrivateHost(absolute.Host) &&
+                    string.Equals(RegistrableDomain(absolute.Host), RegistrableDomain(baseUri.Host),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return absolute.ToString().TrimEnd('/');
+                }
+
+                // 回退到原 host：忽略不可信的主机/协议/用户信息，仅保留其路径重建到请求来源
+                UriBuilder fallback = new(absolute)
+                {
+                    Scheme = Uri.UriSchemeHttps,
+                    Host = baseUri.Host,
+                    Port = baseUri.IsDefaultPort ? -1 : baseUri.Port,
+                    UserName = string.Empty,
+                    Password = string.Empty,
+                };
+                return fallback.Uri.ToString().TrimEnd('/');
+            }
+
+            return TrimToPath(HttpsAuthority(baseUri));
         }
 
-        Uri baseUri = finalUri ?? new Uri(baseUrl);
+        // 相对地址同样固定到请求来源的 HTTPS authority，杜绝被降级到明文
         if (location.StartsWith('/'))
         {
-            return baseUri.GetLeftPart(UriPartial.Authority) + location;
+            return HttpsAuthority(baseUri) + location;
         }
 
         string current = baseUri.GetLeftPart(UriPartial.Path);
+        if (current.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        {
+            current = "https://" + current["http://".Length..];
+        }
+
         int index = current.LastIndexOf('/');
         if (index > current.IndexOf("://", StringComparison.Ordinal) + 2)
         {
@@ -161,6 +198,62 @@ public class AuthlibAccountManage
         }
 
         return current + "/" + location;
+    }
+
+    /// <summary>请求来源的 HTTPS authority（去掉可能的 http 降级）。</summary>
+    private static string HttpsAuthority(Uri baseUri)
+    {
+        string authority = baseUri.GetLeftPart(UriPartial.Authority);
+        return authority.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            ? "https://" + authority["http://".Length..]
+            : authority;
+    }
+
+    /// <summary>取主机的注册域（最后两段），用于判断跨源 API 根是否仍属于同一站点。</summary>
+    private static string RegistrableDomain(string host)
+    {
+        string normalized = host.Trim('[', ']').ToLowerInvariant();
+        if (System.Net.IPAddress.TryParse(normalized, out _))
+        {
+            return normalized;
+        }
+
+        string[] parts = normalized.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? parts[^2] + "." + parts[^1] : normalized;
+    }
+
+    /// <summary>拒绝本机 / 私网 / 链路本地 / 云元数据地址，避免响应头把认证请求引向内网。</summary>
+    private static bool IsLocalOrPrivateHost(string host)
+    {
+        string normalized = host.Trim('[', ']').ToLowerInvariant();
+        if (normalized is "localhost" || normalized.EndsWith(".localhost", StringComparison.Ordinal) ||
+            normalized is "metadata.google.internal" or "169.254.169.254")
+        {
+            return true;
+        }
+
+        if (!System.Net.IPAddress.TryParse(normalized, out System.Net.IPAddress? address))
+        {
+            return false;
+        }
+
+        if (System.Net.IPAddress.IsLoopback(address))
+        {
+            return true;
+        }
+
+        byte[] bytes = address.GetAddressBytes();
+        if (bytes.Length == 4)
+        {
+            return bytes[0] is 0 or 10 or 127 ||
+                   (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+                   (bytes[0] == 192 && bytes[1] == 168) ||
+                   (bytes[0] == 169 && bytes[1] == 254);
+        }
+
+        // IPv6：回环 / 链路本地 / 站点本地 / 唯一本地（fc00::/7、fe80::/10、fec0::/10）
+        return address.IsIPv6LinkLocal || address.IsIPv6SiteLocal ||
+               (bytes.Length == 16 && (bytes[0] & 0xfe) == 0xfc);
     }
 
     private static string TrimToPath(string rawUrl)
