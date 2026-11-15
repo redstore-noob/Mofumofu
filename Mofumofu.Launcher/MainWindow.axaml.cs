@@ -95,8 +95,6 @@ public partial class MainWindow : Window
         Closing += OnWindowClosing;
         // 模板/视觉树要到窗口打开后才完整，壁纸开启时再补一次透明处理
         Opened += (_, _) => ApplyWallpaperBackdrop();
-        Activated += (_, _) => GlassEffects.SetSuspended(false);
-        Deactivated += (_, _) => GlassEffects.SetSuspended(true);
 
         ThemeManager.ThemeChanged += OnThemeChanged;
         L.LanguageChanged += OnLanguageChanged;

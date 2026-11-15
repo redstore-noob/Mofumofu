@@ -28,17 +28,7 @@ public static class GlassEffects
     // 固定高密度遮罩，避免历史透明度设置把面板冲淡。
     private const double OverlayOpacity = 0.96;
 
-    private static bool _suspended;
-
     public static bool Enabled { get; private set; } = true;
-
-    /// <summary>窗口不在前台时暂停模糊，减少 CPU / GPU 占用。</summary>
-    public static void SetSuspended(bool suspended)
-    {
-        if (_suspended == suspended) return;
-        _suspended = suspended;
-        Refresh();
-    }
 
     public static void SetEnabled(bool enabled)
     {
@@ -69,7 +59,7 @@ public static class GlassEffects
         // 视频壁纸走独立窗口，主窗口内容采样不到，开玻璃只是白耗性能
         var hasBackdrop = !WallpaperService.Instance.IsEnabled
                           || WallpaperService.Instance.UsesInAppSurface;
-        return Enabled && !_suspended && hasBackdrop;
+        return Enabled && hasBackdrop;
     }
 
     /// <summary>
