@@ -5,6 +5,43 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.HomeView">
+    <UserControl.Styles>
+        <!-- 右下角分页页签：干净的胶囊高亮，选中=整块强调色圆胶囊，而非细蓝条 -->
+        <Style Selector="Button.page-tab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="17" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.page-tab /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="17" />
+        </Style>
+        <Style Selector="Button.page-tab:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.page-tab.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.page-tab.active /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="17" />
+        </Style>
+        <Style Selector="Button.page-tab.active:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentOnBrush}" />
+        </Style>
+        <Style Selector="Button.page-tab.active:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Styles>
     <Grid>
 <!-- ============ 自由摆放的格子板：小组件由 WidgetRegistry 在 code-behind 里建 ============ -->        
         <ScrollViewer x:Name="BoardScroll"
@@ -58,15 +95,15 @@
                     Margin="0,0,10,10" Spacing="6">
             <Border x:Name="WidgetPageCapsule"
                     HorizontalAlignment="Right"
-                    Padding="4" CornerRadius="21"
+                    Padding="5" CornerRadius="23"
                     Background="{DynamicResource NekoCardBrush}"
                     BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1">
                 <StackPanel Orientation="Horizontal" Spacing="2">
                     <StackPanel x:Name="WidgetPageTabs" Orientation="Horizontal" Spacing="2"
                                 VerticalAlignment="Center" />
                     <Button x:Name="WidgetPageManageButton"
-                            Classes="icon" CornerRadius="17"
-                            Width="34" Height="34" MinWidth="34" MinHeight="34" Padding="0"
+                            Classes="icon" CornerRadius="18"
+                            Width="36" Height="36" MinWidth="36" MinHeight="36" Padding="0"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                             ToolTip.Tip="{DynamicResource L.Home.Page.Manage}"

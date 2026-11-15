@@ -600,14 +600,15 @@ public partial class HomeView : UserControl
             var button = new Button
             {
                 Content = (index + 1).ToString(),
-                Height = 32,
-                MinWidth = 32,
-                Padding = new Thickness(8, 0),
+                Height = 34,
+                MinWidth = 34,
+                Padding = new Thickness(10, 0),
+                CornerRadius = new CornerRadius(17),
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            button.Classes.Add("ghost");
-            if (index == _activeWidgetPage) button.Classes.Add("primary");
+            button.Classes.Add("page-tab");
+            if (index == _activeWidgetPage) button.Classes.Add("active");
             button.Click += (_, _) => SwitchWidgetPage(pageIndex);
 
             WidgetPageTabs.Children.Add(button);
