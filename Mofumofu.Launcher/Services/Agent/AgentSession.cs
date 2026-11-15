@@ -267,7 +267,6 @@ public sealed class AgentSession
             SystemPrompt = BuildSystemPrompt(toolTokens),
             Messages = NormalizeForRequest(Conversation.Messages),
             Tools = ActiveTools,
-            Temperature = Settings.Temperature,
             TopP = Settings.TopP,
             MaxOutputTokens = Settings.MaxOutputTokens,
             Streaming = Settings.Streaming,

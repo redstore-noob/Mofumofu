@@ -366,13 +366,6 @@
                             </StackPanel>
 
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="{DynamicResource L.Agent.Settings.L22}" FontSize="12" VerticalAlignment="Center" />
-                                <TextBlock x:Name="GenTempText" Grid.Column="1" Classes="muted" Text="0.35" />
-                            </Grid>
-                            <Slider x:Name="GenTempSlider" Minimum="0" Maximum="2" Value="0.35" Height="22"
-                                    ValueChanged="OnGenTempChanged" />
-
-                            <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Top P" FontSize="12" VerticalAlignment="Center" />
                                 <TextBlock x:Name="GenTopPText" Grid.Column="1" Classes="muted" Text="1.00" />
                             </Grid>

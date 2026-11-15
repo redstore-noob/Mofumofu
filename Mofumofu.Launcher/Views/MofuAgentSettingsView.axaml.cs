@@ -120,7 +120,6 @@ public partial class MofuAgentSettingsView : UserControl
         if (initial is not null) LoadProviderForm(initial);
         else ClearProviderForm();
 
-        GenTempSlider.Value = _settings.Temperature;
         GenTopPSlider.Value = _settings.TopP;
         GenMaxTokensBox.Text = _settings.MaxOutputTokens.ToString();
         GenMaxRoundsBox.Text = _settings.MaxToolRounds.ToString();
@@ -158,7 +157,6 @@ public partial class MofuAgentSettingsView : UserControl
 
     private void UpdateLabels()
     {
-        GenTempText.Text = GenTempSlider.Value.ToString("0.00");
         GenTopPText.Text = GenTopPSlider.Value.ToString("0.00");
         CompactAtText.Text = (CompactAtSlider.Value * 100).ToString("0") + "%";
     }
@@ -804,12 +802,6 @@ public partial class MofuAgentSettingsView : UserControl
     // 生成 / 上下文 / 工具
     // ==================================================================
 
-    private void OnGenTempChanged(object? sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_loadingControls) return;
-        GenTempText.Text = GenTempSlider.Value.ToString("0.00");
-    }
-
     private void OnGenTopPChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loadingControls) return;
@@ -824,7 +816,6 @@ public partial class MofuAgentSettingsView : UserControl
 
     private void OnSaveGeneration(object? sender, RoutedEventArgs e)
     {
-        _settings.Temperature = Math.Round(GenTempSlider.Value, 2);
         _settings.TopP = Math.Round(GenTopPSlider.Value, 2);
         _settings.MaxOutputTokens = ParseInt(GenMaxTokensBox.Text, 2048, 64, 32768);
         _settings.MaxToolRounds = ParseInt(GenMaxRoundsBox.Text, 6, 1, 20);

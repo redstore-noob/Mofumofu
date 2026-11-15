@@ -1393,9 +1393,7 @@ public partial class MofuAgentView : UserControl
         _loadingControls = true;
         AutoCompactSwitch.IsChecked = _settings.AutoCompact;
         LauncherToolsSwitch.IsChecked = _settings.Tools.LauncherControl;
-        TempSlider.Value = _settings.Temperature;
         MaxTokensSlider.Value = Math.Clamp(_settings.MaxOutputTokens, 256, 16384);
-        TempValueText.Text = _settings.Temperature.ToString("0.00");
         MaxTokensText.Text = _settings.MaxOutputTokens.ToString();
         _loadingControls = false;
     }
@@ -1418,15 +1416,6 @@ public partial class MofuAgentView : UserControl
         _settings.Tools.LauncherControl = LauncherToolsSwitch.IsChecked == true;
         AgentSettingsStore.Save(_settings);
         RefreshInspector();
-    }
-
-    private void OnTemperatureChanged(object? sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_loadingControls) return;
-
-        _settings.Temperature = Math.Round(TempSlider.Value, 2);
-        TempValueText.Text = _settings.Temperature.ToString("0.00");
-        AgentSettingsStore.Save(_settings);
     }
 
     private void OnMaxTokensChanged(object? sender, RangeBaseValueChangedEventArgs e)

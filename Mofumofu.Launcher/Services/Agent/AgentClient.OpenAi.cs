@@ -161,7 +161,6 @@ internal static class OpenAiClient
 
         if (!reasoningModel)
         {
-            body["temperature"] = request.Temperature;
             body["top_p"] = request.TopP;
         }
 

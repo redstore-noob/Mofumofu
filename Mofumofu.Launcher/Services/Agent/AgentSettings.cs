@@ -37,7 +37,6 @@ public sealed class AgentSettings
     public string ActiveModel { get; set; } = string.Empty;
 
     // ---- 生成参数 ----
-    public double Temperature { get; set; } = 0.35;
     public double TopP { get; set; } = 1.0;
     public int MaxOutputTokens { get; set; } = 2048;
     public bool Streaming { get; set; } = true;
@@ -111,7 +110,6 @@ public sealed class AgentSettings
         Providers = source.Providers;
         ActiveProviderId = source.ActiveProviderId;
         ActiveModel = source.ActiveModel;
-        Temperature = source.Temperature;
         TopP = source.TopP;
         MaxOutputTokens = source.MaxOutputTokens;
         Streaming = source.Streaming;

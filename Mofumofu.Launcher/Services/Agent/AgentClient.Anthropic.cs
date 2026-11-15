@@ -25,7 +25,6 @@ internal static class AnthropicClient
         {
             ["model"] = request.Model,
             ["max_tokens"] = request.MaxOutputTokens,
-            ["temperature"] = request.Temperature,
             ["system"] = request.SystemPrompt,
             ["messages"] = BuildMessages(request.Messages),
             ["stream"] = request.Streaming,

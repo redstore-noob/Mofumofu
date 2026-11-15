@@ -25,7 +25,6 @@ public sealed class AgentRequest
     public required string SystemPrompt { get; init; }
     public required IReadOnlyList<AgentMessage> Messages { get; init; }
     public IReadOnlyList<AgentToolDefinition> Tools { get; init; } = Array.Empty<AgentToolDefinition>();
-    public double Temperature { get; init; } = 0.35;
     public double TopP { get; init; } = 1.0;
     public int MaxOutputTokens { get; init; } = 2048;
     public bool Streaming { get; init; } = true;

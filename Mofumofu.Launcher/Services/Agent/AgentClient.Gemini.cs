@@ -28,7 +28,6 @@ internal static class GeminiClient
             ["contents"] = BuildContents(request.Messages),
             ["generationConfig"] = new Dictionary<string, object?>
             {
-                ["temperature"] = request.Temperature,
                 ["topP"] = request.TopP,
                 ["maxOutputTokens"] = request.MaxOutputTokens,
             },
