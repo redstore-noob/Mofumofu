@@ -13,6 +13,13 @@
                   ExtendClientAreaToDecorationsHint="True"
                   ExtendClientAreaTitleBarHeightHint="-1">
 
+    <Window.Styles>
+        <!-- 开始菜单文字不可选中：不响应指针，避免出现 I-beam / 拖选 -->
+        <Style Selector="Grid#StartMenuOverlay TextBlock">
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </Window.Styles>
+
     <Panel x:Name="RootPanel" Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
 <!-- 主窗口内部壁纸层：供 GlassCard 模糊背景采样 -->        
         <views:InAppWallpaperSurface x:Name="InAppWallpaper" IsVisible="False" />
