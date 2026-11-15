@@ -535,6 +535,7 @@ public class RewindSystem
         RewindSettings settings = new()
         {
             AutoSnapshotEnabled = ReadBool("rewindAutoSnapshotEnabled", false),
+            RescueEnabled = ReadBool("rewindRescueEnabled", true),
             AutoSnapshotIntervalSeconds = Math.Clamp(ReadInt("rewindAutoSnapshotIntervalSeconds", 900), 30, 86400),
             MaximumAutoSnapshots = Math.Clamp(ReadInt("rewindMaxAutoSnapshots", DefaultMaximumAutoSnapshots), 1, 500),
             KeepLastCount = Math.Max(0, ReadInt("rewindKeepLastCount", 0)),
@@ -557,6 +558,7 @@ public class RewindSystem
         return YamlRead.UpdateInTransaction(YamlDomain.Config, document =>
         {
             document["rewindAutoSnapshotEnabled"] = settings.AutoSnapshotEnabled ? "True" : "False";
+            document["rewindRescueEnabled"] = settings.RescueEnabled ? "True" : "False";
             document["rewindAutoSnapshotIntervalSeconds"] = Math.Clamp(settings.AutoSnapshotIntervalSeconds, 30, 86400).ToString();
             document["rewindMaxAutoSnapshots"] = Math.Clamp(settings.MaximumAutoSnapshots, 1, 500).ToString();
             document["rewindKeepLastCount"] = Math.Max(0, settings.KeepLastCount).ToString();
@@ -1921,6 +1923,9 @@ public class RewindRetention
 public class RewindSettings
 {
     public bool AutoSnapshotEnabled { get; set; }
+
+    /// <summary>救砖模式：启动前自动创建还原点快照，游戏崩溃时弹窗询问是否回档。</summary>
+    public bool RescueEnabled { get; set; } = true;
 
     /// <summary>定时快照间隔（秒，30~86400）。</summary>
     public int AutoSnapshotIntervalSeconds { get; set; } = 900;

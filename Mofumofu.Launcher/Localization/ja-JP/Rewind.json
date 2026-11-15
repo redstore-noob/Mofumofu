@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "操作に失敗しました：{0}",
   "Rewind.Error.Refresh": "更新に失敗しました：{0}",
   "Rewind.Error.Settings": "定期スナップショット設定の読み込みに失敗しました：{0}",
-  "Rewind.Error.Scheduler": "定期スナップショットの設定に失敗しました：{0}"
+  "Rewind.Error.Scheduler": "定期スナップショットの設定に失敗しました：{0}",
+  "Rewind.Rescue.Label": "レスキューモード",
+  "Rewind.Rescue.Hint": "起動前に自動スナップショット、クラッシュ時にロールバックを確認",
+  "Rewind.Rescue.On": "レスキューモードを有効にしました",
+  "Rewind.Rescue.Off": "レスキューモードを無効にしました",
+  "Rewind.Rescue.Error": "レスキュー設定の保存に失敗：{0}"
 }

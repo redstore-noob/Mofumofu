@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "操作失败：{0}",
   "Rewind.Error.Refresh": "刷新失败：{0}",
   "Rewind.Error.Settings": "读取定时快照设置失败：{0}",
-  "Rewind.Error.Scheduler": "定时快照设置失败：{0}"
+  "Rewind.Error.Scheduler": "定时快照设置失败：{0}",
+  "Rewind.Rescue.Label": "救砖模式",
+  "Rewind.Rescue.Hint": "启动前自动快照，崩溃时询问是否回档",
+  "Rewind.Rescue.On": "已开启救砖模式",
+  "Rewind.Rescue.Off": "已关闭救砖模式",
+  "Rewind.Rescue.Error": "救砖设置失败：{0}"
 }

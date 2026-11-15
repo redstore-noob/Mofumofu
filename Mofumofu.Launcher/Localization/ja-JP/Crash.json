@@ -17,5 +17,16 @@
   "Crash.Action.Copied": "コピーしました ✓",
   "Crash.Action.OpenReport": "クラッシュレポートを開く",
   "Crash.Action.OpenHsErr": "JVM エラーログを開く",
-  "Crash.Hint.Close": "ダイアログ外の任意の場所をクリックすると閉じます"
+  "Crash.Hint.Close": "ダイアログ外の任意の場所をクリックすると閉じます",
+  "Crash.Rescue.Question": "レスキュー：ゲームがクラッシュしました。起動前の状態にロールバックしますか？",
+  "Crash.Rescue.Snapshot": "起動前スナップショット：{0} · {1}",
+  "Crash.Rescue.Safety": "ロールバックすると起動後の進行状況は失われます。ロールバック前に安全スナップショットが自動作成されるので、いつでも元に戻せます。",
+  "Crash.Rescue.Action.Rollback": "ワンクリックレスキュー（起動前にロールバック）",
+  "Crash.Rescue.Action.Busy": "レスキュー中…",
+  "Crash.Rescue.Action.Pick": "別のスナップショットを選ぶ",
+  "Crash.Rescue.Done": "レスキュー成功：起動前の状態にロールバックしました（安全スナップショット {0}）",
+  "Crash.Rescue.DoneTitle": "レスキュー成功。起動前の状態にロールバックしました",
+  "Crash.Rescue.DoneHint": "ロールバック前の状態は安全スナップショットとして保存されています。いつでも元に戻せます。ゲームを再起動できます。",
+  "Crash.Rescue.Action.Relaunch": "ゲームを再起動",
+  "Crash.Rescue.Failed": "レスキュー失敗：{0}"
 }

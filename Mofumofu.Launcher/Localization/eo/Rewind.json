@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "Agado malsukcesis: {0}",
   "Rewind.Error.Refresh": "Ĝisdatigo malsukcesis: {0}",
   "Rewind.Error.Settings": "Malsukcesis legi la agordojn de aŭtomataj kopioj: {0}",
-  "Rewind.Error.Scheduler": "Malsukcesis agordi la aŭtomatajn kopiojn: {0}"
+  "Rewind.Error.Scheduler": "Malsukcesis agordi la aŭtomatajn kopiojn: {0}",
+  "Rewind.Rescue.Label": "Sava reĝimo",
+  "Rewind.Rescue.Hint": "Aŭtomata momentkopio antaŭ starto; demandas pri rulado reen ĉe kolapso",
+  "Rewind.Rescue.On": "Sava reĝimo ŝaltita",
+  "Rewind.Rescue.Off": "Sava reĝimo malŝaltita",
+  "Rewind.Rescue.Error": "Malsukcesis konservi savan agordon: {0}"
 }

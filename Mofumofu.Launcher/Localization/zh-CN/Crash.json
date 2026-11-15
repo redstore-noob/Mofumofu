@@ -17,5 +17,16 @@
   "Crash.Action.Copied": "已复制 ✓",
   "Crash.Action.OpenReport": "打开崩溃报告",
   "Crash.Action.OpenHsErr": "打开 JVM 错误日志",
-  "Crash.Hint.Close": "点击弹窗外任意位置关闭"
+  "Crash.Hint.Close": "点击弹窗外任意位置关闭",
+  "Crash.Rescue.Question": "救砖：游戏崩了，要回档到启动前的状态吗？",
+  "Crash.Rescue.Snapshot": "启动前快照：{0} · {1}",
+  "Crash.Rescue.Safety": "回档会丢失本次启动后的进度；回档前会自动创建安全快照，随时可以反悔。",
+  "Crash.Rescue.Action.Rollback": "一键救砖（回档到启动前）",
+  "Crash.Rescue.Action.Busy": "正在救砖…",
+  "Crash.Rescue.Action.Pick": "选择其他快照",
+  "Crash.Rescue.Done": "救砖成功：已回档到启动前状态（安全快照 {0}）",
+  "Crash.Rescue.DoneTitle": "救砖成功，已回档到启动前状态",
+  "Crash.Rescue.DoneHint": "回档前的状态已存为安全快照，随时可以反悔。现在可以重新启动游戏了。",
+  "Crash.Rescue.Action.Relaunch": "重新启动游戏",
+  "Crash.Rescue.Failed": "救砖失败：{0}"
 }

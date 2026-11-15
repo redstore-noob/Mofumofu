@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "Lanĉo nuligita",
   "Launch.Toast.NoActive": "Neniu lanĉo nuntempe daŭras",
   "Launch.Hook.Blocked": "Kromprogramo blokis la lanĉon: {0}",
-  "Launch.Log.HookBlocked": "[lanĉilo] kromprogramo blokis la lanĉon: {0}"
+  "Launch.Log.HookBlocked": "[lanĉilo] kromprogramo blokis la lanĉon: {0}",
+  "Launch.Log.Rescue.Created": "[launcher] Savo: kreita momentkopio antaŭ starto {0}",
+  "Launch.Log.Rescue.Reuse": "[launcher] Savo: nenio ŝanĝiĝis, uzata lasta momentkopio {0}",
+  "Launch.Log.Rescue.None": "[launcher] Savo: neniu momentkopio disponebla; unuklaka rulado reen ne eblas por ĉi tiu kolapso",
+  "Launch.Log.Rescue.Failed": "[launcher] Savo: malsukcesis krei momentkopion antaŭ starto: {0}"
 }

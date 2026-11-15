@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "Launch cancelled",
   "Launch.Toast.NoActive": "No launch is currently running",
   "Launch.Hook.Blocked": "A plugin blocked the launch: {0}",
-  "Launch.Log.HookBlocked": "[launcher] A plugin blocked the launch: {0}"
+  "Launch.Log.HookBlocked": "[launcher] A plugin blocked the launch: {0}",
+  "Launch.Log.Rescue.Created": "[launcher] Unbrick: pre-launch snapshot {0} created",
+  "Launch.Log.Rescue.Reuse": "[launcher] Unbrick: nothing changed, reusing latest snapshot {0}",
+  "Launch.Log.Rescue.None": "[launcher] Unbrick: no snapshot available; one-click rollback won't be possible for this crash",
+  "Launch.Log.Rescue.Failed": "[launcher] Unbrick: failed to create pre-launch snapshot: {0}"
 }

@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "起動をキャンセルしました",
   "Launch.Toast.NoActive": "現在進行中の起動はありません",
   "Launch.Hook.Blocked": "プラグインが起動をブロックしました：{0}",
-  "Launch.Log.HookBlocked": "[launcher] プラグインが起動をブロックしました：{0}"
+  "Launch.Log.HookBlocked": "[launcher] プラグインが起動をブロックしました：{0}",
+  "Launch.Log.Rescue.Created": "[launcher] レスキュー：起動前スナップショット {0} を作成しました",
+  "Launch.Log.Rescue.Reuse": "[launcher] レスキュー：変更なし、最新スナップショット {0} を使用",
+  "Launch.Log.Rescue.None": "[launcher] レスキュー：利用可能なスナップショットがありません。今回のクラッシュはワンクリックでロールバックできません",
+  "Launch.Log.Rescue.Failed": "[launcher] レスキュー：起動前スナップショットの作成に失敗：{0}"
 }

@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "已取消啟動",
   "Launch.Toast.NoActive": "當前没有正在進行的啟動",
   "Launch.Hook.Blocked": "外掛阻止了啟動：{0}",
-  "Launch.Log.HookBlocked": "[launcher] 外掛阻止了啟動：{0}"
+  "Launch.Log.HookBlocked": "[launcher] 外掛阻止了啟動：{0}",
+  "Launch.Log.Rescue.Created": "[launcher] 救磚保障：已建立啟動前快照 {0}",
+  "Launch.Log.Rescue.Reuse": "[launcher] 救磚保障：內容未變化，沿用最近快照 {0}",
+  "Launch.Log.Rescue.None": "[launcher] 救磚保障：暫無可用快照，本次當機將無法一鍵回檔",
+  "Launch.Log.Rescue.Failed": "[launcher] 救磚保障：啟動前快照建立失敗：{0}"
 }

@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "Action failed: {0}",
   "Rewind.Error.Refresh": "Refresh failed: {0}",
   "Rewind.Error.Settings": "Failed to read scheduled snapshot settings: {0}",
-  "Rewind.Error.Scheduler": "Failed to update scheduled snapshot settings: {0}"
+  "Rewind.Error.Scheduler": "Failed to update scheduled snapshot settings: {0}",
+  "Rewind.Rescue.Label": "Unbrick mode",
+  "Rewind.Rescue.Hint": "Auto snapshot before launch; ask to roll back on crash",
+  "Rewind.Rescue.On": "Unbrick mode enabled",
+  "Rewind.Rescue.Off": "Unbrick mode disabled",
+  "Rewind.Rescue.Error": "Failed to save unbrick setting: {0}"
 }

@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "Start abgebrochen",
   "Launch.Toast.NoActive": "Derzeit läuft kein Start",
   "Launch.Hook.Blocked": "Ein Plugin hat den Start blockiert: {0}",
-  "Launch.Log.HookBlocked": "[Launcher] Ein Plugin hat den Start blockiert: {0}"
+  "Launch.Log.HookBlocked": "[Launcher] Ein Plugin hat den Start blockiert: {0}",
+  "Launch.Log.Rescue.Created": "[launcher] Rettung: Snapshot vor dem Start erstellt: {0}",
+  "Launch.Log.Rescue.Reuse": "[launcher] Rettung: keine Änderungen, neuesten Snapshot verwendet: {0}",
+  "Launch.Log.Rescue.None": "[launcher] Rettung: kein Snapshot verfügbar; Ein-Klick-Rollback für diesen Absturz nicht möglich",
+  "Launch.Log.Rescue.Failed": "[launcher] Rettung: Snapshot vor dem Start konnte nicht erstellt werden: {0}"
 }

@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "Запуск отменён",
   "Launch.Toast.NoActive": "Сейчас запуска нет",
   "Launch.Hook.Blocked": "Плагин заблокировал запуск: {0}",
-  "Launch.Log.HookBlocked": "[launcher] Плагин заблокировал запуск: {0}"
+  "Launch.Log.HookBlocked": "[launcher] Плагин заблокировал запуск: {0}",
+  "Launch.Log.Rescue.Created": "[launcher] Спасение: создан снимок до запуска {0}",
+  "Launch.Log.Rescue.Reuse": "[launcher] Спасение: без изменений, используется последний снимок {0}",
+  "Launch.Log.Rescue.None": "[launcher] Спасение: нет доступных снимков; быстрый откат при этом вылете невозможен",
+  "Launch.Log.Rescue.Failed": "[launcher] Спасение: не удалось создать снимок до запуска: {0}"
 }

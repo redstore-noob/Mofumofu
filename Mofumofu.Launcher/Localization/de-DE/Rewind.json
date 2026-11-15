@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "Aktion fehlgeschlagen: {0}",
   "Rewind.Error.Refresh": "Aktualisieren fehlgeschlagen: {0}",
   "Rewind.Error.Settings": "Einstellungen für geplante Snapshots konnten nicht gelesen werden: {0}",
-  "Rewind.Error.Scheduler": "Geplante Snapshots konnten nicht gespeichert werden: {0}"
+  "Rewind.Error.Scheduler": "Geplante Snapshots konnten nicht gespeichert werden: {0}",
+  "Rewind.Rescue.Label": "Rettungsmodus",
+  "Rewind.Rescue.Hint": "Automatischer Snapshot vor dem Start; fragt bei Absturz nach Rollback",
+  "Rewind.Rescue.On": "Rettungsmodus aktiviert",
+  "Rewind.Rescue.Off": "Rettungsmodus deaktiviert",
+  "Rewind.Rescue.Error": "Rettungs-Einstellung konnte nicht gespeichert werden: {0}"
 }

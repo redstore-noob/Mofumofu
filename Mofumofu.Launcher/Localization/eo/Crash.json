@@ -17,5 +17,16 @@
   "Crash.Action.Copied": "Kopiita ✓",
   "Crash.Action.OpenReport": "Malfermi la kolapsraporton",
   "Crash.Action.OpenHsErr": "Malfermi la JVM-erarprotokolon",
-  "Crash.Hint.Close": "Klaku ie ajn ekster la fenestro por fermi"
+  "Crash.Hint.Close": "Klaku ie ajn ekster la fenestro por fermi",
+  "Crash.Rescue.Question": "Savo: la ludo kolapsis. Ĉu ruli reen al la stato antaŭ la starto?",
+  "Crash.Rescue.Snapshot": "Momentkopio antaŭ starto: {0} · {1}",
+  "Crash.Rescue.Safety": "Rulado reen perdos la progreson post la starto; sekureca momentkopio estas aŭtomate kreata antaŭe, do vi ĉiam povas malfari.",
+  "Crash.Rescue.Action.Rollback": "Savi (ruli reen al antaŭ starto)",
+  "Crash.Rescue.Action.Busy": "Savante…",
+  "Crash.Rescue.Action.Pick": "Elekti alian momentkopion",
+  "Crash.Rescue.Done": "Savo sukcesis: rulita reen al la stato antaŭ starto (sekureca momentkopio {0})",
+  "Crash.Rescue.DoneTitle": "Savo sukcesis — stato antaŭ starto restarigita",
+  "Crash.Rescue.DoneHint": "La antaŭa stato estas konservita kiel sekureca momentkopio, ĉiam malfarebla. Vi nun povas restartigi la ludon.",
+  "Crash.Rescue.Action.Relaunch": "Restartigi la ludon",
+  "Crash.Rescue.Failed": "Savo malsukcesis: {0}"
 }

@@ -56,5 +56,10 @@
   "Rewind.Error.Action": "Не удалось выполнить действие: {0}",
   "Rewind.Error.Refresh": "Не удалось обновить: {0}",
   "Rewind.Error.Settings": "Не удалось прочитать настройки автоснимков: {0}",
-  "Rewind.Error.Scheduler": "Не удалось настроить автоснимки: {0}"
+  "Rewind.Error.Scheduler": "Не удалось настроить автоснимки: {0}",
+  "Rewind.Rescue.Label": "Режим спасения",
+  "Rewind.Rescue.Hint": "Автоснимок перед запуском; спрос об откате при вылете",
+  "Rewind.Rescue.On": "Режим спасения включён",
+  "Rewind.Rescue.Off": "Режим спасения выключен",
+  "Rewind.Rescue.Error": "Не удалось сохранить настройку спасения: {0}"
 }

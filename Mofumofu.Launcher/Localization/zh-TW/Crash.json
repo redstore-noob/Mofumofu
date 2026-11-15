@@ -17,5 +17,16 @@
   "Crash.Action.Copied": "已複製 ✓",
   "Crash.Action.OpenReport": "打開當機報告",
   "Crash.Action.OpenHsErr": "打開 JVM 錯誤日誌",
-  "Crash.Hint.Close": "點擊彈出視窗外任意位置關闭"
+  "Crash.Hint.Close": "點擊彈出視窗外任意位置關闭",
+  "Crash.Rescue.Question": "救磚：遊戲當機了，要回檔到啟動前的狀態嗎？",
+  "Crash.Rescue.Snapshot": "啟動前快照：{0} · {1}",
+  "Crash.Rescue.Safety": "回檔會遺失本次啟動後的進度；回檔前會自動建立安全快照，隨時可以反悔。",
+  "Crash.Rescue.Action.Rollback": "一鍵救磚（回檔到啟動前）",
+  "Crash.Rescue.Action.Busy": "正在救磚…",
+  "Crash.Rescue.Action.Pick": "選擇其他快照",
+  "Crash.Rescue.Done": "救磚成功：已回檔到啟動前狀態（安全快照 {0}）",
+  "Crash.Rescue.DoneTitle": "救磚成功，已回檔到啟動前狀態",
+  "Crash.Rescue.DoneHint": "回檔前的狀態已存為安全快照，隨時可以反悔。現在可以重新啟動遊戲了。",
+  "Crash.Rescue.Action.Relaunch": "重新啟動遊戲",
+  "Crash.Rescue.Failed": "救磚失敗：{0}"
 }

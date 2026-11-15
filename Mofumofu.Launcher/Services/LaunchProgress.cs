@@ -11,6 +11,7 @@ using MofuCore.Config;
 using MofuCore.Java;
 using MofuCore.Launch;
 using MofuCore.Log;
+using MofuCore.Tools;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Models;
 using Mofumofu.Launcher.Views;
@@ -161,6 +162,8 @@ public sealed class LaunchProgress
     private TimeSpan _lastDuration;
     private LaunchCompletedEventArgs? _lastResult;
     private DateTimeOffset _runStartedAtUtc;
+    private string _rescueDirectory = string.Empty;
+    private RewindSnapshot? _rescueSnapshot;
 
     public LaunchProgress()
     {
@@ -474,6 +477,9 @@ public sealed class LaunchProgress
                         L.T("Launch.Log.Language", "[launcher] {0}", message)));
             }
 
+            // 救砖保障：启动前给实例目录打还原点快照，崩溃时可一键回档
+            await PrepareRescueSnapshotAsync(options, token).ConfigureAwait(false);
+
             MinecraftLaunchResult result = await GameLaunch.Shared.LaunchAsync(options, token).ConfigureAwait(false);
             ProcessStarted?.Invoke(result.Pid);
             lock (_sync) _launchResult = result;
@@ -550,6 +556,62 @@ public sealed class LaunchProgress
         AppendLog(LaunchLogLevel.Success, L.T("Launch.Log.Real.WindowReady", "[launcher] 检测到游戏渲染线程输出，窗口已就绪"));
     }
 
+    /// <summary>
+    /// 救砖准备：启动前给实例游戏目录创建还原点快照（内容与最近快照一致时沿用最近一份）。
+    /// 失败只记日志，不阻断启动。
+    /// </summary>
+    private async Task PrepareRescueSnapshotAsync(MinecraftLaunchOptions options, CancellationToken token)
+    {
+        string gameDirectory = string.IsNullOrWhiteSpace(options.GameDirectory)
+            ? options.MinecraftDirectory
+            : options.GameDirectory;
+        lock (_sync)
+        {
+            _rescueDirectory = gameDirectory;
+            _rescueSnapshot = null;
+        }
+
+        if (!RewindSystem.LoadSettings().RescueEnabled) return;
+
+        try
+        {
+            RewindSnapshot? snapshot = await RewindSystem
+                .CreateLaunchSnapshotAsync(gameDirectory, RewindKind.Instance, token).ConfigureAwait(false);
+            if (snapshot is not null)
+            {
+                AppendLog(LaunchLogLevel.Info, L.T("Launch.Log.Rescue.Created",
+                    "[launcher] 救砖保障：已创建启动前快照 {0}", snapshot.Id));
+            }
+            else
+            {
+                IReadOnlyList<RewindSnapshot> snapshots = await RewindSystem
+                    .ListSnapshotsAsync(gameDirectory, token).ConfigureAwait(false);
+                snapshot = snapshots.Count > 0 ? snapshots[0] : null;
+                if (snapshot is not null)
+                {
+                    AppendLog(LaunchLogLevel.Info, L.T("Launch.Log.Rescue.Reuse",
+                        "[launcher] 救砖保障：内容未变化，沿用最近快照 {0}", snapshot.Id));
+                }
+            }
+
+            lock (_sync) _rescueSnapshot = snapshot;
+            if (snapshot is null)
+            {
+                AppendLog(LaunchLogLevel.Warning, L.T("Launch.Log.Rescue.None",
+                    "[launcher] 救砖保障：暂无可用快照，本次崩溃将无法一键回档"));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            AppendLog(LaunchLogLevel.Warning, L.T("Launch.Log.Rescue.Failed",
+                "[launcher] 救砖保障：启动前快照创建失败：{0}", e.Message));
+        }
+    }
+
     private string DiagnoseCrash(MinecraftLaunchOptions options, int exitCode)
     {
         string message = L.T("Launch.Log.Crash.Exit", "游戏异常退出（exit {0}）", exitCode);
@@ -600,7 +662,16 @@ public sealed class LaunchProgress
 
             if (!string.IsNullOrWhiteSpace(analysis.Summary)) message += "：" + analysis.Summary;
 
-            ShowCrashPopup(analysis);
+            RewindSnapshot? rescueSnapshot;
+            string rescueDirectory;
+            lock (_sync)
+            {
+                rescueSnapshot = _rescueSnapshot;
+                rescueDirectory = _rescueDirectory;
+            }
+            ShowCrashPopup(analysis, rescueSnapshot is null
+                ? null
+                : new CrashRescueInfo(rescueDirectory, rescueSnapshot));
         }
         catch (Exception e)
         {
@@ -609,8 +680,8 @@ public sealed class LaunchProgress
         return message;
     }
 
-    /// <summary>游戏崩溃时直接弹分析弹窗（结论 + 证据 + 决策），而不是只把诊断写进终端。</summary>
-    private void ShowCrashPopup(LogAnalysisResult analysis)
+    /// <summary>游戏崩溃时直接弹分析弹窗（结论 + 证据 + 决策 + 救砖回档），而不是只把诊断写进终端。</summary>
+    private void ShowCrashPopup(LogAnalysisResult analysis, CrashRescueInfo? rescue)
     {
         string instanceName = InstanceName;
         Dispatcher.UIThread.Post(() =>
@@ -618,7 +689,7 @@ public sealed class LaunchProgress
             try
             {
                 Shell.Dialog(
-                    CrashDialogContent.Build(analysis, instanceName),
+                    CrashDialogContent.Build(analysis, instanceName, rescue),
                     L.T("Crash.Dialog.Title", "游戏崩溃分析"));
             }
             catch
@@ -667,6 +738,8 @@ public sealed class LaunchProgress
             _history.Clear();
             _logTail.Clear();
             _lastResult = null;
+            _rescueDirectory = string.Empty;
+            _rescueSnapshot = null;
             InstanceName = string.IsNullOrWhiteSpace(instanceName) ? DefaultInstanceName : instanceName.Trim();
             VersionLabel = string.IsNullOrWhiteSpace(versionLabel) ? string.Empty : versionLabel.Trim();
             VersionId = string.Empty;

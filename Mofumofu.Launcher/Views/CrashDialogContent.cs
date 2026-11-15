@@ -9,10 +9,15 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MofuCore.Log;
+using MofuCore.Tools;
+using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Services;
 using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
+
+/// <summary>救砖信息：本次启动的还原点快照与它所属的实例目录。</summary>
+public sealed record CrashRescueInfo(string TargetDirectory, RewindSnapshot Snapshot);
 
 /// <summary>
 /// 游戏崩溃分析弹窗：展示 <see cref="LogAnalysis"/> 的结论（原因 + 证据 + 决策），
@@ -33,11 +38,13 @@ public static class CrashDialogContent
     private static IBrush FieldSoftBrush => ThemeTokens.Brush("NekoFieldSoftBrush");
     private static IBrush DangerBrush => ThemeTokens.Brush("NekoDangerBrush");
     private static IBrush WarningBrush => ThemeTokens.Brush("NekoWarningBrush");
+    private static IBrush WarningSoftBrush => ThemeTokens.Brush("NekoWarningSoftBrush");
+    private static IBrush SuccessBrush => ThemeTokens.Brush("NekoSuccessBrush");
     private static IBrush InfoBrush => ThemeTokens.Brush("NekoInfoBrush");
 
     private static readonly FontFamily MonoFont = new("Consolas, Cascadia Mono, Courier New");
 
-    public static Control Build(LogAnalysisResult result, string instanceName)
+    public static Control Build(LogAnalysisResult result, string instanceName, CrashRescueInfo? rescue = null)
     {
         ArgumentNullException.ThrowIfNull(result);
 
@@ -45,6 +52,10 @@ public static class CrashDialogContent
 
         panel.Children.Add(BuildMetaLine(result, instanceName));
         panel.Children.Add(BuildSummaryCard(result));
+        if (rescue is not null)
+        {
+            panel.Children.Add(BuildRescueCard(rescue, instanceName));
+        }
         if (result.Findings.Count > 0)
         {
             panel.Children.Add(new TextBlock
@@ -151,6 +162,110 @@ public static class CrashDialogContent
             Child = card,
             Background = AccentSoftBrush,
             BorderBrush = BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(14),
+        };
+    }
+
+    /// <summary>
+    /// 救砖卡片：崩溃时询问是否回档到启动前快照。一键回档（自动先打安全快照），
+    /// 成功后原地换成「重新启动」入口;也可以打开 Rewind 时间轴挑别的快照。
+    /// </summary>
+    private static Control BuildRescueCard(CrashRescueInfo rescue, string instanceName)
+    {
+        StackPanel card = new() { Spacing = 8 };
+
+        card.Children.Add(new TextBlock
+        {
+            Text = L.T("Crash.Rescue.Question", "救砖：游戏崩了，要回档到启动前的状态吗？"),
+            FontSize = 14.5,
+            FontWeight = FontWeight.Bold,
+            Foreground = TextBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        card.Children.Add(DimLine(L.T("Crash.Rescue.Snapshot", "启动前快照：{0} · {1}",
+            rescue.Snapshot.CreatedAt.LocalDateTime.ToString("MM-dd HH:mm:ss"),
+            rescue.Snapshot.TotalSizeDisplay)));
+        card.Children.Add(DimLine(L.T("Crash.Rescue.Safety",
+            "回档会丢失本次启动后的进度；回档前会自动创建安全快照，随时可以反悔。")));
+
+        Button rollback = new()
+        {
+            Content = L.T("Crash.Rescue.Action.Rollback", "一键救砖（回档到启动前）"),
+            Classes = { "primary", "dialog-action" },
+        };
+        Button pick = new()
+        {
+            Content = L.T("Crash.Rescue.Action.Pick", "选择其他快照"),
+            Classes = { "dialog-secondary", "dialog-action" },
+        };
+
+        rollback.Click += async (_, _) =>
+        {
+            rollback.IsEnabled = false;
+            pick.IsEnabled = false;
+            object originalContent = rollback.Content!;
+            rollback.Content = L.T("Crash.Rescue.Action.Busy", "正在救砖…");
+            try
+            {
+                RewindRollbackResult result = await RewindSystem.RollbackAsync(
+                    rescue.TargetDirectory, rescue.Snapshot.Id, RewindKind.Instance);
+                Shell.Toast(L.T("Crash.Rescue.Done", "救砖成功：已回档到启动前状态（安全快照 {0}）",
+                    result.SafetySnapshot.Id));
+
+                card.Children.Clear();
+                card.Children.Add(new TextBlock
+                {
+                    Text = L.T("Crash.Rescue.DoneTitle", "救砖成功，已回档到启动前状态"),
+                    FontSize = 14.5,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = SuccessBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+                card.Children.Add(DimLine(L.T("Crash.Rescue.DoneHint",
+                    "回档前的状态已存为安全快照，随时可以反悔。现在可以重新启动游戏了。")));
+
+                Button relaunch = new()
+                {
+                    Content = L.T("Crash.Rescue.Action.Relaunch", "重新启动游戏"),
+                    Classes = { "primary", "dialog-action" },
+                };
+                relaunch.Click += (_, _) =>
+                {
+                    MofuDialog.Close(relaunch);
+                    LaunchProgress.Shared.StartAuto();
+                };
+                card.Children.Add(relaunch);
+            }
+            catch (Exception e)
+            {
+                Shell.Toast(L.T("Crash.Rescue.Failed", "救砖失败：{0}", e.Message));
+                rollback.Content = originalContent;
+                rollback.IsEnabled = true;
+                pick.IsEnabled = true;
+            }
+        };
+
+        pick.Click += (_, _) =>
+        {
+            Shell.Dialog(
+                RewindDialogContent.Build(instanceName, null, rescue.TargetDirectory, RewindKind.Instance),
+                "Rewind");
+        };
+
+        card.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { rollback, pick },
+        });
+
+        return new Border
+        {
+            Child = card,
+            Background = WarningSoftBrush,
+            BorderBrush = WarningBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(14),

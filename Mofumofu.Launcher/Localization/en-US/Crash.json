@@ -17,5 +17,16 @@
   "Crash.Action.Copied": "Copied ✓",
   "Crash.Action.OpenReport": "Open crash report",
   "Crash.Action.OpenHsErr": "Open JVM error log",
-  "Crash.Hint.Close": "Click outside the dialog to close"
+  "Crash.Hint.Close": "Click outside the dialog to close",
+  "Crash.Rescue.Question": "Unbrick: the game crashed. Roll back to the pre-launch state?",
+  "Crash.Rescue.Snapshot": "Pre-launch snapshot: {0} · {1}",
+  "Crash.Rescue.Safety": "Rolling back discards progress made since launch; a safety snapshot is created first, so you can always undo.",
+  "Crash.Rescue.Action.Rollback": "Unbrick (roll back to pre-launch)",
+  "Crash.Rescue.Action.Busy": "Unbricking…",
+  "Crash.Rescue.Action.Pick": "Choose another snapshot",
+  "Crash.Rescue.Done": "Unbricked: rolled back to the pre-launch state (safety snapshot {0})",
+  "Crash.Rescue.DoneTitle": "Unbricked — rolled back to the pre-launch state",
+  "Crash.Rescue.DoneHint": "The previous state was saved as a safety snapshot, so you can undo anytime. You can relaunch the game now.",
+  "Crash.Rescue.Action.Relaunch": "Relaunch game",
+  "Crash.Rescue.Failed": "Unbrick failed: {0}"
 }

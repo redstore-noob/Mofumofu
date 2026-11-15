@@ -86,5 +86,9 @@
   "Launch.Toast.Cancelled": "已取消启动",
   "Launch.Toast.NoActive": "当前没有正在进行的启动",
   "Launch.Hook.Blocked": "插件阻止了启动：{0}",
-  "Launch.Log.HookBlocked": "[launcher] 插件阻止了启动：{0}"
+  "Launch.Log.HookBlocked": "[launcher] 插件阻止了启动：{0}",
+  "Launch.Log.Rescue.Created": "[launcher] 救砖保障：已创建启动前快照 {0}",
+  "Launch.Log.Rescue.Reuse": "[launcher] 救砖保障：内容未变化，沿用最近快照 {0}",
+  "Launch.Log.Rescue.None": "[launcher] 救砖保障：暂无可用快照，本次崩溃将无法一键回档",
+  "Launch.Log.Rescue.Failed": "[launcher] 救砖保障：启动前快照创建失败：{0}"
 }

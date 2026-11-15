@@ -124,12 +124,13 @@ public static class RewindDialogContent
     /// 显式目标目录（如实例隔离目录下的 saves/世界）。提供时优先于按名字解析，
     /// 因为 FindTargetDirectory 只扫全局 saves，找不到版本隔离实例的存档。
     /// </param>
-    public static Control Build(string targetName, Action? onRestored = null, string? explicitDirectory = null)
+    /// <param name="explicitKind">显式目标目录的快照类型；不传时按世界存档（Save）处理。</param>
+    public static Control Build(string targetName, Action? onRestored = null, string? explicitDirectory = null, RewindKind? explicitKind = null)
     {
         targetName = string.IsNullOrWhiteSpace(targetName) ? L.T("Rewind.Target.Default", "当前实例") : targetName.Trim();
         (string Directory, RewindKind Kind)? target =
             !string.IsNullOrWhiteSpace(explicitDirectory) && Directory.Exists(explicitDirectory)
-                ? (explicitDirectory, RewindKind.Save)
+                ? (explicitDirectory, explicitKind ?? RewindKind.Save)
                 : FindTargetDirectory(targetName);
         bool isReal = target is not null;
 
@@ -942,6 +943,55 @@ public static class RewindDialogContent
             },
         };
 
+        var rescueSwitch = new ToggleSwitch
+        {
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsEnabled = isReal,
+        };
+        bool initializingRescue = true;
+        var rescueRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 9,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = L.T("Rewind.Rescue.Label", "救砖模式"),
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = TextBrush,
+                },
+                rescueSwitch,
+                new TextBlock
+                {
+                    Text = L.T("Rewind.Rescue.Hint", "启动前自动快照，崩溃时询问是否回档"),
+                    FontSize = 11.5,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = DimBrush,
+                },
+            },
+        };
+        rescueSwitch.IsCheckedChanged += (_, _) =>
+        {
+            if (initializingRescue) return;
+            try
+            {
+                RewindSettings settings = RewindSystem.LoadSettings();
+                settings.RescueEnabled = rescueSwitch.IsChecked == true;
+                RewindSystem.SaveSettings(settings);
+                Shell.Toast(rescueSwitch.IsChecked == true
+                    ? L.T("Rewind.Rescue.On", "已开启救砖模式")
+                    : L.T("Rewind.Rescue.Off", "已关闭救砖模式"));
+            }
+            catch (Exception ex)
+            {
+                Shell.Toast(L.T("Rewind.Rescue.Error", "救砖设置失败：{0}", ex.Message));
+            }
+        };
+
         void StartScheduler()
         {
             if (target is null)
@@ -1042,6 +1092,8 @@ public static class RewindDialogContent
                 autoSwitch.IsChecked = settings.AutoSnapshotEnabled;
                 interval.SelectedIndex = ClosestIntervalIndex(settings.AutoSnapshotIntervalSeconds);
                 initializingAuto = false;
+                rescueSwitch.IsChecked = settings.RescueEnabled;
+                initializingRescue = false;
                 if (settings.AutoSnapshotEnabled)
                 {
                     StartScheduler();
@@ -1071,6 +1123,7 @@ public static class RewindDialogContent
                 status,
                 createRow,
                 autoRow,
+                rescueRow,
                 new Border { Height = 1, Background = BorderBrush, Margin = new Thickness(0, 2) },
                 timelineScroll,
                 new TextBlock
