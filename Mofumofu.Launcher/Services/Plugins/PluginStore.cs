@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,7 +66,11 @@ public sealed record PluginStoreEntry(
     string? AssetUrl,      // .nekoex 资产下载地址；null = 该 release 没有可安装资产
     string? AssetName,
     long AssetSize,
-    string HostName = "GitHub");
+    string HostName = "GitHub")
+{
+    /// <summary>release 资产绑定的 SHA256 摘要（GitHub API 的 digest 字段），无则 null。</summary>
+    public string? AssetDigest { get; init; }
+}
 
 /// <summary>
 /// 基于 Release 托管的插件仓库镜像（docs/Extension_Guide/5.基于Github仓库的镜像.md）：
@@ -155,6 +160,7 @@ public static class PluginStore
 
         string? assetUrl = null;
         string? assetName = null;
+        string? assetDigest = null;
         long assetSize = 0;
         if (root.TryGetProperty("assets", out var assets))
         {
@@ -163,15 +169,19 @@ public static class PluginStore
                 string current = asset.GetProperty("name").GetString() ?? string.Empty;
                 if (current.EndsWith(".nekoex", StringComparison.OrdinalIgnoreCase) == false) continue;
 
-                // Gitee/GitCode 的 v5 响应偶尔缺 browser_download_url，按平台约定拼直链兜底
+                // browser_download_url 来自远端 JSON，可能被指向外站：先做 HTTPS + 官方域白名单校验；
+                // 不可信或缺失时改用平台约定自行拼的可信直链，仍不可信则跳过该资产。
                 string? listed = asset.TryGetProperty("browser_download_url", out var urlEl)
                     ? urlEl.GetString()
                     : null;
-                if (string.IsNullOrWhiteSpace(listed) && tag.Length > 0)
+                if (IsTrustedAssetUrl(listed) == false && tag.Length > 0)
                 {
                     listed = reference.AssetDownloadUrl(tag, current);
                 }
+                if (IsTrustedAssetUrl(listed) == false) continue;
 
+                // GitHub Releases API 的 digest（形如 "sha256:<hex>"），与资产绑定的官方摘要。
+                assetDigest = asset.TryGetProperty("digest", out var digestEl) ? digestEl.GetString() : null;
                 assetUrl = listed;
                 assetName = current;
                 assetSize = asset.TryGetProperty("size", out var sizeEl) && sizeEl.ValueKind == JsonValueKind.Number
@@ -186,7 +196,10 @@ public static class PluginStore
             string.IsNullOrWhiteSpace(name) ? reference.Repo : name,
             tag.TrimStart('v', 'V'),
             notes, assetUrl, assetName, assetSize,
-            reference.HostName);
+            reference.HostName)
+        {
+            AssetDigest = assetDigest,
+        };
     }
 
     /// <summary>下载 .nekoex 到临时目录并安装（进度回报字节数）。</summary>
@@ -200,6 +213,12 @@ public static class PluginStore
             throw new InvalidOperationException("该仓库的最新 Release 没有 .nekoex 资产，无法安装。");
         }
 
+        // 落盘前再校验一次下载地址：必须 HTTPS 且落在官方域白名单内（fail-closed）。
+        if (IsTrustedAssetUrl(entry.AssetUrl) == false)
+        {
+            throw new InvalidOperationException("插件资产的下载地址非法（非官方 HTTPS 源），已中止下载。");
+        }
+
         string temporary = Path.Combine(Path.GetTempPath(), $"mofumofu-plugin-{Guid.NewGuid():N}.nekoex");
         try
         {
@@ -209,11 +228,81 @@ public static class PluginStore
                 onBytes: received => progress?.Report(received),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
+            // 落盘后按 asset 的 size / digest 校验文件，校验通过才交给安装器解压加载。
+            VerifyDownloadedAsset(temporary, entry);
+
             return await NekoexInstaller.InstallAsync(temporary, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             try { if (File.Exists(temporary)) File.Delete(temporary); } catch { /* 清理失败无所谓 */ }
+        }
+    }
+
+    /// <summary>
+    /// 下载地址校验：强制 HTTPS，且 host 落在 GitHub 自有域白名单；
+    /// 同时兼容商店已支持的 Gitee / GitCode 官方域，避免它们被误拒。
+    /// </summary>
+    private static bool IsTrustedAssetUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) == false) return false;
+        if (uri.Scheme != Uri.UriSchemeHttps) return false;
+
+        string host = uri.Host;
+        // GitHub 域白名单（与 GitHubUpdater 的口径一致）。
+        if (host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return host.Equals("gitee.com", StringComparison.OrdinalIgnoreCase)
+               || host.EndsWith(".gitee.com", StringComparison.OrdinalIgnoreCase)
+               || host.Equals("gitcode.com", StringComparison.OrdinalIgnoreCase)
+               || host.EndsWith(".gitcode.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>把 GitHub API 的 digest（"sha256:&lt;hex&gt;"）规范化为 64 位十六进制；非法返回 null。</summary>
+    private static string? NormalizeSha256(string? digest)
+    {
+        if (string.IsNullOrWhiteSpace(digest)) return null;
+        string value = digest.Trim();
+        const string prefix = "sha256:";
+        if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) value = value[prefix.Length..];
+        if (value.Length != 64) return null;
+        foreach (char c in value)
+        {
+            if (!char.IsAsciiHexDigit(c)) return null;
+        }
+        return value;
+    }
+
+    /// <summary>落盘校验：size 与 release 声明一致，且（绑定了 digest 时）SHA256 匹配。</summary>
+    private static void VerifyDownloadedAsset(string path, PluginStoreEntry entry)
+    {
+        var info = new FileInfo(path);
+        if (info.Exists == false)
+        {
+            throw new InvalidOperationException("商店插件下载失败：文件不存在。");
+        }
+        if (entry.AssetSize > 0 && info.Length != entry.AssetSize)
+        {
+            throw new InvalidOperationException("商店插件文件大小与 Release 声明不一致，已中止安装。");
+        }
+        if (string.IsNullOrWhiteSpace(entry.AssetDigest)) return;
+
+        string? expected = NormalizeSha256(entry.AssetDigest);
+        if (expected is null)
+        {
+            throw new InvalidOperationException("商店插件绑定的 SHA256 摘要格式非法，已中止安装。");
+        }
+        using FileStream stream = File.OpenRead(path);
+        byte[] hash = SHA256.HashData(stream);
+        if (!string.Equals(Convert.ToHexString(hash), expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("商店插件 SHA256 校验失败，已中止安装。");
         }
     }
 

@@ -54,16 +54,21 @@ public static class PluginConsent
         return PluginConsentState.Granted;
     }
 
-    /// <summary>记录一次同意：写入当前指纹 + 整包声明权限 + 时间。</summary>
+    /// <summary>记录一次同意：写入当前指纹 + 整包声明权限 + 时间（整段走 LocalSettings 的 Gate）。</summary>
     public static void Grant(PluginManifest manifest, string dllHash)
     {
-        PluginStateEntry state = FindState(manifest.Id) ?? CreateState(manifest.Id);
-        state.ConsentDllHash = dllHash;
-        state.ConsentPermissions = manifest.Permissions
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        state.ConsentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        LocalSettings.Save();
+        LocalSettings.MutatePluginStates(states =>
+        {
+            PluginStateEntry state = states.FirstOrDefault(entry =>
+                string.Equals(entry.Id, manifest.Id, StringComparison.OrdinalIgnoreCase))
+                ?? NewState(states, manifest.Id);
+            state.ConsentDllHash = dllHash;
+            state.ConsentPermissions = manifest.Permissions
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            state.ConsentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            LocalSettings.Save();
+        });
     }
 
     /// <summary>插件目录整包聚合 SHA256（十六进制小写）：覆盖所有 dll/axaml/yaml/manifest 等文件。</summary>
@@ -113,13 +118,14 @@ public static class PluginConsent
     }
 
     private static PluginStateEntry? FindState(string pluginId) =>
-        LocalSettings.Current.PluginStates.FirstOrDefault(entry =>
-            string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+        LocalSettings.WithPluginStates(states => states.FirstOrDefault(entry =>
+            string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase)));
 
-    private static PluginStateEntry CreateState(string pluginId)
+    /// <summary>仅在 MutatePluginStates 的回调（已持 Gate）里调用：创建并登记一个新状态条目。</summary>
+    private static PluginStateEntry NewState(List<PluginStateEntry> states, string pluginId)
     {
         var state = new PluginStateEntry { Id = pluginId };
-        LocalSettings.Current.PluginStates.Add(state);
+        states.Add(state);
         return state;
     }
 }

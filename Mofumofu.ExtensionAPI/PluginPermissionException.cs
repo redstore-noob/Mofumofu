@@ -22,6 +22,8 @@ public enum PluginPermission
     ServerStatus = 6,
     /// <summary>实例内容写操作（启停 / 删除模组）。</summary>
     InstanceWrite = 7,
+    /// <summary>启动玩家选中的实例（写操作，宿主按 launch 区鉴权）。</summary>
+    Launch = 8,
 }
 
 /// <summary>
@@ -46,11 +48,13 @@ public static class PluginPermissionZones
     public const string ServerStatus = "serverStatus";
     /// <summary>实例内容写操作（启停 / 删除模组）。</summary>
     public const string InstanceWrite = "instanceWrite";
+    /// <summary>启动玩家选中的实例；字面值与宿主 PluginPermissions.Launch 一致，请勿改动。</summary>
+    public const string Launch = "launch";
 
     /// <summary>全部已知权限区名（只读快照，不暴露内部可变数组）。</summary>
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
-        Notify, Widget, Network, NetworkReadonly, Storage, Readonly, ServerStatus, InstanceWrite,
+        Notify, Widget, Network, NetworkReadonly, Storage, Readonly, ServerStatus, InstanceWrite, Launch,
     });
 
     /// <summary>是否为宿主已知的权限区名（忽略大小写，null 安全，可用于 fail-closed 校验）。</summary>
@@ -68,6 +72,7 @@ public static class PluginPermissionZones
         PluginPermission.Readonly => Readonly,
         PluginPermission.ServerStatus => ServerStatus,
         PluginPermission.InstanceWrite => InstanceWrite,
+        PluginPermission.Launch => Launch,
         _ => throw new ArgumentOutOfRangeException(nameof(permission)),
     };
 

@@ -230,6 +230,24 @@ public sealed class LocalSettings
         }
     }
 
+    /// <summary>
+    /// 在 Gate 内只读访问 PluginStates：与 SaveCore 的序列化互斥，避免并发枚举时抛「集合已修改」。
+    /// 所有对插件状态的读取（FirstOrDefault / 遍历等）都应走这里。
+    /// </summary>
+    public static T WithPluginStates<T>(Func<List<PluginStateEntry>, T> read)
+    {
+        lock (Gate) return read(Current.PluginStates);
+    }
+
+    /// <summary>
+    /// 在 Gate 内修改 PluginStates（新增条目 / 改权限字典等），与 SaveCore 的序列化互斥；
+    /// 回调里可安全调用 <see cref="Save"/>（Monitor 可重入）。
+    /// </summary>
+    public static void MutatePluginStates(Action<List<PluginStateEntry>> mutate)
+    {
+        lock (Gate) mutate(Current.PluginStates);
+    }
+
     private static void SaveCore()
     {
         // 先写临时文件再原子替换，避免写一半把原文件损坏。

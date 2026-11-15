@@ -41,9 +41,15 @@ public static class PluginPermissions
         }
 
         // 同意阶段授予的权限集必须参与运行时鉴权：未经本次同意授权的权限域一律拒绝（fail-closed）。
-        var consent = LocalSettings.Current.PluginStates
-            .FirstOrDefault(entry => string.Equals(entry.Id, runtime.Manifest.Id, StringComparison.OrdinalIgnoreCase));
-        if (consent is null || consent.ConsentPermissions.Contains(zone, StringComparer.OrdinalIgnoreCase) == false)
+        // PluginStates 的读取走 LocalSettings 的 Gate，与 SaveCore 序列化互斥，避免并发枚举异常。
+        bool consented = LocalSettings.WithPluginStates(states =>
+        {
+            var consent = states.FirstOrDefault(entry =>
+                string.Equals(entry.Id, runtime.Manifest.Id, StringComparison.OrdinalIgnoreCase));
+            return consent is not null
+                   && consent.ConsentPermissions.Contains(zone, StringComparer.OrdinalIgnoreCase);
+        });
+        if (consented == false)
         {
             throw new PluginPermissionException(zone,
                 $"插件 {runtime.Manifest.Name} 的 {zone} 权限未经玩家同意，调用被拒绝。");
@@ -59,25 +65,30 @@ public static class PluginPermissions
     /// <summary>玩家开关状态（LocalSettings 持久化）；未记录 = 默认允许。</summary>
     public static bool IsAllowedByUser(string pluginId, string zone)
     {
-        var state = LocalSettings.Current.PluginStates?
-            .FirstOrDefault(entry => string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
-        if (state is null) return true;
-        return state.Permissions.TryGetValue(zone, out bool allowed) == false || allowed;
+        return LocalSettings.WithPluginStates(states =>
+        {
+            var state = states?.FirstOrDefault(entry =>
+                string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+            if (state is null) return true;
+            return state.Permissions.TryGetValue(zone, out bool allowed) == false || allowed;
+        });
     }
 
-    /// <summary>写入玩家开关状态并持久化。</summary>
+    /// <summary>写入玩家开关状态并持久化（整段走 LocalSettings 的 Gate，避免并发序列化异常）。</summary>
     public static void SetAllowed(string pluginId, string zone, bool allowed)
     {
-        var states = LocalSettings.Current.PluginStates;
-        var state = states.FirstOrDefault(entry =>
-            string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
-        if (state is null)
+        LocalSettings.MutatePluginStates(states =>
         {
-            state = new PluginStateEntry { Id = pluginId };
-            states.Add(state);
-        }
+            var state = states.FirstOrDefault(entry =>
+                string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+            if (state is null)
+            {
+                state = new PluginStateEntry { Id = pluginId };
+                states.Add(state);
+            }
 
-        state.Permissions[zone] = allowed;
-        LocalSettings.Save();
+            state.Permissions[zone] = allowed;
+            LocalSettings.Save();
+        });
     }
 }

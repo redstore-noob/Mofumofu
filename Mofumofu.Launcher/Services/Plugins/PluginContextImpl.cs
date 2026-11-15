@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -52,6 +53,9 @@ public sealed class PluginContextImpl : IPluginContext
         Theme = new ThemeImpl(this);
         SystemTray = new SystemTrayImpl(this);
         Config = new ConfigImpl(this);
+        ServerStatus = new ServerStatusImpl(this);
+        LogWrite = new LogWriteImpl(this);
+        MemoryInfo = new MemoryInfoImpl();
     }
 
     internal PluginRuntime Runtime => _runtime;
@@ -82,6 +86,9 @@ public sealed class PluginContextImpl : IPluginContext
     public ITheme Theme { get; }
     public ISystemTray SystemTray { get; }
     public IConfig Config { get; }
+    public IServerStatus ServerStatus { get; }
+    public ILogWrite LogWrite { get; }
+    public IMemoryInfo MemoryInfo { get; }
 
     public void Log(string message) => PluginLog.Write(_runtime.Manifest.Id, message);
 
@@ -95,6 +102,88 @@ public sealed class PluginContextImpl : IPluginContext
         !string.IsNullOrEmpty(kind) && IconParkGlyphs.ByKey.ContainsKey(kind);
 
     public IReadOnlyList<string> IconKinds => [.. IconParkGlyphs.ByKey.Keys.OrderBy(k => k, StringComparer.Ordinal)];
+
+    // ==================================================================
+    // 组合根补充能力：ServerStatus / LogWrite / MemoryInfo
+    // 契约层是「带默认实现的接口属性」，宿主在此给出真实实现；
+    // 未接线的旧版组合根会走默认实现抛 NotSupportedException（二进制兼容）。
+    // ==================================================================
+
+    private sealed class ServerStatusImpl(PluginContextImpl owner) : IServerStatus
+    {
+        public async Task<ServerStatus> GetServerStatus(string serverURL)
+        {
+            // serverStatus 权限区在这里真正生效：未声明 / 未同意 / 玩家关闭都会被拒。
+            owner.Demand(PluginPermissions.ServerStatus);
+            if (string.IsNullOrWhiteSpace(serverURL))
+            {
+                throw new ArgumentException("serverURL 不能为空。", nameof(serverURL));
+            }
+
+            MofuCore.OnlineGame.ServerPingResult ping = await MofuCore.OnlineGame.ServerListPing
+                .PingAsync(serverURL.Trim()).ConfigureAwait(false);
+
+            // ServerPingResult 只给出版本名字符串，契约要求整数版本区间：尽力解析，无法解析时按 0（未知）处理。
+            int version = int.TryParse(ping.VersionName, out int parsed) ? parsed : 0;
+            Control icon = await Avalonia.Threading.Dispatcher.UIThread
+                .InvokeAsync(() => BuildIcon(ping.FaviconPng));
+            return new ServerStatus(
+                ping.Motd ?? string.Empty,
+                icon,
+                ping.OnlinePlayers,
+                ping.MaxPlayers,
+                version,
+                version);
+        }
+
+        /// <summary>契约要求 Icon 永不为 null；无图标 / favicon 损坏时提供占位 Control。</summary>
+        private static Control BuildIcon(byte[]? favicon)
+        {
+            if (favicon is { Length: > 0 })
+            {
+                try
+                {
+                    using var stream = new MemoryStream(favicon);
+                    return new Image
+                    {
+                        Source = new Avalonia.Media.Imaging.Bitmap(stream),
+                        Width = 32,
+                        Height = 32,
+                    };
+                }
+                catch
+                {
+                    // favicon 无法解码：回退占位
+                }
+            }
+            return new Border { Width = 32, Height = 32 };
+        }
+    }
+
+    private sealed class LogWriteImpl(PluginContextImpl owner) : ILogWrite
+    {
+        public bool LogAdd(string message)
+        {
+            PluginLog.Write(owner.Runtime.Manifest.Id, message ?? string.Empty);
+            return true;
+        }
+    }
+
+    private sealed class MemoryInfoImpl : IMemoryInfo
+    {
+        public int MemoryRemaining()
+        {
+            // 复用宿主的物理内存读取：AvailableBytes 是当前可用物理内存；
+            // 该值为 -1（跨平台不可得）时回退到 GC 可见的可用内存近似值。
+            (long _, long availableBytes) = MofuCore.Tools.MemoryRead.ReadPhysicalMemory();
+            if (availableBytes <= 0)
+            {
+                availableBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+            }
+            long megabytes = availableBytes / (1024 * 1024);
+            return (int)Math.Clamp(megabytes, 0L, int.MaxValue);
+        }
+    }
 
     /// <summary>解析实例的某个资源子目录（mods / shaderpacks / resourcepacks），并做路径穿越防护。</summary>
     internal static string ResolveInstanceSubDirectory(PluginContextImpl owner, string instanceId, ResourceKind kind)
@@ -383,6 +472,17 @@ public sealed class PluginContextImpl : IPluginContext
                 string name = System.IO.Path.GetFileNameWithoutExtension(dll);
                 if (string.Equals(name, "extension", StringComparison.OrdinalIgnoreCase)) continue;
                 if (AllowedThemeAssemblies.Contains(name) == false) continue;
+
+                // 仅凭文件名白名单不足以证明 DLL 身份：读取程序集元数据，要求简单名与预期一致
+                // 且具备强名称公钥标记；无法验证（元数据读不出 / 无强名称 / 名字不符）一律拒绝装入宿主默认 ALC，
+                // 避免插件用同名但不同来源的程序集污染宿主进程（fail-closed）。
+                if (VerifyThemeAssembly(dll, name, out string reason) == false)
+                {
+                    PluginLog.Write(owner.Runtime.Manifest.Id,
+                        "主题依赖来源校验失败，拒绝装入宿主 " + name + "：" + reason);
+                    continue;
+                }
+
                 lock (HostedThemeAssemblies)
                 {
                     if (HostedThemeAssemblies.Contains(name)) continue;
@@ -398,6 +498,36 @@ public sealed class PluginContextImpl : IPluginContext
                 {
                     PluginLog.Write(owner.Runtime.Manifest.Id, "主题依赖装入失败 " + name + "：" + error.Message);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 校验随包主题 DLL 的身份：程序集简单名必须与白名单名一致，且必须带强名称公钥标记。
+        /// 任意一步无法验证都返回 false（调用方据此拒绝加载）。
+        /// </summary>
+        private static bool VerifyThemeAssembly(string dll, string expectedName, out string reason)
+        {
+            reason = string.Empty;
+            try
+            {
+                AssemblyName assemblyName = AssemblyName.GetAssemblyName(dll);
+                if (string.Equals(assemblyName.Name, expectedName, StringComparison.OrdinalIgnoreCase) == false)
+                {
+                    reason = $"程序集简单名 {assemblyName.Name} 与预期 {expectedName} 不一致";
+                    return false;
+                }
+                byte[]? token = assemblyName.GetPublicKeyToken();
+                if (token is null || token.Length == 0)
+                {
+                    reason = "程序集缺少强名称公钥标记，无法验证来源";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception error)
+            {
+                reason = "读取程序集元数据失败：" + error.Message;
+                return false;
             }
         }
 

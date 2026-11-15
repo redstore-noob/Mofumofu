@@ -79,8 +79,18 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
     {
         Dispatcher.UIThread.Post(() =>
         {
-            _ballRegistration?.Dispose();
-            _ballRegistration = _context.Pages.Add("*", PageSlot.Overlay, BuildBall, order: 999);
+            // Pages.Add 会在宿主侧 Demand(Widget)；权限被撤或页面调度异常都不能在 UI 线程未处理抛出。
+            try
+            {
+                _ballRegistration?.Dispose();
+                _ballRegistration = _context.Pages.Add("*", PageSlot.Overlay, BuildBall, order: 999);
+            }
+            catch (Exception error)
+            {
+                // 记录失败也不能再向 UI 线程抛出未处理异常。
+                try { _context.Log("悬浮球注册失败：" + error.Message); }
+                catch { /* 日志系统不可用时静默吞掉 */ }
+            }
         });
     }
 
@@ -274,15 +284,39 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
     {
         if (string.IsNullOrEmpty(log)) return string.Empty;
 
+        // JSON 形式："accessToken":"xxx" / "token": "xxx"，凭据被双引号包裹，原有 [=:] 规则匹配不到。
         string redacted = Regex.Replace(log,
+            @"(""(?:accessToken|clientToken|auth_access_token|auth_session|uuid|username|token|password|secret|api[_-]?key|session)""\s*:\s*)""[^""]*""",
+            "${1}\"[已脱敏]\"", RegexOptions.IgnoreCase);
+
+        // 命令行空白分隔：--accessToken <token> / --uuid <uuid>，凭据与参数名之间只有空白。
+        redacted = Regex.Replace(redacted,
+            @"(--accessToken|--uuid|--username|--clientToken)\s+[^\s""']+",
+            "${1} [已脱敏]", RegexOptions.IgnoreCase);
+
+        // 普通键值：--accessToken=xxx / accessToken:xxx 等（保留原有规则）。
+        redacted = Regex.Replace(redacted,
             @"(--accessToken|--uuid|--username|auth_access_token|auth_session|accessToken|clientToken)\s*[=:]\s*\S+",
             "${1}=[已脱敏]", RegexOptions.IgnoreCase);
         redacted = Regex.Replace(redacted,
             @"(Authorization|Cookie|Set-Cookie|token|password|secret|api[_-]?key)\s*[:=]\s*\S+",
             "${1}: [已脱敏]", RegexOptions.IgnoreCase);
+
+        // Bearer / Basic 认证头。
         redacted = Regex.Replace(redacted,
             @"(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+",
             "${1} [已脱敏]", RegexOptions.IgnoreCase);
+
+        // 本机路径与用户名：C:\Users\<name>\... 会泄漏本机用户名，抹掉用户名段及独立出现的用户名。
+        redacted = Regex.Replace(redacted,
+            @"([A-Za-z]:\\Users\\)[^\\\s""']+",
+            m => m.Groups[1].Value + "[已脱敏]", RegexOptions.IgnoreCase);
+        string userName = Environment.UserName;
+        if (!string.IsNullOrEmpty(userName))
+        {
+            redacted = Regex.Replace(redacted, Regex.Escape(userName), "[已脱敏]", RegexOptions.IgnoreCase);
+        }
+
         return redacted;
     }
 

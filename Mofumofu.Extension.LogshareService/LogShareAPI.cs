@@ -71,14 +71,12 @@ public class LogShareAPI
             return LogShareUploadResult.Fail("日志内容不能为空。");
         }
 
-        if (Encoding.UTF8.GetByteCount(content) > MaximumContentBytes)
+        if (!IsWithinLimits(content))
         {
-            return LogShareUploadResult.Fail("日志内容超过 10MiB，无法上传。");
-        }
-
-        if (CountLines(content) > MaximumLines)
-        {
-            return LogShareUploadResult.Fail($"日志超过 {MaximumLines} 行，无法上传。");
+            return LogShareUploadResult.Fail(
+                Encoding.UTF8.GetByteCount(content) > MaximumContentBytes
+                    ? "日志内容超过 10MiB，无法上传。"
+                    : $"日志超过 {MaximumLines} 行，无法上传。");
         }
 
         Dictionary<string, object> payload = new()
@@ -92,9 +90,8 @@ public class LogShareAPI
             foreach (KeyValuePair<string, string> pair in files)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key)) continue;
-                // 附加文件同样受单条日志大小/行数上限约束（fail-closed）。
-                if (Encoding.UTF8.GetByteCount(pair.Value) > MaximumContentBytes
-                    || CountLines(pair.Value) > MaximumLines)
+                // 附加文件同样受单条日志大小/行数上限约束（fail-closed，复用同一校验）。
+                if (!IsWithinLimits(pair.Value))
                 {
                     return LogShareUploadResult.Fail("附加文件内容超过限制，无法上传。");
                 }
@@ -224,7 +221,19 @@ public class LogShareAPI
 
         try
         {
-            using HttpRequestMessage request = new(HttpMethod.Delete, UrlOf("v1/log/" + Uri.EscapeDataString(ids.Trim())));
+            // 支持逗号分隔的多 ID：逐个 ID 转义后再用逗号连接，逗号本身必须保留，
+            // 否则对整个 ids 做 EscapeDataString 会把逗号编码成 %2C，服务端只会看到一个 ID。
+            var escapedIds = new List<string>();
+            foreach (string id in ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                escapedIds.Add(Uri.EscapeDataString(id.Trim()));
+            }
+            if (escapedIds.Count == 0)
+            {
+                return LogShareDeleteResult.Fail("日志 ID 不能为空。");
+            }
+
+            using HttpRequestMessage request = new(HttpMethod.Delete, UrlOf("v1/log/" + string.Join(",", escapedIds)));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
             using HttpResponseMessage response = await Http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             using JsonDocument document = await ReadJsonAsync(response, cancellationToken).ConfigureAwait(false);
@@ -400,6 +409,12 @@ public class LogShareAPI
     public async Task<LogShareInsights?> AnalyseAsync(string content, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(content))
+        {
+            return null;
+        }
+
+        // 与 UploadAsync 复用同一内容上限校验，避免分析接口被超大 / 超行数日志拖垮。
+        if (!IsWithinLimits(content))
         {
             return null;
         }
@@ -656,6 +671,11 @@ public class LogShareAPI
 
         return result;
     }
+
+    /// <summary>上传 / 分析前统一的内容上限校验：字节数与行数都必须在限制内。</summary>
+    private static bool IsWithinLimits(string content) =>
+        Encoding.UTF8.GetByteCount(content) <= MaximumContentBytes
+        && CountLines(content) <= MaximumLines;
 
     private static int CountLines(string content)
     {

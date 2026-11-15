@@ -157,6 +157,26 @@ public static class PluginManager
 
         foreach (PluginRuntime runtime in hookPlugins)
         {
+            // 启动钩子参与启动流程：派发前按用途做权限校验（fail-closed）。
+            // 与下载通知钩子一致：Context 缺失或未声明 launch 权限的插件不派发。
+            if (runtime.Context is not { } hookContext)
+            {
+                continue;
+            }
+            try
+            {
+                hookContext.Demand(PluginPermissions.Launch);
+            }
+            catch (PluginPermissionException)
+            {
+                continue; // 未声明 launch 权限的插件收不到启动钩子
+            }
+            catch (Exception error)
+            {
+                PluginLog.Write(runtime.Manifest.Id, "启动钩子权限检查异常：" + error.Message);
+                continue;
+            }
+
             var hook = (Mofumofu.ExtensionAPI.Actions.ILaunchAction)runtime.Instance!;
             var context = new LaunchContextImpl(instanceId, options.VersionId, options.MinecraftDirectory,
                 options.AdditionalJvmArguments);
@@ -176,6 +196,12 @@ public static class PluginManager
                 {
                     allow = true;
                     PluginLog.Write(runtime.Manifest.Id, "启动钩子超时（5 秒），按放行处理");
+                    // 超时后 loser（hookTask）仍在跑：挂异常观察 continuation，避免产生未观察异常。
+                    _ = hookTask.ContinueWith(
+                        t => PluginLog.Write(runtime.Manifest.Id,
+                            "超时后的启动钩子异常：" + (t.Exception?.GetBaseException().Message ?? "未知")),
+                        System.Threading.CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
                 }
             }
             catch (Exception error)
@@ -259,8 +285,9 @@ public static class PluginManager
     }
 
     /// <summary>
-    /// ILaunchContext 宿主实现：JvmArguments 经白名单守卫包装，插件即便绕过 TryAddJvmArgument
-    /// 直接 Add/Insert/索引赋值，危险参数（代理 / 类路径 / 外部命令）也会被拒绝落地。
+    /// ILaunchContext 宿主实现：JvmArguments 以只读视图暴露，插件即便绕过 TryAddJvmArgument
+    /// 把返回值强转回 IList 直接 Add/Insert/索引赋值/Clear/Remove，危险参数
+    /// （代理 / 类路径 / 外部命令）与破坏性删除也会被守卫拦下。
     /// </summary>
     private sealed class LaunchContextImpl(
         string instanceId,
@@ -271,7 +298,7 @@ public static class PluginManager
         public string InstanceId { get; } = instanceId;
         public string VersionId { get; } = versionId;
         public string GameDirectory { get; } = gameDirectory;
-        public IList<string> JvmArguments { get; } = new GuardedJvmArguments(jvmArguments);
+        public IReadOnlyList<string> JvmArguments { get; } = new GuardedJvmArguments(jvmArguments);
 
         public bool IsCancelled { get; private set; }
         public string CancelReason { get; private set; } = string.Empty;
@@ -286,9 +313,10 @@ public static class PluginManager
     /// <summary>
     /// JVM 参数写入守卫：所有增改一律过 <see cref="Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy"/>
     /// 白名单，被拒参数静默丢弃（与 TryAddJvmArgument 返回 false 且不改动列表的语义一致）；读取透传。
+    /// 同时实现 IReadOnlyList，使上下文属性只暴露只读视图；强转回 IList 也无法绕过守卫。
     /// 仅拦截插件经上下文的写入——宿主自身在副本上追加的 authlib 注入与用户预设参数不受影响。
     /// </summary>
-    private sealed class GuardedJvmArguments(IList<string> inner) : IList<string>
+    private sealed class GuardedJvmArguments(IList<string> inner) : IList<string>, IReadOnlyList<string>
     {
         public string this[int index]
         {
@@ -309,13 +337,24 @@ public static class PluginManager
             if (Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(item)) inner.Insert(index, item);
         }
 
-        public void Clear() => inner.Clear();
+        // 删除 / 清空会移除宿主或其它插件注入的参数（authlib 注入、类路径等），而白名单策略
+        // 只校验「注入的内容」、无法授权删除：这里 fail-closed —— Clear 一律拒绝，Remove/RemoveAt
+        // 仅允许移除本身通过白名单的参数项，避免插件借 Clear/Remove 绕过白名单清掉宿主参数。
+        public void Clear() { }
         public bool Contains(string item) => inner.Contains(item);
         public void CopyTo(string[] array, int arrayIndex) => inner.CopyTo(array, arrayIndex);
         public IEnumerator<string> GetEnumerator() => inner.GetEnumerator();
         public int IndexOf(string item) => inner.IndexOf(item);
-        public bool Remove(string item) => inner.Remove(item);
-        public void RemoveAt(int index) => inner.RemoveAt(index);
+        public bool Remove(string item) =>
+            Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(item) && inner.Remove(item);
+        public void RemoveAt(int index)
+        {
+            if (index >= 0 && index < inner.Count
+                && Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy.IsAllowed(inner[index]))
+            {
+                inner.RemoveAt(index);
+            }
+        }
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => inner.GetEnumerator();
     }
 
@@ -611,16 +650,21 @@ public static class PluginManager
     /// <summary>启用（热加载）或停用（热卸载）插件，状态持久化。</summary>
     public static void SetEnabled(string pluginId, bool enabled)
     {
-        var state = LocalSettings.Current.PluginStates.FirstOrDefault(entry =>
-            string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
-        if (state is null)
+        // 插件状态的「查找 / 新增 / 修改 / 保存」整段走 LocalSettings 的 Gate，
+        // 与 SaveCore 的序列化互斥，避免并发枚举抛「集合已修改」。
+        LocalSettings.MutatePluginStates(states =>
         {
-            state = new PluginStateEntry { Id = pluginId };
-            LocalSettings.Current.PluginStates.Add(state);
-        }
+            var state = states.FirstOrDefault(entry =>
+                string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+            if (state is null)
+            {
+                state = new PluginStateEntry { Id = pluginId };
+                states.Add(state);
+            }
 
-        state.Enabled = enabled;
-        LocalSettings.Save();
+            state.Enabled = enabled;
+            LocalSettings.Save();
+        });
 
         PluginRuntime? runtime = ById(pluginId);
         if (runtime is null) return;
@@ -653,9 +697,9 @@ public static class PluginManager
 
     public static bool IsEnabled(string pluginId)
     {
-        var state = LocalSettings.Current.PluginStates.FirstOrDefault(entry =>
-            string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase));
-        return state?.Enabled ?? true;
+        return LocalSettings.WithPluginStates(states =>
+            states.FirstOrDefault(entry =>
+                string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase))?.Enabled ?? true);
     }
 
     /// <summary>尽力卸载：回收注册句柄 → 释放 ALC → GC 轮询验证；未死透提示重启。</summary>
@@ -737,7 +781,7 @@ public static class PluginManager
                 string target = ResolvePluginPath(id);
                 if (Directory.Exists(target) && Directory.EnumerateFiles(target).Any()) continue;
 
-                ZipFile.ExtractToDirectory(package, target, overwriteFiles: true);
+                NekoexInstaller.ExtractPackage(package, target);
                 PluginLog.Host($"已解包 {Path.GetFileName(package)} → plugins/{id}/");
             }
         }

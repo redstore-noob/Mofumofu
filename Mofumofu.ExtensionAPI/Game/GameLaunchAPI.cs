@@ -8,7 +8,7 @@ namespace Mofumofu.ExtensionAPI.Game;
 /// </summary>
 /// <remarks>
 /// 权限：实例列表 / 选中实例 / 启动事件的查询需要 <see cref="PluginPermissionZones.Readonly"/>；
-/// 启动玩家选中的实例是写操作，同样需要 <see cref="PluginPermissionZones.Readonly"/> 权限。
+/// 启动玩家选中的实例是写操作，需要 <see cref="PluginPermissionZones.Launch"/> 权限（宿主按 launch 区鉴权）。
 /// 返回的 <c>IReadOnlyList</c> 均为只读快照；<c>GetSelectedInstanceAsync</c> 在未选中实例时返回 null。
 /// </remarks>
 public interface IGameLaunch
@@ -28,6 +28,7 @@ public interface IGameLaunch
     /// <summary>
     /// 启动玩家当前选中的实例（用户选中的，不是插件选中的）。
     /// 游戏进程成功启动后本方法即返回，不等待游戏退出。
+    /// 需要 <see cref="PluginPermissionZones.Launch"/> 权限；未声明 / 未授权时宿主拒绝调用。
     /// </summary>
     /// <exception cref="InvalidOperationException">没有选中实例，或游戏已经在运行。</exception>
     /// <exception cref="Exception">启动失败（缺少 Java / 版本文件损坏 / 磁盘错误等），异常消息可直接展示给玩家。</exception>

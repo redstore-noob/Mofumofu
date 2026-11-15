@@ -15,11 +15,12 @@ public interface ILaunchContext
     string GameDirectory { get; }
 
     /// <summary>
-    /// JVM 参数列表。保留此签名仅为兼容既有插件与宿主实现；请不要直接改写它——
-    /// Clear / Remove / Insert 会清掉宿主或其他插件注入的参数，Add 也应改用
-    /// <see cref="TryAddJvmArgument"/>。只读查看请用 <see cref="JvmArgumentsSnapshot"/>。
+    /// JVM 参数的只读视图。契约层不再暴露可写 <c>IList</c>：插件无法经属性直接
+    /// Add / Clear / Remove 绕过白名单；即便把返回值强转回 <c>IList&lt;string&gt;</c>，
+    /// 宿主返回的守卫列表也会对所有写操作再做一次 <see cref="JvmArgumentPolicy"/> 校验。
+    /// 新增参数请用 <see cref="TryAddJvmArgument"/>，只读快照用 <see cref="JvmArgumentsSnapshot"/>。
     /// </summary>
-    IList<string> JvmArguments { get; }
+    IReadOnlyList<string> JvmArguments { get; }
 
     /// <summary>
     /// JVM 参数的只读快照（每次读取生成新副本，插件即便强转也无法改动宿主内部集合）。
@@ -39,8 +40,13 @@ public interface ILaunchContext
     {
         if (!JvmArgumentPolicy.IsAllowed(argument))
             return false;
-        JvmArguments.Add(argument);
-        return true;
+        // 属性是只读视图；宿主实现返回的对象同时实现可写 IList，写入再次经守卫白名单。
+        if (JvmArguments is IList<string> writable)
+        {
+            writable.Add(argument);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>阻止本次启动；reason 会展示给玩家。调用后宿主短路后续钩子。</summary>

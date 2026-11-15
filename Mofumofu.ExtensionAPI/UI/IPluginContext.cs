@@ -92,4 +92,20 @@ public interface IPluginContext
 
     /// <summary>全部可用图标名（只读快照，宿主不得暴露内部可变集合，插件不要强转修改）。</summary>
     IReadOnlyList<string> IconKinds { get; }
+
+    /// <summary>
+    /// 服务器状态查询（需要 <see cref="PluginPermissionZones.ServerStatus"/> 权限）。
+    /// 带默认实现：未接线的旧版组合根调用时抛 <see cref="NotSupportedException"/>，
+    /// 从而保证已编译插件引用本接口时不会因新增成员而二进制不兼容。
+    /// </summary>
+    IServerStatus ServerStatus => throw new NotSupportedException(
+        "当前宿主未接线 IServerStatus（serverStatus 能力不可用）。");
+
+    /// <summary>往宿主日志系统追加一条日志（插件 id 会作为前缀）。</summary>
+    ILogWrite LogWrite => throw new NotSupportedException(
+        "当前宿主未接线 ILogWrite。");
+
+    /// <summary>查询当前剩余内存（MB）。</summary>
+    IMemoryInfo MemoryInfo => throw new NotSupportedException(
+        "当前宿主未接线 IMemoryInfo。");
 }
