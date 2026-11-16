@@ -499,12 +499,12 @@
                                         <Grid ColumnDefinitions="*,*">
                                             <StackPanel Spacing="4" Margin="0,0,8,0">
                                                 <TextBlock Text="{DynamicResource L.Instances.Launch.WindowSize}" Classes="field-label" />
-                                                <ComboBox x:Name="WindowSizeCombo" SelectedIndex="2"
+                                                <ComboBox x:Name="WindowSizeCombo" SelectedIndex="0"
                                                           HorizontalAlignment="Stretch">
+                                                    <ComboBoxItem Content="854 × 480" />
                                                     <ComboBoxItem Content="1280 × 720" />
                                                     <ComboBoxItem Content="1600 × 900" />
                                                     <ComboBoxItem Content="1920 × 1080" />
-                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Launch.Fullscreen}" />
                                                 </ComboBox>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Spacing="4">
@@ -520,9 +520,13 @@
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <ToggleSwitch x:Name="AutoLoginToggle" IsChecked="True" />
-                                                <TextBlock Text="{DynamicResource L.Instances.Launch.AutoLogin}" FontSize="12.5"
+                                                <TextBlock Text="{DynamicResource L.Instances.Launch.JvmTuning}" FontSize="12.5"
                                                            VerticalAlignment="Center" />
+                                                <ComboBox x:Name="JvmTuningCombo" SelectedIndex="0" MinWidth="120">
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Launch.JvmTuning.Default}" />
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Launch.JvmTuning.Off}" />
+                                                    <ComboBoxItem Content="{DynamicResource L.Instances.Launch.JvmTuning.Aggressive}" />
+                                                </ComboBox>
                                             </StackPanel>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="8"

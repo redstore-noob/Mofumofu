@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -140,6 +140,7 @@ public class GameLaunch
                     profile, options, options.Account!, nativeDirectory, resolved.Classpath, profile.MainClass,
                     additionalJvmArguments);
                 ValidateFinalArguments(arguments);
+                options.LogCallback?.Invoke("启动命令：" + CrashDiagnosis.DescribeCommandLine(javaExecutable, arguments));
 
                 MinecraftLaunchResult result = StartProcess(options, profile, gameDirectory, javaExecutable,
                     nativeDirectory, arguments, requiredJavaMajorVersion);
@@ -154,7 +155,7 @@ public class GameLaunch
             }
             catch
             {
-                LibraryResolver.TryDeleteDirectory(nativeDirectory);
+                // natives 现在是按指纹缓存的目录，启动失败时保留，下次直接复用。
                 throw;
             }
         }
@@ -170,7 +171,6 @@ public class GameLaunch
         }
     }
 
-    /// <summary>停止当前运行中的游戏（整棵进程树）。</summary>
     /// <summary>
     /// Java 运行时策略（对齐参考启动器）：
     /// 1) 优先使用已有主版本精确匹配；
@@ -380,14 +380,20 @@ public class GameLaunch
         string wrapperCommand,
         Action<string>? log)
     {
-        // 支持双引号包裹带空格的程序路径，单纯按空白 Split 会把路径拆错
-        List<string> wrapper = TokenizeWrapperCommand(wrapperCommand ?? string.Empty);
+        // 支持双引号 / 单引号包裹带空格的程序路径，转义规则与游戏参数一致
+        List<string> wrapper = TokenizeWrapperCommand(wrapperCommand ?? string.Empty, log);
         if (wrapper.Count == 0)
         {
             return (javaExecutable, arguments);
         }
 
-        if (!wrapper.Contains("%command%", StringComparer.Ordinal))
+        int placeholders = wrapper.Count(part => string.Equals(part, "%command%", StringComparison.Ordinal));
+        if (placeholders > 1)
+        {
+            throw new MinecraftLaunchException("包装命令里只能出现一个 %command% 占位。");
+        }
+
+        if (placeholders == 0)
         {
             log?.Invoke("包装命令缺少 %command% 占位，已忽略该设置。");
             return (javaExecutable, arguments);
@@ -411,40 +417,23 @@ public class GameLaunch
         return (program, expanded.Skip(1).ToList());
     }
 
-    /// <summary>包装命令按空白分词，但双引号内的空白保留（支持带空格的程序路径）。</summary>
-    private static List<string> TokenizeWrapperCommand(string command)
+    /// <summary>包装命令按命令行规则分词（支持单/双引号与反斜杠转义）。</summary>
+    private static List<string> TokenizeWrapperCommand(string command, Action<string>? log)
     {
-        List<string> tokens = [];
-        StringBuilder current = new();
-        bool quoted = false;
-        foreach (char character in command)
+        if (string.IsNullOrWhiteSpace(command))
         {
-            if (character == '"')
-            {
-                quoted = !quoted;
-                continue;
-            }
-
-            if (!quoted && char.IsWhiteSpace(character))
-            {
-                if (current.Length > 0)
-                {
-                    tokens.Add(current.ToString());
-                    current.Clear();
-                }
-
-                continue;
-            }
-
-            current.Append(character);
+            return [];
         }
 
-        if (current.Length > 0)
+        try
         {
-            tokens.Add(current.ToString());
+            return CommandLineTokenizer.Split(command);
         }
-
-        return tokens;
+        catch (FormatException exception)
+        {
+            log?.Invoke($"包装命令无法解析（{exception.Message}），已忽略该设置。");
+            return [];
+        }
     }
 
     /// <summary>包装命令解析出的程序做基本合法性校验，拒绝空值与控制字符。</summary>
@@ -481,6 +470,21 @@ public class GameLaunch
             if (argument.Contains('\0'))
             {
                 throw new MinecraftLaunchException($"最终 Java 命令在下标 {index} 处包含非法字符 \\0。");
+            }
+        }
+
+        // Windows CreateProcess 的命令行上限约 32767 字符；超长时 Process.Start 只会抛
+        // Win32Exception，错误信息毫无指向性，这里提前给出可读的报错。
+        const int maxCommandLineLength = 32_000;
+        int estimated = 0;
+        foreach (string argument in arguments)
+        {
+            // 每项按“空格 + 引号包裹 + 转义”的最坏情况估算，宁可早报错也不冒启动失败的风险。
+            estimated += argument.Length + 3;
+            if (estimated > maxCommandLineLength)
+            {
+                throw new MinecraftLaunchException(
+                    $"最终 Java 命令行过长（约 {estimated} 字符，Windows 上限约 32000 字符）。请减少游戏目录层级、缩短版本名或精简 JVM 参数。");
             }
         }
     }
@@ -536,7 +540,14 @@ public class GameLaunch
             return [];
         }
 
-        string address = serverPort == 25565 ? serverHost : $"{serverHost}:{serverPort}";
+        // IPv6 地址在“主机:端口”里必须用中括号包起来，否则服务端地址解析会失败。
+        string host = serverHost.Trim();
+        if (host.Contains(':') && !host.StartsWith("[", StringComparison.Ordinal))
+        {
+            host = "[" + host.Trim('[', ']') + "]";
+        }
+
+        string address = serverPort == 25565 ? host : $"{host}:{serverPort}";
         return
         [
             "--quickPlayMultiplayer", address,
@@ -718,8 +729,21 @@ public sealed class MinecraftLaunchOptions
     /// <summary>注入游戏进程的额外环境变量。</summary>
     public IDictionary<string, string> EnvironmentVariables { get; set; } = new Dictionary<string, string>();
 
-    /// <summary>以全屏启动（由调用方转成 --fullscreen 游戏参数，此字段仅记录）。</summary>
+    /// <summary>
+    /// 以全屏启动：由 <see cref="MinecraftArgumentBuilder.Build"/> 追加 <c>--fullscreen</c> 游戏参数。
+    /// </summary>
     public bool LaunchFullscreen { get; set; }
+
+    /// <summary>
+    /// JVM 性能调优预设：default（默认）/ off（不注入任何调优参数）/ aggressive（更早启用大堆参数）。
+    /// </summary>
+    public string JvmTuning { get; set; } = MinecraftArgumentBuilder.TuningDefault;
+
+    /// <summary>
+    /// 是否信任版本 JSON 自带的 JVM 参数（跳过白名单）。默认 false：整合包自带的
+    /// <c>-javaagent:</c> 等参数会被拒绝启动；用户确认来源可信时可以打开这个逃生门。
+    /// </summary>
+    public bool AllowUnsafeVersionJvmArguments { get; set; }
 
     /// <summary>启动过程中的文本日志回调（可为空）。</summary>
     public Action<string>? LogCallback { get; set; }
@@ -867,15 +891,8 @@ public sealed class MinecraftLaunchResult
             }
             finally
             {
-                // 清理失败不得跳过退出信号；保证 WaitForExitAsync() 总能完成。
-                try
-                {
-                    LibraryResolver.TryDeleteDirectory(NativeDirectory);
-                }
-                catch (Exception)
-                {
-                    // 清理失败不影响退出信号。
-                }
+                // native 目录是跨启动复用的缓存（见 LibraryResolver.ExtractNativesAsync），
+                // 退出时不再删除，否则每次启动都要重解压一遍。
                 try
                 {
                     ReleaseInstanceUpdateLock();
@@ -925,9 +942,10 @@ public sealed class MinecraftArgumentBuilder
     [
         "-D", "-Xms", "-Xmx", "-Xmn", "-Xss", "-Xint", "-Xcomp", "-Xmixed", "-Xbatch",
         "-Xshare:", "-Xverify:", "-Xlog:", "-Xloggc:", "-XshowSettings:", "-XX:",
-        "-cp", "-classpath", "--add-opens", "--add-exports", "--add-reads", "--add-modules",
+        "-cp", "-classpath", "-p", "--add-opens", "--add-exports", "--add-reads", "--add-modules",
         "--upgrade-module-path", "--module-path", "--patch-module", "--enable-preview",
-        "--illegal-access=", "-verbose:", "-ea", "-da", "-esa", "-dsa",
+        "--enable-native-access", "--enable-native-access=", "--illegal-access=",
+        "-verbose:", "-ea", "-da", "-esa", "-dsa",
         "-client", "-server", "-d64", "-showversion", "-version",
     ];
 
@@ -998,10 +1016,16 @@ public sealed class MinecraftArgumentBuilder
 
         Dictionary<string, bool> features = MinecraftRuleEvaluator.CreateDefaultFeatures(
             options.WindowWidth > 0 && options.WindowHeight > 0);
-        // 用户配置参数始终单独读取：与版本 JSON 的 JVM 参数走同一套白名单策略
-        IEnumerable<string> userJvmArguments = options.AdditionalJvmArguments;
+        // 用户配置参数始终单独读取：与版本 JSON 的 JVM 参数走同一套白名单策略。
+        // 校验必须看整段参数（而不是逐个 token），才能分清"这是选项"还是"这是上一个选项的取值"。
+        List<string> userJvmArguments = options.AdditionalJvmArguments.ToList();
+        ValidateJvmArguments(userJvmArguments, "用户配置");
         bool userSpecifiesXms = ContainsMemoryArgument(userJvmArguments, "-Xms");
         bool userSpecifiesXmx = ContainsMemoryArgument(userJvmArguments, "-Xmx");
+        // 调优分档要跟着"真正生效的堆大小"走：用户自己写了 -Xmx 时，实例内存设置就不是最终值
+        int tuningMemoryMb = userSpecifiesXmx
+            ? ParseMemoryMegabytes(userJvmArguments) ?? options.MaximumMemoryMb
+            : options.MaximumMemoryMb;
 
         List<string> result = [];
 
@@ -1026,13 +1050,11 @@ public sealed class MinecraftArgumentBuilder
             result.Add($"-Xmx{options.MaximumMemoryMb}M");
         }
 
-        result.AddRange(BuildTuningArguments(options.MaximumMemoryMb));
+        // 子进程输出按 UTF-8 解码，JVM 侧也要用 UTF-8 输出，否则中文 mod 日志是乱码
+        AppendEncodingArguments(result, userJvmArguments);
+        result.AddRange(BuildTuningArguments(tuningMemoryMb, options.JvmTuning));
 
-        // 用户可控通道与版本 JSON 一样过白名单，禁止 -javaagent: 等可执行/代理参数
-        foreach (string argument in userJvmArguments)
-        {
-            EnsureAllowedJvmArgument(argument, "用户配置");
-        }
+        // 用户参数已由 ValidateJvmArguments 整段校验过，这里直接追加
         result.AddRange(userJvmArguments);
 
         // additionalJvmArguments 是启动器内部注入的可信参数（authlib-injector 的 -javaagent:）：
@@ -1042,16 +1064,15 @@ public sealed class MinecraftArgumentBuilder
             result.AddRange(additionalJvmArguments);
         }
 
-        int launcherJvmArgsStart = result.Count;
+        bool classpathDeclaredByProfile = false;
         if (profile.JvmArguments.Count > 0)
         {
-            AppendModernArguments(result, profile.JvmArguments, features, placeholders, jvmWhitelist: true);
+            classpathDeclaredByProfile = AppendModernArguments(
+                result, profile.JvmArguments, features, placeholders, options, jvmWhitelist: true);
         }
         else
         {
             result.Add("-Djava.library.path=" + nativeDirectory);
-            result.Add("-cp");
-            result.Add(classpathValue);
         }
 
         // NeoForge / Forge 的 FML 要求 system property libraryDirectory 指向 libraries
@@ -1060,8 +1081,9 @@ public sealed class MinecraftArgumentBuilder
             result.Add("-DlibraryDirectory=" + librariesDirectory);
         }
 
-        // classpath 探测只看启动器与版本档案生成的参数段
-        if (!ContainsClasspathArgument(result.Skip(launcherJvmArgsStart).ToList()))
+        // 只有版本档案"确实消费了 ${classpath}"才认为它自带类路径。仅仅出现一个 -cp
+        // （后面接别的 jar）不能作为跳过注入的依据，否则会静默丢掉真正的 classpath。
+        if (!classpathDeclaredByProfile)
         {
             result.Add("-cp");
             result.Add(classpathValue);
@@ -1090,6 +1112,14 @@ public sealed class MinecraftArgumentBuilder
             AppendResolvedArgument(result, argument, ReplacePlaceholders(argument, placeholders));
         }
 
+        // --fullscreen 是原版客户端的游戏参数。旧版只把开关存进 options 却没人消费，
+        // 界面上的"全屏"因此永远不生效。
+        if (options.LaunchFullscreen &&
+            !result.Any(argument => string.Equals(argument, "--fullscreen", StringComparison.Ordinal)))
+        {
+            result.Add("--fullscreen");
+        }
+
         return result;
     }
 
@@ -1108,9 +1138,40 @@ public sealed class MinecraftArgumentBuilder
         };
     }
 
-    /// <summary>通用 JVM 性能优化参数（针对 Minecraft 工作负载特性优化）。</summary>
-    private static IReadOnlyList<string> BuildTuningArguments(int maximumMemoryMb)
+    /// <summary>调优预设：默认（15 条 G1 基准参数 + 按堆大小分档）。</summary>
+    public const string TuningDefault = "default";
+
+    /// <summary>调优预设：不注入任何调优参数，完全交给用户或整合包。</summary>
+    public const string TuningOff = "off";
+
+    /// <summary>调优预设：更早启用大堆参数（2G 起字符串去重、4G 起预触碰）。</summary>
+    public const string TuningAggressive = "aggressive";
+
+    /// <summary>把配置里的调优预设归一到已知值；无法识别时回落 default。</summary>
+    public static string NormalizeTuningMode(string? value) => value?.Trim().ToLowerInvariant() switch
     {
+        "off" or "none" or "disabled" or "disable" => TuningOff,
+        "aggressive" or "max" or "extreme" => TuningAggressive,
+        _ => TuningDefault,
+    };
+
+    /// <summary>
+    /// 通用 JVM 性能优化参数（针对 Minecraft 工作负载特性优化）。
+    /// maximumMemoryMb 应当是"真正生效的堆大小"（用户自己写了 -Xmx 时取那个值）。
+    /// </summary>
+    private static IReadOnlyList<string> BuildTuningArguments(int maximumMemoryMb, string? tuningMode)
+    {
+        string mode = NormalizeTuningMode(tuningMode);
+        if (mode == TuningOff)
+        {
+            return [];
+        }
+
+        bool aggressive = mode == TuningAggressive;
+        int dedupThreshold = aggressive ? 2048 : 4096;
+        int preTouchThreshold = aggressive ? 4096 : 8192;
+        int bigHeapThreshold = aggressive ? 8192 : 16384;
+
         List<string> arguments =
         [
             "-XX:+IgnoreUnrecognizedVMOptions",
@@ -1131,13 +1192,13 @@ public sealed class MinecraftArgumentBuilder
             "-XX:MaxInlineLevel=15",
         ];
 
-        if (maximumMemoryMb >= 4096)
+        if (maximumMemoryMb >= dedupThreshold)
         {
             arguments.Add("-XX:+UseStringDeduplication");
             arguments.Add("-XX:StringDeduplicationAgeThreshold=1");
         }
 
-        if (maximumMemoryMb >= 8192)
+        if (maximumMemoryMb >= preTouchThreshold)
         {
             arguments.Add("-XX:+AlwaysPreTouch");
             arguments.Add("-XX:G1HeapRegionSize=32M");
@@ -1148,7 +1209,7 @@ public sealed class MinecraftArgumentBuilder
             arguments.Add("-XX:InitiatingHeapOccupancyPercent=40");
         }
 
-        if (maximumMemoryMb >= 16384)
+        if (maximumMemoryMb >= bigHeapThreshold)
         {
             arguments.Add("-XX:G1NewSizePercent=30");
             arguments.Add("-XX:G1MaxNewSizePercent=50");
@@ -1159,6 +1220,35 @@ public sealed class MinecraftArgumentBuilder
         return arguments;
     }
 
+    /// <summary>
+    /// 让 JVM 用 UTF-8 输出日志。子进程的输出流本来就按 UTF-8 解码（见 StartProcess），
+    /// 但 Windows 上 JVM 默认跟随系统代码页，中文 mod 日志会变成乱码。
+    /// Java 8 认 file.encoding，Java 18+ 认 stdout/stderr.encoding；未知 -D 属性无副作用。
+    /// 用户自己写了同名属性时不再覆盖。
+    /// </summary>
+    private static void AppendEncodingArguments(List<string> target, IReadOnlyList<string> userJvmArguments)
+    {
+        (string Name, string Value)[] encodings =
+        [
+            ("file.encoding", "UTF-8"),
+            ("sun.stdout.encoding", "UTF-8"),
+            ("sun.stderr.encoding", "UTF-8"),
+            ("stdout.encoding", "UTF-8"),
+            ("stderr.encoding", "UTF-8"),
+        ];
+
+        foreach ((string name, string value) in encodings)
+        {
+            string property = "-D" + name + "=";
+            bool overridden = userJvmArguments.Any(argument =>
+                argument.StartsWith(property, StringComparison.OrdinalIgnoreCase));
+            if (!overridden)
+            {
+                target.Add(property + value);
+            }
+        }
+    }
+
     private static bool ContainsMemoryArgument(IEnumerable<string> arguments, string prefix)
     {
         return arguments.Any(argument =>
@@ -1166,17 +1256,43 @@ public sealed class MinecraftArgumentBuilder
             string.Equals(argument[..prefix.Length], prefix, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool ContainsClasspathArgument(IReadOnlyList<string> arguments)
+    /// <summary>从用户参数里读出真正生效的 -Xmx（MB）；找不到或格式无法识别时返回 null。</summary>
+    private static int? ParseMemoryMegabytes(IEnumerable<string> arguments)
     {
-        for (int index = 0; index < arguments.Count - 1; index++)
+        foreach (string argument in arguments)
         {
-            if (arguments[index] is "-cp" or "-classpath")
+            if (!argument.StartsWith("-Xmx", StringComparison.OrdinalIgnoreCase) || argument.Length <= 4)
             {
-                return true;
+                continue;
             }
+
+            string value = argument[4..].Trim();
+            if (value.Length == 0)
+            {
+                continue;
+            }
+
+            char unit = char.ToLowerInvariant(value[^1]);
+            string number = char.IsLetter(unit) ? value[..^1] : value;
+            if (!double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out double amount) ||
+                amount <= 0)
+            {
+                continue;
+            }
+
+            double megabytes = unit switch
+            {
+                'g' => amount * 1024,
+                'm' => amount,
+                'k' => amount / 1024,
+                't' => amount * 1024 * 1024,
+                // 不带单位时 JVM 按字节解释
+                _ => amount / (1024 * 1024),
+            };
+            return (int)Math.Clamp(Math.Round(megabytes), 1, 1_048_576);
         }
 
-        return false;
+        return null;
     }
 
     private static string GetLegacyGameAssetsDirectory(string assetsDirectory, string assetsId)
@@ -1185,19 +1301,22 @@ public sealed class MinecraftArgumentBuilder
         return Directory.Exists(virtualDirectory) ? virtualDirectory : assetsDirectory;
     }
 
-    private static void AppendModernArguments(
+    /// <summary>追加版本 JSON 的 arguments 段；返回"是否已由版本档案提供 ${classpath}"。</summary>
+    private static bool AppendModernArguments(
         List<string> target,
         IReadOnlyList<JsonElement> elements,
         IReadOnlyDictionary<string, bool> features,
         IReadOnlyDictionary<string, string> placeholders,
+        MinecraftLaunchOptions? options = null,
         bool jvmWhitelist = false)
     {
+        bool classpathDeclared = false;
         foreach (JsonElement element in elements)
         {
             if (element.ValueKind == JsonValueKind.String)
             {
                 string text = element.GetString() ?? string.Empty;
-                AppendVersionArgument(target, text, placeholders, jvmWhitelist);
+                classpathDeclared |= AppendVersionArgument(target, text, placeholders, options, jvmWhitelist);
                 continue;
             }
 
@@ -1214,7 +1333,7 @@ public sealed class MinecraftArgumentBuilder
             if (value.ValueKind == JsonValueKind.String)
             {
                 string text = value.GetString() ?? string.Empty;
-                AppendVersionArgument(target, text, placeholders, jvmWhitelist);
+                classpathDeclared |= AppendVersionArgument(target, text, placeholders, options, jvmWhitelist);
                 continue;
             }
 
@@ -1228,10 +1347,12 @@ public sealed class MinecraftArgumentBuilder
                 if (item.ValueKind == JsonValueKind.String)
                 {
                     string text = item.GetString() ?? string.Empty;
-                    AppendVersionArgument(target, text, placeholders, jvmWhitelist);
+                    classpathDeclared |= AppendVersionArgument(target, text, placeholders, options, jvmWhitelist);
                 }
             }
         }
+
+        return classpathDeclared;
     }
 
     /// <summary>
@@ -1252,23 +1373,67 @@ public sealed class MinecraftArgumentBuilder
         }
     }
 
-    private static void AppendVersionArgument(List<string> target, string text,
-        IReadOnlyDictionary<string, string> placeholders, bool jvmWhitelist)
+    private static bool AppendVersionArgument(List<string> target, string text,
+        IReadOnlyDictionary<string, string> placeholders, MinecraftLaunchOptions? options, bool jvmWhitelist)
     {
         string resolved = ReplacePlaceholders(text, placeholders);
+        bool declaresClasspath = string.Equals(text.Trim(), "${classpath}", StringComparison.Ordinal);
         if (jvmWhitelist)
         {
-            EnsureAllowedVersionJvmArgument(resolved);
+            // 版本 JSON 来自磁盘，可能被整合包改写：默认过白名单；
+            // 用户明确信任该来源时（AllowUnsafeVersionJvmArguments）才放行其余参数。
+            if (resolved.StartsWith("-Xms", StringComparison.OrdinalIgnoreCase) ||
+                resolved.StartsWith("-Xmx", StringComparison.OrdinalIgnoreCase))
+            {
+                // 启动器装配的内存参数排在前面，JVM 以后出现的为准：整合包自带的 -Xmx
+                // 会悄悄覆盖用户在界面里设的值，所以这里直接剥掉并说明原因。
+                options?.LogCallback?.Invoke($"版本自带的 {resolved} 已忽略，按实例内存设置启动。");
+                return declaresClasspath;
+            }
+
+            if (options?.AllowUnsafeVersionJvmArguments != true)
+            {
+                EnsureAllowedJvmArgument(resolved, "版本配置");
+            }
         }
+
         AppendResolvedArgument(target, text, resolved);
+        return declaresClasspath;
     }
 
-    private static void EnsureAllowedVersionJvmArgument(string argument)
+    /// <summary>按同一白名单策略校验整段 JVM 参数；source 仅用于错误文案。</summary>
+    private static void ValidateJvmArguments(IReadOnlyList<string> arguments, string source)
     {
-        EnsureAllowedJvmArgument(argument, "版本配置");
+        for (int index = 0; index < arguments.Count; index++)
+        {
+            string argument = arguments[index];
+            if (argument.Length == 0)
+            {
+                throw new MinecraftLaunchException(source + "包含空的 JVM 参数。");
+            }
+
+            if (argument[0] != '-')
+            {
+                // 只有紧跟在选项后面的取值（classpath、模块名、路径）才合法。
+                // 孤立的裸 token 会被 java 当成主类，顶掉真正的 mainClass。
+                bool followsOption = index > 0 &&
+                                     arguments[index - 1].Length > 0 &&
+                                     arguments[index - 1][0] == '-';
+                if (followsOption)
+                {
+                    continue;
+                }
+
+                throw new MinecraftLaunchException(
+                    source + "包含无法识别的裸参数：" + TruncateArgument(argument) +
+                    "（Java 会把它当成主类，已拒绝启动）。");
+            }
+
+            EnsureAllowedJvmArgument(argument, source);
+        }
     }
 
-    /// <summary>按同一白名单策略校验任意来源的 JVM 参数；source 仅用于错误文案。</summary>
+    /// <summary>按白名单校验单条 JVM 参数；source 仅用于错误文案。</summary>
     private static void EnsureAllowedJvmArgument(string argument, string source)
     {
         // 不以 '-' 开头的是前面选项的取值（classpath、模块名、路径等），无可执行语义。
@@ -1281,7 +1446,9 @@ public sealed class MinecraftArgumentBuilder
         {
             if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                throw new MinecraftLaunchException(source + "包含被禁止的 JVM 参数：" + prefix + "…");
+                throw new MinecraftLaunchException(
+                    source + "包含被禁止的 JVM 参数：" + TruncateArgument(argument) +
+                    "（该参数可以加载或执行外部代码，已拒绝启动）。");
             }
         }
 
@@ -1293,8 +1460,13 @@ public sealed class MinecraftArgumentBuilder
             }
         }
 
-        throw new MinecraftLaunchException(source + "包含不在白名单内的 JVM 参数，已拒绝启动。");
+        throw new MinecraftLaunchException(
+            source + "包含不在白名单内的 JVM 参数：" + TruncateArgument(argument) +
+            "（默认拒绝 -javaagent 之类的参数；确认版本来源可信可打开「信任版本自带的 JVM 参数」）。");
     }
+
+    private static string TruncateArgument(string argument) =>
+        argument.Length <= 80 ? argument : argument[..80] + "…";
 
     private static bool IsNullablePlaceholder(string source)
     {
@@ -1329,53 +1501,17 @@ public sealed class MinecraftArgumentBuilder
             : throw new MinecraftLaunchException($"版本参数包含暂不支持的占位符：{failure}");
     }
 
-    /// <summary>切分旧版 minecraftArguments（支持双引号与 \" 转义）。</summary>
+    /// <summary>切分旧版 minecraftArguments（与 UI、包装命令共用同一套引号规则）。</summary>
     private static IReadOnlyList<string> TokenizeLegacyArguments(string commandLine)
     {
-        List<string> result = [];
-        StringBuilder current = new();
-        bool quoted = false;
-        for (int index = 0; index < commandLine.Length; index++)
+        try
         {
-            char character = commandLine[index];
-            if (character == '"')
-            {
-                quoted = !quoted;
-                continue;
-            }
-
-            if (character == '\\' && index + 1 < commandLine.Length && commandLine[index + 1] == '"')
-            {
-                current.Append('"');
-                index++;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(character) && !quoted)
-            {
-                if (current.Length > 0)
-                {
-                    result.Add(current.ToString());
-                    current.Clear();
-                }
-
-                continue;
-            }
-
-            current.Append(character);
+            return CommandLineTokenizer.Split(commandLine);
         }
-
-        if (quoted)
+        catch (FormatException exception)
         {
-            throw new MinecraftLaunchException("旧版启动参数包含未闭合的引号。");
+            throw new MinecraftLaunchException("旧版启动参数无法解析：" + exception.Message);
         }
-
-        if (current.Length > 0)
-        {
-            result.Add(current.ToString());
-        }
-
-        return result;
     }
 }
 
@@ -1916,12 +2052,23 @@ public sealed class CrashDiagnosis
         @"(?i)(--accessToken|auth_access_token|auth_session|access_token|refresh_token|Bearer|token:)([\s:=]+)(\S+)",
         RegexOptions.Compiled);
 
-    private static string RedactSecrets(string? text)
+    /// <summary>把命令行里的访问令牌替换成 [REDACTED]；日志与预览都必须先过这里。</summary>
+    public static string RedactSecrets(string? text)
     {
         return text is null
             ? string.Empty
             : SensitiveArgumentPattern.Replace(text,
                 match => match.Groups[1].Value + match.Groups[2].Value + "[REDACTED]");
+    }
+
+    /// <summary>
+    /// 生成可写进日志的最终命令行（已脱敏）。排障时第一眼要看的就是它：
+    /// 用户报"启动失败"时能直接确认内存、编码、classpath 和主类是否符合预期。
+    /// </summary>
+    public static string DescribeCommandLine(string javaExecutable, IReadOnlyList<string> arguments)
+    {
+        return RedactSecrets(CommandLineTokenizer.Join(
+            new[] { javaExecutable }.Concat(arguments)));
     }
 
 

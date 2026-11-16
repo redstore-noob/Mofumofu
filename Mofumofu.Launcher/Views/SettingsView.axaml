@@ -443,6 +443,16 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <Border Classes="setting-row" Tag="JVM 参数 白名单 信任 trust 高级 advanced">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2" Margin="0,0,16,0">
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.TrustVersionJvm}" Classes="row-label" />
+                                            <TextBlock Text="{DynamicResource L.Settings.Game.TrustVersionJvm.Desc}"
+                                                       Classes="caption" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="TrustVersionJvmToggle" Grid.Column="1" />
+                                    </Grid>
+                                </Border>
                                 <TextBlock x:Name="MemoryPreviewText" Classes="caption" TextWrapping="Wrap" Margin="0,8,0,8" />
                                 <Button Classes="primary" Content="{DynamicResource L.Memory.Save}" HorizontalAlignment="Right" Click="OnSaveMemoryClick" />
                             </StackPanel>

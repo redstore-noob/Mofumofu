@@ -765,9 +765,19 @@ public partial class InstancesView : UserControl
 
         LoadInstanceMemory(info);
         JavaPathBox.Text = info.JavaPath;
-        var launchSettings = YamlRead.LoadGlobalLaunchSettings();
-        JvmArgsBox.Text = string.Join(' ', launchSettings.AdditionalJvmArguments);
+        GlobalLaunchSettings launchSettings = YamlRead.LoadGlobalLaunchSettings();
+        // 这个面板长在实例详情里，参数就应当来自实例自己的 java_config.yaml。
+        // 显示时逐项加引号：带空格的参数（-Dfoo=a b）不会被下一次保存拆碎。
+        InstanceJavaConfig instanceJava = YamlRead.LoadInstanceJavaConfig(InstanceRoot(info.Id));
+        JvmArgsBox.Text = CommandLineTokenizer.Join(instanceJava.AdditionalJvmArguments);
         FullscreenToggle.IsChecked = launchSettings.LaunchFullscreen;
+        WindowSizeCombo.SelectedIndex = WindowSizeIndexOf(launchSettings.WindowWidth, launchSettings.WindowHeight);
+        JvmTuningCombo.SelectedIndex = launchSettings.JvmTuning switch
+        {
+            MinecraftArgumentBuilder.TuningOff => 1,
+            MinecraftArgumentBuilder.TuningAggressive => 2,
+            _ => 0,
+        };
 
         LoadContentLists(info);
         LoadOptions(info);
@@ -1545,6 +1555,25 @@ public partial class InstancesView : UserControl
         InstanceMemoryPreview.Text = MemoryPresentation.Describe(memory);
     }
 
+    /// <summary>窗口尺寸下拉项：与 XAML 里的条目顺序一致。</summary>
+    private static readonly (int Width, int Height)[] WindowSizes =
+    [
+        (854, 480), (1280, 720), (1600, 900), (1920, 1080),
+    ];
+
+    private static int WindowSizeIndexOf(int width, int height)
+    {
+        for (int index = 0; index < WindowSizes.Length; index++)
+        {
+            if (WindowSizes[index].Width == width && WindowSizes[index].Height == height)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
     private void OnResetLaunchSettingsClick(object? sender, RoutedEventArgs e)
     {
         GlobalLaunchSettings settings = YamlRead.LoadGlobalLaunchSettings();
@@ -1552,10 +1581,10 @@ public partial class InstancesView : UserControl
         MemorySlider.Value = settings.MaximumMemoryMb;
         UpdateInstanceMemoryPreview();
         JavaPathBox.Text = string.Empty;
-        JvmArgsBox.Text = "-XX:+UseG1GC -XX:+AlwaysPreTouch";
-        WindowSizeCombo.SelectedIndex = 2;
+        JvmArgsBox.Text = CommandLineTokenizer.Join(["-XX:+UseG1GC", "-XX:+AlwaysPreTouch"]);
+        WindowSizeCombo.SelectedIndex = 0;
+        JvmTuningCombo.SelectedIndex = 0;
         FullscreenToggle.IsChecked = settings.LaunchFullscreen;
-        AutoLoginToggle.IsChecked = true;
         Shell.Toast(L.T("Instances.Toast.LaunchReset", "已恢复默认启动设置"));
     }
 
@@ -1570,17 +1599,35 @@ public partial class InstancesView : UserControl
             config.AutomaticMemory = draft.AutomaticMemory;
             config.MaxMemoryMB = draft.MaxMemoryMB;
             config.MinMemoryMB = 0;
+
+            // 引号/转义规则与 core 完全一致：带空格的参数不会被拆成两段裸 token
+            // （裸 token 不以 '-' 开头，会被 Java 当成主类）
+            if (!CommandLineTokenizer.TrySplit(JvmArgsBox.Text, out List<string> jvmArguments, out string? jvmError))
+            {
+                Shell.Toast(L.T("Instances.Toast.JvmArgsInvalid", "JVM 参数无法解析：{0}", jvmError ?? "引号不配对"));
+                return;
+            }
+
+            config.AdditionalJvmArguments = jvmArguments;
             if (!YamlRead.SaveInstanceJavaConfig(InstanceRoot(_current.Id), config))
             {
                 Shell.Toast(L.T("Memory.SaveFailed", "保存内存设置失败"));
                 return;
             }
             int mb = MemoryAllocation.Resolve(settings, config, _current.ModCount, _current.Loader != "Vanilla").MaximumMb;
-            settings.LaunchFullscreen = FullscreenToggle.IsChecked == true;
+
             settings.JavaExecutable = (JavaPathBox.Text ?? string.Empty).Trim();
-            settings.AdditionalJvmArguments = (JvmArgsBox.Text ?? string.Empty)
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .ToList();
+            settings.AdditionalJvmArguments = jvmArguments;
+            settings.LaunchFullscreen = FullscreenToggle.IsChecked == true;
+            (int windowWidth, int windowHeight) = WindowSizes[Math.Clamp(WindowSizeCombo.SelectedIndex, 0, WindowSizes.Length - 1)];
+            settings.WindowWidth = windowWidth;
+            settings.WindowHeight = windowHeight;
+            settings.JvmTuning = JvmTuningCombo.SelectedIndex switch
+            {
+                1 => MinecraftArgumentBuilder.TuningOff,
+                2 => MinecraftArgumentBuilder.TuningAggressive,
+                _ => MinecraftArgumentBuilder.TuningDefault,
+            };
 
             if (!YamlRead.SaveGlobalLaunchSettings(settings))
             {

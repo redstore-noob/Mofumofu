@@ -929,8 +929,12 @@ internal static class LaunchRequestResolver
             ProcessPriority = settings.ProcessPriority,
             WrapperCommand = settings.WrapperCommand,
             LaunchFullscreen = settings.LaunchFullscreen,
-            AdditionalJvmArguments = [.. settings.AdditionalJvmArguments],
-            AdditionalGameArguments = [.. settings.AdditionalGameArguments],
+            JvmTuning = settings.JvmTuning,
+            AllowUnsafeVersionJvmArguments = settings.AllowUnsafeVersionJvmArguments,
+            // 实例级配置优先追加在全局参数之后：同一实例里单独调 -D 或加 -Xmn 时，
+            // 后写的值在 JVM 里生效，正好符合"实例覆盖全局"的直觉。
+            AdditionalJvmArguments = [.. settings.AdditionalJvmArguments, .. instanceConfig.AdditionalJvmArguments],
+            AdditionalGameArguments = [.. settings.AdditionalGameArguments, .. instanceConfig.AdditionalGameArguments],
         };
         foreach ((string key, string value) in ParseEnvironmentVariables(settings.AdditionalEnvironmentVariables))
         {

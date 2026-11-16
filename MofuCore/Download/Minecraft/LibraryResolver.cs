@@ -1,4 +1,7 @@
-﻿using System.IO.Compression;
+using System.Globalization;
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using MofuCore.Launch;
 
@@ -153,7 +156,10 @@ public class LibraryResolver
         return plans;
     }
 
-    /// <summary>解压 native 依赖到 Minecraft 目录下的 .mofu-natives，返回解压目录。</summary>
+    /// <summary>
+    /// 解压 native 依赖到 Minecraft 目录下的 .mofu-natives，返回解压目录。
+    /// 目录名由「版本 ID + 依赖指纹」决定：同一套依赖只解压一次，之后每次启动直接复用。
+    /// </summary>
     public Task<string> ExtractNativesAsync(
         string versionId,
         IReadOnlyList<NativeLibrary> nativeLibraries,
@@ -169,27 +175,76 @@ public class LibraryResolver
         string baseDirectory = string.IsNullOrWhiteSpace(minecraftDirectory)
             ? Path.Combine(Path.GetTempPath(), "MofuCore", "natives")
             : Path.Combine(minecraftDirectory, ".mofu-natives");
-        CleanupStaleNativeDirectories(baseDirectory);
+        string directoryName = $"{safeVersionId}-{ComputeNativesFingerprint(versionId, nativeLibraries)}";
+        string nativeDirectory = Path.Combine(baseDirectory, directoryName);
+        string markerPath = Path.Combine(nativeDirectory, NativeCacheMarker);
 
-        string nativeDirectory = Path.Combine(baseDirectory,
-            $"{safeVersionId}-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(nativeDirectory);
+        // 已经解压过的同一套依赖：直接复用，不再每次启动重解压
+        if (File.Exists(markerPath))
+        {
+            CleanupStaleNativeDirectories(baseDirectory, directoryName);
+            return Task.FromResult(nativeDirectory);
+        }
 
+        CleanupStaleNativeDirectories(baseDirectory, directoryName);
+
+        // 先解到 staging 再整体改名：中途失败不会留下"看起来解压完了"的半成品目录
+        string stagingDirectory = nativeDirectory + ".tmp-" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(stagingDirectory);
         try
         {
             foreach (NativeLibrary nativeLibrary in nativeLibraries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ExtractNativeArchive(nativeLibrary, nativeDirectory);
+                ExtractNativeArchive(nativeLibrary, stagingDirectory);
             }
+
+            File.WriteAllText(Path.Combine(stagingDirectory, NativeCacheMarker), directoryName);
+            TryDeleteDirectory(nativeDirectory);
+            Directory.Move(stagingDirectory, nativeDirectory);
         }
         catch
         {
-            TryDeleteDirectory(nativeDirectory);
+            TryDeleteDirectory(stagingDirectory);
             throw;
         }
 
         return Task.FromResult(nativeDirectory);
+    }
+
+    /// <summary>native 缓存完整标记：存在才认为目录可用。</summary>
+    public const string NativeCacheMarker = ".mofu-natives-complete";
+
+    /// <summary>依赖库集合的指纹：路径 + 大小 + 修改时间，用于判断缓存是否仍然适用。</summary>
+    private static string ComputeNativesFingerprint(string versionId, IReadOnlyList<NativeLibrary> nativeLibraries)
+    {
+        StringBuilder builder = new(versionId);
+        foreach (NativeLibrary nativeLibrary in nativeLibraries
+                     .OrderBy(library => library.ArchivePath, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append('\n').Append(nativeLibrary.ArchivePath);
+            try
+            {
+                FileInfo info = new(nativeLibrary.ArchivePath);
+                if (info.Exists)
+                {
+                    builder.Append('|').Append(info.Length).Append('|')
+                        .Append(info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch (IOException)
+            {
+                // 读不到元数据时退化为只按路径算指纹
+            }
+
+            foreach (string exclusion in nativeLibrary.Exclusions)
+            {
+                builder.Append('|').Append(exclusion);
+            }
+        }
+
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
+        return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
     }
 
     /// <summary>尽力删除目录；游戏退出后的临时文件清理不应影响主流程。</summary>
@@ -217,16 +272,31 @@ public class LibraryResolver
         }
     }
 
-    private static void CleanupStaleNativeDirectories(string baseDirectory)
+    /// <summary>
+    /// 清理不再使用的 native 缓存。只删一天以前的旧目录：另一个启动器进程可能正用着
+    /// 某个目录里的 dll 启动游戏，删掉会让它加载失败。
+    /// </summary>
+    private static void CleanupStaleNativeDirectories(string baseDirectory, string keepDirectoryName)
     {
         try
         {
             if (!Directory.Exists(baseDirectory)) return;
 
+            DateTime staleBefore = DateTime.UtcNow - TimeSpan.FromDays(1);
             foreach (string directory in Directory.EnumerateDirectories(baseDirectory))
             {
+                if (string.Equals(Path.GetFileName(directory), keepDirectoryName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 try
                 {
+                    if (Directory.GetLastWriteTimeUtc(directory) > staleBefore)
+                    {
+                        continue;
+                    }
+
                     Directory.Delete(directory, true);
                 }
                 catch (IOException)

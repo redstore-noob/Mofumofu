@@ -516,6 +516,8 @@ public class YamlRead
             AdditionalEnvironmentVariables = ReadArguments(Keys.GameEnvironmentVariables),
             LaunchFullscreen = ReadBool(Keys.GameFullscreen, false),
             SnapshotBeforeLaunch = ReadBool(Keys.GameSnapshotBeforeLaunch, false),
+            JvmTuning = MinecraftArgumentBuilder.NormalizeTuningMode(GetValue(YamlDomain.Game, Keys.GameJvmTuning)),
+            AllowUnsafeVersionJvmArguments = ReadBool(Keys.GameAllowUnsafeVersionJvmArguments, false),
             AutomaticMemory = ReadBool(Keys.GameAutomaticMemory,
                 string.IsNullOrWhiteSpace(GetValue(YamlDomain.Game, Keys.GameMaximumMemoryMb))),
             MinimumMemoryMb = Math.Clamp(ReadInt(Keys.GameMinimumMemoryMb, DefaultMinimumMemoryMb, MinimumMemoryMb),
@@ -567,6 +569,10 @@ public class YamlRead
             document[Keys.GameMinimumMemoryMb] = minimumMemory.ToString();
             document[Keys.GameMaximumMemoryMb] = maximumMemory.ToString();
             document[Keys.GameAutomaticMemory] = FormatBool(settings.AutomaticMemory);
+            document[Keys.GameJvmTuning] =
+                MinecraftArgumentBuilder.NormalizeTuningMode(settings.JvmTuning);
+            document[Keys.GameAllowUnsafeVersionJvmArguments] =
+                FormatBool(settings.AllowUnsafeVersionJvmArguments);
             return true;
         });
     }
@@ -703,6 +709,8 @@ public class YamlRead
         public const string GameMinimumMemoryMb = "globalLaunchMinimumMemoryMb";
         public const string GameMaximumMemoryMb = "globalLaunchMaximumMemoryMb";
         public const string GameAutomaticMemory = "globalLaunchAutomaticMemory";
+        public const string GameJvmTuning = "globalLaunchJvmTuning";
+        public const string GameAllowUnsafeVersionJvmArguments = "globalLaunchAllowUnsafeVersionJvmArguments";
 
         /// <summary>Java 路径的"自动选择"占位值。</summary>
         public const string AutomaticJavaValue = "$auto";
@@ -957,6 +965,12 @@ public class GlobalLaunchSettings
     public int MinimumMemoryMb { get; set; } = MemoryAllocation.MinimumMb;
 
     public int MaximumMemoryMb { get; set; } = 4096;
+
+    /// <summary>JVM 调优预设：default / off / aggressive。</summary>
+    public string JvmTuning { get; set; } = "default";
+
+    /// <summary>是否信任版本 JSON 里自带的 JVM 参数（默认关闭：只放行白名单内的）。</summary>
+    public bool AllowUnsafeVersionJvmArguments { get; set; }
 }
 
 /// <summary>

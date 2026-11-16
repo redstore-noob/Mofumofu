@@ -1,4 +1,4 @@
-﻿{
+{
   "Settings.Page.Title": "设置",
   "Settings.Page.Subtitle": "启动器选项",
   "Settings.Search.Placeholder": "搜索设置…",
@@ -40,6 +40,8 @@
   "Settings.Game.Java.RemoveFailed": "该 Java 不在已保存列表中",
   "Settings.Game.Memory.Title": "内存",
   "Settings.Game.Memory.Max": "最大内存",
+  "Settings.Game.TrustVersionJvm": "信任版本自带的 JVM 参数",
+  "Settings.Game.TrustVersionJvm.Desc": "默认只放行白名单内的参数；整合包确实需要 -javaagent 之类的参数时再打开，存在执行外部代码的风险。",
   "Settings.Game.Memory.MaxHint": "分配给 Minecraft 的最大堆内存（2048 - 16384 MB），写入 game.yaml。",
   "Settings.Game.Memory.SaveFailed": "保存最大内存失败：{0}",
   "Settings.General.Window.Title": "窗口与启动",

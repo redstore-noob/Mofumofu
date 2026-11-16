@@ -1,4 +1,4 @@
-﻿{
+{
   "Settings.Page.Title": "Settings",
   "Settings.Page.Subtitle": "Launcher options",
   "Settings.Search.Placeholder": "Search settings…",
@@ -40,6 +40,8 @@
   "Settings.Game.Java.RemoveFailed": "That Java runtime is not in the saved list",
   "Settings.Game.Memory.Title": "Memory",
   "Settings.Game.Memory.Max": "Max memory",
+  "Settings.Game.TrustVersionJvm": "Trust JVM arguments from version JSON",
+  "Settings.Game.TrustVersionJvm.Desc": "Only allow-listed arguments are accepted by default. Enable this if the modpack really needs -javaagent or similar; it can execute external code.",
   "Settings.Game.Memory.MaxHint": "Maximum heap allocated to Minecraft (2048 - 16384 MB). Written to game.yaml.",
   "Settings.Game.Memory.SaveFailed": "Failed to save max memory: {0}",
   "Settings.General.Window.Title": "Window & startup",

@@ -70,13 +70,21 @@ public static class JvmArgumentPolicy
         "--add-opens=", "--add-exports=",
     };
 
-    /// <summary>即便命中前缀也必须拒绝的高危子串（改写类路径 / 挂载代理 / 引导类路径 / 触发外部命令）。</summary>
+    /// <summary>
+    /// 即便命中前缀也必须拒绝的高危子串：改写类路径 / 挂载代理 / 引导类路径 / 触发外部命令 /
+    /// 替换类加载器或安全策略。必须与 MofuCore 里 MinecraftArgumentBuilder 的黑名单保持一致，
+    /// 否则插件能注入内核拒绝的东西（两处策略不一致本身也会让人误判"内核已经拦住了"）。
+    /// </summary>
     private static readonly string[] ForbiddenSubstrings =
     {
         "javaagent", "agentlib", "agentpath",
         "bootclasspath", "patch-module", "module-path", "class-path",
         "-cp", "-jar",
-        "OnError=", "OnOutOfMemoryError=",
+        "runjdwp", "Xdebug",
+        "OnError", "OnOutOfMemoryError",
+        "StartFlightRecording", "FlightRecorderOptions", "CompilerCommandFile",
+        "java.system.class.loader", "com.sun.management",
+        "java.rmi.server.codebase", "java.security.policy",
     };
 
     /// <summary>校验一条待注入的 JVM 参数是否落在白名单内。</summary>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -149,6 +149,7 @@ public partial class SettingsView : UserControl
         MaxMemorySlider.Maximum = MemoryAllocation.SliderMaximum(memory.TotalMb, memorySettings.MaximumMemoryMb);
         MaxMemorySlider.Value = memorySettings.MaximumMemoryMb;
         AutomaticMemoryToggle.IsChecked = memorySettings.AutomaticMemory;
+        TrustVersionJvmToggle.IsChecked = memorySettings.AllowUnsafeVersionJvmArguments;
         UpdateMemoryPreview();
 
         RefreshJavaList();
@@ -663,6 +664,7 @@ public partial class SettingsView : UserControl
             launch.AutomaticMemory = AutomaticMemoryToggle.IsChecked == true;
             launch.MaximumMemoryMb = mb;
             launch.MinimumMemoryMb = Math.Min(launch.MinimumMemoryMb, mb);
+            launch.AllowUnsafeVersionJvmArguments = TrustVersionJvmToggle.IsChecked == true;
             if (!YamlRead.SaveGlobalLaunchSettings(launch))
             {
                 Shell.Toast(L.T("Memory.SaveFailed", "保存内存设置失败"));
