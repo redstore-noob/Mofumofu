@@ -1,6 +1,7 @@
 using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Linq;
@@ -456,7 +457,78 @@ public partial class MainWindow : Window
             Background = (IBrush)FindRes("NekoBorderBrush")!,
         });
 
-        AddMenuRow("__quit__", L.T("Shell.StartMenu.Quit", "退出启动器"), "IconClose", danger: true);
+        AddExitActionsRow();
+    }
+
+    /// <summary>开始菜单最后一行：退出 / 重启两个并排按钮。</summary>
+    private void AddExitActionsRow()
+    {
+        var quit = new Button
+        {
+            Classes = { "menu-row" },
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            Content = BuildMenuRowContent(L.T("Shell.StartMenu.Quit", "退出启动器"), "IconClose", danger: true),
+        };
+        quit.Click += (_, _) => ExitApplication();
+
+        var restart = new Button
+        {
+            Classes = { "menu-row" },
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            Content = BuildMenuRowContent(L.T("Shell.StartMenu.Restart", "重启启动器"), "IconRefresh", danger: false),
+        };
+        restart.Click += (_, _) => RestartLauncher();
+
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,6,*") };
+        Grid.SetColumn(quit, 0);
+        Grid.SetColumn(restart, 2);
+        row.Children.Add(quit);
+        row.Children.Add(restart);
+        StartMenuPanel.Children.Add(row);
+    }
+
+    /// <summary>重启启动器：先拉起一份新实例（带 --restart 让新实例等旧实例释放单实例锁），再退出当前实例。</summary>
+    private void RestartLauncher()
+    {
+        try
+        {
+            string? executable = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(executable))
+            {
+                Shell.Toast(L.T("Shell.StartMenu.RestartFailed", "找不到当前启动器，无法重启，将直接退出。"));
+                ExitApplication();
+                return;
+            }
+
+            var info = new ProcessStartInfo(executable)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = AppContext.BaseDirectory,
+            };
+
+            // 通过 `dotnet Mofumofu.Launcher.dll` 运行时，ProcessPath 是 dotnet 本身，需要把入口程序集补回去。
+            if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase))
+            {
+                string? entryAssembly = Assembly.GetEntryAssembly()?.Location;
+                if (!string.IsNullOrEmpty(entryAssembly)) info.ArgumentList.Add(entryAssembly);
+            }
+
+            info.ArgumentList.Add("--restart");
+            foreach (string argument in Program.LaunchArguments)
+            {
+                if (string.Equals(argument, "--restart", StringComparison.OrdinalIgnoreCase)) continue;
+                info.ArgumentList.Add(argument);
+            }
+
+            Process.Start(info);
+        }
+        catch (Exception ex)
+        {
+            MofuCore.Log.LogWrite.Write("WARN", "重启启动器失败：" + ex.Message);
+            Shell.Toast(L.T("Shell.StartMenu.RestartFailed", "找不到当前启动器，无法重启，将直接退出。"));
+        }
+
+        ExitApplication();
     }
 
     /// <summary>开始菜单第一项：微缩的「桌面」缩略图 + 桌面二字（伪预览，不是真截图）。</summary>
@@ -530,24 +602,37 @@ public partial class MainWindow : Window
         StartMenuPanel.Children.Add(button);
     }
 
-    private void AddMenuRow(string id, string label, string iconKey, bool danger = false)
+    private void AddMenuRow(string id, string label, string iconKey)
     {
-        var icon = new IconParkIcon
+        var button = new Button
         {
-            Kind = iconKey,
-            Width = 16,
-            Height = 16,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Classes = { "menu-row" },
+            Content = BuildMenuRowContent(label, iconKey),
         };
 
-        var content = new StackPanel
+        button.Click += (_, _) => Navigate(id);
+
+        AttachTaskbarToggleMenu(button, id);
+        StartMenuPanel.Children.Add(button);
+    }
+
+    /// <summary>菜单行内容：16px 图标 + 13px 文字，危险操作（退出）用警示色。</summary>
+    private Control BuildMenuRowContent(string label, string iconKey, bool danger = false)
+    {
+        return new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 10,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             Children =
             {
-                icon,
+                new IconParkIcon
+                {
+                    Kind = iconKey,
+                    Width = 16,
+                    Height = 16,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                },
                 new TextBlock
                 {
                     Text = label,
@@ -559,26 +644,6 @@ public partial class MainWindow : Window
                 },
             },
         };
-
-        var button = new Button
-        {
-            Classes = { "menu-row" },
-            Content = content,
-        };
-
-        button.Click += (_, _) =>
-        {
-            if (id == "__quit__")
-            {
-                Close();
-                return;
-            }
-
-            Navigate(id);
-        };
-
-        AttachTaskbarToggleMenu(button, id);
-        StartMenuPanel.Children.Add(button);
     }
 
     // ==================== 可自定义任务栏 ====================

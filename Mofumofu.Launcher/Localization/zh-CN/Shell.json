@@ -5,6 +5,8 @@
   "Shell.StartMenu.Desktop": "桌面",
   "Shell.StartMenu.Close": "按 Esc 或点击空白处关闭",
   "Shell.StartMenu.Quit": "退出启动器",
+  "Shell.StartMenu.Restart": "重启启动器",
+  "Shell.StartMenu.RestartFailed": "找不到当前启动器，无法重启，将直接退出。",
   "Shell.StartMenu.Creator": "创作中心",
   "Shell.StartMenu.Tools": "工具",
   "Shell.StartMenu.ToolsPick": "选择工具",

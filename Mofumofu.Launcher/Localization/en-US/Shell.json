@@ -5,6 +5,8 @@
   "Shell.StartMenu.Desktop": "Desktop",
   "Shell.StartMenu.Close": "Press Esc or click outside to close",
   "Shell.StartMenu.Quit": "Quit launcher",
+  "Shell.StartMenu.Restart": "Restart launcher",
+  "Shell.StartMenu.RestartFailed": "Could not locate the launcher executable, shutting down instead.",
   "Shell.StartMenu.Creator": "Creator Center",
   "Shell.StartMenu.Tools": "Tools",
   "Shell.StartMenu.ToolsPick": "Pick a tool",

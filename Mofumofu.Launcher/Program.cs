@@ -1,6 +1,7 @@
 using Avalonia;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -10,12 +11,16 @@ class Program
 {
     private const string SingleInstanceMutexName = "Mofumofu.Launcher.SingleInstance";
 
+    /// <summary>本次启动的命令行参数（不含程序路径），「重启启动器」时原样传给新实例。</summary>
+    public static string[] LaunchArguments { get; private set; } = [];
+
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
     public static void Main(string[] args)
     {
+        LaunchArguments = args;
         AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash("AppDomain", e.ExceptionObject as Exception);
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
         {
@@ -40,8 +45,24 @@ class Program
 
             if (!isFirstInstance)
             {
+                // 「重启启动器」时新实例会比旧实例先起来，等旧实例释放单实例锁（最多 10 秒）。
+                if (args.Any(a => string.Equals(a, "--restart", StringComparison.OrdinalIgnoreCase)))
+                {
+                    mutex.Dispose();
+                    isFirstInstance = false;
+                    for (int attempt = 0; attempt < 100 && !isFirstInstance; attempt++)
+                    {
+                        Thread.Sleep(100);
+                        mutex = new Mutex(true, mutexName, out isFirstInstance);
+                        if (!isFirstInstance) mutex.Dispose();
+                    }
+                }
+            }
+
+            if (!isFirstInstance)
+            {
                 ActivateExistingWindow();
-                mutex.Dispose();
+                mutex?.Dispose();
                 return;
             }
         }
