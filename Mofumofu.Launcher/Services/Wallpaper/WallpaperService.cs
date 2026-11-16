@@ -43,7 +43,7 @@ public sealed class WallpaperService
     private WallpaperService()
     {
         Settings = WallpaperStore.Load();
-        // 首次启动时把旧版设置整理成新格式（顺带迁移旧版本地图片）
+        // 规范化一次并落盘（修正越界值、清理失效路径）
         WallpaperStore.Save(Settings);
         EnsurePreload();
     }

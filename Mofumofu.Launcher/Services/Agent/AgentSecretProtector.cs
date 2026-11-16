@@ -11,13 +11,11 @@ namespace Mofumofu.Launcher.Services.Agent;
 /// API Key 与额外请求头的静态加密，跨平台实现：
 /// - 值本身用 AES-256-GCM 加密，密文格式 `aesgcm:v1:base64(nonce|tag|cipher)`；
 /// - 主密钥存放在用户数据目录（不在可搬运的配置目录里），
-///   Windows 用 DPAPI 保护主密钥，macOS / Linux 用 0600 文件权限保护；
-/// - 兼容上一版 Windows 专用的 `dpapi:v1:` 值，加载后会自动重写成 AES-GCM。
+///   Windows 用 DPAPI 保护主密钥，macOS / Linux 用 0600 文件权限保护。
 /// </summary>
 public static class AgentSecretProtector
 {
     private const string AesPrefix = "aesgcm:v1:";
-    private const string DpapiPrefix = "dpapi:v1:";
     private const string KeyDpapiPrefix = "dpapi:v1:";
     private const string KeyRawPrefix = "raw:v1:";
 
@@ -28,22 +26,12 @@ public static class AgentSecretProtector
     private static readonly byte[] Entropy =
         Encoding.UTF8.GetBytes("Mofumofu.Launcher/MofuAgent/Secret/v1");
 
-    // 上一版 Windows 专用实现用的 entropy，迁移 dpapi:v1: 旧值时必须沿用。
-    private static readonly byte[] LegacyEntropy =
-        Encoding.UTF8.GetBytes("Mofumofu.Launcher/MofuAgent/ApiKey/v1");
-
     private static readonly byte[] Aad =
         Encoding.UTF8.GetBytes("Mofumofu.MofuAgent.Secret.v1");
 
     private static readonly object KeyLock = new();
     private static byte[]? _key;
     private static string? _keyError;
-
-    /// <summary>读到没有前缀的旧明文，需要在加载后回写一次加密版本。</summary>
-    public static bool LegacyPlaintextFound { get; private set; }
-
-    /// <summary>读到上一版 Windows DPAPI 值，需要回写成通用 AES-GCM。</summary>
-    public static bool LegacyDpapiFound { get; private set; }
 
     /// <summary>密文解不开（换账户 / 换机器 / 主密钥丢失 / 配置损坏），不要覆盖原值。</summary>
     public static bool DecryptFailed { get; private set; }
@@ -82,8 +70,6 @@ public static class AgentSecretProtector
 
     public static void ResetFlags()
     {
-        LegacyPlaintextFound = false;
-        LegacyDpapiFound = false;
         DecryptFailed = false;
     }
 
@@ -136,23 +122,15 @@ public static class AgentSecretProtector
     }
 
     public static bool LooksEncrypted(string? value) =>
-        value is not null &&
-        (value.StartsWith(AesPrefix, StringComparison.Ordinal) ||
-         value.StartsWith(DpapiPrefix, StringComparison.Ordinal));
+        value is not null && value.StartsWith(AesPrefix, StringComparison.Ordinal);
 
     public static string Unprotect(string? value)
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
 
-        if (value.StartsWith(AesPrefix, StringComparison.Ordinal))
-            return UnprotectAes(value);
-
-        if (value.StartsWith(DpapiPrefix, StringComparison.Ordinal))
-            return UnprotectDpapi(value);
-
-        // 早期版本直接存明文，读到后由 Load 负责回写加密版本。
-        LegacyPlaintextFound = true;
-        return value;
+        return value.StartsWith(AesPrefix, StringComparison.Ordinal)
+            ? UnprotectAes(value)
+            : value;
     }
 
     /// <summary>
@@ -186,29 +164,6 @@ public static class AgentSecretProtector
                 aes.Decrypt(nonce, cipher, tag, plain, Aad);
             }
 
-            return Encoding.UTF8.GetString(plain);
-        }
-        catch
-        {
-            DecryptFailed = true;
-            return value;
-        }
-    }
-
-    private static string UnprotectDpapi(string value)
-    {
-        // 上一版 Windows 专用格式：能解就解，随后由 Load 回写成通用 AES-GCM。
-        if (!OperatingSystem.IsWindows())
-        {
-            DecryptFailed = true;
-            return value;
-        }
-
-        try
-        {
-            byte[] blob = Convert.FromBase64String(value[DpapiPrefix.Length..]);
-            byte[] plain = ProtectedData.Unprotect(blob, LegacyEntropy, DataProtectionScope.CurrentUser);
-            LegacyDpapiFound = true;
             return Encoding.UTF8.GetString(plain);
         }
         catch

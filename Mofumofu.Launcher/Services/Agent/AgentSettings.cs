@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using MofuCore.Config;
 
@@ -152,21 +151,11 @@ public static class AgentSettingsStore
 
     public static string? LastError { get; private set; }
 
-    public static string? LastNotice { get; private set; }
-
-    public static string? ConsumeNotice()
-    {
-        string? notice = LastNotice;
-        LastNotice = null;
-        return notice;
-    }
-
     public static string BackupPath => SettingsPath + ".bak";
 
     public static AgentSettings Load()
     {
         LastError = null;
-        LastNotice = null;
 
         AgentSettings? fromFile = TryRead(SettingsPath, out string primaryError);
         if (fromFile is not null) return fromFile;
@@ -194,8 +183,7 @@ public static class AgentSettingsStore
         {
             AgentSecretProtector.ResetFlags();
             string json = File.ReadAllText(path);
-            string sanitized = SanitizeLegacyProviders(json, out int removed);
-            AgentSettings? loaded = JsonSerializer.Deserialize<AgentSettings>(sanitized, Options);
+            AgentSettings? loaded = JsonSerializer.Deserialize<AgentSettings>(json, Options);
             if (loaded is null)
             {
                 error = "文件内容为空";
@@ -204,20 +192,6 @@ public static class AgentSettingsStore
 
             loaded.Providers ??= new List<AgentProviderConfig>();
             loaded.Tools ??= new AgentToolSettings();
-            NormalizeProviderNames(loaded);
-
-            if (removed > 0)
-            {
-                LastNotice = $"已自动移除 {removed} 条旧版本内置的空壳供应商（写死的模型 id 一并清掉）。" +
-                             "需要哪家，点「添加供应商」重新加一条即可；你自己配置过的条目没有动。";
-            }
-
-            bool legacyKeyFormat = AgentSecretProtector.LegacyPlaintextFound ||
-                                   AgentSecretProtector.LegacyDpapiFound;
-            if (!AgentSecretProtector.DecryptFailed && (removed > 0 || legacyKeyFormat))
-            {
-                Save(loaded);
-            }
 
             if (AgentSecretProtector.DecryptFailed)
             {
@@ -232,118 +206,6 @@ public static class AgentSettingsStore
             AgentSecretProtector.ResetFlags();
             error = exception.Message;
             return null;
-        }
-    }
-
-    private static string SanitizeLegacyProviders(string json, out int removed)
-    {
-        removed = 0;
-        try
-        {
-            if (JsonNode.Parse(json) is not JsonObject root ||
-                root["Providers"] is not JsonArray providers)
-                return json;
-
-            for (int i = providers.Count - 1; i >= 0; i--)
-            {
-                if (providers[i] is not JsonObject provider) continue;
-
-                if (string.Equals(ReadString(provider, "Kind"), "Mock",
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    providers.RemoveAt(i);
-                    removed++;
-                    continue;
-                }
-
-                    // 旧版本把 Key 直接写在 JSON 里：立刻回写一次加密版本，
-                    // 避免磁盘上继续留明文。解密失败时绝不回写，否则会把 Key 抹掉。
-                string? id = ReadString(provider, "Id");
-                if (id is null ||
-                    !AgentProviderPresets.LegacyDefaultModels.TryGetValue(id, out string[]? legacyModels) ||
-                    !SameModels(provider["Models"], legacyModels))
-                    continue;
-
-                string? key = ReadString(provider, "ApiKey");
-                string baseUrl = ReadString(provider, "BaseUrl") ?? string.Empty;
-                bool local = baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
-                             baseUrl.Contains("127.0.0.1", StringComparison.Ordinal);
-                if (!string.IsNullOrWhiteSpace(key) && !local) continue;
-
-                providers.RemoveAt(i);
-                removed++;
-            }
-
-            if (removed > 0 && root["ActiveProviderId"] is not null)
-            {
-                string? active = ReadString(root, "ActiveProviderId");
-                bool stillExists = providers.Any(node => node is JsonObject item &&
-                    string.Equals(ReadString(item, "Id"), active, StringComparison.Ordinal));
-                if (!stillExists)
-                {
-                    root["ActiveProviderId"] = string.Empty;
-                    root["ActiveModel"] = string.Empty;
-                }
-            }
-
-            return removed > 0 ? root.ToJsonString() : json;
-        }
-        catch
-        {
-            removed = 0;
-            return json;
-        }
-    }
-
-    private static string? ReadString(JsonObject node, string name)
-    {
-        try
-        {
-            return node[name] is JsonValue value && value.TryGetValue<string>(out string? text)
-                ? text
-                : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool SameModels(JsonNode? node, string[] expected)
-    {
-        if (node is not JsonArray array || array.Count != expected.Length) return false;
-
-        for (int i = 0; i < expected.Length; i++)
-        {
-            if (array[i] is not JsonValue value ||
-                !value.TryGetValue<string>(out string? text) ||
-                !string.Equals(text, expected[i], StringComparison.Ordinal))
-                return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// 早期版本的预设名太长，页头的下拉框会被截断。只在名字仍是旧默认值时改成短名，
-    /// 玩家自己改过的名字不动。
-    /// </summary>
-    private static void NormalizeProviderNames(AgentSettings settings)
-    {
-        var renamed = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["月之暗面 Kimi"] = "Kimi",
-            ["通义千问（兼容模式）"] = "通义千问",
-            ["Ollama（本机）"] = "Ollama",
-            ["LM Studio（本机）"] = "LM Studio",
-            ["Anthropic Claude"] = "Claude",
-            ["Google Gemini"] = "Gemini",
-        };
-
-        foreach (AgentProviderConfig provider in settings.Providers)
-        {
-            if (renamed.TryGetValue(provider.Name, out string? shortName))
-                provider.Name = shortName;
         }
     }
 

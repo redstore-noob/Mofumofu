@@ -1113,9 +1113,6 @@ public class MinecraftTokenHandle
     /// <summary>删除一个离线账号名。</summary>
     public bool RemoveOfflineAccount(string username) => _store.RemoveOfflineAccount(username);
 
-    /// <summary>把旧版 LocalSettings 里的离线账号一次性导入保险库。</summary>
-    public void ImportOfflineAccounts(IEnumerable<string> usernames) => _store.ImportOfflineAccounts(usernames);
-
     /// <summary>本安装固定的 Yggdrasil clientToken（首次调用时生成并落盘）。</summary>
     public string GetOrCreateClientToken() => _store.GetOrCreateClientToken();
 

@@ -95,7 +95,7 @@ public interface IPluginContext
 
     /// <summary>
     /// 服务器状态查询（需要 <see cref="PluginPermissionZones.ServerStatus"/> 权限）。
-    /// 带默认实现：未接线的旧版组合根调用时抛 <see cref="NotSupportedException"/>，
+    /// 带默认实现：未接线该成员的宿主调用时抛 <see cref="NotSupportedException"/>，
     /// 从而保证已编译插件引用本接口时不会因新增成员而二进制不兼容。
     /// </summary>
     IServerStatus ServerStatus => throw new NotSupportedException(

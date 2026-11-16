@@ -18,16 +18,12 @@ promo/
 # 本地游戏目录（录制 promo 时生成的演示实例、截图等，不入库）
 .minecraft/
 
-# WebView 页面源码依赖（构建产物在 Mofumofu.Launcher/WebAssets，随仓库交付）
-node_modules/
-
-# 本地验收截图产物（保留 docs/reference/neko-ui 下的原版参照图）
+# 本地验收截图产物
 docs/reference/native-shots*/
 docs/reference/native-*.png
 
 # 临时文件
 *.tmp
-*.tsbuildinfo
 *.bak
 *.orig
 *.rej

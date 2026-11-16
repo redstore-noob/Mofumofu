@@ -130,22 +130,6 @@ public static class AgentProviderPresets
                a >= 224;
     }
 
-    internal static readonly Dictionary<string, string[]> LegacyDefaultModels =
-        new(StringComparer.Ordinal)
-        {
-            ["openai"] = new[] { "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini" },
-            ["deepseek"] = new[] { "deepseek-chat", "deepseek-reasoner" },
-            ["moonshot"] = new[] { "moonshot-v1-32k", "moonshot-v1-8k", "kimi-k2-0905-preview" },
-            ["zhipu"] = new[] { "glm-4-flash", "glm-4-plus" },
-            ["dashscope"] = new[] { "qwen-plus", "qwen-max", "qwen-turbo" },
-            ["siliconflow"] = new[] { "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3" },
-            ["openrouter"] = new[] { "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini", "google/gemini-2.0-flash-001" },
-            ["ollama"] = new[] { "qwen2.5:7b", "llama3.1:8b" },
-            ["lmstudio"] = new[] { "local-model" },
-            ["anthropic"] = new[] { "claude-3-5-sonnet-latest", "claude-3-7-sonnet-latest" },
-            ["gemini"] = new[] { "gemini-2.0-flash", "gemini-2.5-flash" },
-        };
-
     /// <summary>按模型名猜一个上下文窗口，用于新建供应商时给个合理默认值。</summary>
     public static int GuessContextWindow(string model)
     {

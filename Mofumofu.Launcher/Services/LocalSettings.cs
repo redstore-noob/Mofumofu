@@ -152,7 +152,6 @@ public sealed class LocalSettings
         lock (Gate)
         {
             if (!File.Exists(SettingsPath)) return;
-            bool migrate = false;
             bool decryptFailed = false;
             try
             {
@@ -180,7 +179,6 @@ public sealed class LocalSettings
                     if (AgentSecretProtector.LooksEncrypted(parsed.CurseForgeApiKey))
                         parsed.CurseForgeApiKey = AgentSecretProtector.Unprotect(parsed.CurseForgeApiKey);
                     Current = parsed;
-                    migrate = AgentSecretProtector.LegacyPlaintextFound && !AgentSecretProtector.DecryptFailed;
                     decryptFailed = AgentSecretProtector.DecryptFailed;
                 }
             }
@@ -198,8 +196,6 @@ public sealed class LocalSettings
 
             if (decryptFailed)
                 LogWrite.Write("ERROR", "[LocalSettings] 部分加密凭据无法解密（可能换过账户/机器或主密钥丢失），未改动的值不会被覆盖。");
-            if (migrate)
-                SaveCore(); // 一次性把旧明文凭据回写为加密版本
         }
     }
 

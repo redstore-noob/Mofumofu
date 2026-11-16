@@ -37,7 +37,7 @@ namespace Mofumofu.Launcher.Views;
 
 /// <summary>
 /// 账户管理页：账号列表（选中/默认/删除）+ 原生 OpenGL 皮肤预览 + 玩家外观。
-/// 皮肤贴图按旧版做法获取：Mojang 档案 → 本地缓存 → 客户端内置 Steve/Alex → 页面内置兜底。
+/// 皮肤贴图获取顺序：Mojang 档案 → 本地缓存 → 客户端内置 Steve/Alex → 页面内置兜底。
 /// </summary>
 public partial class AccountView : UserControl
 {
@@ -1529,7 +1529,7 @@ internal sealed record SkinTexture(
     public bool HasCape => !string.IsNullOrEmpty(CapeDataUrl);
 }
 
-/// <summary>离线皮肤目录项（对应旧版 OfflineSkinCatalog.Choices）。</summary>
+/// <summary>离线皮肤目录项。</summary>
 internal sealed record OfflineSkinChoice(string Id, string DisplayName, bool Slim)
 {
     public string Initial => DisplayName.Length > 0 ? DisplayName[..1] : "?";
@@ -1561,7 +1561,7 @@ internal static class SkinTextureService
 
     private static readonly HttpClient Http = CreateHttpClient();
 
-    /// <summary>离线皮肤目录（顺序即展示顺序，与旧版一致）。</summary>
+    /// <summary>离线皮肤目录（顺序即展示顺序）。</summary>
     public static IReadOnlyList<OfflineSkinChoice> Catalog { get; } = new[]
     {
         new OfflineSkinChoice("steve", "Steve", false),

@@ -143,12 +143,6 @@ public static class MusicStore
                         LogFailure("网易云 Cookie 解密失败（可能换过账户 / 机器或主密钥丢失），" +
                                    "已回退到未登录态，请重新登录。");
                     }
-                    // 兼容旧版本明文 Cookie：立刻回写为加密版本，避免凭证继续明文驻留磁盘。
-                    else if (!string.IsNullOrEmpty(parsed.NetEaseCookie) &&
-                             AgentSecretProtector.LegacyPlaintextFound)
-                    {
-                        Save(parsed);
-                    }
                     return parsed;
                 }
             }

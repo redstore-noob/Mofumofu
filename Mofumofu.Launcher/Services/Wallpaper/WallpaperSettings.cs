@@ -13,9 +13,7 @@ public static class WallpaperModes
         mode is Image or Slideshow or None;
 
     public static string Normalize(string? mode) =>
-        // 旧版的视频壁纸模式（已随 libVLC 一起移除）落到“无”，避免误报壁纸失效
-        mode == "video" ? None
-        : IsValid(mode) ? mode!
+        IsValid(mode) ? mode!
         : Image;
 }
 

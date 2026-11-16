@@ -148,11 +148,6 @@ public partial class MofuAgentSettingsView : UserControl
 
         if (!string.IsNullOrEmpty(AgentSettingsStore.LastError))
             ShowProviderResult(AgentSettingsStore.LastError, "warning");
-        else
-        {
-            string? notice = AgentSettingsStore.ConsumeNotice();
-            if (!string.IsNullOrEmpty(notice)) ShowProviderResult(notice, "muted");
-        }
     }
 
     private void UpdateLabels()

@@ -106,7 +106,7 @@ public sealed class PluginContextImpl : IPluginContext
     // ==================================================================
     // 组合根补充能力：ServerStatus / LogWrite / MemoryInfo
     // 契约层是「带默认实现的接口属性」，宿主在此给出真实实现；
-    // 未接线的旧版组合根会走默认实现抛 NotSupportedException（二进制兼容）。
+    // 未接线的组合根会走默认实现抛 NotSupportedException（二进制兼容）。
     // ==================================================================
 
     private sealed class ServerStatusImpl(PluginContextImpl owner) : IServerStatus

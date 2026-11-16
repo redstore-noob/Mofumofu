@@ -1,4 +1,4 @@
-﻿using Mofumofu.Launcher.Controls;
+using Mofumofu.Launcher.Controls;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -2818,7 +2818,7 @@ public partial class CreatorView : UserControl
         }
     }
 
-    // ================= 渐变文字纯逻辑（移植自旧版 gradient.ts） =================
+    // ================= 渐变文字纯逻辑 =================
 
     private static string NormalizeHex(string value)
     {

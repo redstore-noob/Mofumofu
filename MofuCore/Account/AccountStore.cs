@@ -129,33 +129,6 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>把旧版 LocalSettings 里的离线账号一次性导入保险库。</summary>
-    public void ImportOfflineAccounts(IEnumerable<string> usernames)
-    {
-        ArgumentNullException.ThrowIfNull(usernames);
-        lock (VaultGate)
-        {
-            Vault vault = LoadVault();
-            bool changed = false;
-            foreach (string raw in usernames)
-            {
-                string name = (raw ?? string.Empty).Trim();
-                if (name.Length == 0 || vault.Offline.Contains(name, StringComparer.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                vault.Offline.Add(name);
-                changed = true;
-            }
-
-            if (changed)
-            {
-                SaveVault(vault);
-            }
-        }
-    }
-
     /// <summary>本安装固定的 Yggdrasil clientToken（首次调用时生成并落盘）。</summary>
     public string GetOrCreateClientToken()
     {
@@ -202,20 +175,7 @@ public sealed class AccountStore
             return DeserializeVault(json);
         }
 
-        // 历史明文库兼容：旧版在加密不可用时曾明文写回；识别为合法 Vault JSON 才接受，下次 Save 自动重新加密
-        if (stored.TrimStart().StartsWith('{'))
-        {
-            try
-            {
-                return DeserializeVault(stored);
-            }
-            catch (MicrosoftAuthenticationException)
-            {
-                // 不是合法 JSON，落到下面 fail-closed
-            }
-        }
-
-        // 既解不开也不是合法明文 JSON：fail-closed，绝不覆盖现有文件
+        // 解不开：fail-closed，绝不覆盖现有文件
         throw new MicrosoftAuthenticationException("账号令牌文件无法解密或已损坏，已中止以避免覆盖。请检查加密密钥或从备份恢复。");
     }
 
