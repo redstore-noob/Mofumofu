@@ -167,9 +167,9 @@ public partial class DownloadView : UserControl
         InitializeComponent();
 
         _gameDirectory = EnsureGameDirectory();
-        // 有缓存就直接显示缓存，后台刷新不再挂一行「正在刷新」占位文案
-        TryLoadVersionCache(out _);
-        VersionLoadingOverlay.IsVisible = _allVersions.Count == 0;
+        // 版本缓存要等页面真正显示出来再读：构造函数是在"点底栏那一刻"同步跑的，
+        // 在这里读文件 + 解析 JSON 会直接变成点一下卡一下。
+        VersionLoadingOverlay.IsVisible = true;
 
 
         _tabButtons.AddRange(new[]
@@ -307,19 +307,47 @@ public partial class DownloadView : UserControl
         if (!_started)
         {
             _started = true;
-            // 构造时语言包可能还在加载，VersionCountText 的 DynamicResource 初始文本会覆盖
-            // 构造函数里写入的「共 N 个版本」；页面挂载后按当前已加载数据重刷一次数量/分页。
+
+            // 换页时这一帧要先把页面画出来：读缓存、拉列表、建控件这些重活全部排到页面出帧之后，
+            // 先让用户看到界面，再慢慢填内容——否则点击和页面出现之间会卡一下。
+            Dispatcher.UIThread.Post(() => _ = LoadInitialDataAsync(), DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>
+    /// 页面首次显示后的初始化。顺序是刻意的：先读本地版本缓存（快、且能立刻出内容），
+    /// 再依次拉版本列表和四类资源，最后是 Java 运行时。
+    /// 之前这六件事在挂载时一次性并发发出去，几条 JSON 解析撞在 UI 线程同一帧里，就是换页卡顿的来源。
+    /// </summary>
+    private async Task LoadInitialDataAsync()
+    {
+        try
+        {
+            // 缓存读完后立刻出列表，用户点进来就能看到内容，不用等网络。
+            TryLoadVersionCache(out _);
             if (_allVersions.Count > 0)
             {
                 RefreshVersions();
+                VersionLoadingOverlay.IsVisible = false;
             }
 
-            _ = LoadVersionsAsync();
-            _ = LoadResourcesAsync("mod");
-            _ = LoadResourcesAsync("modpack");
-            _ = LoadResourcesAsync("shader");
-            _ = LoadResourcesAsync("resourcepack");
-            _ = LoadJavaRuntimesAsync();
+            // 让页面先完成一次真正的布局和首帧，再开始网络请求。
+            await Task.Delay(30);
+            if (!IsEffectivelyVisible) return;
+
+            await LoadVersionsAsync();
+
+            foreach (string type in new[] { "mod", "modpack", "shader", "resourcepack" })
+            {
+                if (!IsEffectivelyVisible) return;
+                await LoadResourcesAsync(type);
+            }
+
+            await LoadJavaRuntimesAsync();
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine("[download] 初始化失败: " + exception.Message);
         }
     }
 
