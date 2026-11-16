@@ -156,6 +156,13 @@
             <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
             <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
         </Style>
+        <!-- 按下时只比自身底色亮一档，不要套用全局那个深蓝按下块 -->
+        <Style Selector="Button.detail-version:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
+        </Style>
+        <Style Selector="Button.detail-version.selected:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
+        </Style>
 
 <!-- 本体安装：加载器 / 版本列表（和资源详情页一致的列表风格） -->        
         <Style Selector="ListBox.install-list">

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia;
@@ -7,6 +7,7 @@ using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Transformation;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace Mofumofu.Launcher.Services;
@@ -20,59 +21,98 @@ public static class UiAnimations
     /// <summary>全局过渡动画开关：关掉后页面/标签直接切换，不做淡入滑入。</summary>
     public static bool Enabled { get; set; } = true;
 
+    /// <summary>每个控件当前入场动画的代号，用来让被顶替的旧循环安静退出。</summary>
+    private static readonly Dictionary<Control, int> PlayGeneration = new();
+
+    /// <summary>页面/列表项入场：淡入 + 从下方轻微上浮，配合缩放。</summary>
     public static void FadeSlideIn(Control? target, double fromScale = 0.985, double offsetY = 8, int milliseconds = 190)
     {
-        if (!Enabled || target is null) return;
+        PlayIn(target, 0, offsetY, fromScale, milliseconds, new CubicEaseOut());
+    }
 
-        target.Transitions = new Transitions
-        {
-            new DoubleTransition
-            {
-                Property = Visual.OpacityProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-            },
-            new TransformOperationsTransition
-            {
-                Property = Visual.RenderTransformProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-                Easing = new CubicEaseOut(),
-            },
-        };
+    /// <summary>
+    /// 新页面像一张卡片从右侧滑进来：透明度 0 → 1，横向位移 <paramref name="offsetX"/> → 0。
+    /// </summary>
+    public static void SlideInFromRight(Control? target, double offsetX = 56, int milliseconds = 260)
+    {
+        // 减速曲线：起步快、收尾稳，卡片到位时像被"停"住而不是滑停。
+        PlayIn(target, offsetX, 0, 1, milliseconds, new SplineEasing(new KeySpline(0.16, 1, 0.3, 1)));
+    }
 
-        target.Opacity = 0;
-        target.RenderTransform = TransformOperations.Parse(
-            $"translateY({offsetY}px) scale({fromScale.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+    /// <summary>
+    /// 播放「从偏移/缩小状态进入到终态」的动画（淡入 + 位移 + 缩放）。
+    /// 这里既不用 Transitions，也不用 Animation.RunAsync：
+    /// Transitions 在"设起始值"这一步就会触发一次过渡，紧接着设终态把那次过渡打断并回卷，
+    /// 两次改动互相抵消，控件看上去一动不动；RunAsync 依赖动画时钟，页面刚挂上还没开始出帧时
+    /// 启动容易被整段跳过。所以改成自己按帧写属性——只要属性写下去能重绘，就一定看得见。
+    /// </summary>
+    private static async void PlayIn(Control? target, double offsetX, double offsetY, double fromScale,
+        int milliseconds, Easing easing)
+    {
+        if (target is null) return;
 
-        Dispatcher.UIThread.Post(() =>
+        int duration = Math.Max(60, milliseconds);
+        TransformOperations to = TransformOperations.Parse("none");
+
+        target.Transitions = null;
+
+        if (!Enabled)
         {
             target.Opacity = 1;
-            target.RenderTransform = TransformOperations.Parse("translateY(0px) scale(1)");
-        }, DispatcherPriority.Render);
+            target.RenderTransform = to;
+            return;
+        }
+
+        // 同一个控件上重启动画时，让上一轮循环自行退出，避免两个循环抢着写属性。
+        int generation = PlayGeneration.TryGetValue(target, out int latest) ? latest + 1 : 1;
+        PlayGeneration[target] = generation;
+
+        target.Opacity = 0;
+        target.RenderTransform = MakeTransform(offsetX, offsetY, fromScale);
+
+        long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(15);
+                if (!PlayGeneration.TryGetValue(target, out int current) || current != generation) return;
+
+                double progress = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds / duration;
+                if (progress >= 1) break;
+
+                double eased = easing.Ease(progress);
+
+                // 透明度走得更快，卡片到位时已经是实心的。
+                target.Opacity = Math.Min(1d, eased / 0.45d);
+                target.RenderTransform = MakeTransform(
+                    offsetX * (1 - eased),
+                    offsetY * (1 - eased),
+                    1 + (fromScale - 1) * (1 - eased));
+            }
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine("[ui-animation] PlayIn: " + exception.Message);
+        }
+        finally
+        {
+            if (PlayGeneration.TryGetValue(target, out int tail) && tail == generation)
+            {
+                target.Opacity = 1;
+                target.RenderTransform = to;
+            }
+        }
     }
+
+    private static TransformOperations MakeTransform(double offsetX, double offsetY, double scale) =>
+        TransformOperations.Parse(
+            $"translate({Number(offsetX)}px, {Number(offsetY)}px) scale({Number(scale)})");
 
     /// <summary>开始菜单弹出：从按钮方向缩放 + 上浮。</summary>
     public static void PopIn(Control? target, double fromScale = 0.86, double offsetY = 18, int milliseconds = 220)
     {
-        if (!Enabled || target is null) return;
-
-        target.Transitions = new Transitions
-        {
-            new DoubleTransition
-            {
-                Property = Visual.OpacityProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-            },
-            new TransformOperationsTransition
-            {
-                Property = Visual.RenderTransformProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-                Easing = new CubicEaseOut(),
-            },
-        };
-
-        target.Opacity = 0;
-        target.RenderTransform = TransformOperations.Parse(
-            $"translateY({offsetY}px) scale({fromScale.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+        PlayIn(target, 0, offsetY, fromScale, milliseconds, new CubicEaseOut());
     }
 
     /// <summary>开始菜单收起：缩回按钮方向并淡出。</summary>
@@ -103,27 +143,10 @@ public static class UiAnimations
     /// <summary>从指定相对原点（0-1，相对自身宽高）缩放弹出，用于从触发控件位置长出来的浮层。</summary>
     public static void PopFrom(Control? target, RelativePoint origin, double fromScale = 0.82, int milliseconds = 220)
     {
-        if (!Enabled || target is null) return;
+        if (target is null || !Enabled) return;
 
         target.RenderTransformOrigin = origin;
-        target.Transitions = new Transitions
-        {
-            new DoubleTransition
-            {
-                Property = Visual.OpacityProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-            },
-            new TransformOperationsTransition
-            {
-                Property = Visual.RenderTransformProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-                Easing = new CubicEaseOut(),
-            },
-        };
-
-        target.Opacity = 0;
-        target.RenderTransform = TransformOperations.Parse(
-            $"scale({fromScale.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+        PlayIn(target, 0, 0, fromScale, milliseconds, new CubicEaseOut());
     }
 
     /// <summary>缩回指定相对原点并淡出，与 <see cref="PopFrom"/> 配对：弹层关掉时朝触发控件方向收回去。</summary>
@@ -152,33 +175,10 @@ public static class UiAnimations
             $"scale({toScale.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
     }
 
-    /// <summary>
-    /// 切换内容时的纯淡入：只动透明度，不缩放、不位移。
-    /// 内容面板动辄几百像素高，哪怕 1% 的 scale 也会让远离原点的那一侧明显"滑一下"，
-    /// 看起来像整块内容被从左上角拉出来——所以分区切换只用淡入。
-    /// </summary>
     public static void FadeSwap(Control? target, int milliseconds = 150)
     {
-        if (target is null) return;
-
-        if (!Enabled)
-        {
-            target.Opacity = 1;
-            return;
-        }
-
-        target.Transitions = new Transitions
-        {
-            new DoubleTransition
-            {
-                Property = Visual.OpacityProperty,
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-                Easing = new CubicEaseOut(),
-            },
-        };
-
-        target.Opacity = 0;
-        Dispatcher.UIThread.Post(() => target.Opacity = 1, DispatcherPriority.Background);
+        // 只动透明度：内容面板动辄几百像素高，哪怕 1% 的缩放也会让远侧明显"滑一下"。
+        PlayIn(target, 0, 0, 1, milliseconds, new CubicEaseOut());
     }
 
     /// <summary>恢复成没有变换的初始状态（供下一次重新播放进入动画）。</summary>

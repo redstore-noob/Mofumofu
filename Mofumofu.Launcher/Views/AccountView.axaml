@@ -181,7 +181,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
         </Style>
         <Style Selector="Button.skin-tool:pressed">
-            <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
         </Style>
 
         

@@ -41,6 +41,11 @@
             <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <!-- 选中的页签按下时保持蓝色，不要被全局按下色覆盖成深色块 -->
+        <Style Selector="Button.page-tab.active:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentPressedBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
     </UserControl.Styles>
     <Grid>
 <!-- ============ 自由摆放的格子板：小组件由 WidgetRegistry 在 code-behind 里建 ============ -->        

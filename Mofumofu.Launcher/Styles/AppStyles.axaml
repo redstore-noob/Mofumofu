@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
         xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI">
     <Styles.Resources>
 <!-- ==== 主题令牌 ====
@@ -101,6 +102,50 @@
 
 <!-- ==== 字体 ==== -->        
         <FontFamily x:Key="NekoIconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+<!-- ==== 底栏导航按钮：自带极简模板 ====
+             主题里的 Button 模板按下时会把 ContentPresenter 的底色从中心缩出来，
+             看起来像"先冒一个点再铺满图标"。底栏只想要一块立刻出现的圆角底色，
+             所以这里给 Button.nav 换一个没有动画、没有缩放、没有波纹的模板。 -->
+        <ControlTheme x:Key="NavButtonTheme" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="NavSurface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter x:Name="PART_ContentPresenter"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+            </Style>
+            <Style Selector="^:pressed">
+                <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+            </Style>
+            <Style Selector="^.active">
+                <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+            </Style>
+            <Style Selector="^.active:pressed">
+                <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
+            </Style>
+        </ControlTheme>
     </Styles.Resources>
 
     
@@ -255,6 +300,7 @@
         <Setter Property="CornerRadius" Value="8" />
     </Style>
     <Style Selector="Button.nav">
+        <Setter Property="Theme" Value="{StaticResource NavButtonTheme}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="10" />
@@ -264,19 +310,51 @@
         <Setter Property="Foreground" Value="{DynamicResource NekoNavIdleBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <!-- 底栏按钮不做任何过渡：底色、缩放、透明度都即时切换 -->
+        <Setter Property="Transitions">
+            <Transitions />
+        </Setter>
     </Style>
-    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+    <Style Selector="Button.nav:pointerover">
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.nav:pressed">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <!-- 模板已换成 NavButtonTheme：按下/选中/悬停全部走 Button 自己的 Background，
+         ContentPresenter 上不再画任何底色或边框，避免底色再叠一层。 -->
+    <Style Selector="Button.nav /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="10" />
     </Style>
     <Style Selector="Button.nav.active">
-        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource NekoAccentBrush}" />
-    </Style>
-    <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+    </Style>
+    <!-- 底栏图标微动效：悬停上浮一点、选中略微放大、按下回缩。
+         只动图标本身，按钮底色依旧由 NavButtonTheme 立即切换，不会再有从中心铺开的过渡。 -->
+    <Style Selector="Button.nav controls|IconParkIcon">
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16"
+                                              Easing="CubicEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.nav:pointerover controls|IconParkIcon">
+        <Setter Property="RenderTransform" Value="translateY(-1px)" />
+    </Style>
+    <Style Selector="Button.nav.active controls|IconParkIcon">
+        <Setter Property="RenderTransform" Value="scale(1.08)" />
+    </Style>
+    <Style Selector="Button.nav:pressed controls|IconParkIcon">
+        <Setter Property="RenderTransform" Value="scale(0.9)" />
     </Style>
     <Style Selector="Button.pill">
         <Setter Property="Background" Value="Transparent" />
@@ -416,10 +494,10 @@
         <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
     </Style>
     <Style Selector="Button.nav:pressed /template/ ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+        <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.nav.active:pressed /template/ ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
+        <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.pill:pressed /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
@@ -428,7 +506,7 @@
         <Setter Property="Background" Value="{DynamicResource NekoControlPressedBrush}" />
     </Style>
     <Style Selector="Button.tile:pressed /template/ ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
+        <Setter Property="Background" Value="{DynamicResource NekoFieldHoverBrush}" />
     </Style>
     <Style Selector="Button.menu-row:pressed /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource NekoPressBrush}" />
@@ -471,13 +549,19 @@
         <Setter Property="Background" Value="{DynamicResource NekoAccentHoverBrush}" />
     </Style>
     <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+        <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.pill.active:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
     </Style>
+    <Style Selector="Button.pill.active:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftHoverBrush}" />
+    </Style>
     <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{StaticResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.rail.active:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource NekoAccentSoftHoverBrush}" />
     </Style>
 <!-- SukiUI Danger 语义按钮：把全局 hover 的透明背景覆盖回 Suki 语义色 -->    
     <Style Selector="Button.Danger:pointerover">
@@ -507,6 +591,20 @@
     <Style Selector="Button.language-card.active">
         <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+    </Style>
+    <!-- 选中的语言卡片悬停/按下时保持强调色，不要退回普通输入框底色 -->
+    <Style Selector="Button.language-card.active:pointerover">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+    </Style>
+    <Style Selector="Button.language-card.active /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.language-card.active:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.language-card.active:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NekoAccentSoftHoverBrush}" />
     </Style>
 
     <Style Selector="Border.beta-badge">

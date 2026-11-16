@@ -270,10 +270,14 @@ public partial class MainWindow : Window
 
     private void Navigate(string pageId)
     {
+        long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        bool created = false;
         if (!_pageCache.TryGetValue(pageId, out var page))
         {
             page = CreatePage(pageId);
             _pageCache[pageId] = page;
+            created = true;
         }
 
         // 页面本体外面再包一层插件内容宿主：顶部条 / 悬浮层 / 底栏都插在这一层里
@@ -281,12 +285,26 @@ public partial class MainWindow : Window
         {
             host = PageComposer.Current.Wrap(pageId, page);
             _hostCache[pageId] = host;
+            created = true;
         }
 
+        // 点当前页自己的按钮时不要重设 Content：那会走一遍摘挂载，页面的
+        // AttachedToVisualTree / Loaded 全部重跑，看起来就是"点一下卡一下"。
+        bool switched = !ReferenceEquals(PageHost.Content, host);
+
         _currentPage = pageId;
-        PageHost.Content = host;
-        GlassEffects.Refresh();
-        UiAnimations.FadeSlideIn(host);
+        if (switched)
+        {
+            PageHost.Content = host;
+
+            // 毛玻璃只要在新页面第一次挂上来时套一次；缓存页面切回来效果没变，
+            // 每次都全窗口扫一遍可视树纯属浪费。
+            if (created) GlassEffects.Refresh();
+
+            // 新页面像卡片从右侧滑进来；旧页面直接换掉，不做交叉淡出。
+            UiAnimations.SlideInFromRight(host);
+        }
+
         StartMenuOverlay.IsVisible = false;
         StartButton.Classes.Set("active", false);
 
@@ -298,6 +316,14 @@ public partial class MainWindow : Window
         // 页面重建后重新套用「直角模式」（旧页面里的圆角记录作废）
         _lastSquareCornerPage = page;
         ApplySquareCorners(LocalSettings.Current.SquareCorners);
+
+        // 切换页超过一帧就记一条，方便以后定位"哪个页面一进来就卡"。
+        double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        if (elapsedMs > 16)
+        {
+            MofuCore.Log.LogWrite.Write("INFO",
+                $"页面切换 {pageId} 同步耗时 {elapsedMs:F1} ms（新建页面={created}）");
+        }
     }
 
     private Control? _lastSquareCornerPage;
@@ -593,6 +619,7 @@ public partial class MainWindow : Window
         {
             button.Classes.Set("active", id == _currentPage);
         }
+
     }
 
     private static string? TaskbarIconKey(string id)
@@ -1445,7 +1472,7 @@ public partial class MainWindow : Window
     private TrayIcon? _trayIcon;
     private bool _forceClose;
     private bool _closePromptOpen;
-    private Control? _squareAppliedPage;
+    private readonly HashSet<Control> _squareAppliedPages = [];
     private readonly Dictionary<Border, CornerRadius> _squareBorderBackup = new();
     private readonly Dictionary<TextBox, CornerRadius> _squareTextBackup = new();
 
@@ -1484,11 +1511,10 @@ public partial class MainWindow : Window
     private void ApplySquareCorners(bool square)
     {
         if (!square) return;
-        if (PageHost is null) return;
-        if (ReferenceEquals(_squareAppliedPage, PageHost.Content as Control)) return;
+        if (PageHost?.Content is not Control target) return;
 
-        RestoreSquareCorners();
-        _squareAppliedPage = PageHost.Content as Control;
+        // 页面是缓存的，已经扫过的页面圆角已经是 0，再扫一遍只是白白遍历几百个控件。
+        if (!_squareAppliedPages.Add(target)) return;
 
         foreach (var visual in PageHost.GetVisualDescendants())
         {
@@ -1514,7 +1540,7 @@ public partial class MainWindow : Window
 
         _squareBorderBackup.Clear();
         _squareTextBackup.Clear();
-        _squareAppliedPage = null;
+        _squareAppliedPages.Clear();
     }
 
     private void InitializeTrayIcon()
