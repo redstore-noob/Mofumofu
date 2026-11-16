@@ -52,6 +52,5 @@
   "Shell.Simple.Account": "Spielkonto",
   "Shell.Simple.Exit": "S-Modus verlassen",
   "Shell.Simple.Footer": "Der S-Modus blendet Startmenü und Startleiste aus und behält nur das Nötigste.",
-  "Shell.StartBar.LogTip": "Startprotokoll",
-  "Shell.Page.Gallery": "Screenshot-Galerie"
+  "Shell.StartBar.LogTip": "Startprotokoll"
 }

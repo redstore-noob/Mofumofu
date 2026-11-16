@@ -515,8 +515,6 @@ internal static partial class WidgetCards
 
         actions.Children.Add(WidgetChrome.IconButton("IconFluentArrowClockwise",
             L.T("Home.Screenshots.Refresh", "重新扫描截图"), () => Refresh()));
-        actions.Children.Add(WidgetChrome.IconButton("IconFluentGrid",
-            L.T("Home.Screenshots.OpenGallery", "打开截图画廊"), () => Shell.Go("gallery")));
 
         async void Refresh()
         {

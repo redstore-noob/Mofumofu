@@ -52,6 +52,5 @@
   "Shell.Simple.Account": "Ludkonto",
   "Shell.Simple.Exit": "Eliri el la S-reĝimo",
   "Shell.Simple.Footer": "La S-reĝimo kaŝas la startmenuon kaj konservas nur la esencojn.",
-  "Shell.StartBar.LogTip": "Lanĉa protokolo",
-  "Shell.Page.Gallery": "Ekrankopigalerio"
+  "Shell.StartBar.LogTip": "Lanĉa protokolo"
 }

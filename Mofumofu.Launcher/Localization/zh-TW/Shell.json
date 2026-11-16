@@ -52,6 +52,5 @@
   "Shell.Simple.Account": "遊戲帳號",
   "Shell.Simple.Exit": "退出 S 模式",
   "Shell.Simple.Footer": "S 模式隱藏了開始欄與開始功能表，只保留開玩需要的頁面。",
-  "Shell.StartBar.LogTip": "啟動日誌",
-  "Shell.Page.Gallery": "截圖畫廊"
+  "Shell.StartBar.LogTip": "啟動日誌"
 }

@@ -52,6 +52,4 @@
   "Shell.Simple.Account": "Game account",
   "Shell.Simple.Exit": "Exit S mode",
   "Shell.Simple.Footer": "S mode hides the start bar and start menu, keeping only what you need to play.",
-  "Shell.StartBar.LogTip": "Launch log",
-  "Shell.Page.Gallery": "Screenshot gallery"
-}
+  "Shell.StartBar.LogTip": "Launch log"}

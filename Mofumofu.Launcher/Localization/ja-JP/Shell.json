@@ -52,6 +52,5 @@
   "Shell.Simple.Account": "ゲームアカウント",
   "Shell.Simple.Exit": "S モードを終了",
   "Shell.Simple.Footer": "S モードはスタートメニューなどを隠し、プレイに必要な画面だけを残します。",
-  "Shell.StartBar.LogTip": "起動ログ",
-  "Shell.Page.Gallery": "スクリーンショットギャラリー"
+  "Shell.StartBar.LogTip": "起動ログ"
 }
