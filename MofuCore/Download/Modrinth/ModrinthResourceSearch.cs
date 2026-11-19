@@ -24,6 +24,8 @@ public sealed class ModrinthProject
     [JsonPropertyName("follows")] public long Follows { get; set; }
     [JsonPropertyName("slug")] public string Slug { get; set; } = string.Empty;
     [JsonPropertyName("versions")] public List<string> Versions { get; set; } = [];
+    [JsonPropertyName("categories")] public List<string> Categories { get; set; } = [];
+    [JsonPropertyName("display_categories")] public List<string> DisplayCategories { get; set; } = [];
     [JsonPropertyName("date_created")] public string DateCreated { get; set; } = string.Empty;
 
     public string DownloadsDisplay => Downloads switch

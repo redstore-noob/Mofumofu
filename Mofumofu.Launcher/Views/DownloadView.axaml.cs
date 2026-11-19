@@ -62,6 +62,24 @@ public sealed class DownloadIconConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>版本类型徽章配色：正式版绿、快照红、远古黑白反转。Parameter 传 bg 取底色，否则取字色。</summary>
+public sealed class VersionBadgeBrushConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        bool background = parameter as string == "bg";
+        return value as string switch
+        {
+            "snapshot" => ThemeTokens.Brush(background ? "NekoDangerSoftBrush" : "NekoDangerBrush"),
+            "old_beta" or "old_alpha" => ThemeTokens.Brush(background ? "NekoTextBrush" : "NekoSurfaceBrush"),
+            _ => ThemeTokens.Brush(background ? "NekoSuccessSoftBrush" : "NekoSuccessBrush"),
+        };
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public partial class DownloadView : UserControl
 {
     private const int TaskListExitDelayMs = 160;
@@ -125,6 +143,8 @@ public partial class DownloadView : UserControl
     private readonly Dictionary<ResourceItem, ModrinthProject> _resourceProjects = new();
     private readonly Dictionary<ResourceItem, string> _resourceTypes = new();
 
+    private const int ResourcePageSize = 20;
+
     private List<GameVersion> _allVersions = [];
     private List<JavaRuntimeRow> _javaRows = [];
     private VendorJavaKind _javaVendorKind = VendorJavaKind.Zulu;
@@ -143,7 +163,6 @@ public partial class DownloadView : UserControl
     private int _versionPage;
     private string _gameDirectory = string.Empty;
     private string _minecraftInstallVersionId = string.Empty;
-    private MinecraftVersion? _minecraftInstallVersion;
     private IReadOnlyList<ModLoaderVersionInfo> _minecraftLoaderVersions = [];
     private CancellationTokenSource? _minecraftLoaderCts;
     private bool _minecraftInstallReady;
@@ -204,6 +223,16 @@ public partial class DownloadView : UserControl
         JavaRuntimeList.ItemsSource = _javaRows;
         JavaEmptyHint.IsVisible = true;
 
+        VersionPager.PageChanged += page =>
+        {
+            _versionPage = page;
+            RefreshVersions();
+        };
+        ModPager.PageChanged += page => OnResourcePageChanged("mod", page);
+        ModpackPager.PageChanged += page => OnResourcePageChanged("modpack", page);
+        ShaderPager.PageChanged += page => OnResourcePageChanged("shader", page);
+        ResourcePackPager.PageChanged += page => OnResourcePageChanged("resourcepack", page);
+
         ShowResourceLoading("mod");
         ShowResourceLoading("modpack");
         ShowResourceLoading("shader");
@@ -225,7 +254,8 @@ public partial class DownloadView : UserControl
             if (cache is null || cache.Versions.Count == 0) return false;
 
             _allVersions = cache.Versions
-                .Select(entry => new GameVersion(entry.Id, entry.Type, entry.ReleaseDate, entry.Installed, entry.Icon))
+                .Select(entry => new GameVersion(entry.Id, entry.Type, entry.ReleaseDate, entry.Installed, entry.Icon,
+                    VersionTypeKey(entry.TypeKey.Length > 0 ? entry.TypeKey : entry.Type)))
                 .ToList();
             savedAt = cache.SavedAt;
             return true;
@@ -249,6 +279,7 @@ public partial class DownloadView : UserControl
                 {
                     Id = version.Id,
                     Type = version.Type,
+                    TypeKey = version.TypeKey,
                     ReleaseDate = version.ReleaseDate,
                     Installed = version.Installed,
                     Icon = version.Icon,
@@ -288,7 +319,7 @@ public partial class DownloadView : UserControl
 
     private void ShowResourceLoading(string type)
     {
-        var (_, _, hint) = ResourceControls(type);
+        var (_, _, hint, _, _) = ResourceControls(type);
         hint.Text = L.T("Download.Resource.Loading", "正在加载列表…");
         hint.IsVisible = true;
     }
@@ -870,8 +901,19 @@ public partial class DownloadView : UserControl
             LocalizedVersionType(version.Type),
             version.ReleaseTime.LocalDateTime.ToString("yyyy-MM-dd"),
             installed,
-            VersionIcon(version.Type));
+            VersionIcon(version.Type),
+            version.Type);
     }
+
+    /// <summary>缓存里可能存的是旧格式（只有本地化名称），尽量还原成原始类型 key。</summary>
+    private static string VersionTypeKey(string value) => value switch
+    {
+        "release" or "snapshot" or "old_beta" or "old_alpha" => value,
+        _ when value == L.T("Download.Version.Type.Release", "正式版") => "release",
+        _ when value == L.T("Download.Version.Type.Snapshot", "快照") => "snapshot",
+        _ when value == L.T("Download.Version.Type.Old", "远古") => "old_alpha",
+        _ => "release",
+    };
 
     private static string LocalizedVersionType(string type) => type switch
     {
@@ -917,7 +959,8 @@ public partial class DownloadView : UserControl
 
         VersionList.ItemsSource = pageItems;
         VersionCountText.Text = L.T("Download.Version.Count", "共 {0} 个版本", filtered.Count);
-        VersionPageText.Text = filtered.Count == 0 ? "0 / 0" : $"{_versionPage + 1} / {pageCount}";
+        VersionPager.SetPageCount(pageCount, _versionPage);
+        VersionListScroll.Offset = new Vector(0, 0);
         AnimateListRefresh(VersionList);
     }
 
@@ -957,16 +1000,6 @@ public partial class DownloadView : UserControl
     {
         CancelCts(ref _minecraftLoaderCts);
         _minecraftInstallVersionId = versionId;
-        _minecraftVersions.TryGetValue(versionId, out _minecraftInstallVersion);
-
-        MinecraftInstallTitle.Text = $"Minecraft {versionId}";
-        MinecraftInstallMeta.Text = _minecraftInstallVersion is null
-            ? L.T("Download.Minecraft.Install.MetaFallback", "原版 · 选择加载器后开始安装")
-            : $"{LocalizedVersionType(_minecraftInstallVersion.Type)} · " +
-              $"{_minecraftInstallVersion.ReleaseTime.LocalDateTime:yyyy-MM-dd} · " +
-              L.T("Download.Minecraft.Install.Meta", "选择加载器与实例名称");
-        MinecraftInstallIcon.Source = new Bitmap(AssetLoader.Open(new Uri(
-            VersionIcon(_minecraftInstallVersion?.Type ?? "release"))));
 
         _minecraftInstallReady = false;
         MinecraftLoaderCombo.ItemsSource = LoaderChoices
@@ -983,8 +1016,6 @@ public partial class DownloadView : UserControl
         MinecraftInstanceNameBox.IsReadOnly = true;
         MinecraftInstallStatus.Text = string.Empty;
         MinecraftInstallButton.IsEnabled = true;
-        MinecraftInstallNotes.Text = L.T("Download.Minecraft.Install.Notes",
-            "安装完成后可在「实例」页启动；Forge / NeoForge 首次安装会生成 SRG 客户端，请保持启动器开启。");
         _minecraftInstallReady = true;
 
         MinecraftInstallPanel.IsVisible = true;
@@ -1243,31 +1274,6 @@ public partial class DownloadView : UserControl
         }
     }
 
-    private void OnPrevPageClick(object? sender, RoutedEventArgs e)
-    {
-        if (_versionPage <= 0)
-        {
-            Shell.Toast(L.T("Download.Page.First", "已经是第一页"));
-            return;
-        }
-
-        _versionPage--;
-        RefreshVersions();
-    }
-
-    private void OnNextPageClick(object? sender, RoutedEventArgs e)
-    {
-        int pageCount = Math.Max(1, (_allVersions.Count + VersionPageSize - 1) / VersionPageSize);
-        if (_versionPage >= pageCount - 1)
-        {
-            Shell.Toast(L.T("Download.Page.Last", "已经是最后一页"));
-            return;
-        }
-
-        _versionPage++;
-        RefreshVersions();
-    }
-
     // ---------------- Mod / 整合包 / 光影 / 材质 ----------------
 
     private void OnResourceSearchChanged(object? sender, TextChangedEventArgs e)
@@ -1295,13 +1301,19 @@ public partial class DownloadView : UserControl
     private async Task LoadResourcesAsync(string type)
     {
         CancellationTokenSource cts = ReplaceResourceCts(type);
-        await SearchResourcesCoreAsync(type, SearchBoxText(type), cts.Token, false);
+        await SearchResourcesCoreAsync(type, SearchBoxText(type), cts.Token, false, 0);
     }
 
     private async Task SearchResourcesAsync(string type, bool debounce)
     {
         CancellationTokenSource cts = ReplaceResourceCts(type);
-        await SearchResourcesCoreAsync(type, SearchBoxText(type), cts.Token, debounce);
+        await SearchResourcesCoreAsync(type, SearchBoxText(type), cts.Token, debounce, 0);
+    }
+
+    private void OnResourcePageChanged(string type, int page)
+    {
+        CancellationTokenSource cts = ReplaceResourceCts(type);
+        _ = SearchResourcesCoreAsync(type, SearchBoxText(type), cts.Token, false, page);
     }
 
     private CancellationTokenSource ReplaceResourceCts(string type)
@@ -1338,15 +1350,17 @@ public partial class DownloadView : UserControl
         _ => ModSearchBox.Text,
     };
 
-    private (ItemsControl List, TextBlock Count, TextBlock Hint) ResourceControls(string type) => type switch
-    {
-        "modpack" => (ModpackList, ModpackCountText, ModpackOfflineHint),
-        "shader" => (ShaderList, ShaderCountText, ShaderOfflineHint),
-        "resourcepack" => (ResourcePackList, ResourcePackCountText, ResourcePackOfflineHint),
-        _ => (ModList, ModCountText, ModOfflineHint),
-    };
+    private (ItemsControl List, TextBlock Count, TextBlock Hint, MofuPager Pager, ScrollViewer Scroll)
+        ResourceControls(string type) => type switch
+        {
+            "modpack" => (ModpackList, ModpackCountText, ModpackOfflineHint, ModpackPager, ModpackListScroll),
+            "shader" => (ShaderList, ShaderCountText, ShaderOfflineHint, ShaderPager, ShaderListScroll),
+            "resourcepack" => (ResourcePackList, ResourcePackCountText, ResourcePackOfflineHint,
+                ResourcePackPager, ResourcePackListScroll),
+            _ => (ModList, ModCountText, ModOfflineHint, ModPager, ModListScroll),
+        };
 
-    private async Task SearchResourcesCoreAsync(string type, string? query, CancellationToken token, bool debounce)
+    private async Task SearchResourcesCoreAsync(string type, string? query, CancellationToken token, bool debounce, int page)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(45));
@@ -1357,24 +1371,23 @@ public partial class DownloadView : UserControl
 
             // 首屏默认「不限版本 / 不限加载器」：下载页没有版本/加载器选择器，
             // 用已装实例推断会把列表收窄（例如整合包只剩 ~4k），只影响真实安装时的版本匹配。
-            IReadOnlyList<ModrinthProject> projects;
+            int offset = Math.Max(0, page) * ResourcePageSize;
+            ModrinthSearchResult result;
             if (string.IsNullOrWhiteSpace(query))
             {
-                ModrinthSearchResult page = await ModrinthResourceSearch.BrowseAsync(
-                    type, null, null, 20, 0, "downloads", timeout.Token);
-                projects = page.Hits;
+                result = await ModrinthResourceSearch.BrowseAsync(
+                    type, null, null, ResourcePageSize, offset, "downloads", timeout.Token);
             }
             else
             {
                 // 中文关键词（如「钠」「机械动力」）先换成 Modrinth 认得的英文名
                 string keyword = ChineseResourceName.ToSearchKeyword(query);
-                ModrinthSearchResult page = await ModrinthResourceSearch.SearchPageAsync(
-                    keyword, type, null, null, 20, 0, "relevance", timeout.Token);
-                projects = page.Hits;
+                result = await ModrinthResourceSearch.SearchPageAsync(
+                    keyword, type, null, null, ResourcePageSize, offset, "relevance", timeout.Token);
             }
             if (timeout.IsCancellationRequested) return;
 
-            Dispatcher.UIThread.Post(() => ApplyResources(type, projects));
+            Dispatcher.UIThread.Post(() => ApplyResources(type, result.Hits, result.TotalHits, page));
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
@@ -1391,7 +1404,7 @@ public partial class DownloadView : UserControl
         }
     }
 
-    private void ApplyResources(string type, IReadOnlyList<ModrinthProject> projects)
+    private void ApplyResources(string type, IReadOnlyList<ModrinthProject> projects, int totalHits, int page)
     {
         List<ResourceItem> items = projects.Select(project => ToResourceItem(project, type)).ToList();
         for (var index = 0; index < items.Count && index < projects.Count; index++)
@@ -1400,16 +1413,19 @@ public partial class DownloadView : UserControl
             _resourceTypes[items[index]] = type;
         }
 
-        var (list, count, hint) = ResourceControls(type);
+        var (list, count, hint, pager, scroll) = ResourceControls(type);
+        int pageCount = Math.Max(1, (totalHits + ResourcePageSize - 1) / ResourcePageSize);
         list.ItemsSource = items;
-        count.Text = L.T("Download.Resource.Count", "共 {0} 项", items.Count);
+        count.Text = L.T("Download.Resource.Count", "共 {0} 项", totalHits);
         hint.IsVisible = false;
+        pager.SetPageCount(pageCount, page);
+        scroll.Offset = new Vector(0, 0);
         AnimateListRefresh(list);
     }
 
     private void ShowResourceOffline(string type, string message)
     {
-        var (_, _, hint) = ResourceControls(type);
+        var (_, _, hint, pager, _) = ResourceControls(type);
         hint.Text = type switch
         {
             "modpack" => L.T("Download.Resource.OfflineModpack", "无法获取整合包列表（离线或网络错误），请稍后重试"),
@@ -1418,6 +1434,7 @@ public partial class DownloadView : UserControl
             _ => L.T("Download.Resource.OfflineMod", "无法获取 Mod 列表（离线或网络错误），请稍后重试"),
         };
         hint.IsVisible = true;
+        pager.SetPageCount(1, 0);
         Shell.Toast(L.T("Download.Resource.SearchFailed", "Modrinth 搜索失败：{0}", message));
     }
 
@@ -1438,7 +1455,112 @@ public partial class DownloadView : UserControl
             project.DownloadsDisplay,
             project.FollowsDisplay,
             project.TypeDisplay,
-            icon);
+            icon,
+            ResourceBadges(project, type));
+    }
+
+    private static readonly string[] LoaderOrder =
+        ["fabric", "neoforge", "forge", "quilt", "liteloader", "rift"];
+
+    /// <summary>资源行徽章：最多两枚内容分类；Mod / 整合包再补每个支持的加载器一枚。</summary>
+    private static IReadOnlyList<string> ResourceBadges(ModrinthProject project, string type)
+    {
+        const int categoryLimit = 2;
+        List<string> badges = [];
+        List<string> categories = project.DisplayCategories.Count > 0
+            ? project.DisplayCategories
+            : project.Categories;
+
+        foreach (string category in categories)
+        {
+            if (badges.Count >= categoryLimit) break;
+            if (LoaderOrder.Contains(category, StringComparer.OrdinalIgnoreCase)) continue;
+            string display = LocalizedModCategory(category);
+            if (!badges.Contains(display)) badges.Add(display);
+        }
+
+        if (type is "mod" or "modpack")
+        {
+            foreach (string loader in LoaderOrder)
+            {
+                if (project.Categories.Contains(loader, StringComparer.OrdinalIgnoreCase))
+                    badges.Add(LoaderBadge(loader));
+            }
+        }
+
+        return badges;
+    }
+
+    private static string LoaderBadge(string loader) => loader switch
+    {
+        "fabric" => "Fabric",
+        "forge" => "Forge",
+        "neoforge" => "NeoForge",
+        "quilt" => "Quilt",
+        "liteloader" => "LiteLoader",
+        "rift" => "Rift",
+        _ => loader,
+    };
+
+    private static string LocalizedModCategory(string category) => category switch
+    {
+        "adventure" => L.T("Download.Resource.Category.Adventure", "冒险"),
+        "cursed" => L.T("Download.Resource.Category.Cursed", "诅咒"),
+        "decoration" => L.T("Download.Resource.Category.Decoration", "装饰"),
+        "economy" => L.T("Download.Resource.Category.Economy", "经济"),
+        "equipment" => L.T("Download.Resource.Category.Equipment", "装备"),
+        "food" => L.T("Download.Resource.Category.Food", "食物"),
+        "game-mechanics" => L.T("Download.Resource.Category.GameMechanics", "游戏机制"),
+        "library" => L.T("Download.Resource.Category.Library", "前置库"),
+        "magic" => L.T("Download.Resource.Category.Magic", "魔法"),
+        "management" => L.T("Download.Resource.Category.Management", "管理"),
+        "minigame" => L.T("Download.Resource.Category.Minigame", "小游戏"),
+        "mobs" => L.T("Download.Resource.Category.Mobs", "生物"),
+        "optimization" => L.T("Download.Resource.Category.Optimization", "优化"),
+        "social" => L.T("Download.Resource.Category.Social", "社交"),
+        "storage" => L.T("Download.Resource.Category.Storage", "存储"),
+        "technology" => L.T("Download.Resource.Category.Technology", "科技"),
+        "transportation" => L.T("Download.Resource.Category.Transportation", "交通"),
+        "utility" => L.T("Download.Resource.Category.Utility", "实用"),
+        "worldgen" => L.T("Download.Resource.Category.WorldGen", "世界生成"),
+        "atmosphere" => L.T("Download.Resource.Category.Atmosphere", "大气"),
+        "audio" => L.T("Download.Resource.Category.Audio", "音频"),
+        "blocks" => L.T("Download.Resource.Category.Blocks", "方块"),
+        "bloom" => L.T("Download.Resource.Category.Bloom", "泛光"),
+        "colored-lighting" => L.T("Download.Resource.Category.ColoredLighting", "彩色光照"),
+        "combat" => L.T("Download.Resource.Category.Combat", "战斗"),
+        "core-shaders" => L.T("Download.Resource.Category.CoreShaders", "核心光影"),
+        "entities" => L.T("Download.Resource.Category.Entities", "实体"),
+        "environment" => L.T("Download.Resource.Category.Environment", "环境"),
+        "fantasy" => L.T("Download.Resource.Category.Fantasy", "奇幻"),
+        "foliage" => L.T("Download.Resource.Category.Foliage", "植被"),
+        "fonts" => L.T("Download.Resource.Category.Fonts", "字体"),
+        "gui" => L.T("Download.Resource.Category.Gui", "GUI"),
+        "high" => L.T("Download.Resource.Category.High", "高配"),
+        "items" => L.T("Download.Resource.Category.Items", "物品"),
+        "locale" => L.T("Download.Resource.Category.Locale", "语言"),
+        "low" => L.T("Download.Resource.Category.Low", "低配"),
+        "medium" => L.T("Download.Resource.Category.Medium", "中配"),
+        "modded" => L.T("Download.Resource.Category.Modded", "模组"),
+        "models" => L.T("Download.Resource.Category.Models", "模型"),
+        "path-tracing" => L.T("Download.Resource.Category.PathTracing", "光追"),
+        "pbr" => L.T("Download.Resource.Category.Pbr", "PBR"),
+        "potato" => L.T("Download.Resource.Category.Potato", "土豆机"),
+        "realistic" => L.T("Download.Resource.Category.Realistic", "写实"),
+        "reflections" => L.T("Download.Resource.Category.Reflections", "反射"),
+        "semi-realistic" => L.T("Download.Resource.Category.SemiRealistic", "半写实"),
+        "shadows" => L.T("Download.Resource.Category.Shadows", "阴影"),
+        "simplified" => L.T("Download.Resource.Category.Simplified", "简化"),
+        "themed" => L.T("Download.Resource.Category.Themed", "主题"),
+        "tweaks" => L.T("Download.Resource.Category.Tweaks", "微调"),
+        "vanilla-like" => L.T("Download.Resource.Category.VanillaLike", "原版风"),
+        _ => CapitalizedCategory(category),
+    };
+
+    private static string CapitalizedCategory(string category)
+    {
+        string text = category.Replace('-', ' ');
+        return text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
     // ---------------- 资源安装 ----------------
@@ -1750,6 +1872,7 @@ public partial class DownloadView : UserControl
         ResourceDetailPanel.IsVisible = true;
         UiAnimations.Reset(ResourceDetailPanel);
         UiAnimations.FadeSlideIn(ResourceDetailPanel, 0.99, 6, 170);
+        TabHost.IsVisible = false;
         _ = LoadDetailIconAsync(project);
         LoadTargetInstances();
         _ = LoadDetailVersionsAsync(project.ProjectId);
@@ -1776,6 +1899,7 @@ public partial class DownloadView : UserControl
     {
         CancelCts(ref _detailCts);
         ResourceDetailPanel.IsVisible = false;
+        TabHost.IsVisible = true;
         _detailProject = null;
         _detailVersions = [];
         _detailSelectedVersion = null;
@@ -2737,6 +2861,8 @@ public sealed class VersionCacheEntry
     public string Id { get; set; } = string.Empty;
 
     public string Type { get; set; } = string.Empty;
+
+    public string TypeKey { get; set; } = string.Empty;
 
     public string ReleaseDate { get; set; } = string.Empty;
 

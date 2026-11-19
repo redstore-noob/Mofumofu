@@ -11,6 +11,7 @@
 
     <UserControl.Resources>
         <views:DownloadIconConverter x:Key="DownloadIcon" />
+        <views:VersionBadgeBrushConverter x:Key="VersionBadge" />
 
 <!-- Minecraft 版本行 -->        
         <DataTemplate x:Key="VersionRowTemplate">
@@ -25,10 +26,10 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="SemiBold" />
                             <Border CornerRadius="6" Padding="6,1"
-                                    Background="{DynamicResource NekoAccentSoftBrush}"
+                                    Background="{Binding TypeKey, Converter={StaticResource VersionBadge}, ConverterParameter=bg}"
                                     VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Type}" FontSize="10"
-                                           Foreground="{DynamicResource NekoAccentBrush}" />
+                                           Foreground="{Binding TypeKey, Converter={StaticResource VersionBadge}, ConverterParameter=fg}" />
                             </Border>
                             <Border CornerRadius="6" Padding="6,1"
                                     Background="{DynamicResource NekoSuccessSoftBrush}"
@@ -61,11 +62,28 @@
                     </Border>
                     <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="2"
                                 VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                        <WrapPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Author}" Classes="caption"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <ItemsControl ItemsSource="{Binding Badges}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="5" Padding="5,1"
+                                                Background="{DynamicResource NekoAccentSoftBrush}">
+                                            <TextBlock Text="{Binding}" FontSize="9.5"
+                                                       Foreground="{DynamicResource NekoAccentBrush}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </WrapPanel>
                         <TextBlock Text="{Binding Description}" Classes="caption"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
@@ -180,7 +198,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 <!-- ================= 页头 ================= -->        
         <controls:PageHeader Grid.Row="0">
             <controls:PageHeader.Actions>
@@ -201,66 +219,108 @@
                 Loaded="Control_OnLoaded"
                 x:Name="ChineseMainlandInfoBar" />
         </Border>
-<!-- ================= 标签行 ================= -->        
-        <Grid Grid.Row="2" RowDefinitions="Auto,Auto">
-            <StackPanel Orientation="Horizontal" Spacing="2">
-                <Button x:Name="TabMinecraft" Classes="pill active" Tag="minecraft"
-                        Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconCube" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Minecraft}" FontSize="13" />
+<!-- ================= 左侧标签栏 ================= -->
+        <Grid Grid.Row="2" ColumnDefinitions="236,*" Margin="0,6,0,0">
+            <suki:GlassCard Grid.Column="0" CornerRadius="18" Padding="12,14"
+                            Margin="0,0,16,0" VerticalAlignment="Stretch">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Row="1" Spacing="4">
+                        <Button x:Name="TabMinecraft" Classes="side-nav active" Tag="minecraft" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconCube" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Minecraft}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabMod" Classes="side-nav" Tag="mod" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconGrid" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Mod}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabModpack" Classes="side-nav" Tag="modpack" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconDownload" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Modpack}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabShader" Classes="side-nav" Tag="shader" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconStar" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Shader}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabResourcePack" Classes="side-nav" Tag="resourcepack" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconCreator" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.ResourcePack}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabJava" Classes="side-nav" Tag="java" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconMemory" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Java}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabExtension" Classes="side-nav" Tag="extension" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconPlugin" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Extension}" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="TabTasks" Classes="side-nav" Tag="tasks" Click="OnTabClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="side-nav-icon">
+                                    <controls:IconParkIcon Kind="IconClock" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" FontSize="13"
+                                           Text="{DynamicResource L.Download.Tab.Tasks}" />
+                            </Grid>
+                        </Button>
                     </StackPanel>
-                </Button>
-                <Button x:Name="TabMod" Classes="pill" Tag="mod" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconGrid" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Mod}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabModpack" Classes="pill" Tag="modpack" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconDownload" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Modpack}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabShader" Classes="pill" Tag="shader" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconStar" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Shader}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabResourcePack" Classes="pill" Tag="resourcepack"
-                        Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconCreator" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.ResourcePack}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabJava" Classes="pill" Tag="java" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconMemory" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Java}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabExtension" Classes="pill" Tag="extension" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconPlugin" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Extension}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="TabTasks" Classes="pill" Tag="tasks" Click="OnTabClick">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <controls:IconParkIcon Kind="IconClock" Width="14" Height="14" />
-                        <TextBlock Text="{DynamicResource L.Download.Tab.Tasks}" FontSize="13" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            <Border Grid.Row="1" Height="1" Background="{DynamicResource NekoBorderBrush}"
-                    Margin="0,8,0,12" />
-        </Grid>
+                </Grid>
+            </suki:GlassCard>
+
+            <Grid Grid.Column="1">
 
 <!-- ================= 标签面板 ================= -->        
-        <Grid Grid.Row="3">
+                <Grid>
             <ContentControl x:Name="TabHost"
                             HorizontalContentAlignment="Stretch"
                             VerticalContentAlignment="Stretch">
@@ -296,7 +356,8 @@
                         </StackPanel>
                         <Border Grid.Row="2" Classes="card" Padding="8,4">
                             <Grid>
-                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                <ScrollViewer x:Name="VersionListScroll"
+                                              HorizontalScrollBarVisibility="Disabled"
                                               VerticalScrollBarVisibility="Auto">
                                     <ItemsControl x:Name="VersionList"
                                                   ItemTemplate="{StaticResource VersionRowTemplate}" />
@@ -314,28 +375,16 @@
                                 </Border>
                             </Grid>
                         </Border>
-                        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="2,10,2,0">
+                        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="2,10,2,0">
                             <TextBlock x:Name="VersionCountText"
                                        Text="{DynamicResource L.Download.Version.Loading}"
                                        Classes="muted" VerticalAlignment="Center" />
-                            <TextBlock x:Name="VersionPageText" Grid.Column="1" Text="1 / 1"
-                                       Classes="caption" VerticalAlignment="Center"
-                                       Margin="0,0,8,0" />
-                            <Button Grid.Column="2" Classes="icon" Width="30" Height="30"
-                                    ToolTip.Tip="{DynamicResource L.Download.Version.Prev}" Click="OnPrevPageClick">
-                                <controls:IconParkIcon Kind="IconArrowLeft" Width="13"
-                                          Height="13" />
-                            </Button>
-                            <Button Grid.Column="3" Classes="icon" Width="30" Height="30"
-                                    ToolTip.Tip="{DynamicResource L.Download.Version.Next}" Click="OnNextPageClick">
-                                <controls:IconParkIcon Kind="IconArrowRight" Width="13"
-                                          Height="13" />
-                            </Button>
+                            <controls:MofuPager x:Name="VersionPager" Grid.Column="1" />
                         </Grid>
                     </Grid>
 
 <!-- ===== Mod ===== -->                    
-                    <Grid x:Name="ModPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                    <Grid x:Name="ModPanel" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                             <TextBox x:Name="ModSearchBox" Classes="search" Height="40"
                                      FontSize="12.5"
@@ -348,16 +397,18 @@
                                    Classes="caption" Margin="2,0,0,8"
                                    Foreground="{DynamicResource NekoWarningBrush}" />
                         <Border Grid.Row="2" Classes="card" Padding="8,4">
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                            <ScrollViewer x:Name="ModListScroll"
+                                          HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="ModList"
                                               ItemTemplate="{StaticResource ResourceRowTemplate}" />
                             </ScrollViewer>
                         </Border>
+                        <controls:MofuPager Grid.Row="3" x:Name="ModPager" Margin="0,10,0,0" />
                     </Grid>
 
 <!-- ===== 整合包 ===== -->                    
-                    <Grid x:Name="ModpackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                    <Grid x:Name="ModpackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                             <TextBox x:Name="ModpackSearchBox" Classes="search" Height="40"
                                      FontSize="12.5"
@@ -370,16 +421,18 @@
                                    Classes="caption" Margin="2,0,0,8"
                                    Foreground="{DynamicResource NekoWarningBrush}" />
                         <Border Grid.Row="2" Classes="card" Padding="8,4">
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                            <ScrollViewer x:Name="ModpackListScroll"
+                                          HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="ModpackList"
                                               ItemTemplate="{StaticResource ResourceRowTemplate}" />
                             </ScrollViewer>
                         </Border>
+                        <controls:MofuPager Grid.Row="3" x:Name="ModpackPager" Margin="0,10,0,0" />
                     </Grid>
 
 <!-- ===== 光影包 ===== -->                    
-                    <Grid x:Name="ShaderPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                    <Grid x:Name="ShaderPanel" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                             <TextBox x:Name="ShaderSearchBox" Classes="search" Height="40"
                                      FontSize="12.5"
@@ -392,16 +445,18 @@
                                    Classes="caption" Margin="2,0,0,8"
                                    Foreground="{DynamicResource NekoWarningBrush}" />
                         <Border Grid.Row="2" Classes="card" Padding="8,4">
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                            <ScrollViewer x:Name="ShaderListScroll"
+                                          HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="ShaderList"
                                               ItemTemplate="{StaticResource ResourceRowTemplate}" />
                             </ScrollViewer>
                         </Border>
+                        <controls:MofuPager Grid.Row="3" x:Name="ShaderPager" Margin="0,10,0,0" />
                     </Grid>
 
 <!-- ===== 材质包 ===== -->                    
-                    <Grid x:Name="ResourcePackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*">
+                    <Grid x:Name="ResourcePackPanel" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                             <TextBox x:Name="ResourcePackSearchBox" Classes="search" Height="40"
                                      FontSize="12.5"
@@ -414,12 +469,14 @@
                                    Classes="caption" Margin="2,0,0,8"
                                    Foreground="{DynamicResource NekoWarningBrush}" />
                         <Border Grid.Row="2" Classes="card" Padding="8,4">
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                            <ScrollViewer x:Name="ResourcePackListScroll"
+                                          HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="ResourcePackList"
                                               ItemTemplate="{StaticResource ResourceRowTemplate}" />
                             </ScrollViewer>
                         </Border>
+                        <controls:MofuPager Grid.Row="3" x:Name="ResourcePackPager" Margin="0,10,0,0" />
                     </Grid>
 
 <!-- ===== Java ===== -->                    
@@ -725,68 +782,23 @@
                                      CornerRadius="18">
                 <Grid RowDefinitions="Auto,*">
 
-<!-- 顶部信息卡 -->                    
-                    <Border CornerRadius="16" Padding="16,14"
-                            Background="{DynamicResource NekoCardBrush}"
-                            BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1">
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                            <Button Classes="icon" Width="36" Height="36" VerticalAlignment="Center"
-                                    ToolTip.Tip="{DynamicResource L.Common.Back}"
-                                    Click="OnCloseMinecraftInstallClick">
-                                <controls:IconParkIcon Kind="IconArrowLeft" Width="15" Height="15" />
-                            </Button>
+<!-- 返回 -->
+                    <Button Classes="icon" Width="36" Height="36"
+                            HorizontalAlignment="Left"
+                            ToolTip.Tip="{DynamicResource L.Common.Back}"
+                            Click="OnCloseMinecraftInstallClick">
+                        <controls:IconParkIcon Kind="IconArrowLeft" Width="15" Height="15" />
+                    </Button>
 
-                            <Border Grid.Column="1" Width="54" Height="54" CornerRadius="12"
-                                    Margin="14,0,14,0" VerticalAlignment="Center"
-                                    Background="{DynamicResource NekoFieldSoftBrush}">
-                                <Image x:Name="MinecraftInstallIcon" Width="38" Height="38"
-                                       Stretch="Uniform" />
-                            </Border>
-
-                            <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock x:Name="MinecraftInstallTitle" FontSize="19"
-                                           FontWeight="Bold" />
-                                <TextBlock x:Name="MinecraftInstallMeta" Classes="caption" />
-                            </StackPanel>
-
-                            <Button Grid.Column="3" x:Name="MinecraftInstallButton"
-                                    Classes="primary" Height="40" Padding="20,0" CornerRadius="10"
-                                    VerticalAlignment="Center"
-                                    Click="OnMinecraftInstallClick">
-                                <StackPanel Orientation="Horizontal" Spacing="8"
-                                            VerticalAlignment="Center">
-                                    <controls:IconParkIcon Kind="IconFluentDownload"
-                                              Width="15" Height="15" />
-                                    <TextBlock Text="{DynamicResource L.Download.Minecraft.Install}"
-                                               FontSize="13" FontWeight="SemiBold" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-                    </Border>
-
-<!-- 主体：左右两个列表占满剩余空间 -->                    
-                    <Grid Grid.Row="1" Margin="0,14,0,0" MaxWidth="1120"
-                          HorizontalAlignment="Stretch" RowDefinitions="*,Auto">
+<!-- 安装设置 -->
+                    <Grid Grid.Row="1" Margin="0,10,0,0" MaxWidth="1120"
+                          HorizontalAlignment="Stretch">
                         <Border Grid.Row="0" CornerRadius="16" Padding="20,16"
                                 Background="{DynamicResource NekoCardBrush}"
                                 BorderBrush="{DynamicResource NekoBorderBrush}"
                                 BorderThickness="1">
-                            <Grid RowDefinitions="Auto,*,Auto,Auto" RowSpacing="14">
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <Border Width="30" Height="30" CornerRadius="9"
-                                            Background="{DynamicResource NekoAccentSoftBrush}">
-                                        <controls:IconParkIcon Kind="IconFluentSettings"
-                                                  Width="15" Height="15"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
-                                               Text="{DynamicResource L.Download.Minecraft.SettingsTitle}"
-                                               FontSize="14.5" FontWeight="SemiBold"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-
-                                <Grid Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="18"
+                            <Grid RowDefinitions="*,Auto,Auto" RowSpacing="14">
+                                <Grid ColumnDefinitions="240,*" ColumnSpacing="18"
                                       VerticalAlignment="Stretch">
                                     <Grid RowDefinitions="Auto,*" RowSpacing="6"
                                           VerticalAlignment="Stretch">
@@ -817,26 +829,28 @@
                                     </Grid>
                                 </Grid>
 
-                                <StackPanel Grid.Row="2" Spacing="6">
-                                    <TextBlock Text="{DynamicResource L.Download.Minecraft.Instance}"
-                                               Classes="caption" />
-                                    <TextBox x:Name="MinecraftInstanceNameBox" Height="36"
-                                             FontSize="12.5" />
-                                </StackPanel>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{DynamicResource L.Download.Minecraft.Instance}"
+                                                   Classes="caption" />
+                                        <TextBox x:Name="MinecraftInstanceNameBox" Height="36"
+                                                 FontSize="12.5" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" x:Name="MinecraftInstallButton"
+                                            Classes="primary" Height="36" Padding="20,0"
+                                            CornerRadius="10" VerticalAlignment="Bottom"
+                                            Click="OnMinecraftInstallClick">
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <controls:IconParkIcon Kind="IconFluentDownload"
+                                                      Width="15" Height="15" />
+                                            <TextBlock Text="{DynamicResource L.Download.Minecraft.Install}"
+                                                       FontSize="13" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
 
-                                <TextBlock Grid.Row="3" x:Name="MinecraftInstallStatus" Classes="caption"
-                                           TextWrapping="Wrap" />
-                            </Grid>
-                        </Border>
-
-                        <Border Grid.Row="1" CornerRadius="14" Padding="16,14" Margin="0,14,0,0"
-                                Background="{DynamicResource NekoFieldSoftBrush}">
-                            <Grid ColumnDefinitions="Auto,*">
-                                <controls:IconParkIcon Kind="IconFluentInfo"
-                                          Width="16" Height="16" Margin="0,2,0,0"
-                                          VerticalAlignment="Top" />
-                                <TextBlock Grid.Column="1" Margin="10,0,0,0"
-                                           x:Name="MinecraftInstallNotes" Classes="caption"
+                                <TextBlock Grid.Row="2" x:Name="MinecraftInstallStatus" Classes="caption"
                                            TextWrapping="Wrap" />
                             </Grid>
                         </Border>
@@ -844,5 +858,7 @@
                 </Grid>
             </suki:GlassCard>
 
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

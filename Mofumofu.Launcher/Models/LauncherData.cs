@@ -20,7 +20,13 @@ public sealed record InstanceInfo(
     int WorldCount,
     bool Selected = false);
 
-public sealed record GameVersion(string Id, string Type, string ReleaseDate, bool Installed, string Icon);
+public sealed record GameVersion(
+    string Id,
+    string Type,
+    string ReleaseDate,
+    bool Installed,
+    string Icon,
+    string TypeKey = "release");
 
 public sealed record ResourceItem(
     string Name,
@@ -29,7 +35,8 @@ public sealed record ResourceItem(
     string Downloads,
     string Likes,
     string Category,
-    string Icon)
+    string Icon,
+    IReadOnlyList<string>? Badges = null)
 {
     public string IconKey => Icon;
 }
