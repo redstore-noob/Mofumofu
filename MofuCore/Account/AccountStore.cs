@@ -81,6 +81,31 @@ public sealed class AccountStore
         lock (VaultGate) return LoadVault().Authlib;
     }
 
+    /// <summary>删除一个皮肤站账号（按 UUID + API 根）。</summary>
+    public bool RemoveAuthlibCredential(string profileUuid, string apiRoot)
+    {
+        string uuid = (profileUuid ?? string.Empty).Trim();
+        string root = (apiRoot ?? string.Empty).Trim().TrimEnd('/');
+        if (uuid.Length == 0)
+        {
+            return false;
+        }
+
+        lock (VaultGate)
+        {
+            Vault vault = LoadVault();
+            int removed = vault.Authlib.RemoveAll(item =>
+                string.Equals(item.ProfileUuid, uuid, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.ApiRoot.TrimEnd('/'), root, StringComparison.OrdinalIgnoreCase));
+            if (removed > 0)
+            {
+                SaveVault(vault);
+            }
+
+            return removed > 0;
+        }
+    }
+
     /// <summary>保存一个离线账号名（按名称去重，新账号排在最前）。</summary>
     public void SaveOfflineAccount(string username)
     {

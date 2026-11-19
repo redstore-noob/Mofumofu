@@ -3,5 +3,6 @@
   <Project Path="Mofumofu.ExtensionAPI/Mofumofu.ExtensionAPI.csproj" />
   <Project Path="Mofumofu.Launcher/Mofumofu.Launcher.csproj" />
   <Project Path="NekoSolo/NekoSolo.csproj" />
+  <Project Path="Mofumofu.Console/Mofumofu.Console.csproj" />
   <Project Path="Mofumofu.Extension.LogshareService/Mofumofu.Extension.LogshareService.csproj" />
 </Solution>

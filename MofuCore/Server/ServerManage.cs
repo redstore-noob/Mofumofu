@@ -378,6 +378,22 @@ public class ServerManage
         SaveServerConfigToDirectory(directory, config);
     }
 
+    /// <summary>设置服务器使用的 Java 可执行文件路径（运行中拒绝修改）。</summary>
+    public static void SetJavaPath(string id, string javaPath)
+    {
+        ValidateId(id);
+        if (IsRunning(id))
+        {
+            throw new InvalidOperationException("服务器运行中，请先停止再修改 Java 路径");
+        }
+
+        string directory = ServerDirectory(id);
+        ServerConfig config = LoadServerConfigFromDirectory(directory)
+                              ?? throw new InvalidOperationException("服务器不存在");
+        config.JavaPath = (javaPath ?? string.Empty).Trim();
+        SaveServerConfigToDirectory(directory, config);
+    }
+
     private static List<string> CleanExtraArgs(IEnumerable<string>? args)
     {
         List<string> result = [];
