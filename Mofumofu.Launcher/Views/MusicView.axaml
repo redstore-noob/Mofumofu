@@ -47,33 +47,6 @@
         </DataTemplate>
     </UserControl.Resources>
     <UserControl.Styles>
-<!-- 侧栏导航行 -->        
-        <Style Selector="Button.rail">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Height" Value="42" />
-            <Setter Property="Padding" Value="12,0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
-        </Style>
-        <Style Selector="Button.rail:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-        </Style>
-        <Style Selector="Button.rail.active">
-            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
-        </Style>
-        <Style Selector="Button.rail.active:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-
 <!-- 播放控制 -->        
         <Style Selector="Button.player">
             <Setter Property="Background" Value="Transparent" />
@@ -177,75 +150,96 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="252,*,332">
-<!-- 隐藏的页头：仅用于保留 Header.Subtitle 的代码引用 --><!-- ==================== 左：Music 侧栏 ==================== -->        
-        <suki:GlassCard Grid.Column="0" CornerRadius="22" Padding="16,18" Margin="0,0,12,0">
-            <Grid RowDefinitions="Auto,*">
-                <StackPanel Orientation="Horizontal" Spacing="10" Margin="8,0,0,16">
-                    <controls:IconParkIcon Kind="IconFluentMusic" Width="20" Height="20" VerticalAlignment="Center" />
-                    <TextBlock Text="{DynamicResource L.Pages.Music.Title}" FontSize="20"
-                               FontWeight="Bold" VerticalAlignment="Center" />
-                </StackPanel>
+    <Grid RowDefinitions="Auto,*">
+        <controls:PageHeader />
 
+        <Grid Grid.Row="1" ColumnDefinitions="236,*,332" Margin="0,2,0,0">
+<!-- ==================== 左：Music 侧栏 ==================== -->
+        <suki:GlassCard Grid.Column="0" CornerRadius="18" Padding="12,14"
+                        Margin="0,0,16,0" VerticalAlignment="Stretch">
+            <Grid RowDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Row="1" Spacing="4">
-                    <Button x:Name="RailLocal" Classes="rail active" Tag="local" Click="OnRailClick"
+                    <Button x:Name="RailLocal" Classes="side-nav active" Tag="local" Click="OnRailClick"
                             ToolTip.Tip="{DynamicResource L.Pages.Music.Source.Local}">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconHome" Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Home}" FontSize="13"
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconHome" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Nav.Home}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
-                    <Button Classes="rail" Click="OnSearchNavClick"
+                    <Button Classes="side-nav" Click="OnSearchNavClick"
                             ToolTip.Tip="{DynamicResource L.Pages.Music.SearchPlaceholder}">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconSearch"
-                                      Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Search}" FontSize="13"
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconSearch" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Search}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
-                    <Button x:Name="RailCloud" Classes="rail" Tag="cloud" Click="OnRailClick"
+                    <Button x:Name="RailCloud" Classes="side-nav" Tag="cloud" Click="OnRailClick"
                             ToolTip.Tip="{DynamicResource L.Pages.Music.Source.Cloud}">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconGlobe" Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Library}" FontSize="13"
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconGlobe" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Nav.Library}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
-                    <Button x:Name="RailFavorites" Classes="rail" Tag="favorites" Click="OnRailClick"
+                    <Button x:Name="RailFavorites" Classes="side-nav" Tag="favorites" Click="OnRailClick"
                             ToolTip.Tip="{DynamicResource L.Pages.Music.Rail.Favorites}">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconFluentHeart" Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Liked}" FontSize="13"
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconFluentHeart" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Nav.Liked}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
-                    <Button x:Name="RailRoam" Classes="rail" Tag="roam" Click="OnRailClick"
+                    <Button x:Name="RailRoam" Classes="side-nav" Tag="roam" Click="OnRailClick"
                             ToolTip.Tip="{DynamicResource L.Pages.Music.Rail.Roam}">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconFluentSparkle" Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Roam}" FontSize="13"
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconFluentSparkle" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Nav.Roam}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
-                    <Button Classes="rail" IsEnabled="False" Opacity="0.55">
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconFluentMusic" Width="17" Height="17" />
-                            <TextBlock Text="{DynamicResource L.Pages.Music.Nav.Playlists}" FontSize="13"
+                    <Button Classes="side-nav dim" IsEnabled="False">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Classes="side-nav-icon">
+                                <controls:IconParkIcon Kind="IconFluentMusic" Width="15" Height="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Margin="11,0,0,0"
+                                       Text="{DynamicResource L.Pages.Music.Nav.Playlists}"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-
-                    <Button x:Name="LoginButton" Classes="ghost" Height="32" Margin="0,10,0,0"
-                            IsVisible="False" Click="OnCloudLoginClick"
-                            HorizontalContentAlignment="Stretch">
-                        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-                            <controls:IconParkIcon Kind="IconAccount" Width="14" Height="14" />
-                            <TextBlock x:Name="LoginButtonText" FontSize="12" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                        </Grid>
                     </Button>
                 </StackPanel>
+
+                <Button Grid.Row="2" x:Name="LoginButton" Classes="ghost" Height="32" Margin="0,10,0,0"
+                        IsVisible="False" Click="OnCloudLoginClick"
+                        HorizontalContentAlignment="Stretch">
+                    <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                        <controls:IconParkIcon Kind="IconAccount" Width="14" Height="14" />
+                        <TextBlock x:Name="LoginButtonText" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
             </Grid>
         </suki:GlassCard>
 
@@ -257,12 +251,9 @@
                         IsHitTestVisible="False" />
 
                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="30,22,30,22">
-<!-- 顶栏 -->                    
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <Button Classes="icon-soft" Click="OnBackClick" ToolTip.Tip="{DynamicResource L.Pages.Music.Back}">
-                            <controls:IconParkIcon Kind="IconArrowLeft" Width="16" Height="16" />
-                        </Button>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+<!-- 顶栏 -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button x:Name="FavButton" Classes="player"
                                     ToolTip.Tip="{DynamicResource L.Pages.Music.Favorite}"
                                     Click="OnFavoriteClick">
@@ -460,5 +451,6 @@
                 </Grid>
             </Grid>
         </suki:GlassCard>
+        </Grid>
     </Grid>
 </UserControl>

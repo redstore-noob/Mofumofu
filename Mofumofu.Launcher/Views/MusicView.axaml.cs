@@ -117,8 +117,6 @@ public partial class MusicView : UserControl
 
     // ==================== 来源 / 列表 ====================
 
-    private void OnBackClick(object? sender, RoutedEventArgs e) => Shell.Go("home");
-
     private void OnSearchNavClick(object? sender, RoutedEventArgs e)
     {
         TextBox box = UseThreePane ? SearchBox : ListSearch;
