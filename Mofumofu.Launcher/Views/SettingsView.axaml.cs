@@ -1523,6 +1523,23 @@ public partial class SettingsView : UserControl
         _loading = false;
     }
 
+    private bool _mascotRedhead;
+    private int _mascotPokes;
+
+    /// <summary>彩蛋：哭哭猫连点 5 下换成红发哭哭，再点 5 下换回来。</summary>
+    private void OnAboutMascotPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (++_mascotPokes < 5) return;
+
+        _mascotPokes = 0;
+        _mascotRedhead = !_mascotRedhead;
+        AboutMascotImage.Source = MascotBitmap(_mascotRedhead ? "mascot-redhead.png" : "mascot-neko.png");
+        UiAnimations.Pulse(AboutMascotImage);
+    }
+
+    private static Bitmap MascotBitmap(string file) =>
+        new(Avalonia.Platform.AssetLoader.Open(new Uri($"avares://Mofumofu.Launcher/Assets/{file}")));
+
     private bool _checkingUpdate;
     private GitHubUpdater.ReleaseInfo? _pendingUpdateRelease;
 
@@ -1664,15 +1681,172 @@ public partial class SettingsView : UserControl
         content.Children.Add(MofuDialog.Notice(L.T("Settings.About.ResetConfirmNotice",
             "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。")));
 
-        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
-        var confirm = MofuDialog.Danger(L.T("Settings.About.ResetConfirmButton", "确认重置"), () =>
+        content.Children.Add(CreateResetLaunchButton(() =>
         {
             MofuDialog.Close(content);
             ResetLauncherSettings();
-        });
-        content.Children.Add(MofuDialog.Footer(cancel, confirm));
+        }));
 
         Shell.Dialog(content, L.T("Settings.About.ResetConfirmTitle", "确认重置启动器设置？"), sender as Control);
+    }
+
+    /// <summary>核弹发射按钮：按住 10 秒蓄力，松开即取消。</summary>
+    private static Control CreateResetLaunchButton(Action onLaunch)
+    {
+        const double holdSeconds = 10;
+
+        string idleHint = L.T("Settings.About.ResetHoldHint", "按住 10 秒重置 · 松开即取消");
+
+        (Control Panel, TextBlock Hint) BuildLabel(IBrush brush, IBrush? plate)
+        {
+            var glyph = new TextBlock
+            {
+                Text = "☢",
+                FontSize = 38,
+                FontFamily = new FontFamily("Segoe UI Symbol, Segoe UI"),
+                Foreground = brush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            var hint = new TextBlock
+            {
+                Text = idleHint,
+                FontSize = 11,
+                Foreground = brush,
+                Opacity = 0.85,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            var panel = new StackPanel
+            {
+                Spacing = 2,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { glyph, hint },
+            };
+            if (plate is null) return (panel, hint);
+
+            return (new Border
+            {
+                Background = plate,
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(16, 7),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = panel,
+            }, hint);
+        }
+
+        var hazardYellow = new SolidColorBrush(Color.Parse("#F5C542"));
+        var hazardBlack = new SolidColorBrush(Color.Parse("#191919"));
+
+        var baseLabel = BuildLabel(hazardBlack, hazardYellow);
+        var fillLabel = BuildLabel(hazardYellow, null);
+
+        var fillCopy = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
+        fillCopy.Children.Add(fillLabel.Panel);
+
+        var fill = new Border
+        {
+            Background = hazardBlack,
+            CornerRadius = new CornerRadius(14),
+            ClipToBounds = true,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Width = 0,
+            Child = fillCopy,
+        };
+
+        var track = new Grid
+        {
+            MinHeight = 96,
+            ClipToBounds = true,
+            Children =
+            {
+                new HazardStripeControl
+                {
+                    BaseBrush = hazardYellow,
+                    StripeBrush = hazardBlack,
+                    StripeWidth = 14,
+                    CornerRadius = 14,
+                },
+                baseLabel.Panel,
+                fill,
+            },
+        };
+
+        var surface = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            BorderBrush = hazardBlack,
+            BorderThickness = new Thickness(1),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Margin = new Thickness(0, 4, 0, 0),
+            Child = track,
+        };
+
+        DispatcherTimer? timer = null;
+        var stopwatch = new Stopwatch();
+        var launched = false;
+
+        void SetHint(string text)
+        {
+            baseLabel.Hint.Text = text;
+            fillLabel.Hint.Text = text;
+        }
+
+        void CancelHold()
+        {
+            if (launched) return;
+            timer?.Stop();
+            timer = null;
+            stopwatch.Reset();
+            fill.Width = 0;
+            SetHint(idleHint);
+        }
+
+        surface.PointerPressed += (_, args) =>
+        {
+            if (launched || !args.GetCurrentPoint(surface).Properties.IsLeftButtonPressed) return;
+
+            args.Pointer.Capture(surface);
+            stopwatch.Restart();
+            timer?.Stop();
+            fillCopy.Width = track.Bounds.Width;
+
+            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            timer.Tick += (_, _) =>
+            {
+                // 弹窗被 Esc / 点遮罩关掉后，按住状态一并失效
+                if (TopLevel.GetTopLevel(surface) is null)
+                {
+                    timer?.Stop();
+                    timer = null;
+                    return;
+                }
+
+                double progress = Math.Min(1, stopwatch.Elapsed.TotalSeconds / holdSeconds);
+                fill.Width = Math.Max(0, track.Bounds.Width * progress);
+                SetHint(progress >= 1
+                    ? L.T("Settings.About.ResetHoldDone", "已授权 · 正在重置…")
+                    : L.T("Settings.About.ResetHoldCountdown", "{0:0.0} 秒",
+                        holdSeconds * (1 - progress)));
+
+                if (progress < 1) return;
+                timer?.Stop();
+                timer = null;
+                launched = true;
+                DispatcherTimer.RunOnce(onLaunch, TimeSpan.FromMilliseconds(260));
+            };
+            timer.Start();
+            args.Handled = true;
+        };
+        surface.PointerReleased += (_, args) =>
+        {
+            CancelHold();
+            args.Pointer.Capture(null);
+            args.Handled = true;
+        };
+        surface.PointerCaptureLost += (_, _) => CancelHold();
+
+        return surface;
     }
 
     private void ResetLauncherSettings()

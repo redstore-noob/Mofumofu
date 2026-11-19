@@ -8,52 +8,6 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.SettingsView">
     <UserControl.Styles>
-<!-- ===== 侧栏导航 ===== -->        
-        <Style Selector="Button.settings-nav">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Height" Value="46" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
-            <Setter Property="FontSize" Value="13.5" />
-        </Style>
-        <Style Selector="Button.settings-nav:pointerover">
-<!-- 悬停 = 高亮描边框，不做整块填充 -->            
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
-        </Style>
-        <Style Selector="Button.settings-nav:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.settings-nav.active">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="Button.settings-nav.active:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.settings-nav.active:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
-        </Style>
-        <Style Selector="Button.settings-nav.dim">
-            <Setter Property="Opacity" Value="0.38" />
-        </Style>
-        <Style Selector="Border.nav-icon">
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.settings-nav.active Border.nav-icon">
-            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
-        </Style>
 
 <!-- ===== 分区卡片 ===== -->        
         <Style Selector="Border.setting-group">
@@ -221,9 +175,9 @@
                     Margin="0,0,16,0" VerticalAlignment="Stretch">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <StackPanel Grid.Row="1" Spacing="4">
-                        <Button x:Name="TabGame" Classes="settings-nav active" Click="OnTabGameClick">
+                        <Button x:Name="TabGame" Classes="side-nav active" Click="OnTabGameClick">
                             <Grid ColumnDefinitions="Auto,*">
-                                <Border Classes="nav-icon">
+                                <Border Classes="side-nav-icon">
                                     <controls:IconParkIcon Kind="IconFluentCube" Width="15" Height="15"
                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -232,9 +186,9 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-                        <Button x:Name="TabGeneral" Classes="settings-nav" Click="OnTabGeneralClick">
+                        <Button x:Name="TabGeneral" Classes="side-nav" Click="OnTabGeneralClick">
                             <Grid ColumnDefinitions="Auto,*">
-                                <Border Classes="nav-icon">
+                                <Border Classes="side-nav-icon">
                                     <controls:IconParkIcon Kind="IconFluentSettings" Width="15" Height="15"
                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -243,9 +197,9 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-                        <Button x:Name="TabAppearance" Classes="settings-nav" Click="OnTabAppearanceClick">
+                        <Button x:Name="TabAppearance" Classes="side-nav" Click="OnTabAppearanceClick">
                             <Grid ColumnDefinitions="Auto,*">
-                                <Border Classes="nav-icon">
+                                <Border Classes="side-nav-icon">
                                     <controls:IconParkIcon Kind="IconFluentPaint" Width="15" Height="15"
                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -254,9 +208,9 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-                        <Button x:Name="TabNetwork" Classes="settings-nav" Click="OnTabNetworkClick">
+                        <Button x:Name="TabNetwork" Classes="side-nav" Click="OnTabNetworkClick">
                             <Grid ColumnDefinitions="Auto,*">
-                                <Border Classes="nav-icon">
+                                <Border Classes="side-nav-icon">
                                     <controls:IconParkIcon Kind="IconFluentDownload" Width="15" Height="15"
                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -265,9 +219,9 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-                        <Button x:Name="TabAbout" Classes="settings-nav" Click="OnTabAboutClick">
+                        <Button x:Name="TabAbout" Classes="side-nav" Click="OnTabAboutClick">
                             <Grid ColumnDefinitions="Auto,*">
-                                <Border Classes="nav-icon">
+                                <Border Classes="side-nav-icon">
                                     <controls:IconParkIcon Kind="IconFluentInfo" Width="15" Height="15"
                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -883,8 +837,10 @@
                                         </LinearGradientBrush>
                                     </Border.Background>
                                     <Grid ColumnDefinitions="Auto,*">
-                                        <Image Source="avares://Mofumofu.Launcher/Assets/mascot-neko.png"
-                                               Width="64" Height="64" VerticalAlignment="Center" />
+                                        <Image x:Name="AboutMascotImage" Cursor="Hand"
+                                               Source="avares://Mofumofu.Launcher/Assets/mascot-neko.png"
+                                               Width="64" Height="64" VerticalAlignment="Center"
+                                               PointerPressed="OnAboutMascotPressed" />
                                         <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="3"
                                                     VerticalAlignment="Center">
                                             <TextBlock Text="{DynamicResource L.Settings.About.AppName}" FontSize="17"
