@@ -36,9 +36,6 @@ public sealed class WallpaperSettings
     /// <summary>轮播是否随机顺序。</summary>
     public bool Shuffle { get; set; }
 
-    /// <summary>主窗口失去焦点时暂停（图片轮播）。</summary>
-    public bool PauseWhenInactive { get; set; } = true;
-
     /// <summary>背景模糊强度（0-100，默认 20）。</summary>
     public int BlurPercent { get; set; } = 20;
 

@@ -27,7 +27,6 @@ public sealed class InAppWallpaperSurface : Panel
     private int _slideIndex;
     private bool _showingA = true;
     private bool _loading;
-    private bool _paused;
 
     public InAppWallpaperSurface()
     {
@@ -100,13 +99,6 @@ public sealed class InAppWallpaperSurface : Panel
         _slideIndex = 0;
     }
 
-    public void SetPaused(bool paused)
-    {
-        _paused = paused;
-        if (paused) _slideTimer.Stop();
-        else if (_slides.Count > 0) _slideTimer.Start();
-    }
-
     private async Task LoadAndShowAsync(string path)
     {
         if (_loading) return;
@@ -148,7 +140,7 @@ public sealed class InAppWallpaperSurface : Panel
 
     private void AdvanceSlide()
     {
-        if (_paused || _slides.Count == 0) return;
+        if (_slides.Count == 0) return;
 
         _slideIndex = (_slideIndex + 1) % _slides.Count;
         _ = LoadAndShowAsync(_slides[_slideIndex]);

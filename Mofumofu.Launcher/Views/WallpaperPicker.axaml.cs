@@ -77,7 +77,6 @@ public partial class WallpaperPicker : UserControl
                 WallpaperModes.None => 2,
                 _ => 0,
             };
-            PauseSwitch.IsChecked = settings.PauseWhenInactive;
             IntervalSlider.Value = settings.IntervalSeconds;
             IntervalValue.Text = L.T("Wallpaper.Interval.Value", "{0} 秒", settings.IntervalSeconds);
             ShuffleSwitch.IsChecked = settings.Shuffle;
@@ -226,13 +225,6 @@ public partial class WallpaperPicker : UserControl
         if (_loading) return;
 
         WallpaperService.Instance.SetShuffle(ShuffleSwitch.IsChecked == true);
-    }
-
-    private void OnPauseChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-
-        WallpaperService.Instance.SetPauseWhenInactive(PauseSwitch.IsChecked == true);
     }
 
     private async Task<IReadOnlyList<string>> PickFileAsync(FilePickerFileType type, bool allowMultiple)

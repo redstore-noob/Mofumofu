@@ -36,7 +36,6 @@ public sealed class WallpaperService
         [".png", ".jpg", ".jpeg", ".bmp", ".webp", ".gif"];
 
     private Window? _main;
-    private bool _mainActive = true;
     private Bitmap? _preloadedImage;
     private string _preloadedPath = string.Empty;
 
@@ -95,10 +94,6 @@ public sealed class WallpaperService
 
         Detach();
         _main = main;
-        _mainActive = main.IsActive;
-
-        main.Activated += OnMainActivated;
-        main.Deactivated += OnMainDeactivated;
 
         if (main.IsVisible)
         {
@@ -120,8 +115,6 @@ public sealed class WallpaperService
     {
         if (_main is not null)
         {
-            _main.Activated -= OnMainActivated;
-            _main.Deactivated -= OnMainDeactivated;
             _main.Opened -= OnMainOpened;
         }
 
@@ -169,8 +162,6 @@ public sealed class WallpaperService
         settings.IntervalSeconds = Math.Clamp(seconds, 5, 3600));
 
     public void SetShuffle(bool shuffle) => Update(settings => settings.Shuffle = shuffle);
-
-    public void SetPauseWhenInactive(bool pause) => Update(settings => settings.PauseWhenInactive = pause);
 
     public void Refresh() => Apply();
 
@@ -230,8 +221,6 @@ public sealed class WallpaperService
                     EnsurePreload();
                     surface.ShowImage(images[0], CachedBitmap(images[0]));
                 }
-
-                surface.SetPaused(Settings.PauseWhenInactive && !_mainActive);
             }
 
             LastError = string.Empty;
@@ -280,22 +269,5 @@ public sealed class WallpaperService
         {
             return null;
         }
-    }
-
-    private void OnMainActivated(object? sender, EventArgs e)
-    {
-        _mainActive = true;
-        if (Settings.PauseWhenInactive) SetSurfacePaused(false);
-    }
-
-    private void OnMainDeactivated(object? sender, EventArgs e)
-    {
-        _mainActive = false;
-        if (Settings.PauseWhenInactive) SetSurfacePaused(true);
-    }
-
-    private void SetSurfacePaused(bool paused)
-    {
-        if (_main is MainWindow mainWindow) mainWindow.WallpaperSurface.SetPaused(paused);
     }
 }
