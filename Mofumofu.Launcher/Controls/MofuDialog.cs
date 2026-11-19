@@ -93,7 +93,12 @@ public static class MofuDialog
 
     private static Button ActionButton(string text, string kind, Action onClick)
     {
-        var button = new Button { Content = text, Classes = { kind, "dialog-action" } };
+        // 字符串内容由 ContentPresenter 生成 TextBlock 并绑定模板前景色，危险按钮的白色
+        // 会被模板覆盖成默认深色；显式 TextBlock 的本地前景色才能稳定生效。
+        object content = kind == "dialog-danger"
+            ? new TextBlock { Text = text, Foreground = ThemeTokens.Brush("NekoAccentOnBrush") }
+            : text;
+        var button = new Button { Content = content, Classes = { kind, "dialog-action" } };
         button.Click += (_, _) => onClick();
         return button;
     }

@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Mofumofu.Launcher.Services;
+using SukiUI.Controls.GlassMorphism;
 
 namespace Mofumofu.Launcher.Controls;
 
@@ -30,7 +31,7 @@ public class MofuDialogHost : Panel
     private static readonly IBrush PopoverScrimBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x00, 0x00, 0x00));
 
     private Control? _card;
-    private Border? _scrim;
+    private Control? _scrim;
     private bool _dismissOnBackdrop;
     private bool _closing;
     private bool _popover;
@@ -62,7 +63,7 @@ public class MofuDialogHost : Panel
         _card = card;
         _popover = false;
 
-        var scrim = CreateScrim(ScrimBrush);
+        var scrim = CreateScrim(ScrimBrush, blur: true);
 
         card.HorizontalAlignment = HorizontalAlignment.Center;
         card.VerticalAlignment = VerticalAlignment.Center;
@@ -141,7 +142,7 @@ public class MofuDialogHost : Panel
         _card = card;
         _popover = true;
 
-        var scrim = CreateScrim(PopoverScrimBrush);
+        var scrim = CreateScrim(PopoverScrimBrush, blur: false);
 
         var available = top is Window window ? window.ClientSize : new Size(1280, 800);
         var limitWidth = Math.Max(120, available.Width - 24);
@@ -201,11 +202,29 @@ public class MofuDialogHost : Panel
         return true;
     }
 
-    private Border CreateScrim(IBrush brush)
+    private Border CreateScrim(IBrush brush, bool blur)
     {
+        var layer = new Panel();
+
+        // 背景磨砂：采样它下方已绘制的窗口内容（卡片在 scrim 之后入树，不会被采进去），
+        // 让弹窗后面的页面虚化退到幕后。GPU 采样不可用时自动降级成纯色遮罩。
+        // 关毛玻璃（视频壁纸等）时不加模糊层，行为与原来一致。
+        if (blur && GlassEffects.Enabled && BlurBackground.IsGpuBlurAvailable)
+        {
+            layer.Children.Add(new BlurBackground
+            {
+                IntensityFactor = 1d,
+                // 只留薄薄一层霜，压暗与色调仍交给上面的纯色遮罩，避免浅色主题发白。
+                OverlayOpacity = 0.35,
+            });
+        }
+
+        // 压暗层盖在模糊之上，保留"把后面东西退到幕后"的语义。
+        layer.Children.Add(new Border { Background = brush });
+
         var scrim = new Border
         {
-            Background = brush,
+            Child = layer,
             Opacity = 0,
             Transitions = new Transitions
             {
