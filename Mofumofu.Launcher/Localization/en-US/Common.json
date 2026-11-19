@@ -26,5 +26,8 @@
   "Common.Error": "Something went wrong",
   "Common.Done": "Done",
   "Common.Running": "Running",
+  "Common.Pager.JumpHint": "Type a page number and press Enter",
+  "Common.Pager.Prev": "Previous page",
+  "Common.Pager.Next": "Next page",
   "Common.Stopped": "Stopped"
 }

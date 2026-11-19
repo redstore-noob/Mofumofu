@@ -26,5 +26,8 @@
   "Common.Error": "Eraro",
   "Common.Done": "Finita",
   "Common.Running": "Okazanta",
+  "Common.Pager.JumpHint": "Tajpu paĝnumeron kaj premu Enter",
+  "Common.Pager.Prev": "Antaŭa paĝo",
+  "Common.Pager.Next": "Sekva paĝo",
   "Common.Stopped": "Haltigita"
 }

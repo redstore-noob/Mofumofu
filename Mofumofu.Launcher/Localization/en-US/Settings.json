@@ -210,5 +210,9 @@
   "Settings.About.ResetConfirmBody": "This restores defaults for theme, language, window, download options, plugin switches, favorite servers and home layout. Your current account and instance selection are kept; first-run setup opens again next launch.",
   "Settings.About.ResetConfirmNotice": "This cannot be undone. Accounts, instances, game files and plugin files are not deleted; the start bar layout is fully restored after a restart.",
   "Settings.About.ResetConfirmButton": "Confirm reset",
+  "Settings.About.ResetHold": "Launch nuke",
+  "Settings.About.ResetHoldHint": "Hold for 10s to reset · release to abort",
+  "Settings.About.ResetHoldCountdown": "{0:0.0} s",
+  "Settings.About.ResetHoldDone": "Authorized · Resetting…",
   "Settings.About.ResetDone": "Defaults restored. First-run setup will open again next launch"
 }

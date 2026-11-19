@@ -26,5 +26,8 @@
   "Common.Error": "エラー",
   "Common.Done": "完了",
   "Common.Running": "実行中",
+  "Common.Pager.JumpHint": "ページ番号を入力して Enter で移動",
+  "Common.Pager.Prev": "前のページ",
+  "Common.Pager.Next": "次のページ",
   "Common.Stopped": "停止済み"
 }

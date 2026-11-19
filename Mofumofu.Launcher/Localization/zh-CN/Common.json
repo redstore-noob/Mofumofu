@@ -26,5 +26,8 @@
   "Common.Error": "出错了",
   "Common.Done": "完成",
   "Common.Running": "进行中",
+  "Common.Pager.JumpHint": "输入页码按回车跳转",
+  "Common.Pager.Prev": "上一页",
+  "Common.Pager.Next": "下一页",
   "Common.Stopped": "已停止"
 }

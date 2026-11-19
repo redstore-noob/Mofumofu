@@ -26,5 +26,8 @@
   "Common.Error": "Ошибка",
   "Common.Done": "Готово",
   "Common.Running": "Выполняется",
+  "Common.Pager.JumpHint": "Введите номер страницы и нажмите Enter",
+  "Common.Pager.Prev": "Предыдущая страница",
+  "Common.Pager.Next": "Следующая страница",
   "Common.Stopped": "Остановлено"
 }

@@ -26,5 +26,8 @@
   "Common.Error": "Fehler",
   "Common.Done": "Fertig",
   "Common.Running": "Läuft",
+  "Common.Pager.JumpHint": "Seitennummer eingeben und Enter drücken",
+  "Common.Pager.Prev": "Vorherige Seite",
+  "Common.Pager.Next": "Nächste Seite",
   "Common.Stopped": "Gestoppt"
 }

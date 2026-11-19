@@ -208,5 +208,9 @@
   "Settings.About.ResetConfirmBody": "テーマ、言語、ウィンドウ、ダウンロード設定、プラグインの有効状態、お気に入りサーバー、ホームレイアウトなどを初期値に戻します。現在のアカウントとインスタンス選択は保持され、初回セットアップは次回起動時に再実行されます。",
   "Settings.About.ResetConfirmNotice": "この操作は取り消せません。アカウント、インスタンス、ゲームファイル、プラグインファイルは削除されません。スタートバーの配置は再起動後に完全に戻ります。",
   "Settings.About.ResetConfirmButton": "リセットを確認",
+  "Settings.About.ResetHold": "核発射",
+  "Settings.About.ResetHoldHint": "10 秒長押しでリセット · 離すとキャンセル",
+  "Settings.About.ResetHoldCountdown": "{0:0.0} 秒",
+  "Settings.About.ResetHoldDone": "承認済み · リセット中…",
   "Settings.About.ResetDone": "初期値に戻しました。次回起動時に初回セットアップが再表示されます"
 }

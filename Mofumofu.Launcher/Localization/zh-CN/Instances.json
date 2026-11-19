@@ -207,7 +207,7 @@
   "Instances.Toast.OpenInstanceDirFailed": "打开实例目录失败：{0}",
   "Instances.Toast.Rename": "重命名实例「{0}」",
   "Instances.Toast.Duplicate": "已复制实例「{0}」",
-  "Instances.Toast.ExportHint": "导出整合包请到「创作中心 → 整合包」完成（那里已接入真实打包）",
+  "Instances.Toast.ExportHint": "导出整合包请到「工具 → 整合包导出」完成（那里已接入真实打包）",
   "Instances.Toast.Exporting": "正在导出 {0} 为 Modrinth 整合包",
   "Instances.Toast.Deleted": "已删除实例「{0}」",
   "Instances.Content.CheckUpdates": "检查更新",

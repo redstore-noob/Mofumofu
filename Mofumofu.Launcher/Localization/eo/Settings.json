@@ -208,5 +208,9 @@
   "Settings.About.ResetConfirmBody": "Restarigos etoson, lingvon, fenestron, elŝutajn parametrojn, kromprogramŝaltilojn, plej ŝatatajn servilojn kaj hejman aranĝon. Nuna konto- kaj instanco-elekto estos konservita; la unua starta agordado denove ruliĝos ĉe la venonta lanĉo.",
   "Settings.About.ResetConfirmNotice": "Tiu ago ne estas malfarebla. Ĝi ne forigos kontojn, instancojn, ludservumajn dosierojn aŭ kromprogramajn dosierojn; la startopleta aranĝo plene revenos post restarto.",
   "Settings.About.ResetConfirmButton": "Konfirmi restarigon",
+  "Settings.About.ResetHold": "Nuklea lanĉo",
+  "Settings.About.ResetHoldHint": "Tenu 10 sekundojn por restarigi · lasu por nuligi",
+  "Settings.About.ResetHoldCountdown": "{0:0.0} s",
+  "Settings.About.ResetHoldDone": "Permesita · Restarigante…",
   "Settings.About.ResetDone": "Defaŭltaj valoroj restarigitaj; la unua starta agordado aperos denove ĉe la venonta lanĉo"
 }

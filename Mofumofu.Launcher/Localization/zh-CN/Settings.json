@@ -210,5 +210,9 @@
   "Settings.About.ResetConfirmBody": "将恢复主题、语言、窗口、下载参数、插件开关、收藏服务器和主页布局等默认设置。当前账号与实例选择会保留，首次设置向导会在下次启动时重新弹出。",
   "Settings.About.ResetConfirmNotice": "此操作无法撤销。不会删除账号、实例、游戏文件或插件文件；开始栏布局将在重启后完全恢复。",
   "Settings.About.ResetConfirmButton": "确认重置",
+  "Settings.About.ResetHold": "核弹发射",
+  "Settings.About.ResetHoldHint": "按住 10 秒重置 · 松开即取消",
+  "Settings.About.ResetHoldCountdown": "{0:0.0} 秒",
+  "Settings.About.ResetHoldDone": "已授权 · 正在重置…",
   "Settings.About.ResetDone": "已恢复默认设置；下次启动时会重新弹出首次设置向导"
 }
