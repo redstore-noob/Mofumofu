@@ -59,6 +59,8 @@ public partial class CreatorView : UserControl
     };
 
     private readonly Dictionary<string, Control> _toolPages = new();
+    private readonly Dictionary<string, Button> _toolNavButtons = new();
+    private string? _currentToolId;
     private readonly List<string> _fontNames = new();
 
     private WebRegionHost? _cubeHost;
@@ -70,9 +72,12 @@ public partial class CreatorView : UserControl
     {
         InitializeComponent();
 
-        BuildToolCards();
+        BuildToolNav();
         LoadSystemFonts();
         InitCubeControls();
+
+        // 默认选中第一个工具，进来就是可用的工作区
+        SelectTool(CreatorToolCatalog.Tools[0], animate: false);
 
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
@@ -105,8 +110,6 @@ public partial class CreatorView : UserControl
             _themeSubscribed = false;
         }
 
-        // 离开创作中心时回到工具列表，下次从开始菜单进来是列表页
-        ShowToolList();
     }
 
     private void OnThemeChanged()
@@ -114,161 +117,69 @@ public partial class CreatorView : UserControl
         Dispatcher.UIThread.Post(PushCubeState);
     }
 
-    // ================= 工具列表页 =================
+    // ================= 工具导航（左栏） =================
 
-    private void BuildToolCards()
+    private void BuildToolNav()
     {
-        ToolGrid.Children.Clear();
+        ToolNavPanel.Children.Clear();
+        _toolNavButtons.Clear();
 
         foreach (var tool in CreatorToolCatalog.Tools)
         {
-            ToolGrid.Children.Add(BuildToolCard(tool));
-        }
-
-        ToolCountChip.Text = L.T("Creator.List.Chip.Tools", "{0} 个工具", CreatorToolCatalog.Tools.Count);
-    }
-
-    private Control BuildToolCard(CreatorTool tool)
-    {
-        var accent = ThemeTokens.FromHex(tool.AccentHex);
-        var softBrush = AlphaBrush(tool.AccentHex, 0x2E);
-        var accentBorder = AlphaBrush(tool.AccentHex, 0x66);
-
-        var icon = new Border
-        {
-            Width = 42,
-            Height = 42,
-            CornerRadius = new CornerRadius(10),
-            Background = softBrush,
-            BorderBrush = accentBorder,
-            BorderThickness = new Thickness(1),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new IconParkIcon
+            var label = new TextBlock
             {
-                Kind = tool.IconKey,
-                Width = 20,
-                Height = 20,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title),
                 VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            Grid.SetColumn(label, 1);
 
-        var text = new StackPanel
-        {
-            Spacing = 3,
-            Margin = new Thickness(11, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+            row.Children.Add(new Border
+            {
+                Classes = { "side-nav-icon" },
+                Child = new IconParkIcon
+                {
+                    Kind = tool.IconKey,
+                    Width = 15,
+                    Height = 15,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            });
+            row.Children.Add(label);
 
-        text.Children.Add(new TextBlock
-        {
-            Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title),
-            FontSize = 13.5,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = ThemeTokens.Brush("NekoTextBrush"),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = L.T($"Creator.Tool.{tool.Id}.Desc", tool.Description),
-            FontSize = 10.8,
-            Foreground = ThemeTokens.Brush("NekoMutedBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            MaxLines = 2,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
+            var button = new Button
+            {
+                Classes = { "side-nav" },
+                Content = row,
+                Tag = tool.Id,
+            };
+            ToolTip.SetTip(button, L.T($"Creator.Tool.{tool.Id}.Desc", tool.Description));
+            button.Click += (_, _) => SelectTool(tool);
 
-        var open = new Button
-        {
-            Content = L.T("Common.Open", "打开"),
-            Classes = { "ghost" },
-            Height = 28,
-            Padding = new Thickness(11, 0),
-            FontSize = 11.5,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-
-        grid.Children.Add(icon);
-        Grid.SetColumn(text, 1);
-        grid.Children.Add(text);
-        Grid.SetColumn(open, 2);
-        grid.Children.Add(open);
-
-        var card = new Border
-        {
-            CornerRadius = new CornerRadius(12),
-            BorderThickness = new Thickness(1),
-            BorderBrush = ThemeTokens.Brush("NekoBorderBrush"),
-            Background = ThemeTokens.Brush("NekoCardBrush"),
-            Padding = new Thickness(14),
-            Cursor = new Cursor(StandardCursorType.Hand),
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Child = grid,
-        };
-
-        ToolTip.SetTip(card, L.T($"Creator.Tool.{tool.Id}.Desc", tool.Description));
-
-        void Open() => ShowTool(tool);
-
-        open.Click += (_, e) =>
-        {
-            e.Handled = true;
-            Open();
-        };
-
-        card.PointerEntered += (_, _) =>
-        {
-            card.Background = ThemeTokens.Brush("NekoCardHoverBrush");
-            card.BorderBrush = AlphaBrush(tool.AccentHex, 0x88);
-        };
-        card.PointerExited += (_, _) =>
-        {
-            card.Background = ThemeTokens.Brush("NekoCardBrush");
-            card.BorderBrush = ThemeTokens.Brush("NekoBorderBrush");
-        };
-        card.PointerPressed += (_, e) =>
-        {
-            e.Handled = true;
-            Open();
-        };
-
-        return card;
+            _toolNavButtons[tool.Id] = button;
+            ToolNavPanel.Children.Add(button);
+        }
     }
 
-    /// <summary>开始菜单 ComboBox 的工具入口：直接打开对应工具，不再经过工具列表。</summary>
+    /// <summary>开始菜单里的工具入口：直接选中对应工具。</summary>
     public void OpenToolById(string toolId)
     {
-        foreach (var tool in CreatorToolCatalog.Tools)
+        var tool = CreatorToolCatalog.Tools.FirstOrDefault(item => item.Id == toolId)
+                   ?? CreatorToolCatalog.Tools[0];
+        SelectTool(tool, animate: false);
+    }
+
+    private void SelectTool(CreatorTool tool, bool animate = true)
+    {
+        var changed = !string.Equals(_currentToolId, tool.Id, StringComparison.Ordinal);
+        _currentToolId = tool.Id;
+
+        foreach (var pair in _toolNavButtons)
         {
-            if (tool.Id != toolId) continue;
-            ShowTool(tool);
-            return;
+            pair.Value.Classes.Set("active", string.Equals(pair.Key, tool.Id, StringComparison.Ordinal));
         }
-
-        ShowToolList();
-    }
-
-    private void ShowToolList()
-    {
-        ToolView.IsVisible = false;
-        ListView.IsVisible = true;
-        UiAnimations.Reset(ListView);
-        UiAnimations.FadeSlideIn(ListView);
-    }
-
-    private void ShowTool(CreatorTool tool)
-    {
-        ListView.IsVisible = false;
-        ToolView.IsVisible = true;
-        // 没有「创作中心」列表页可返回，工具页直接由开始菜单打开
-        ToolBackButton.IsVisible = false;
-
-        ToolTitle.Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title);
-        ToolSubtitle.Text = L.T($"Creator.Tool.{tool.Id}.Desc", tool.Description);
-        ToolIcon.Kind = tool.IconKey;
-        ToolIconTile.Background = AlphaBrush(tool.AccentHex, 0x2E);
 
         var isCube = tool.Id == "cube3d";
         CubeTextPanel.IsVisible = isCube;
@@ -276,25 +187,27 @@ public partial class CreatorView : UserControl
 
         if (isCube)
         {
+            // WebView2 是原生层叠窗口，不参与位移/淡入动画
+            UiAnimations.Reset(ToolBody);
             ToolBody.Content = null;
             PushCubeState();
+            return;
         }
-        else
+
+        if (!_toolPages.TryGetValue(tool.Id, out var page))
         {
-            if (!_toolPages.TryGetValue(tool.Id, out var page))
-            {
-                page = BuildToolPage(tool);
-                _toolPages[tool.Id] = page;
-            }
-
-            ToolBody.Content = page;
+            page = BuildToolPage(tool);
+            _toolPages[tool.Id] = page;
         }
 
-        UiAnimations.Reset(ToolView);
-        UiAnimations.FadeSlideIn(ToolView);
-    }
+        ToolBody.Content = page;
+        UiAnimations.Reset(ToolBody);
 
-    private void OnToolBackClick(object? sender, RoutedEventArgs e) => ShowToolList();
+        if (animate && changed)
+        {
+            UiAnimations.FadeSlideIn(ToolBody);
+        }
+    }
 
     // ================= 3D 文字生成器（内嵌 WebView2） =================
 
@@ -542,15 +455,14 @@ public partial class CreatorView : UserControl
 
     private Control BuildToolPage(CreatorTool tool)
     {
-        // 命令生成器：独立页面，自带三栏布局与滚动
+        // 命令生成器：独立页面，自带面板式布局与滚动
         if (tool.Id == "command")
             return new CommandGeneratorPage();
 
         var content = new StackPanel
         {
-            Spacing = 12,
-            Margin = new Thickness(0, 13, 0, 18),
-            MaxWidth = 1040,
+            Margin = new Thickness(2, 13, 10, 24),
+            MaxWidth = 1000,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
@@ -573,8 +485,9 @@ public partial class CreatorView : UserControl
                 BuildPluginPage(content);
                 break;
             default:
-                content.Children.Add(Card(L.T("Creator.Tool.PlaceholderTitle", "这个工具正在迁移中"), null,
-                    Muted(L.T("Creator.Tool.PlaceholderDesc", "工具页壳已就位，能力会随后续版本接入。"))));
+                content.Children.Add(ToolUi.Group("IconFluentWrench",
+                    L.T("Creator.Tool.PlaceholderTitle", "这个工具正在迁移中"),
+                    L.T("Creator.Tool.PlaceholderDesc", "工具页壳已就位，能力会随后续版本接入。")));
                 break;
         }
 
@@ -597,9 +510,13 @@ public partial class CreatorView : UserControl
     private void BuildResourcePackPage(StackPanel content)
     {
         var nameBox = Input("my-resource-pack", L.T("Creator.ResourcePack.NamePlaceholder", "例如 MofuPack"));
+        nameBox.Width = 260;
         var descBox = Input(L.T("Creator.ResourcePack.DescDefault", "Mofumofu 风格的原版增强材质"), L.T("Creator.ResourcePack.DescHint", "会写进 pack.mcmeta 的 description"));
+        descBox.Width = 260;
         var resolution = Choice(L.T("Creator.ResourcePack.Res16", "16x（原版）"), "32x", "64x", "128x");
+        resolution.Width = 200;
         var version = Choice(PackFormats.Select(item => item.Version).ToArray());
+        version.Width = 200;
         var metaCode = Code(string.Empty);
         var status = Caption(L.T("Creator.ResourcePack.Status.Init", "填写名称与版本后，右侧会实时生成 pack.mcmeta。"));
 
@@ -622,11 +539,14 @@ public partial class CreatorView : UserControl
         version.SelectionChanged += (_, _) => RefreshMeta();
         RefreshMeta();
 
-        var form = Card(L.T("Creator.ResourcePack.Card.Title", "资源包信息"), L.T("Creator.ResourcePack.Card.Hint", "决定 pack.mcmeta 与目录结构"),
-            Field(L.T("Creator.ResourcePack.Name", "资源包名称"), nameBox),
-            Field(L.T("Creator.ResourcePack.Desc", "描述"), descBox),
-            Split(Field(L.T("Creator.ResourcePack.Resolution", "贴图分辨率"), resolution), Field(L.T("Creator.ResourcePack.Version", "对应游戏版本"), version)),
-            status);
+        var form = ToolUi.Group("IconFluentImage",
+            L.T("Creator.ResourcePack.Card.Title", "资源包信息"),
+            L.T("Creator.ResourcePack.Card.Hint", "决定 pack.mcmeta 与目录结构"),
+            ToolUi.Row(L.T("Creator.ResourcePack.Name", "资源包名称"), nameBox),
+            ToolUi.Row(L.T("Creator.ResourcePack.Desc", "描述"),
+                L.T("Creator.ResourcePack.DescHint", "会写进 pack.mcmeta 的 description"), descBox),
+            ToolUi.Row(L.T("Creator.ResourcePack.Resolution", "贴图分辨率"), resolution),
+            ToolUi.Row(L.T("Creator.ResourcePack.Version", "对应游戏版本"), version));
 
         var files = new StackPanel { Spacing = 5 };
         foreach (var (glyph, name, info) in new[]
@@ -641,9 +561,14 @@ public partial class CreatorView : UserControl
             files.Children.Add(FileRow(glyph, name, info));
         }
 
-        var metaCard = Card("pack.mcmeta", L.T("Creator.ResourcePack.MetaCard.Hint", "随右侧信息实时更新"),
-            CodeCard(metaCode),
-            FileListCard(files));
+        var metaCard = ToolUi.Group("IconFluentDocument", "pack.mcmeta",
+            L.T("Creator.ResourcePack.MetaCard.Hint", "随上方信息实时更新"),
+            ToolUi.SoftBlock(metaCode));
+
+        var filesCard = ToolUi.Group("IconFolder",
+            L.T("Creator.ResourcePack.Files.Title", "目录结构"),
+            L.T("Creator.ResourcePack.Files.Hint", "生成草稿时写入的示例文件"),
+            ToolUi.SoftBlock(files));
 
         var actionRow = new StackPanel
         {
@@ -837,8 +762,16 @@ public partial class CreatorView : UserControl
             }
         };
 
-        content.Children.Add(Split(form, metaCard));
-        content.Children.Add(actionRow);
+        var actionGroup = ToolUi.Group("IconFluentBox",
+            L.T("Creator.ResourcePack.Actions.Title", "生成与导出"),
+            null,
+            actionRow,
+            status);
+
+        content.Children.Add(form);
+        content.Children.Add(metaCard);
+        content.Children.Add(filesCard);
+        content.Children.Add(actionGroup);
     }
 
     // ---------------- 创作中心本地文件操作（真实落盘） ----------------
@@ -1024,8 +957,11 @@ public partial class CreatorView : UserControl
         string[] controlLabels = { L.T("Creator.Gradient.Control.Amp", "& （插件常用）"), L.T("Creator.Gradient.Control.Section", "§ （原版标准）") };
 
         var textBox = Input("Mofumofu", L.T("Creator.Gradient.TextPlaceholder", "输入要着色的文字（支持中文）"));
+        textBox.Width = 280;
         var formatCombo = Choice(formatLabels);
+        formatCombo.Width = 230;
         var controlCombo = Choice(controlLabels);
+        controlCombo.Width = 230;
         var stops = new List<string> { "#38BDF8", "#A855F7", "#F472B6" };
         var stopsHost = new StackPanel { Spacing = 7 };
         var preview = new TextBlock
@@ -1039,11 +975,11 @@ public partial class CreatorView : UserControl
         var output = Code(string.Empty);
         var status = Caption(L.T("Creator.Gradient.Status.Init", "逐字着色：空白字符不参与渐变推进，颜色码会重置样式。"));
 
-        var boldCheck = Toggle(L.T("Creator.Gradient.Style.Bold", "粗体"));
-        var italicCheck = Toggle(L.T("Creator.Gradient.Style.Italic", "斜体"));
-        var underlineCheck = Toggle(L.T("Creator.Gradient.Style.Underline", "下划线"));
-        var strikeCheck = Toggle(L.T("Creator.Gradient.Style.Strike", "删除线"));
-        var obfuscatedCheck = Toggle(L.T("Creator.Gradient.Style.Obfuscated", "乱码"));
+        var boldCheck = ToolUi.Switch();
+        var italicCheck = ToolUi.Switch();
+        var underlineCheck = ToolUi.Switch();
+        var strikeCheck = ToolUi.Switch();
+        var obfuscatedCheck = ToolUi.Switch();
 
         var stopsPanel = new StackPanel { Spacing = 8 };
         stopsPanel.Children.Add(stopsHost);
@@ -1097,23 +1033,17 @@ public partial class CreatorView : UserControl
                     Refresh();
                 };
 
-                var row = new StackPanel
+                var editor = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 8,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                row.Children.Add(new TextBlock
-                {
-                    Text = L.T("Creator.Gradient.StopLabel", "色标 {0}", i + 1),
-                    Classes = { "caption" },
-                    Width = 48,
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
-                row.Children.Add(colorBox);
-                row.Children.Add(swatch);
-                row.Children.Add(remove);
-                stopsHost.Children.Add(row);
+                editor.Children.Add(colorBox);
+                editor.Children.Add(swatch);
+                editor.Children.Add(remove);
+                stopsHost.Children.Add(ToolUi.Row(
+                    L.T("Creator.Gradient.StopLabel", "色标 {0}", i + 1), editor));
             }
         }
 
@@ -1169,41 +1099,42 @@ public partial class CreatorView : UserControl
             Shell.Toast(L.T("Creator.Gradient.Toast.Copied", "渐变颜色码已复制到剪贴板"));
         };
 
-        var styleRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 14,
-        };
-        styleRow.Children.Add(boldCheck);
-        styleRow.Children.Add(italicCheck);
-        styleRow.Children.Add(underlineCheck);
-        styleRow.Children.Add(strikeCheck);
-        styleRow.Children.Add(obfuscatedCheck);
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        buttons.Children.Add(addStop);
-        buttons.Children.Add(copy);
-
         RebuildStops();
 
-        var formCard = Card(L.T("Creator.Gradient.Card.Title", "渐变设置"), L.T("Creator.Gradient.Card.Hint", "最多 6 个色标，按顺序插值"),
-            Field(L.T("Creator.Gradient.Text", "文字内容"), textBox),
+        var textGroup = ToolUi.Group("IconFluentFont",
+            L.T("Creator.Gradient.Card.Title", "渐变设置"), null,
+            ToolUi.Row(L.T("Creator.Gradient.Text", "文字内容"), textBox),
+            ToolUi.Row(L.T("Creator.Gradient.Format", "输出格式"), formatCombo),
+            ToolUi.Row(L.T("Creator.Gradient.Control", "控制符"), controlCombo));
+
+        var stopsGroup = ToolUi.Group("IconFluentPaint",
+            L.T("Creator.Gradient.Stops.Title", "渐变色标"),
+            L.T("Creator.Gradient.Card.Hint", "最多 6 个色标，按顺序插值"),
             stopsPanel,
-            Split(Field(L.T("Creator.Gradient.Format", "输出格式"), formatCombo), Field(L.T("Creator.Gradient.Control", "控制符"), controlCombo)),
-            Field(L.T("Creator.Gradient.Styles", "文字样式"), styleRow),
-            buttons,
+            ToolUi.Actions(addStop));
+
+        var styleGroup = ToolUi.Group("IconFluentFont",
+            L.T("Creator.Gradient.Styles", "文字样式"), null,
+            ToolUi.Row(L.T("Creator.Gradient.Style.Bold", "粗体"), boldCheck),
+            ToolUi.Row(L.T("Creator.Gradient.Style.Italic", "斜体"), italicCheck),
+            ToolUi.Row(L.T("Creator.Gradient.Style.Underline", "下划线"), underlineCheck),
+            ToolUi.Row(L.T("Creator.Gradient.Style.Strike", "删除线"), strikeCheck),
+            ToolUi.Row(L.T("Creator.Gradient.Style.Obfuscated", "乱码"), obfuscatedCheck));
+
+        var previewBlock = ToolUi.SoftBlock(preview);
+        previewBlock.Margin = new Thickness(0, 0, 0, 8);
+
+        var previewGroup = ToolUi.Group("IconFluentImage",
+            L.T("Creator.Gradient.Preview", "预览与输出"), null,
+            previewBlock,
+            ToolUi.SoftBlock(output),
+            ToolUi.Actions(copy),
             status);
 
-        var previewCard = Card(L.T("Creator.Gradient.Preview", "预览与输出"), null,
-            new Border { Classes = { "card-soft" }, Child = preview },
-            CodeCard(output));
-
-        content.Children.Add(Split(formCard, previewCard));
+        content.Children.Add(textGroup);
+        content.Children.Add(stopsGroup);
+        content.Children.Add(styleGroup);
+        content.Children.Add(previewGroup);
         Refresh();
     }
 
@@ -1241,8 +1172,10 @@ public partial class CreatorView : UserControl
     private void BuildSkinPage(StackPanel content)
     {
         var accounts = Choice(RealAccountNames().ToArray());
+        accounts.Width = 220;
         var model = Choice(L.T("Creator.Skin.Model.Classic", "经典（4 格手臂）"), L.T("Creator.Skin.Model.Slim", "纤细（3 格手臂）"));
-        var cape = Toggle(L.T("Creator.Skin.Cape", "显示披风"));
+        model.Width = 220;
+        var cape = ToolUi.Switch();
         var status = Caption(L.T("Creator.Skin.Status.Init", "在画布上按住左键绘制，选「橡皮」擦除；导出的是标准 64×64 皮肤 PNG。"));
         _skinStatus = status;
         _skinAccountName = accounts.SelectedItem as string ?? "Mofumofu";
@@ -1391,18 +1324,27 @@ public partial class CreatorView : UserControl
         brushRow.Children.Add(export);
         brushRow.Children.Add(apply);
 
-        var formCard = Card(L.T("Creator.Skin.Card.Title", "账号与模型"), L.T("Creator.Skin.Card.Hint", "选择皮肤归属与体型"),
-            Field(L.T("Creator.Skin.Account", "账号"), accounts),
-            Field(L.T("Creator.Skin.Model", "皮肤模型"), model),
-            cape,
-            Field(L.T("Creator.Skin.Tools", "绘图工具"), new StackPanel { Spacing = 8, Children = { brushRow } }),
+        canvasBorder.HorizontalAlignment = HorizontalAlignment.Center;
+        paletteGrid.HorizontalAlignment = HorizontalAlignment.Center;
+        paletteGrid.Margin = new Thickness(0, 10, 0, 0);
+
+        var accountGroup = ToolUi.Group("IconFluentPerson",
+            L.T("Creator.Skin.Card.Title", "账号与模型"),
+            L.T("Creator.Skin.Card.Hint", "选择皮肤归属与体型"),
+            ToolUi.Row(L.T("Creator.Skin.Account", "账号"), accounts),
+            ToolUi.Row(L.T("Creator.Skin.Model", "皮肤模型"), model),
+            ToolUi.Row(L.T("Creator.Skin.Cape", "显示披风"), cape));
+
+        var canvasGroup = ToolUi.Group("IconFluentImage",
+            L.T("Creator.Skin.Canvas.Title", "64 × 64 像素画布"),
+            L.T("Creator.Skin.Canvas.Hint", "左键绘制 · 下方调色板取色"),
+            canvasBorder,
+            paletteGrid,
+            ToolUi.Row(L.T("Creator.Skin.Tools", "绘图工具"), brushRow),
             status);
 
-        var canvasCard = Card(L.T("Creator.Skin.Canvas.Title", "64 × 64 像素画布"), L.T("Creator.Skin.Canvas.Hint", "左键绘制 · 右侧调色板取色"),
-            canvasBorder,
-            paletteGrid);
-
-        content.Children.Add(Split(formCard, canvasCard));
+        content.Children.Add(accountGroup);
+        content.Children.Add(canvasGroup);
     }
 
     private void PaintDefaultSkin()
@@ -1675,13 +1617,17 @@ public partial class CreatorView : UserControl
         List<InstanceInfo> instances = RealInstances();
         string[] items = instances.Select((InstanceInfo instance) => instance.Name).ToArray();
         ComboBox instanceCombo = Choice(items);
+        instanceCombo.Width = 240;
         TextBox versionBox = Input("1.0.0", L.T("Creator.Modpack.VersionPlaceholder", "整合包版本号"));
+        versionBox.Width = 160;
         ComboBox field = Choice(L.T("Creator.Modpack.Format.Mrpack", ".mrpack（Modrinth）"), L.T("Creator.Modpack.Format.MultiMc", ".zip（MultiMC / Prism）"));
-        CheckBox includeConfig = Toggle(L.T("Creator.Modpack.IncludeConfig", "包含 config 与 options 覆盖文件"), isChecked: true);
-        CheckBox includeMods = Toggle(L.T("Creator.Modpack.IncludeMods", "包含模组清单"), isChecked: true);
-        CheckBox includeJava = Toggle(L.T("Creator.Solo.IncludeJava", "内嵌 Java 运行时"), isChecked: true);
-        CheckBox silent = Toggle(L.T("Creator.Solo.Silent", "玩家双击后静默启动"));
+        field.Width = 240;
+        ToggleSwitch includeConfig = ToolUi.Switch(isChecked: true);
+        ToggleSwitch includeMods = ToolUi.Switch(isChecked: true);
+        ToggleSwitch includeJava = ToolUi.Switch(isChecked: true);
+        ToggleSwitch silent = ToolUi.Switch();
         TextBox outputBox = Input(solo ? SoloOutputRoot : ModpackOutputRoot);
+        outputBox.Width = 300;
         ProgressBar progress = new ProgressBar
         {
             Minimum = 0.0,
@@ -1951,64 +1897,73 @@ public partial class CreatorView : UserControl
                 }
             }
         };
-        StackPanel stackPanel = new StackPanel
+        var outputRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8.0,
-            HorizontalAlignment = HorizontalAlignment.Right
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        outputRow.Children.Add(outputBox);
+        outputRow.Children.Add(button);
+
+        var rows = new List<Control>
+        {
+            ToolUi.Row(L.T("Creator.Modpack.Instance", "实例"), instanceCombo),
+            ToolUi.Row(L.T("Creator.Modpack.Version", "版本号"), versionBox),
         };
         if (!solo)
         {
-            stackPanel.Children.Add(button);
+            rows.Insert(1, ToolUi.Row(L.T("Creator.Modpack.Format", "格式"), field));
+            rows.Add(ToolUi.Row(L.T("Creator.Modpack.Output", "输出目录"), outputRow));
+            rows.Add(ToolUi.Row(L.T("Creator.Modpack.IncludeConfig", "包含 config 与 options 覆盖文件"), includeConfig));
+            rows.Add(ToolUi.Row(L.T("Creator.Modpack.IncludeMods", "包含模组清单"), includeMods));
         }
-        if (!solo)
+        else
         {
-            stackPanel.Children.Add(installButton);
+            rows.Add(ToolUi.Row(L.T("Creator.Solo.IncludeJava", "内嵌 Java 运行时"), includeJava));
         }
-        stackPanel.Children.Add(startButton);
-        Border border = Card(solo ? L.T("Creator.Solo.Card.Title", "NekoSolo 设置") : L.T("Creator.Modpack.Card.Title", "整合包设置"), L.T("Creator.Modpack.Card.Hint", "按实例导出，可勾选包含内容"), Field(L.T("Creator.Modpack.Instance", "实例"), instanceCombo), solo ? ((Control)Caption(L.T("Creator.Solo.OutputHint", "点「开始打包」后选择 .zip 保存位置。"))) : ((Control)Split(Field(L.T("Creator.Modpack.Format", "格式"), field), Field(L.T("Creator.Modpack.Version", "版本号"), versionBox))), solo ? new ContentControl
-        {
-            IsVisible = false
-        } : includeConfig, solo ? new ContentControl
-        {
-            IsVisible = false
-        } : includeMods, solo ? includeJava : new CheckBox
-        {
-            IsVisible = false
-        }, silent, solo ? ((Control)new ContentControl
-        {
-            IsVisible = false
-        }) : ((Control)Caption(L.T("Creator.Modpack.Install.Hint", "安装 .mrpack：选择本地整合包，把其中的 overrides 解压进上面所选的实例目录。"))), solo ? new ContentControl
-        {
-            IsVisible = false
-        } : Field(L.T("Creator.Modpack.Output", "输出目录"), outputBox), progress, status, stackPanel);
-        Border border2 = Card(solo ? L.T("Creator.Solo.Manifest", "打包清单") : "modrinth.index.json", L.T("Creator.Modpack.Manifest", "导出前预览生成内容"), CodeCard(manifestScroll));
+        rows.Add(ToolUi.Row(L.T("Creator.Solo.Silent", "玩家双击后静默启动"), silent));
 
-        // 页面纵向填满：两张卡片撑满视口高度，窗口太矮时整页仍可滚动兜底
-        border.VerticalAlignment = VerticalAlignment.Stretch;
-        border2.VerticalAlignment = VerticalAlignment.Stretch;
-        Grid page = new()
-        {
-            Margin = new Thickness(0, 13, 0, 18),
-            MaxWidth = 1040,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        page.Children.Add(Split(border, border2));
+        var settingsGroup = ToolUi.Group(
+            solo ? "IconFluentDocument" : "IconFluentBox",
+            solo ? L.T("Creator.Solo.Card.Title", "NekoSolo 设置") : L.T("Creator.Modpack.Card.Title", "整合包设置"),
+            L.T("Creator.Modpack.Card.Hint", "按实例导出，可勾选包含内容"),
+            rows.ToArray());
 
-        ScrollViewer root = new()
+        manifestScroll.MaxHeight = 320;
+        var manifestGroup = ToolUi.Group("IconFluentDocument",
+            solo ? L.T("Creator.Solo.Manifest", "打包清单") : "modrinth.index.json",
+            L.T("Creator.Modpack.Manifest", "导出前预览生成内容"),
+            ToolUi.SoftBlock(manifestScroll));
+
+        var actionRow = new StackPanel
         {
-            Content = page,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 8, 0, 0),
         };
-        root.SizeChanged += (_, e) =>
+        if (!solo) actionRow.Children.Add(installButton);
+        actionRow.Children.Add(startButton);
+
+        progress.Margin = new Thickness(0, 6, 0, 0);
+        var actionChildren = new List<Control> { progress, status };
+        if (solo)
         {
-            double height = e.NewSize.Height;
-            // 31 = 页面上下边距(13+18)；190 = 卡片头/内边距/进度与状态行的大致占位
-            page.MinHeight = Math.Max(0.0, height - 31);
-            manifestScroll.MaxHeight = Math.Max(160.0, height - 190);
-        };
-        return root;
+            actionChildren.Add(Caption(L.T("Creator.Solo.OutputHint", "点「开始打包」后选择 .zip 保存位置。")));
+        }
+        else
+        {
+            actionChildren.Add(Caption(L.T("Creator.Modpack.Install.Hint", "安装 .mrpack：选择本地整合包，把其中的 overrides 解压进上面所选的实例目录。")));
+        }
+        actionChildren.Add(actionRow);
+
+        var actionGroup = ToolUi.Group("IconDownload",
+            solo ? L.T("Creator.Solo.Actions.Title", "打包") : L.T("Creator.Modpack.Actions.Title", "导出与安装"),
+            null,
+            actionChildren.ToArray());
+
+        return ToolUi.Page(settingsGroup, manifestGroup, actionGroup);
         void RefreshManifest()
         {
             if (instances.Count == 0)
@@ -2503,22 +2458,31 @@ public partial class CreatorView : UserControl
     private void BuildPluginPage(StackPanel content)
     {
         TextBox idBox = Input("my-plugin", "my-plugin");
+        idBox.Width = 220;
         TextBox nameBox = Input(L.T("Creator.Plugin.NameDefault", "我的插件"), L.T("Creator.Plugin.NamePlaceholder", "显示名称"));
+        nameBox.Width = 220;
         TextBox versionBox = Input("1.0.0");
+        versionBox.Width = 160;
         TextBox apiBox = Input("1");
+        apiBox.Width = 160;
         TextBox authorBox = Input("Mofumofu");
+        authorBox.Width = 220;
         TextBox descBox = Input(L.T("Creator.Plugin.DescDefault", "在桌面加一个小组件"), L.T("Creator.Plugin.DescPlaceholder", "一句话简介"));
+        descBox.Width = 280;
         TextBox entryBox = Input("index.js");
+        entryBox.Width = 220;
         TextBox iconBox = Input("icon.png");
+        iconBox.Width = 220;
         TextBox stylesBox = Input("theme.css", L.T("Creator.Plugin.StylesPlaceholder", "逗号分隔，可留空"));
+        stylesBox.Width = 280;
         TextBlock idError = Caption(string.Empty);
-        (string Key, string Label, CheckBox Box)[] permissions = new (string, string, CheckBox)[5]
+        (string Key, string Label, ToggleSwitch Box)[] permissions = new (string, string, ToggleSwitch)[5]
         {
-            ("network", L.T("Creator.Plugin.Perm.Network", "网络访问（下载 / 请求 API）"), Toggle("network")),
-            ("filesystem", L.T("Creator.Plugin.Perm.FileSystem", "文件读写（配置 / 日志）"), Toggle("filesystem")),
-            ("notifications", L.T("Creator.Plugin.Perm.Notifications", "系统通知"), Toggle("notifications")),
-            ("commands", L.T("Creator.Plugin.Perm.Commands", "注册启动器命令"), Toggle("commands")),
-            ("widgets", L.T("Creator.Plugin.Perm.Widgets", "注册桌面小组件"), Toggle("widgets", isChecked: true))
+            ("network", L.T("Creator.Plugin.Perm.Network", "网络访问（下载 / 请求 API）"), ToolUi.Switch()),
+            ("filesystem", L.T("Creator.Plugin.Perm.FileSystem", "文件读写（配置 / 日志）"), ToolUi.Switch()),
+            ("notifications", L.T("Creator.Plugin.Perm.Notifications", "系统通知"), ToolUi.Switch()),
+            ("commands", L.T("Creator.Plugin.Perm.Commands", "注册启动器命令"), ToolUi.Switch()),
+            ("widgets", L.T("Creator.Plugin.Perm.Widgets", "注册桌面小组件"), ToolUi.Switch(isChecked: true))
         };
         SelectableTextBlock yaml = Code(string.Empty);
         TextBlock status = Caption(L.T("Creator.Plugin.Status.Init", "id 只允许字母、数字、连字符与下划线；创建后不可修改。"));
@@ -2530,10 +2494,10 @@ public partial class CreatorView : UserControl
                 Refresh();
             };
         }
-        (string, string, CheckBox)[] array2 = permissions;
+        (string, string, ToggleSwitch)[] array2 = permissions;
         for (int num = 0; num < array2.Length; num++)
         {
-            CheckBox item = array2[num].Item3;
+            ToggleSwitch item = array2[num].Item3;
             item.Click += (object? _, RoutedEventArgs _) =>
             {
                 Refresh();
@@ -2667,20 +2631,6 @@ public partial class CreatorView : UserControl
             await CopyToClipboardAsync(yaml.Text ?? string.Empty);
             Shell.Toast(L.T("Creator.Plugin.Toast.Copied", "plugin.yaml 已复制到剪贴板"));
         };
-        StackPanel stackPanel = new StackPanel
-        {
-            Spacing = 6.0
-        };
-        (string, string, CheckBox)[] array3 = permissions;
-        for (int num2 = 0; num2 < array3.Length; num2++)
-        {
-            (string, string, CheckBox) tuple = array3[num2];
-            string item2 = tuple.Item2;
-            CheckBox item3 = tuple.Item3;
-            item3.Content = item2;
-            item3.FontSize = 12.0;
-            stackPanel.Children.Add(item3);
-        }
         StackPanel stackPanel2 = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -2688,12 +2638,45 @@ public partial class CreatorView : UserControl
             HorizontalAlignment = HorizontalAlignment.Right
         };
         stackPanel2.Children.Add(button2);
-        stackPanel2.Children.Add(button);
         stackPanel2.Children.Add(package);
         stackPanel2.Children.Add(create);
-        Border border = Card(L.T("Creator.Plugin.Card.Title", "清单字段"), L.T("Creator.Plugin.Card.Hint", "填写后会实时生成 plugin.yaml"), Split(Field(L.T("Creator.Plugin.Id", "插件 id"), idBox, idError), Field(L.T("Creator.Plugin.Name", "名称"), nameBox)), Split(Field(L.T("Creator.Modpack.Version", "版本号"), versionBox), Field(L.T("Creator.Plugin.ApiVersion", "API 版本"), apiBox)), Split(Field(L.T("Creator.Plugin.Author", "作者"), authorBox), Field(L.T("Creator.Plugin.Desc", "简介"), descBox)), Split(Field(L.T("Creator.Plugin.Entry", "入口文件"), entryBox), Field(L.T("Creator.Plugin.Icon", "图标文件"), iconBox)), Field(L.T("Creator.Plugin.Styles", "样式文件"), stylesBox), Field(L.T("Creator.Plugin.Permissions", "权限声明"), stackPanel), stackPanel2, status);
-        Border border2 = Card("plugin.yaml", null, CodeCard(yaml));
-        content.Children.Add(Split(border, border2));
+
+        var fieldsGroup = ToolUi.Group("IconFluentPuzzle",
+            L.T("Creator.Plugin.Card.Title", "清单字段"),
+            L.T("Creator.Plugin.Card.Hint", "填写后会实时生成 plugin.yaml"),
+            ToolUi.RowWithHintControl(L.T("Creator.Plugin.Id", "插件 id"), idError, idBox),
+            ToolUi.Row(L.T("Creator.Plugin.Name", "名称"), nameBox),
+            ToolUi.Row(L.T("Creator.Modpack.Version", "版本号"), versionBox),
+            ToolUi.Row(L.T("Creator.Plugin.ApiVersion", "API 版本"), apiBox),
+            ToolUi.Row(L.T("Creator.Plugin.Author", "作者"), authorBox),
+            ToolUi.Row(L.T("Creator.Plugin.Desc", "简介"), descBox),
+            ToolUi.Row(L.T("Creator.Plugin.Entry", "入口文件"), entryBox),
+            ToolUi.Row(L.T("Creator.Plugin.Icon", "图标文件"), iconBox),
+            ToolUi.Row(L.T("Creator.Plugin.Styles", "样式文件"),
+                L.T("Creator.Plugin.StylesPlaceholder", "逗号分隔，可留空"), stylesBox));
+
+        var permissionRows = new List<Control>();
+        foreach (var (_, label, box) in permissions)
+        {
+            permissionRows.Add(ToolUi.Row(label, box));
+        }
+        var permissionsGroup = ToolUi.Group("IconFluentCheck",
+            L.T("Creator.Plugin.Permissions", "权限声明"), null,
+            permissionRows.ToArray());
+
+        var yamlGroup = ToolUi.Group("IconFluentDocument", "plugin.yaml", null,
+            ToolUi.SoftBlock(yaml),
+            ToolUi.Actions(button));
+
+        var actionsGroup = ToolUi.Group("IconFluentBox",
+            L.T("Creator.Plugin.Actions.Title", "创建与打包"), null,
+            stackPanel2,
+            status);
+
+        content.Children.Add(fieldsGroup);
+        content.Children.Add(permissionsGroup);
+        content.Children.Add(yamlGroup);
+        content.Children.Add(actionsGroup);
         void Refresh()
         {
             string text = (idBox.Text ?? string.Empty).Trim();
@@ -2773,12 +2756,12 @@ public partial class CreatorView : UserControl
                 stringBuilder.AppendLine("styles: []");
             }
             stringBuilder.AppendLine("permissions:");
-            (string, string, CheckBox)[] array6 = permissions;
+            (string, string, ToggleSwitch)[] array6 = permissions;
             for (int num4 = 0; num4 < array6.Length; num4++)
             {
-                (string, string, CheckBox) tuple2 = array6[num4];
+                (string, string, ToggleSwitch) tuple2 = array6[num4];
                 string item4 = tuple2.Item1;
-                CheckBox item5 = tuple2.Item3;
+                ToggleSwitch item5 = tuple2.Item3;
                 stringBuilder2 = stringBuilder;
                 StringBuilder stringBuilder12 = stringBuilder2;
                 handler = new StringBuilder.AppendInterpolatedStringHandler(4, 2, stringBuilder2);
@@ -3011,13 +2994,6 @@ public partial class CreatorView : UserControl
     private static TextBlock Caption(string text) =>
         new() { Text = text, Classes = { "caption" }, TextWrapping = TextWrapping.Wrap };
 
-    private static TextBlock Muted(string text) => new()
-    {
-        Text = text,
-        Classes = { "muted" },
-        TextWrapping = TextWrapping.Wrap,
-    };
-
     private static TextBox Input(string text, string? placeholder = null) => new()
     {
         Text = text,
@@ -3033,13 +3009,6 @@ public partial class CreatorView : UserControl
         HorizontalAlignment = HorizontalAlignment.Stretch,
         FontSize = 12.5,
         Height = 32,
-    };
-
-    private static CheckBox Toggle(string label, bool isChecked = false) => new()
-    {
-        Content = label,
-        IsChecked = isChecked,
-        FontSize = 12,
     };
 
     private static Button GhostButton(string text) => new()
@@ -3066,98 +3035,6 @@ public partial class CreatorView : UserControl
         FontSize = 11.5,
         Foreground = ThemeTokens.Brush("NekoTextBrush"),
     };
-
-    private static Border CodeCard(Control code) => new()
-    {
-        Classes = { "card-soft" },
-        Padding = new Thickness(12, 10),
-        Child = code,
-    };
-
-    private static Control Field(string label, Control field, Control? hint = null)
-    {
-        var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(new TextBlock { Text = label, Classes = { "caption" } });
-
-        // 命令生成器会在切换类型时复用同一个输入框；先把它从旧表单里摘下来，
-        // 否则 Avalonia 会抛「already has a visual parent」并让整个程序崩溃。
-        DetachFromParent(field);
-        panel.Children.Add(field);
-        if (hint is not null) panel.Children.Add(hint);
-
-        return panel;
-    }
-
-    private static void DetachFromParent(Control control)
-    {
-        switch (control.Parent)
-        {
-            case Panel panel:
-                panel.Children.Remove(control);
-                break;
-            case Decorator decorator:
-                decorator.Child = null;
-                break;
-            case ContentControl contentControl:
-                contentControl.Content = null;
-                break;
-        }
-    }
-
-    private static Grid Split(params Control[] children)
-    {
-        var grid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions(string.Join(',', Enumerable.Repeat("*", children.Length))),
-            ColumnSpacing = 12,
-        };
-
-        for (var index = 0; index < children.Length; index++)
-        {
-            Grid.SetColumn(children[index], index);
-            grid.Children.Add(children[index]);
-        }
-
-        return grid;
-    }
-
-    private static Border Card(string title, string? hint, params Control[] children)
-    {
-        var panel = new StackPanel { Spacing = 10 };
-
-        var header = new StackPanel { Spacing = 2 };
-        header.Children.Add(new TextBlock
-        {
-            Text = title,
-            Classes = { "section-title" },
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        if (!string.IsNullOrWhiteSpace(hint))
-        {
-            header.Children.Add(Caption(hint));
-        }
-
-        panel.Children.Add(header);
-
-        foreach (var child in children)
-        {
-            if (child is CheckBox check)
-            {
-                check.FontSize = 12;
-                check.Margin = new Thickness(0, 1);
-            }
-
-            panel.Children.Add(child);
-        }
-
-        return new Border
-        {
-            Classes = { "card" },
-            Child = panel,
-            VerticalAlignment = VerticalAlignment.Top,
-        };
-    }
 
     private static Control FileRow(string glyphKey, string name, string info)
     {
@@ -3194,13 +3071,6 @@ public partial class CreatorView : UserControl
 
         return row;
     }
-
-    private static Border FileListCard(Control rows) => new()
-    {
-        Classes = { "card-soft" },
-        Padding = new Thickness(12, 10),
-        Child = rows,
-    };
 
     // ================= 列表页脚操作 =================
 

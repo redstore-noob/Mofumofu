@@ -42,6 +42,7 @@ public partial class MainWindow : Window
         ("music", "音乐", "IconMusic", "本地音乐播放器"),
         ("online", "联机", "IconGlobe", "房间与公网联机"),
         ("servers", "服务器", "IconServer", "本机托管与收藏"),
+        ("creator", "工具", "IconCreator", "资源包、命令、文字与皮肤工具"),
         ("plugins", "插件", "IconPlugin", "扩展与权限"),
         ("mofuagent", "MofuAgent", "IconRobot", "内置智能体 · 会操作启动器"),
         ("settings", "设置", "IconSettings", "启动器选项"),
@@ -56,8 +57,6 @@ public partial class MainWindow : Window
     /// <summary>页面 id → 包了一层插件内容宿主的页面控件；页面本体仍在 _pageCache 里。</summary>
     private readonly Dictionary<string, Control> _hostCache = new();
     private readonly Dictionary<string, Button> _navButtons = new();
-    private string? _lastCreatorToolId;
-    private bool _creatorToolsExpanded;
 
     public MainWindow()
     {
@@ -425,8 +424,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 开始菜单：单列列表——图标 + 文字。工具不再有独立「创作中心」页面，
-    /// 只在菜单里放一个 ComboBox，展开后选择工具。
+    /// 开始菜单：单列列表——图标 + 文字。工具和其它页面一样是普通条目，
+    /// 点进去后在创作页左侧选具体工具。
     /// </summary>
     private void BuildStartMenu()
     {
@@ -437,11 +436,6 @@ public partial class MainWindow : Window
 
         foreach (var entry in PageRegistry)
         {
-            if (entry.Id == "plugins")
-            {
-                AddCreatorToolsRow();
-            }
-
             AddMenuRow(entry.Id, PageLabel(entry.Id, entry.Label), entry.IconKey);
         }
 
@@ -945,174 +939,8 @@ public partial class MainWindow : Window
             : L.T("Shell.Taskbar.Removed", "已从任务栏移除「{0}」", label));
     }
 
-    /// <summary>开始菜单里的工具入口：点击整行，工具列表在菜单内联展开 / 收起。</summary>
-    private void AddCreatorToolsRow()
-    {
-        var current = CreatorToolCatalog.Tools.FirstOrDefault(tool => tool.Id == _lastCreatorToolId);
-
-        var glyph = new IconParkIcon
-        {
-            Kind = current?.IconKey ?? "IconCreator",
-            Width = 16,
-            Height = 16,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-        };
-
-        var label = new TextBlock
-        {
-            Text = current is null
-                ? L.T("Shell.StartMenu.ToolsPick", "选择工具")
-                : L.T($"Creator.Tool.{current.Id}.Title", current.Title),
-            FontSize = 13,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Foreground = (IBrush)FindRes("NekoTextBrush")!,
-        };
-
-        var chevron = new IconParkIcon
-        {
-            Kind = "IconChevronDown",
-            Width = 12,
-            Height = 12,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-        };
-
-        var content = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
-        };
-        content.Children.Add(glyph);
-        label.Margin = new Thickness(10, 0, 0, 0);
-        Grid.SetColumn(label, 1);
-        content.Children.Add(label);
-        Grid.SetColumn(chevron, 2);
-        content.Children.Add(chevron);
-
-        var button = new Button
-        {
-            Classes = { "menu-row" },
-            Height = 46,
-            Margin = new Thickness(6, 2, 6, 2),
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            Content = content,
-        };
-
-        var list = new StackPanel
-        {
-            Spacing = 2,
-            Margin = new Thickness(18, 0, 0, 2),
-            IsVisible = _creatorToolsExpanded,
-        };
-
-        foreach (var tool in CreatorToolCatalog.Tools)
-        {
-            var icon = new IconParkIcon
-            {
-                Kind = tool.IconKey ?? "IconCreator",
-                Width = 15,
-                Height = 15,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            };
-
-            var title = new TextBlock
-            {
-                Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title),
-                FontSize = 13,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Foreground = (IBrush)FindRes("NekoTextBrush")!,
-            };
-
-            var rowContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-            rowContent.Children.Add(icon);
-            title.Margin = new Thickness(10, 0, 0, 0);
-            Grid.SetColumn(title, 1);
-            rowContent.Children.Add(title);
-
-            var row = new Button
-            {
-                Classes = { "menu-row" },
-                Height = 38,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                Content = rowContent,
-            };
-
-            row.Click += (_, _) =>
-            {
-                _lastCreatorToolId = tool.Id;
-                label.Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title);
-                glyph.Kind = tool.IconKey ?? glyph.Kind;
-                StartMenuOverlay.IsVisible = false;
-                StartButton.Classes.Set("active", false);
-                OpenCreatorTool(tool.Id);
-            };
-
-            list.Children.Add(row);
-        }
-
-        foreach (var (pluginPageId, pluginPage) in PluginPages)
-        {
-            if (!pluginPage.IsTool) continue;
-
-            string pageId = pluginPageId;
-            var pluginIcon = new IconParkIcon
-            {
-                Kind = "IconFluentWrench",
-                Width = 15,
-                Height = 15,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            };
-
-            var pluginTitle = new TextBlock
-            {
-                Text = pluginPage.Label,
-                FontSize = 13,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Foreground = (IBrush)FindRes("NekoTextBrush")!,
-                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-            };
-
-            var pluginRowContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-            pluginRowContent.Children.Add(pluginIcon);
-            pluginTitle.Margin = new Thickness(10, 0, 0, 0);
-            Grid.SetColumn(pluginTitle, 1);
-            pluginRowContent.Children.Add(pluginTitle);
-
-            var pluginRow = new Button
-            {
-                Classes = { "menu-row" },
-                Height = 38,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                Content = pluginRowContent,
-            };
-
-            pluginRow.Click += (_, _) =>
-            {
-                StartMenuOverlay.IsVisible = false;
-                StartButton.Classes.Set("active", false);
-                Navigate(pageId);
-            };
-
-            list.Children.Add(pluginRow);
-        }
-
-        var container = new StackPanel();
-        container.Children.Add(button);
-        container.Children.Add(list);
-
-        button.Click += (_, _) =>
-        {
-            _creatorToolsExpanded = !_creatorToolsExpanded;
-            list.IsVisible = _creatorToolsExpanded;
-        };
-
-        StartMenuPanel.Children.Add(container);
-    }
-
     private void OpenCreatorTool(string toolId)
     {
-        _lastCreatorToolId = toolId;
         Navigate("creator");
         if (_pageCache.TryGetValue("creator", out var page) && page is CreatorView creator)
         {

@@ -26,9 +26,9 @@ namespace Mofumofu.Launcher.Views;
 
 /// <summary>
 /// 命令生成器（创作中心 · command 工具页）。
-/// 三栏布局：左侧命令列表（搜索 + 分类）→ 中间参数表单（目标选择器 + 动态字段 +
-/// 物品组件 / 实体 NBT 高级面板）→ 右侧实时输出（语法高亮、一键复制、历史与收藏）。
-/// 输出随表单实时刷新，不再需要「生成」按钮。
+/// 与设置页统一的面板式布局，自上而下：选择命令（搜索 + 分类）→ 参数表单
+/// （目标选择器 + 动态字段 + 物品组件 / 实体 NBT 高级面板）→ 实时输出
+/// （语法高亮、一键复制）→ 历史与收藏。输出随表单实时刷新，不需要「生成」按钮。
 /// </summary>
 public sealed class CommandGeneratorPage : UserControl
 {
@@ -115,58 +115,45 @@ public sealed class CommandGeneratorPage : UserControl
         _listScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         _listScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
 
-        _listCard.Classes.Add("card");
-        _listCard.Padding = new Thickness(12);
-        _listCard.VerticalAlignment = VerticalAlignment.Stretch;
-        _listCard.Child = new Grid
+        _listCard.Classes.Add("setting-group");
+        _listScroll.MaxHeight = 260;
+        var listPanel = new StackPanel { Spacing = 9 };
+        listPanel.Children.Add(ToolUi.Header("IconFluentCode",
+            L.T("Creator.Command.Catalog.Title", "选择命令"), null));
+        listPanel.Children.Add(_searchBox);
+        listPanel.Children.Add(_categoryHost);
+        listPanel.Children.Add(_listScroll);
+        _listCard.Child = listPanel;
+
+        // ---- 参数面板 ----
+        _formCard.Classes.Add("setting-group");
+        var formPanel = new StackPanel();
+        formPanel.Children.Add(ToolUi.Header("IconFluentSettings",
+            L.T("Creator.Command.Form.Title", "参数"),
+            L.T("Creator.Command.Form.Hint", "改动任意参数，下方命令实时更新。")));
+        formPanel.Children.Add(_formHost);
+        _formCard.Child = formPanel;
+
+        // ---- 输出 + 历史：整页自上而下滚动 ----
+        var outputCard = BuildOutputCard();
+
+        var page = new StackPanel
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*"),
-            RowSpacing = 9,
-            Children =
-            {
-                _searchBox,
-            },
+            Margin = new Thickness(2, 13, 10, 24),
+            MaxWidth = 1000,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        Grid.SetRow(_categoryHost, 1);
-        ((Grid)_listCard.Child).Children.Add(_categoryHost);
-        Grid.SetRow(_listScroll, 2);
-        ((Grid)_listCard.Child).Children.Add(_listScroll);
+        page.Children.Add(_listCard);
+        page.Children.Add(_formCard);
+        page.Children.Add(outputCard);
+        page.Children.Add(_historyCard);
 
-        // ---- 中栏：表单 ----
-        _formCard.Classes.Add("card");
-        _formCard.Padding = new Thickness(16);
-        _formCard.VerticalAlignment = VerticalAlignment.Top;
-        // _formHost 只挂在 _formCard 下；滚动区滚动的是整张卡片
-        _formCard.Child = _formHost;
-
-        var formScroll = new ScrollViewer
+        Content = new ScrollViewer
         {
-            Content = _formCard,
+            Content = page,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
-
-        // ---- 右栏：输出 + 历史 ----
-        var outputCard = BuildOutputCard();
-        var rightGrid = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 14 };
-        rightGrid.Children.Add(outputCard);
-        Grid.SetRow(_historyCard, 1);
-        rightGrid.Children.Add(_historyCard);
-
-        var root = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("232,*,16,416"),
-            Margin = new Thickness(0, 13, 0, 4),
-        };
-
-        Grid.SetColumn(_listCard, 0);
-        Grid.SetColumn(formScroll, 1);
-        Grid.SetColumn(rightGrid, 3);
-        root.Children.Add(_listCard);
-        root.Children.Add(formScroll);
-        root.Children.Add(rightGrid);
-
-        Content = root;
 
         // Ctrl+Enter 快速复制
         this.AddHandler(KeyDownEvent, (_, e) =>
@@ -258,11 +245,8 @@ public sealed class CommandGeneratorPage : UserControl
         headerRow.Children.Add(_lengthChip);
 
         var panel = new StackPanel { Spacing = 9 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = L.T("Creator.Command.Result", "实时生成"),
-            Classes = { "section-title" },
-        });
+        panel.Children.Add(ToolUi.Header("IconFluentFlash",
+            L.T("Creator.Command.Result", "实时生成"), null));
         panel.Children.Add(headerRow);
         panel.Children.Add(_usageText);
         panel.Children.Add(outputSurface);
@@ -270,8 +254,7 @@ public sealed class CommandGeneratorPage : UserControl
 
         return new Border
         {
-            Classes = { "card" },
-            Padding = new Thickness(14),
+            Classes = { "setting-group" },
             VerticalAlignment = VerticalAlignment.Top,
             Child = panel,
         };
@@ -470,25 +453,6 @@ public sealed class CommandGeneratorPage : UserControl
         _formHost.Children.Clear();
         _fieldsHost.Children.Clear();
         _fieldPanels.Clear();
-
-        _formHost.Children.Add(new StackPanel
-        {
-            Spacing = 3,
-            Margin = new Thickness(2, 0, 0, 6),
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = L.T("Creator.Command.Form.Title", "参数"),
-                    Classes = { "section-title" },
-                },
-                new TextBlock
-                {
-                    Text = L.T("Creator.Command.Form.Hint", "改动任意参数，右侧命令实时更新。"),
-                    Classes = { "caption" },
-                },
-            },
-        });
 
         if (_spec.NeedsTarget)
             _formHost.Children.Add(BuildTargetSection());
@@ -721,8 +685,7 @@ public sealed class CommandGeneratorPage : UserControl
 
         return new Border
         {
-            Classes = { "card" },
-            Padding = new Thickness(14),
+            Classes = { "card-soft" },
             VerticalAlignment = VerticalAlignment.Top,
             Child = panel,
         };
@@ -1142,8 +1105,7 @@ public sealed class CommandGeneratorPage : UserControl
 
         return new Border
         {
-            Classes = { "card" },
-            Padding = new Thickness(14),
+            Classes = { "card-soft" },
             VerticalAlignment = VerticalAlignment.Top,
             Child = card,
         };
@@ -1222,8 +1184,7 @@ public sealed class CommandGeneratorPage : UserControl
 
         return new Border
         {
-            Classes = { "card" },
-            Padding = new Thickness(14),
+            Classes = { "card-soft" },
             VerticalAlignment = VerticalAlignment.Top,
             Child = card,
         };
@@ -1364,6 +1325,7 @@ public sealed class CommandGeneratorPage : UserControl
         var scroll = new ScrollViewer
         {
             Content = _historyHost,
+            MaxHeight = 300,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
@@ -1371,19 +1333,15 @@ public sealed class CommandGeneratorPage : UserControl
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { _tabsHost, clear } };
         Grid.SetColumn(clear, 1);
 
-        var cardGrid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*"),
-            RowSpacing = 8,
-            Children = { header },
-        };
-        Grid.SetRow(scroll, 1);
-        cardGrid.Children.Add(scroll);
+        var cardPanel = new StackPanel { Spacing = 8 };
+        cardPanel.Children.Add(ToolUi.Header("IconFluentHistory",
+            L.T("Creator.Command.History.Title", "历史与收藏"), null));
+        cardPanel.Children.Add(header);
+        cardPanel.Children.Add(scroll);
 
-        _historyCard.Classes.Add("card");
-        _historyCard.Padding = new Thickness(14);
-        _historyCard.VerticalAlignment = VerticalAlignment.Stretch;
-        _historyCard.Child = cardGrid;
+        _historyCard.Classes.Add("setting-group");
+        _historyCard.VerticalAlignment = VerticalAlignment.Top;
+        _historyCard.Child = cardPanel;
 
         RenderTabs();
         RenderHistory();
