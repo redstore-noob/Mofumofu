@@ -1,67 +1,62 @@
 # Project Mofumofu
 
-> 基于.NET10+AvaloniaUI的Minecraft Launcher，为自由而生。  
-> [![Stars](https://img.shields.io/github/stars/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/stargazers)
-> [![Issues](https://img.shields.io/github/issues/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/issues)
-> [![Forks](https://img.shields.io/github/forks/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/forks)
-> ![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
-> ![C#](https://img.shields.io/badge/C%23-13-239120?logo=csharp&logoColor=white)
-> ![Avalonia](https://img.shields.io/badge/Avalonia-UI-9037A8?logo=avaloniaui&logoColor=white)
-> [![License](https://img.shields.io/badge/license-Apache--2.0-blue?logo=apache)](LICENSE)
+> **为自由而生。**<br>
+> [![Stars](https://img.shields.io/github/stars/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/stargazers)[![Issues](https://img.shields.io/github/issues/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/issues)[![Forks](https://img.shields.io/github/forks/redstore-noob/Mofumofu?style=flat&logo=github)](https://github.com/redstore-noob/Mofumofu/forks)![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)![C#](https://img.shields.io/badge/C%23-13-239120?logo=csharp&logoColor=white)![Avalonia](https://img.shields.io/badge/Avalonia-UI-9037A8?logo=avaloniaui&logoColor=white)[![License](https://img.shields.io/badge/license-Apache--2.0-blue?logo=apache)](LICENSE)
 
-## 免责声明
+## 项目相关
 
-> [!CAUTION]
-> 本软件不包含任何与中华人民共和国宪法相抵触的内容，本人完全支持中国共产党领导，软件中不含有任何试图对社会主义进行颠覆、与社会主义制度相忤逆的内容。软件无商业用途，原则上不支持中国大陆用户使用，与Mojang Studios，Microsoft与NetEase, Inc.无任何关联，未对这些公司的利益进行损害等。
-> 更多免责声明请参考[免责声明](docs/免责声明.md)
+**项目不是一个纯粹的Minecraft启动器或是其他工具，它更像是一整套关于Minecraft的实用工具，以Mofumofu Launcher为中心。**
+目前项目已有的组成部分有:
 
-## 项目介绍
+- `MofuCore` -> 一个基于`.NET 10`的Minecraft启动器类库，可以快速构建一套好用的Minecraft启动器
+- **`Mofumofu.Launcher`** -> 基于`MofuCore`+`Avalonia`构建，支持插件系统，桌面自定义小组件等特色功能。
 
-项目基于`.NET10+Avalonia`，为创作者提供了一套便携的工具，为喜欢客制化的人同样提供了高度自定义的主页小组件网格摆放+插件系统。
-爆炸性的创新功能:
+## Mofumofu Launcher
 
-- Rewind备份系统:支持不同时间点对存档进行快照保存，当存档损坏/不甘心时即可回档到从前。支持定时备份、备份分类、安全备份。
-- 插件系统:啥都能扩展，自由是你的。
-- 音乐播放器:支持直连网易云音乐账号，支持本地音乐文件播放，现代化的流畅界面。
-- NekoSolo安装:整合包分发新方式，一个exe全自动。
-- 开服:强大的服务器开服功能，跟你口袋里的服务器面板一样好用。
+![main.png](img/main.png)
 
-![主页预览图](img/image.png)
 
-## 构建项目
+
+### 特色功能
+
+- 开服面板集成：以服务器插件+启动器的新架构管理服务器，支持VPS和面板服
+
+- 插件系统：让你的启动器更多彩！
+
+- 桌面小组件系统：随便摆，配上插件系统带来无限可能。
+
+
+
+### 项目结构
+
+项目目前跨的技术栈十分的多，代码量相对庞大，所以贡献者与参阅者可能会面对同时看到.NET与Java代码的问题。
+
+| 组件                                 | 目标框架          | 需要安装     | 说明                                                           |
+| ------------------------------------ | ----------------- | ------------ | -------------------------------------------------------------- |
+| `Mofumofu.Launcher`                  | `net10.0`         | .NET 10 SDK  | 主启动器（Avalonia UI），日常开发入口                          |
+| `MofuCore`                           | `net10.0`         | .NET 10 SDK  | 启动器核心类库，可脱离 UI 单独复用                             |
+| `Mofumofu.ExtensionAPI`              | `net10.0`         | .NET 10 SDK  | 插件 API，开发插件只需引用它                                   |
+| `Mofumofu.RemoteProtocol`            | `net10.0`         | .NET 10 SDK  | 启动器与 ServerAgent 的通信协议                                |
+| `Mofumofu.ServerAgent`               | `net10.0`         | .NET 10 SDK  | VPS 服务端 Agent（ASP.NET Core）                               |
+| `Mofumofu.Console`                   | `net10.0`         | .NET 10 SDK  | 终端界面版本，程序集名为 `Mofumofu.TUI`                        |
+| `Mofumofu.Extension.LogshareService` | `net10.0`         | .NET 10 SDK  | 官方插件示例：崩溃日志分析                                     |
+| `NekoSolo`                           | `net10.0-windows` | .NET 10 SDK  | 自解压安装器，**仅 Windows 可构建**                            |
+| `Mofumofu.NekoProbe`                 | Java 21           | **Java 21+** | Paper 服务端插件，用仓库自带的 `gradlew` 构建                  |
+| `tests/*`                            | `net10.0`         | .NET 10 SDK  | xUnit 测试（Launcher / RemoteProtocol / ServerAgent 三个项目） |
+
+
+
+### 项目构建
+
+> 构建前确保电脑中至少有.NET10+SDK，如果你需要构建所有组件，你可能还需要Java 21+。
 
 ```bash
-git clone https://www.github.com/redstore-noob/Mofumofu #拉取一些仓库
+dotnet run --project Mofumofu.Launcher/Mofumofu.Launcher.csproj #just Launcher
 
-dotnet build Mofumofu.slnx -c Release
+
+cd Mofumofu.NekoProbe #当你需要构建服务器插件时
+./gradlew build          # Windows: gradlew.bat build
 ```
-
-## 相关文档
-
-[免责声明](docs/免责声明.md)
-[插件开发文档](docs/Extension_Guide/overview.md)
-
-## 开源许可
-
-本项目基于 [Apache License 2.0](LICENSE) 发布，Copyright 2026 Mofumofu。
-
-```
-Copyright 2026 Mofumofu
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
-
-再分发时请保留 [LICENSE](LICENSE) 全文与上述版权声明；如修改了源码，请在修改的文件中注明变更。
 
 
 
@@ -71,9 +66,7 @@ limitations under the License.
 
 [hacker1232345](https://github.com/hacker1232345)
 
-
-
 ## 项目相关链接💥
 
-![点击前往地狱♿️](img/qrcode.png)  
+![点击前往地狱♿️](img/qrcode.png)
 [项目官网(目前)](https://redstore-noob.github.io)
