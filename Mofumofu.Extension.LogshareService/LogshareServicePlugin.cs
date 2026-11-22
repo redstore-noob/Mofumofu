@@ -15,15 +15,14 @@ using Mofumofu.ExtensionAPI.UI;
 namespace Mofumofu.Extension.LogshareService;
 
 /// <summary>
-/// LogShare 日志分析服务：
-/// 游戏崩溃后右下角出现悬浮球，点开是 LogShare 的自动分析结果（问题 + 解决方案），
-/// 玩家确认后可一键上传分享链接。上传遵循 LogShare EULA：内容公开、保留 7 天。
+/// 游戏崩溃后右下角出现悬浮球，点开是 LogShare 的自动分析结果；玩家确认后才上传。
+/// 上传遵循 LogShare EULA：内容公开、保留 7 天。
 /// </summary>
 public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
 {
     private IPluginContext _context = null!;
     private readonly object _stateLock = new();
-    private string _pendingCrashLog = string.Empty;   // 已脱敏
+    private string _pendingCrashLog = string.Empty;
     private LogShareInsights? _insights;
     private volatile bool _analysisDone;
     private volatile bool _ballDismissed;
@@ -46,7 +45,7 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         return true;
     }
 
-    /// <summary>游戏崩溃钩子：缓存脱敏后的日志并挂悬浮球；任何网络外发都等用户在弹窗里同意。</summary>
+    /// <summary>任何网络外发都必须等用户在弹窗里同意。</summary>
     public void GameCrashedHook(string crashedLog)
     {
         if (string.IsNullOrWhiteSpace(crashedLog)) return;
@@ -71,10 +70,6 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         RefreshBall();
     }
 
-    // ------------------------------------------------------------------
-    // 悬浮球（Overlay 槽位，全页面可见）
-    // ------------------------------------------------------------------
-
     private void RefreshBall()
     {
         Dispatcher.UIThread.Post(() =>
@@ -87,7 +82,6 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
             }
             catch (Exception error)
             {
-                // 记录失败也不能再向 UI 线程抛出未处理异常。
                 try { _context.Log("悬浮球注册失败：" + error.Message); }
                 catch { /* 日志系统不可用时静默吞掉 */ }
             }
@@ -96,7 +90,6 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
 
     private Control BuildBall()
     {
-        // 崩溃后即可点开查看同意说明；同意并完成分享前保持可见，之后返回零尺寸占位。
         if (_ballDismissed || _analysisDone)
         {
             return new Control { Width = 0, Height = 0 };
@@ -126,7 +119,7 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         return ball;
     }
 
-    /// <summary>图标：自绘感叹号（IconPark 是宿主内部类型，插件侧用等价矢量替代）。</summary>
+    /// <summary>自绘感叹号：IconPark 是宿主内部类型，插件侧用等价矢量替代。</summary>
     private sealed class WarningGlyph : Control
     {
         public override void Render(DrawingContext context)
@@ -142,10 +135,6 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
                 new Point(center.X, center.Y + size * 0.26), 1.6, 1.6);
         }
     }
-
-    // ------------------------------------------------------------------
-    // 分析结果弹窗
-    // ------------------------------------------------------------------
 
     private void ShowAnalysisDialog(LogShareInsights? insights, bool allowShare)
     {
@@ -241,7 +230,7 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
         {
             if (string.IsNullOrWhiteSpace(content)) return;
 
-            // 用户已点击「同意」，此处才发生外发；content 在 GameCrashedHook 已脱敏。
+            // 用户已点击「同意」才外发；content 在 GameCrashedHook 已脱敏。
             LogShareInsights? insights = await new LogShareAPI()
                 .AnalyseAsync(content, cancellationToken).ConfigureAwait(false);
             LogShareUploadResult result = await new LogShareAPI()
@@ -261,7 +250,7 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
                     ? (result.HasUrl ? "崩溃日志已上传：" + result.Url : "崩溃日志已上传")
                     : "上传失败：" + (result.Error.Length > 0 ? result.Error : result.Message));
                 _context.Log("崩溃日志上传：" + (result.Success ? result.Id : "失败"));
-                // 同意后展示分析结果（不再提供上传按钮，避免重复外发）。
+                // 不再提供上传按钮，避免重复外发。
                 ShowAnalysisDialog(insights, allowShare: false);
             });
         }
@@ -277,14 +266,14 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
     }
 
     /// <summary>
-    /// 外发前脱敏：尽力过滤令牌、密码、Cookie、Authorization 与命令行里的 accessToken 等。
-    /// 完整保证依赖全局输入消毒层（需架构决策），此处为可安全落地的局部收敛。
+    /// 外发前脱敏：过滤令牌、密码、Cookie、Authorization 与本机用户名等。
+    /// 只是尽力而为，完整保证依赖全局输入消毒层。
     /// </summary>
     private static string Redact(string log)
     {
         if (string.IsNullOrEmpty(log)) return string.Empty;
 
-        // JSON 形式："accessToken":"xxx" / "token": "xxx"，凭据被双引号包裹，原有 [=:] 规则匹配不到。
+        // JSON 形式凭据被双引号包裹，[=:] 规则匹配不到。
         string redacted = Regex.Replace(log,
             @"(""(?:accessToken|clientToken|auth_access_token|auth_session|uuid|username|token|password|secret|api[_-]?key|session)""\s*:\s*)""[^""]*""",
             "${1}\"[已脱敏]\"", RegexOptions.IgnoreCase);
@@ -294,7 +283,6 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
             @"(--accessToken|--uuid|--username|--clientToken)\s+[^\s""']+",
             "${1} [已脱敏]", RegexOptions.IgnoreCase);
 
-        // 普通键值：--accessToken=xxx / accessToken:xxx 等（保留原有规则）。
         redacted = Regex.Replace(redacted,
             @"(--accessToken|--uuid|--username|auth_access_token|auth_session|accessToken|clientToken)\s*[=:]\s*\S+",
             "${1}=[已脱敏]", RegexOptions.IgnoreCase);
@@ -302,12 +290,11 @@ public class LogshareServicePlugin : IMofuPlugin, ILaunchAction
             @"(Authorization|Cookie|Set-Cookie|token|password|secret|api[_-]?key)\s*[:=]\s*\S+",
             "${1}: [已脱敏]", RegexOptions.IgnoreCase);
 
-        // Bearer / Basic 认证头。
         redacted = Regex.Replace(redacted,
             @"(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+",
             "${1} [已脱敏]", RegexOptions.IgnoreCase);
 
-        // 本机路径与用户名：C:\Users\<name>\... 会泄漏本机用户名，抹掉用户名段及独立出现的用户名。
+        // C:\Users\<name>\... 会泄漏本机用户名。
         redacted = Regex.Replace(redacted,
             @"([A-Za-z]:\\Users\\)[^\\\s""']+",
             m => m.Groups[1].Value + "[已脱敏]", RegexOptions.IgnoreCase);

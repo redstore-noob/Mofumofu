@@ -3,20 +3,10 @@
 namespace Mofumofu.ExtensionAPI.UI;
 
 /// <summary>
-/// 一个用于控制启动器本体弹出信息的接口
+/// 控制启动器弹出信息的接口，需要 <see cref="PluginPermissionZones.Notify"/> 权限。
 /// </summary>
-/// <remarks>弹窗 / 轻提示需要 <see cref="PluginPermissionZones.Notify"/> 权限；<c>content</c> 按非 null 处理（可用 <c>IPluginContext.CreateIcon</c> 结果时先判空兜底）。</remarks>
 public interface IPopup
 {
-    /// <summary>
-    /// 调用一次，启动器内来个弹窗。
-    /// </summary>
-    /// <param name="content">弹窗中显示的内容（比如说输入框）</param>
-    /// <param name="title">弹窗的标题</param>
     public void Dialog(Control content, string title);
-    /// <summary>
-    /// 让启动器的左下角弹出小提示
-    /// </summary>
-    /// <param name="message">弹出的提示的信息</param>
     public void Toast(string message);
 }

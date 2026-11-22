@@ -4,28 +4,25 @@ using System.Text.Json;
 
 namespace Mofumofu.Extension.LogshareService;
 
-/*
- * 这个文件内的API基于LogShare API，与MofuMofu启动器没有直接关系。
- * 使用时请注意LogShare的Eula。
- */
+/// <summary>
+/// LogShare 开放接口封装，与 MofuMofu 启动器无直接关系；使用时须遵守 LogShare 的 EULA。
+/// </summary>
 public class LogShareAPI
 {
-    /// <summary>LogShare API 默认地址。</summary>
     public const string DefaultBaseUrl = "https://api.logshare.cn";
 
-    /// <summary>上传来源标识（LogShare 接入规范建议写明启动器与版本）。</summary>
+    /// <summary>LogShare 接入规范建议写明启动器与版本。</summary>
     public const string DefaultSource = "Mofumofu/0.1.0";
 
-    /// <summary>单条日志最大长度（10MiB，服务端限制）。</summary>
+    /// <summary>服务端限制：10MiB。</summary>
     public const long MaximumContentBytes = 10 * 1024 * 1024;
 
-    /// <summary>单条日志最大行数。</summary>
+    /// <summary>服务端限制：50000 行。</summary>
     public const int MaximumLines = 50000;
 
-    /// <summary>日志默认保留时间（7 天）。</summary>
+    /// <summary>服务端保留 7 天。</summary>
     public static readonly TimeSpan StorageTime = TimeSpan.FromDays(7);
 
-    /// <summary>上传前必须让用户确认的 EULA 说明：日志会公开并保留 7 天。</summary>
     public const string EulaNotice =
         "上传即表示同意 LogShare 的服务协议与隐私政策：日志内容会公开，保留 7 天后自动删除，且请勿包含密码、令牌等敏感信息。";
 
@@ -33,14 +30,14 @@ public class LogShareAPI
     private static readonly HttpClient Http = new()
     {
         Timeout = RequestTimeout,
-        // 外部响应体积上限（fail-closed）：避免一次性 ReadAsStringAsync 无上限读入导致 OOM。
+        // fail-closed：避免 ReadAsStringAsync 无上限读入导致 OOM。
         MaxResponseContentBufferSize = MaximumContentBytes + 1024 * 1024,
     };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly string _baseUrl;
 
-    /// <param name="baseUrl">LogShare API 地址；传空串表示未配置，所有请求都会优雅失败。</param>
+    /// <summary>baseUrl 传空串表示未配置，所有请求都会优雅失败。</summary>
     public LogShareAPI(string baseUrl = DefaultBaseUrl)
     {
         _baseUrl = (baseUrl ?? string.Empty).Trim().TrimEnd('/');
@@ -48,11 +45,10 @@ public class LogShareAPI
 
     public string BaseUrl => _baseUrl;
 
-    /// <summary>是否配置了可用的 API 地址。</summary>
     public bool IsConfigured => _baseUrl.Length > 0;
 
     /// <summary>
-    /// 上传一段日志内容，返回分享链接与删除凭据（token 请自行持久化，丢失后无法删除）。
+    /// token 是删除凭据，需自行持久化，丢失后无法删除。
     /// 未配置、内容为空、超出限制或请求失败时返回 Success=false，不抛异常。
     /// </summary>
     public async Task<LogShareUploadResult> UploadAsync(
@@ -90,7 +86,7 @@ public class LogShareAPI
             foreach (KeyValuePair<string, string> pair in files)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key)) continue;
-                // 附加文件同样受单条日志大小/行数上限约束（fail-closed，复用同一校验）。
+                // 附加文件同样受上限约束（fail-closed，复用同一校验）。
                 if (!IsWithinLimits(pair.Value))
                 {
                     return LogShareUploadResult.Fail("附加文件内容超过限制，无法上传。");
@@ -141,9 +137,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 多文件打包上传（主日志 + 崩溃报告等），返回分享链接与删除凭据。
-    /// </summary>
     public Task<LogShareUploadResult> UploadFilesAsync(
         IReadOnlyDictionary<string, string> files,
         string source = DefaultSource,
@@ -155,15 +148,11 @@ public class LogShareAPI
             return Task.FromResult(LogShareUploadResult.Fail("没有可上传的文件。"));
         }
 
-        // 第一个文件作为主日志（content），其余作为附加文件
         string mainContent = files.First().Value;
         Dictionary<string, string> attachments = files.Skip(1).ToDictionary(pair => pair.Key, pair => pair.Value);
         return UploadAsync(mainContent, source, attachments, cancellationToken);
     }
 
-    /// <summary>
-    /// 上传指定日志文件。
-    /// </summary>
     public async Task<LogShareUploadResult> UploadLogFileAsync(string filePath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(filePath))
@@ -196,9 +185,7 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 删除已上传的日志（需要上传时返回的 token），支持多个 ID 用逗号分隔。
-    /// </summary>
+    /// <summary>需要上传时返回的 token；ids 支持逗号分隔多个。</summary>
     public async Task<LogShareDeleteResult> DeleteAsync(
         string ids,
         string token,
@@ -221,8 +208,7 @@ public class LogShareAPI
 
         try
         {
-            // 支持逗号分隔的多 ID：逐个 ID 转义后再用逗号连接，逗号本身必须保留，
-            // 否则对整个 ids 做 EscapeDataString 会把逗号编码成 %2C，服务端只会看到一个 ID。
+            // 逗号必须保留，否则整个 ids 做 EscapeDataString 会把逗号编码成 %2C，服务端只会看到一个 ID。
             var escapedIds = new List<string>();
             foreach (string id in ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
@@ -269,9 +255,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 获取已上传日志的原文；日志不存在时返回 null。
-    /// </summary>
     public async Task<string?> GetRawAsync(string id, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(id))
@@ -305,9 +288,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 获取已上传日志的元信息（大小、行数、保留时间、附加文件列表）；日志不存在时返回 null。
-    /// </summary>
     public async Task<LogShareLog?> GetLogAsync(string id, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(id))
@@ -367,9 +347,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 获取服务端的日志存储限制；失败时返回 null。
-    /// </summary>
     public async Task<LogShareLimits?> GetLimitsAsync(CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
@@ -403,9 +380,7 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 提交日志内容做本地分析（不落盘），返回检测到的问题与信息；失败时返回 null。
-    /// </summary>
+    /// <summary>不落盘，只做服务端分析；失败时返回 null。</summary>
     public async Task<LogShareInsights?> AnalyseAsync(string content, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(content))
@@ -442,9 +417,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 获取已存储日志的分析洞察；失败时返回 null。
-    /// </summary>
     public async Task<LogShareInsights?> GetInsightsAsync(string id, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(id))
@@ -474,9 +446,6 @@ public class LogShareAPI
         }
     }
 
-    /// <summary>
-    /// 检查 LogShare 服务是否可用（请求 API 根端点）。
-    /// </summary>
     public async Task<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
@@ -534,8 +503,8 @@ public class LogShareAPI
         }
 
         JsonDocument document = JsonDocument.Parse(text);
-        // 解析后先校验根元素类型：数组/字符串/null 等顶层 JSON 会让后续 TryGetProperty
-        // 抛 InvalidOperationException，而上层只过滤 HttpRequestException/JsonException/IOException。
+        // 先校验根元素类型：数组/字符串/null 等顶层 JSON 会让后续 TryGetProperty 抛
+        // InvalidOperationException，而上层只过滤 HttpRequestException/JsonException/IOException。
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             document.Dispose();
@@ -672,7 +641,7 @@ public class LogShareAPI
         return result;
     }
 
-    /// <summary>上传 / 分析前统一的内容上限校验：字节数与行数都必须在限制内。</summary>
+    /// <summary>字节数与行数都必须在服务端限制内。</summary>
     private static bool IsWithinLimits(string content) =>
         Encoding.UTF8.GetByteCount(content) <= MaximumContentBytes
         && CountLines(content) <= MaximumLines;
@@ -693,22 +662,18 @@ public class LogShareAPI
 }
 
 /// <summary>
-/// 日志上传结果（token 是删除凭据，丢失后无法删除）。
+/// token 是删除凭据，丢失后无法删除。
 /// </summary>
 public class LogShareUploadResult
 {
     public bool Success { get; set; }
 
-    /// <summary>日志 ID。</summary>
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>分享链接，如 https://logshare.cn/abc123。</summary>
     public string Url { get; set; } = string.Empty;
 
-    /// <summary>原文 API 地址。</summary>
     public string RawUrl { get; set; } = string.Empty;
 
-    /// <summary>删除凭据。</summary>
     public string Token { get; set; } = string.Empty;
 
     public string Message { get; set; } = string.Empty;
@@ -725,9 +690,6 @@ public class LogShareUploadResult
     }
 }
 
-/// <summary>
-/// 删除结果。
-/// </summary>
 public class LogShareDeleteResult
 {
     public bool Success { get; set; }
@@ -750,14 +712,10 @@ public class LogShareDeleteResult
     }
 }
 
-/// <summary>
-/// 已上传日志的元信息。
-/// </summary>
 public class LogShareLog
 {
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>字节数。</summary>
     public long Size { get; set; }
 
     public long Lines { get; set; }
@@ -766,20 +724,16 @@ public class LogShareLog
 
     public DateTimeOffset? Expires { get; set; }
 
-    /// <summary>服务端元数据（原样 JSON 文本）。</summary>
+    /// <summary>服务端元数据，原样 JSON 文本。</summary>
     public string Metadata { get; set; } = string.Empty;
 
     public string Source { get; set; } = string.Empty;
 
     public string RawUrl { get; set; } = string.Empty;
 
-    /// <summary>附加文件列表。</summary>
     public List<LogShareFile> Files { get; set; } = [];
 }
 
-/// <summary>
-/// 附加文件。
-/// </summary>
 public class LogShareFile
 {
     public string Name { get; set; } = string.Empty;
@@ -787,22 +741,15 @@ public class LogShareFile
     public long Size { get; set; }
 }
 
-/// <summary>
-/// 服务端日志存储限制。
-/// </summary>
 public class LogShareLimits
 {
     public long MaxLength { get; set; }
 
     public long MaxLines { get; set; }
 
-    /// <summary>保留时间（秒）。</summary>
     public long StorageTime { get; set; }
 }
 
-/// <summary>
-/// 日志分析洞察。
-/// </summary>
 public class LogShareInsights
 {
     public string Id { get; set; } = string.Empty;
@@ -820,9 +767,6 @@ public class LogShareInsights
     public List<LogShareMessage> Information { get; set; } = [];
 }
 
-/// <summary>
-/// 分析结果中的一条问题 / 信息。
-/// </summary>
 public class LogShareMessage
 {
     public string Message { get; set; } = string.Empty;
