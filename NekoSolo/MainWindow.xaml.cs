@@ -14,8 +14,7 @@ using NekoSolo.Services;
 namespace NekoSolo;
 
 /// <summary>
-/// NekoSolo 安装器主窗口：欢迎 / 安装进度 / 完成 三态 + 关于页。
-/// 所有文案由 <see cref="SoloStrings"/> 提供（中英跟随系统语言）。
+/// 安装器主窗口：欢迎 / 安装进度 / 完成 三态 + 关于页。文案全部来自 <see cref="SoloStrings"/>。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -56,8 +55,6 @@ public partial class MainWindow : Window
 
         Loaded += OnLoaded;
     }
-
-    // ---------------- 初始化 ----------------
 
     private void ApplyStrings()
     {
@@ -108,7 +105,6 @@ public partial class MainWindow : Window
 
     private void BuildStepRows()
     {
-        // 侧栏：小圆点 + 标题；进度页：圆点 + 标题 + 说明
         foreach (InstallStepItem step in new SoloInstallController().Steps)
         {
             var dot = new Border
@@ -244,7 +240,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>欢迎页展示安装包里真实有哪些文件（而不是一句「体积未知」）。</summary>
     private void UpdateContents()
     {
         if (!_hasPayload && string.IsNullOrWhiteSpace(_downloadedPackagePath))
@@ -369,8 +364,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // ---------------- 面板切换 ----------------
-
     private void ShowPanel(string name)
     {
         if (name == "about" && _activePanel != "about") _panelBeforeAbout = _activePanel;
@@ -395,8 +388,6 @@ public partial class MainWindow : Window
 
     private void OnAboutBackClick(object sender, RoutedEventArgs e) => ShowPanel(_panelBeforeAbout);
 
-    // ---------------- 安装 ----------------
-
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
         if (_installing) return;
@@ -419,7 +410,6 @@ public partial class MainWindow : Window
         finally { _installing = false; StartButton.IsEnabled = true; }
     }
 
-    /// <summary>安装前的真实校验：路径、写权限、磁盘空间。</summary>
     private bool ValidateTarget(string target, out string error)
     {
         error = string.Empty;
@@ -804,8 +794,6 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(launcher) { WorkingDirectory = target, UseShellExecute = true });
     }
 
-    // ---------------- 关于页动作 ----------------
-
     private void OnExportLogClick(object sender, RoutedEventArgs e)
     {
         try
@@ -868,8 +856,6 @@ public partial class MainWindow : Window
     private void OnMaximizeClick(object sender, RoutedEventArgs e) =>
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
-    // ---------------- 浏览目录 ----------------
-
     private void OnBrowseClick(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
@@ -884,8 +870,6 @@ public partial class MainWindow : Window
             TargetBox.Text = dialog.FolderName;
         }
     }
-
-    // ---------------- 窗口按钮 ----------------
 
     private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -902,7 +886,7 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
-        // 安装中直接关窗会留下半装目录：先取消，再关闭
+        // 安装中直接关窗会留下半装目录：先取消，再关闭。
         if (_installCts is { IsCancellationRequested: false })
         {
             _installCts.Cancel();
@@ -910,8 +894,6 @@ public partial class MainWindow : Window
 
         Close();
     }
-
-    // ---------------- 工具 ----------------
 
     private static string ShortVersion()
     {

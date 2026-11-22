@@ -22,9 +22,9 @@ public sealed record SoloReleaseInfo(
     IReadOnlyList<SoloReleaseAsset> Assets);
 
 /// <summary>
-/// NekoSolo 的 GitHub Releases 接入：查询最新 Release，挑出整合包 zip 下载。
-/// 仓库可通过环境变量 NEKOSOLO_RELEASE_REPO（owner/repo）覆盖；默认 redstore-noob/Mofumofu。
-/// 尚未发布时 FetchLatestAsync 返回 null，由 UI 显示「暂未发布」。
+/// GitHub Releases 接入：查询最新 Release 并挑出整合包 zip 下载。
+/// 仓库可用 NEKOSOLO_RELEASE_REPO（owner/repo）覆盖，默认 redstore-noob/Mofumofu。
+/// 尚未发布时 FetchLatestAsync 返回 null。
 /// </summary>
 public static class SoloReleaseClient
 {
@@ -52,7 +52,7 @@ public static class SoloReleaseClient
 
     public static string ReleasesPageUrl => "https://github.com/" + Repository + "/releases";
 
-    /// <summary>严格的 owner/repo：仅字母数字、-、_、. 与单个斜杠，两段非空且不是纯点段。</summary>
+    /// <summary>严格限定 owner/repo，两段非空且不是纯点段。</summary>
     private static bool IsValidRepository(string value)
     {
         string[] parts = value.Split('/');
@@ -60,7 +60,7 @@ public static class SoloReleaseClient
         foreach (string part in parts)
         {
             if (part.Length == 0 || part.Length > 100) return false;
-            if (part.All(ch => ch == '.')) return false; // 拒绝 "." / ".." 之类的路径片段
+            if (part.All(ch => ch == '.')) return false;
             foreach (char ch in part)
             {
                 if (!IsRepoChar(ch)) return false;
@@ -83,7 +83,7 @@ public static class SoloReleaseClient
         return client;
     }
 
-    /// <summary>查询最新 Release；404 表示仓库还没有发布任何 Release，返回 null。</summary>
+    /// <summary>404 表示仓库还没有发布任何 Release。</summary>
     public static async Task<SoloReleaseInfo?> FetchLatestAsync(CancellationToken cancellationToken = default)
     {
         string url = $"https://api.github.com/repos/{Repository}/releases/latest";
@@ -98,7 +98,6 @@ public static class SoloReleaseClient
         return ParseRelease(json);
     }
 
-    /// <summary>解析 GitHub Release JSON，并挑出 NekoSolo 安装包资产。</summary>
     public static SoloReleaseInfo? ParseRelease(string json)
     {
         using JsonDocument document = JsonDocument.Parse(json);
@@ -129,7 +128,7 @@ public static class SoloReleaseClient
                     : string.Empty;
                 if (string.IsNullOrWhiteSpace(download)) continue;
 
-                // GitHub asset 的 digest（形如 sha256:...）用于下载落盘后的完整性校验。
+                // digest（sha256:...）用于下载落盘后的完整性校验。
                 string digest = item.TryGetProperty("digest", out JsonElement digestElement)
                     ? digestElement.GetString() ?? string.Empty
                     : string.Empty;
@@ -146,7 +145,7 @@ public static class SoloReleaseClient
         return new SoloReleaseInfo(tag, name, html, published, assets);
     }
 
-    /// <summary>只选择明确标记的 NekoSolo Windows 安装包，避免误装普通启动器或其他平台的 zip。</summary>
+    /// <summary>只选择明确标记的 NekoSolo 安装包，避免误装普通启动器或其他平台的 zip。</summary>
     public static SoloReleaseAsset? SelectPackageAsset(SoloReleaseInfo? release)
     {
         if (release is null) return null;
@@ -158,14 +157,14 @@ public static class SoloReleaseClient
         return release.Assets.FirstOrDefault(IsPackage);
     }
 
-    /// <summary>下载资产到本地临时文件，返回路径；带进度回调、主机白名单与 SHA256 完整性校验。</summary>
+    /// <summary>带进度回调、主机白名单与 SHA256 完整性校验。</summary>
     public static async Task<string> DownloadAsync(
         SoloReleaseAsset asset,
         string targetPath,
         Action<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        // browser_download_url 来自远程 JSON：强制初始地址必须是 HTTPS 且落在 github.com。
+        // browser_download_url 来自远程 JSON：初始地址必须是 HTTPS 且落在 github.com。
         if (!Uri.TryCreate(asset.DownloadUrl, UriKind.Absolute, out Uri? initial) ||
             !string.Equals(initial.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
@@ -294,7 +293,7 @@ public static class SoloReleaseClient
         }
     }
 
-    // 初始地址只认 github.com；302 后的资产 CDN 允许 github.com 及其 githubusercontent.com 资产域名。
+    // 初始地址只认 github.com；重定向后的资产 CDN 还允许 githubusercontent.com。
     private static bool IsAllowedAssetHost(string host) =>
         string.Equals(host, "github.com", StringComparison.OrdinalIgnoreCase) ||
         host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase);

@@ -6,15 +6,14 @@ using System.Text.Json;
 namespace NekoSolo.Services;
 
 /// <summary>
-/// NekoSolo 载荷读取（格式见 NekoSolo/FORMAT.md）：
-/// exe = 安装器本体字节 + 载荷 zip + 32 字节尾标。
+/// 载荷读取（格式见 NekoSolo/FORMAT.md）：exe = 安装器本体字节 + 载荷 zip + 32 字节尾标。
 /// 尾标（小端）：0..8 魔数 "NKSOLO1\x01"、8..16 偏移、16..24 长度、24..28 CRC32、28..32 保留。
 /// </summary>
 public static class SoloPayload
 {
     public const int TrailerSize = 32;
 
-    // 外部安装包的统一体积上限；清单读取、条目校验、下载入口共用，避免各处硬编码不同上限形成可绕过旁路。
+    // 统一体积上限：清单读取、条目校验、下载入口共用，避免各处硬编码不同上限形成可绕过旁路。
     internal const long ManifestMaximumBytes = 1L * 1024 * 1024;
     internal const long ArchiveMaximumBytes = 4L * 1024 * 1024 * 1024;
     internal const long EntryMaximumBytes = 2L * 1024 * 1024 * 1024;
@@ -74,7 +73,7 @@ public static class SoloPayload
         }
     }
 
-    /// <summary>按 CRC32 校验载荷完整性（整包读一遍，大包会慢，进度回调用于 UI）。</summary>
+    /// <summary>整包读一遍，大包会慢，进度回调用于 UI。</summary>
     public static async Task<bool> VerifyAsync(SoloPayloadInfo info, IProgress<double>? progress,
         CancellationToken cancellationToken = default)
     {
@@ -113,14 +112,13 @@ public static class SoloPayload
         return new BoundedStream(stream, info.Length);
     }
 
-    /// <summary>从载荷 zip 顶层读 manifest.json（不解压整包）。</summary>
     public static SoloManifest? ReadManifest(SoloPayloadInfo info)
     {
         using Stream payload = OpenPayloadStream(info);
         return ReadManifest(payload);
     }
 
-    /// <summary>从任意 zip 流读取顶层 manifest.json（外部 GitHub Releases 安装包也适用）。</summary>
+    /// <summary>外部 GitHub Releases 安装包也走这里。</summary>
     public static SoloManifest? ReadManifest(Stream zipStream)
     {
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
@@ -148,7 +146,7 @@ public static class SoloPayload
     }
 
     /// <summary>
-    /// 释放/启动之前统一校验 zip：条目路径（防 zip slip）、声明体积上限、解压实际长度。
+    /// 释放/启动之前统一校验：条目路径（防 zip slip）、声明体积上限、解压实际长度。
     /// 读尽条目流会触发 ZipArchive 对条目 CRC32 的校验；任一失败即抛异常，调用方不得继续释放。
     /// </summary>
     internal static void VerifyArchive(ZipArchive archive, Action<string>? log = null)
@@ -175,7 +173,7 @@ public static class SoloPayload
                 throw new InvalidOperationException("安装包解压后总体积超限");
             }
 
-            if (entry.Name.Length == 0) continue; // 目录条目无数据可读
+            if (entry.Name.Length == 0) continue;
 
             using Stream data = entry.Open();
             byte[] chunk = new byte[CopyBufferBytes];
@@ -197,7 +195,7 @@ public static class SoloPayload
         log?.Invoke($"zip: {archive.Entries.Count} 个条目路径/体积/完整性校验通过");
     }
 
-    /// <summary>把载荷里的某个前缀目录解压到目标目录（files/ 与 minecraft/、jre/ 规则不同，由调用方决定）。</summary>
+    /// <summary>files/、minecraft/、jre/ 的规则不同，由调用方指定前缀。</summary>
     public static long ExtractPrefix(SoloPayloadInfo info, ZipArchive archive, string prefix, string targetRoot,
         Action<string>? log, IProgress<double>? progress, CancellationToken cancellationToken = default,
         Action<string>? onWritten = null)
@@ -209,7 +207,7 @@ public static class SoloPayload
             .ToList();
         if (entries.Count == 0) return 0;
 
-        // public 入口独立设防：条目数、单条体积、累计体积都要在上限内，避免绕过 VerifyArchive 直接调用时被撑爆。
+        // public 入口独立设防：避免绕过 VerifyArchive 直接调用时被撑爆。
         if (entries.Count > MaxExtractEntries)
             throw new InvalidOperationException("安装包释放条目数超过上限：" + entries.Count);
         long total = 0;
@@ -261,7 +259,7 @@ public static class SoloPayload
         }
     }
 
-    /// <summary>读取载荷里的顶层清单（文件名 + 大小），用于 UI 展示"包里有什么"。</summary>
+    /// <summary>用于 UI 展示"包里有什么"。</summary>
     public static IReadOnlyList<(string Name, long Length)> ListTopEntries(SoloPayloadInfo info)
     {
         using Stream payload = OpenPayloadStream(info);

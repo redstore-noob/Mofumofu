@@ -6,7 +6,7 @@ namespace NekoSolo.Services;
 
 /// <summary>
 /// NekoSolo 安装包清单（manifest.json，格式见 NekoSolo/FORMAT.md）。
-/// 字段名与上一代导出器保持一致，v1/v2/v3 都按同一份读取。
+/// 字段名与上一代导出器保持一致，v1/v2/v3 共用同一份读取。
 /// </summary>
 public sealed class SoloManifest
 {
@@ -26,10 +26,9 @@ public sealed class SoloManifest
     [JsonPropertyName("silent")] public bool Silent { get; set; }
     [JsonPropertyName("updateLink")] public string UpdateLink { get; set; } = string.Empty;
 
-    /// <summary>载荷里是否有随包 JRE（决定安装完成后是否还需要补 Java）。</summary>
+    /// <summary>决定安装完成后是否还需要补 Java。</summary>
     [JsonIgnore] public bool BundledJava => HasJava;
 
-    /// <summary>加载器展示名：Forge 47.2.0 / Fabric 0.15.11 …</summary>
     [JsonIgnore]
     public string LoaderDisplay => string.IsNullOrWhiteSpace(LoaderName)
         ? "Vanilla"
@@ -53,9 +52,9 @@ public sealed class SoloManifest
         SoloManifest? manifest = JsonSerializer.Deserialize<SoloManifest>(json, JsonOptions);
         if (manifest is null) throw new InvalidOperationException("manifest.json 解析结果为空。");
 
-        // 清单值会用于安装路径（DefaultTargetPath）、zip 条目名（IconPath）、solo.json
-        // 以及换行分隔的 .nekosolo-installed（PackId / PackVersion）。反序列化后逐字段校验，
-        // 拒绝路径分隔符、..、控制字符（含换行，防 marker 注入）与超长值，避免目录穿越/注入（fail-closed）。
+        // 清单值会用于安装路径、zip 条目名、solo.json 与换行分隔的 .nekosolo-installed，
+        // 所以反序列化后逐字段校验，拒绝路径分隔符、..、控制字符（含换行，防 marker 注入）与超长值，
+        // 避免目录穿越/注入（fail-closed）。
         manifest.PackId = ValidateIdentifier(manifest.PackId, nameof(SoloManifest.PackId));
         manifest.PackName = ValidateIdentifier(manifest.PackName, nameof(SoloManifest.PackName));
         manifest.PackVersion = ValidateIdentifier(manifest.PackVersion, nameof(SoloManifest.PackVersion));
@@ -73,7 +72,7 @@ public sealed class SoloManifest
     private const int MaxIdentifierLength = 256;
     private const int MaxTextLength = 4096;
 
-    /// <summary>标识/名称/版本：会拼进安装路径、文件名或 marker 行，校验最严格。</summary>
+    /// <summary>会拼进安装路径、文件名或 marker 行，校验最严格。</summary>
     private static string ValidateIdentifier(string? value, string field)
     {
         string text = value ?? string.Empty;

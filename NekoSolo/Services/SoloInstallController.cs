@@ -47,8 +47,7 @@ public sealed record InstallResult(
     TimeSpan Elapsed);
 
 /// <summary>
-/// 安装流程状态机：检查包 → 校验 → 释放启动器 → 写配置 → 补全游戏文件 → 完成。
-/// UI 只订阅事件，不关心具体步骤实现。
+/// 安装流程状态机：检查包 → 校验 → 释放启动器 → 写配置 → 补全游戏文件 → 完成。UI 只订阅事件。
 /// </summary>
 public sealed class SoloInstallController
 {
@@ -101,12 +100,11 @@ public sealed class SoloInstallController
             options = options with { TargetPath = Path.GetFullPath(options.TargetPath) };
             Directory.CreateDirectory(options.TargetPath);
 
-            // 阶段标记：实时记录本次写出的文件；失败/取消时按清单回滚，避免重试时新旧文件混装。
+            // 实时记录本次写出的文件；失败/取消时按清单回滚，避免重试时新旧文件混装。
             stageMarkerPath = Path.Combine(options.TargetPath, ".nekosolo-installing");
             stage = PrepareStageMarker(stageMarkerPath, options.TargetPath, Log);
             Action<string> track = fullPath => TrackWritten(stage, options.TargetPath, fullPath);
 
-            // 1) 检查安装包
             Begin(InstallStep.Check);
             SoloPayloadInfo payload = default;
             if (!string.IsNullOrWhiteSpace(_packagePath))
@@ -148,7 +146,6 @@ public sealed class SoloInstallController
                 End(InstallStep.Check, $"{payload.SizeMegabytes:0.0} MB");
             }
 
-            // 2) 校验
             Begin(InstallStep.Verify);
             if (!string.IsNullOrWhiteSpace(_packagePath))
             {
@@ -187,8 +184,6 @@ public sealed class SoloInstallController
             using (Stream packageStream = OpenPackageStream(payload))
             using (var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: false))
             {
-                // 2) 校验（Begin 已在步骤 1 之后调用）
-                // 释放/启动之前统一校验条目路径、体积上限与解压完整性，任一失败即终止（fail-closed）。
                 SoloPayload.VerifyArchive(archive, Log);
                 // 只接受包含主启动器的完整包，不能把普通 zip 或仅含实例内容的旧包标为安装成功。
                 if (!archive.Entries.Any(entry =>
@@ -197,7 +192,6 @@ public sealed class SoloInstallController
                     throw new InvalidOperationException("安装包缺少 files/Mofumofu.Launcher.exe，请使用新版导出器重新打包。");
                 End(InstallStep.Verify);
 
-                // 3) 释放启动器
                 Begin(InstallStep.Extract);
                 var extractProgress = new Progress<double>(value =>
                     Progress(value, SoloStrings.T("Step.Extract"), string.Empty));
@@ -214,7 +208,6 @@ public sealed class SoloInstallController
                 Log($"extract: {count} 个文件 → {options.TargetPath}");
                 End(InstallStep.Extract, SoloStrings.F("Progress.Files", fileCount));
 
-                // 4) 写配置
                 Begin(InstallStep.Config);
                 // 先登记会写出的配置/标记文件，写配置中途失败也能一并回滚；桌面快捷方式不在安装目录内，不回滚。
                 track(Path.Combine(options.TargetPath, "solo.json"));
@@ -222,7 +215,6 @@ public sealed class SoloInstallController
                 await WriteConfigurationAsync(manifest, options, cancellationToken).ConfigureAwait(false);
                 End(InstallStep.Config);
 
-                // 5) 补全游戏文件
                 Begin(InstallStep.Minecraft);
                 string mcTarget = Path.Combine(options.TargetPath, ".minecraft");
                 var mcProgress = new Progress<double>(value =>
@@ -251,7 +243,6 @@ public sealed class SoloInstallController
                 if (jreCount > 0) Log($"java: jre/ → {Path.Combine(mcTarget, "runtime", "jre")} ({jreCount} 个文件)");
                 End(InstallStep.Minecraft);
 
-                // 6) 完成
                 Begin(InstallStep.Finish);
                 await WriteInstallMarkerAsync(manifest, options, stopwatch.Elapsed, cancellationToken).ConfigureAwait(false);
 
@@ -260,7 +251,7 @@ public sealed class SoloInstallController
                 Log($"done: {stopwatch.Elapsed.TotalSeconds:0.0}s");
             }
 
-            // 安装完整成功后移除阶段标记；完成标记 .nekosolo-installed 仍只在 Finish 写入。
+            // 完成标记 .nekosolo-installed 只在 Finish 写入，这里只移除阶段标记。
             FinishStageMarker(stage, stageMarkerPath);
             stage = null;
 
@@ -274,7 +265,7 @@ public sealed class SoloInstallController
                 }
                 else
                 {
-                    // 启动失败不改变已经完成的安装结果，用户仍可手动重试启动。
+                    // 启动失败不改变已经完成的安装结果。
                     try { _launch(launcher, options.TargetPath); }
                     catch (Exception ex) { Log("launch: " + ex.Message); }
                 }
@@ -394,7 +385,6 @@ public sealed class SoloInstallController
         }
     }
 
-    /// <summary>写入安装标记后各个界面都能据此判断「已安装 / 可修复」。</summary>
     public static InstallMarker? ReadMarker(string target)
     {
         try
@@ -477,8 +467,6 @@ public sealed class SoloInstallController
         await File.WriteAllTextAsync(markerPath, text, cancellationToken).ConfigureAwait(false);
     }
 
-    // ---------------- 安装阶段标记 / 失败回滚 ----------------
-
     /// <summary>剔除 marker 值里的控制字符（含换行），防止伪造 key=value 记录。</summary>
     private static string EscapeMarkerValue(string value)
     {
@@ -515,7 +503,6 @@ public sealed class SoloInstallController
         return new StreamWriter(markerPath, append: false) { AutoFlush = true };
     }
 
-    /// <summary>把本次写出的文件（仅安装目录内）追加到阶段标记清单。</summary>
     private static void TrackWritten(StreamWriter? stage, string target, string fullPath)
     {
         if (stage is null) return;
@@ -527,14 +514,13 @@ public sealed class SoloInstallController
         stage.WriteLine(relative);
     }
 
-    /// <summary>安装成功：关闭并删除阶段标记，保留 Finish 写入的完成标记。</summary>
     private static void FinishStageMarker(StreamWriter? stage, string markerPath)
     {
         stage?.Dispose();
         TryDeleteFile(markerPath);
     }
 
-    /// <summary>失败/取消：按阶段标记清单回滚本次已写出的文件，并删除标记（完成标记本就不会写入）。</summary>
+    /// <summary>完成标记本就不会写入，这里只回滚阶段标记清单里的文件。</summary>
     private static void RollbackStage(StreamWriter? stage, string markerPath, string target, Action<string> log)
     {
         stage?.Dispose(); // 先释放句柄，下面才能安全读取清单
@@ -551,7 +537,7 @@ public sealed class SoloInstallController
                 }
             }
         }
-        catch (Exception) { /* 回滚失败不覆盖原始安装异常 */ }
+        catch (Exception) { }
 
         TryDeleteFile(markerPath);
         if (removed > 0) log($"cleanup: 已回滚 {removed} 个文件");
@@ -584,7 +570,6 @@ public sealed class SoloInstallController
     }
 }
 
-/// <summary>安装目录 .nekosolo-installed 的内容。</summary>
 public sealed record InstallMarker(string PackId, string Version);
 
 /// <summary>桌面快捷方式（WScript.Shell COM，走反射以避开 dynamic 依赖）。</summary>

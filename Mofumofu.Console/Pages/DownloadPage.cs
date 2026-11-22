@@ -9,7 +9,6 @@ using Terminal.Gui.Views;
 
 namespace Mofumofu.Console.Pages;
 
-/// <summary>下载页：布局对照桌面版，左侧分类、右侧搜索 + 列表 + 详情 + 操作。</summary>
 public sealed class DownloadPage : MofuPage
 {
     private enum Mode
@@ -259,7 +258,6 @@ public sealed class DownloadPage : MofuPage
         return ids;
     }
 
-    /// <summary>原版安装：先选加载器（对应桌面版的本体安装面板），再装游戏本体。</summary>
     private async Task InstallVanillaAsync(MinecraftVersion version)
     {
         string[] loaders = ["原版（仅安装游戏本体）", "Fabric", "Quilt", "Forge", "NeoForge", "OptiFine"];
@@ -428,7 +426,6 @@ public sealed class DownloadPage : MofuPage
         }
     }
 
-    /// <summary>管理 runtime 目录下的已安装 Java（对应桌面版 Java 页的已安装列表）。</summary>
     private void ManageJavaRuntimes()
     {
         string gameDirectory = YamlRead.EnsureGameDirectory();

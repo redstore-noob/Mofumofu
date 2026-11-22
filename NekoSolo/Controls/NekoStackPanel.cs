@@ -4,8 +4,8 @@ using System.Windows.Controls;
 namespace NekoSolo.Controls;
 
 /// <summary>
-/// 带 Spacing 的 StackPanel（WPF 原生没有该属性，界面上大量使用等距排布）。
-/// 布局语义与 Avalonia 的 StackPanel.Spacing 一致：只在相邻可见子元素之间插入间隔。
+/// 带 Spacing 的 StackPanel（WPF 原生没有该属性）。
+/// 语义与 Avalonia 的 StackPanel.Spacing 一致：只在相邻可见子元素之间插入间隔。
 /// </summary>
 public class NekoStackPanel : StackPanel
 {

@@ -3,7 +3,6 @@ using MofuCore.Launch;
 
 namespace Mofumofu.Console;
 
-/// <summary>账号列表中的一项（离线 / 微软 / 皮肤站）。</summary>
 public sealed class AccountEntry
 {
     public required string Kind { get; init; }
@@ -17,7 +16,6 @@ public sealed class AccountEntry
     public override string ToString() => Display;
 }
 
-/// <summary>统一账号读取、登录结果落盘与启动账号解析。</summary>
 public sealed class AccountService
 {
     private readonly MinecraftTokenHandle _handle = new();
@@ -115,7 +113,6 @@ public sealed class AccountService
         return _store.RemoveAuthlibCredential(credential.ProfileUuid, credential.ApiRoot);
     }
 
-    /// <summary>把保存的账号解析成启动账号（微软令牌过期时自动刷新）。</summary>
     public async Task<IMinecraftAccount> ResolveAsync(string key, CancellationToken cancellationToken = default)
     {
         AccountEntry entry = _entries.FirstOrDefault(item => item.Key == key)

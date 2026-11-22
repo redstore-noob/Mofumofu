@@ -17,7 +17,6 @@ public sealed record InstanceItem(
     public string Display => $"{Id}  ·  {(Loader == "Vanilla" ? "原版" : Loader)} {MinecraftVersion}";
 }
 
-/// <summary>实例扫描、启动参数组装与启动。</summary>
 public sealed class InstanceService
 {
     private readonly AccountService _accounts;

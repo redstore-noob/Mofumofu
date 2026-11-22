@@ -4,7 +4,7 @@ namespace NekoSolo.Services;
 
 /// <summary>
 /// NekoSolo 自带的轻量本地化：只有两种语言、键量很小，不引入主启动器的 Localization 体系。
-/// 语言取系统 UI 语言，可用 NEKOSOLO_LANG=zh-CN / en-US 强制。
+/// 语言取系统 UI 语言，可用环境变量 NEKOSOLO_LANG=zh-CN / en-US 强制。
 /// </summary>
 public static class SoloStrings
 {

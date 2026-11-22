@@ -5,7 +5,7 @@ using MofuCore.Download.Minecraft;
 
 namespace Mofumofu.Console;
 
-/// <summary>TUI 自己的轻量设置，仅保存界面状态与启动偏好，其余复用 MofuCore 配置。</summary>
+/// <summary>仅保存界面状态与启动偏好，其余复用 MofuCore 配置。</summary>
 public sealed class TuiSettings
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

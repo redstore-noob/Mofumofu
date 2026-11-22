@@ -21,12 +21,10 @@
     </WindowChrome.WindowChrome>
 
     <Grid>
-        <!-- 背景光晕 -->
         <Border Background="{StaticResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
 
         <Grid><Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
-            <!-- ================= 自绘标题栏 ================= -->
             <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="OnTitleBarMouseDown">
                 <controls:NekoStackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                     <Border Width="16" Height="16" CornerRadius="5" Background="{StaticResource NekoAccentBrush}"
@@ -59,15 +57,12 @@
                 </controls:NekoStackPanel>
             </Grid>
 
-            <!-- ================= 主体 ================= -->
             <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="256" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
 
-                <!-- ===== 左侧栏 ===== -->
                 <Border Grid.Column="0" Background="#FF0B1017"
                         BorderBrush="{StaticResource NekoBorderSoftBrush}" BorderThickness="0,0,1,0">
                     <Grid Margin="20,18,20,16"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
 
-                        <!-- 包信息 -->
                         <controls:NekoStackPanel Grid.Row="0" Spacing="12">
                             <Border Width="76" Height="76" CornerRadius="16" Background="{StaticResource NekoFieldBrush}"
                                     BorderBrush="{StaticResource NekoBorderBrush}" BorderThickness="1"
@@ -103,10 +98,8 @@
                             </WrapPanel>
                         </controls:NekoStackPanel>
 
-                        <!-- 步骤 -->
                         <controls:NekoStackPanel x:Name="SidebarStepHost" Grid.Row="1" Margin="0,22,0,0" Spacing="2" />
 
-                        <!-- 底部 -->
                         <controls:NekoStackPanel Grid.Row="2" Spacing="3">
                             <Button x:Name="AboutLinkButton" Style="{StaticResource NekoGhostButton}" Height="30"
                                     Padding="10,0" HorizontalAlignment="Left" Margin="0,0,0,8"
@@ -118,10 +111,8 @@
                     </Grid>
                 </Border>
 
-                <!-- ===== 右侧内容 ===== -->
                 <Grid Grid.Column="1">
 
-                    <!-- ===== 欢迎 / 安装设置 ===== -->
                     <Grid x:Name="WelcomePanel" Margin="28,20,28,20"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <controls:NekoStackPanel Grid.Row="0" Spacing="7">
                             <TextBlock x:Name="WelcomeTitle" Style="{StaticResource NekoH1}" />
@@ -214,7 +205,6 @@
                         </Grid>
                     </Grid>
 
-                    <!-- ===== 安装进度 ===== -->
                     <Grid x:Name="ProgressPanel" Margin="28,20,28,20" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <controls:NekoStackPanel Grid.Row="0" Spacing="6">
                             <TextBlock x:Name="ProgressTitle" Style="{StaticResource NekoH1}" />
@@ -254,7 +244,6 @@
                         </Grid>
                     </Grid>
 
-                    <!-- ===== 完成 / 失败 ===== -->
                     <Grid x:Name="DonePanel" Visibility="Collapsed">
                         <Border Style="{StaticResource NekoCard}" MaxWidth="560" Padding="30,28"
                                 VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -306,7 +295,6 @@
                         </Border>
                     </Grid>
 
-                    <!-- ===== 关于 ===== -->
                     <Grid x:Name="AboutPanel" Visibility="Collapsed" Margin="28,20,28,20"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <controls:NekoStackPanel Grid.Row="0" Spacing="7">
                             <TextBlock x:Name="AboutTitle" Style="{StaticResource NekoH1}" />

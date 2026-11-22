@@ -3,7 +3,6 @@ using Terminal.Gui.Views;
 
 namespace Mofumofu.Console;
 
-/// <summary>页面与主窗口之间的最小契约。</summary>
 public interface IMofuShell
 {
     TuiSettings Settings { get; }
@@ -13,7 +12,6 @@ public interface IMofuShell
     void ShowPage(string key);
 }
 
-/// <summary>所有 TUI 页面的基类。</summary>
 public abstract class MofuPage : FrameView
 {
     protected MofuPage(IMofuShell shell, string title)

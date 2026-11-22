@@ -9,7 +9,6 @@ using Terminal.Gui.Views;
 
 namespace Mofumofu.Console;
 
-/// <summary>终端对话框与后台任务的统一入口。</summary>
 public static class Ui
 {
     private static readonly ConcurrentQueue<Action> __pending = new();
@@ -18,10 +17,7 @@ public static class Ui
 
     private static IApplication App => Application.Instance!;
 
-    /// <summary>
-    /// 在主循环所在线程启动 UI 消息泵，处理后台线程投递的界面更新。
-    /// 必须在主线程且 Application 初始化之后调用；重复调用无副作用。
-    /// </summary>
+    /// <summary>必须在主线程且 Application 初始化之后调用；重复调用无副作用。</summary>
     public static void StartPump()
     {
         if (__pumpToken is not null)
@@ -52,10 +48,7 @@ public static class Ui
         }
     }
 
-    /// <summary>
-    /// 在后台线程执行任务。抑制 ExecutionContext 流动，避免捕获主线程的同步上下文，
-    /// 否则任务内部 await 的续体会被投递回主循环而无法继续执行。
-    /// </summary>
+    /// <summary>抑制 ExecutionContext 流动，避免捕获主线程同步上下文导致续体被投递回主循环。</summary>
     private static Task StartWorker(Func<Task> work)
     {
         using (ExecutionContext.SuppressFlow())
@@ -64,15 +57,13 @@ public static class Ui
         }
     }
 
-    /// <summary>不捕获同步上下文的进度上报器，回调在调用方线程直接执行。</summary>
+    /// <summary>不捕获同步上下文，回调在调用方线程直接执行。</summary>
     private sealed class ActionProgress(Action<string> handler) : IProgress<string>
     {
         public void Report(string value) => handler(value);
     }
 
-    /// <summary>
-    /// 把界面更新投递到主线程。主线程直接执行；后台线程进入队列，由消息泵在主循环中执行。
-    /// </summary>
+    /// <summary>主线程直接执行；后台线程入队，由消息泵在主循环中执行。</summary>
     public static void Post(Action action)
     {
         if (__uiThread == -1 || Environment.CurrentManagedThreadId == __uiThread)
@@ -84,7 +75,6 @@ public static class Ui
         __pending.Enqueue(action);
     }
 
-    /// <summary>让对话框支持 Esc 关闭。</summary>
     public static void EnableEsc(Dialog dialog)
     {
         dialog.KeyDown += (_, key) =>
@@ -114,7 +104,6 @@ public static class Ui
         return MessageBox.Query(App, title, message, "确定", "取消") == 0;
     }
 
-    /// <summary>单行输入框；取消返回 null。</summary>
     public static string? Prompt(string title, string label, string initial = "", bool secret = false)
     {
         string? result = null;
@@ -155,7 +144,6 @@ public static class Ui
         return result;
     }
 
-    /// <summary>多字段表单；取消返回 null。</summary>
     public static Dictionary<string, string>? Form(string title, params (string Key, string Label, string Value, bool Secret)[] fields)
     {
         Dictionary<string, string>? result = null;
@@ -202,7 +190,6 @@ public static class Ui
         return result;
     }
 
-    /// <summary>从字符串列表中选择一项；取消返回 null。</summary>
     public static string? Select(string title, IReadOnlyList<string> options, int selectedIndex = 0)
     {
         if (options.Count == 0)
@@ -266,7 +253,6 @@ public static class Ui
         return ok;
     }
 
-    /// <summary>模态进度对话框；任务在后台执行，取消按钮会触发 CancellationToken。</summary>
     public static Task<(bool Ok, T? Value)> RunTaskAsync<T>(
         string title,
         string description,
@@ -396,7 +382,6 @@ public static class Ui
         return Task.FromResult((success, value));
     }
 
-    /// <summary>只读长文本查看器（可滚动、可选择）。</summary>
     public static void ShowText(string title, string text)
     {
         Dialog dialog = new()
