@@ -7,7 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>会话持久化：一个会话一个 JSON 文件，放在 {配置目录}/mofuagent/sessions。</summary>
 public static class AgentStore
 {
     private static readonly JsonSerializerOptions Options = new()
@@ -36,13 +35,11 @@ public static class AgentStore
                 }
                 catch
                 {
-                    // 坏文件跳过，不影响其它会话
                 }
             }
         }
         catch
         {
-            // 目录不可读按空列表处理
         }
 
         return result.OrderByDescending(conversation => conversation.UpdatedAt).ToList();
@@ -96,7 +93,6 @@ public static class AgentStore
         }
     }
 
-    /// <summary>导出为可读的 Markdown，方便贴到别处。</summary>
     public static string ExportMarkdown(AgentConversation conversation)
     {
         var builder = new System.Text.StringBuilder();

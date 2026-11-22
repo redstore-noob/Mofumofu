@@ -9,29 +9,21 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>工具的风险等级：决定要不要先问玩家一句。</summary>
 public enum AgentToolRisk
 {
-    /// <summary>只读，随便调。</summary>
     Read,
 
-    /// <summary>会产生实际动作（启动游戏、跳页面）。</summary>
     Write,
 
-    /// <summary>需要玩家当场回答（ask_user）。</summary>
     Interactive
 }
 
-/// <summary>工具执行时可用的回调与上下文。</summary>
 public sealed class AgentToolContext
 {
-    /// <summary>向玩家提问并等待回答（UI 侧弹内联卡片）。</summary>
     public required Func<string, IReadOnlyList<string>, bool, CancellationToken, Task<string>> AskAsync { get; init; }
 
-    /// <summary>执行写操作前的确认。返回 false 表示玩家拒绝。</summary>
     public required Func<AgentToolDefinition, string, CancellationToken, Task<bool>> ConfirmAsync { get; init; }
 
-    /// <summary>当前选中的供应商/模型，工具可以据此调整输出。</summary>
     public string Model { get; init; } = string.Empty;
 
     public AgentSettings Settings { get; init; } = new();
@@ -43,21 +35,17 @@ public sealed class AgentToolContext
     public bool TrustEndpoint { get; init; }
 }
 
-/// <summary>一个可被模型调用的工具。</summary>
 public sealed class AgentToolDefinition
 {
     public required string Name { get; init; }
     public required string Description { get; init; }
 
-    /// <summary>JSON Schema 原文（对象）。</summary>
     public required string ParametersSchema { get; init; }
 
     public AgentToolRisk Risk { get; init; } = AgentToolRisk.Read;
 
-    /// <summary>写操作是否默认要求确认。</summary>
     public bool RequiresConfirm { get; init; }
 
-    /// <summary>该工具会读取本机环境信息（游戏目录 / 账号 / 实例 / 模组等），非官方端点应禁用。</summary>
     public bool ExposesLocalInfo { get; init; }
 
     public required Func<JsonElement, AgentToolContext, CancellationToken, Task<string>> Handler { get; init; }
@@ -66,7 +54,6 @@ public sealed class AgentToolDefinition
         JsonNode.Parse(string.IsNullOrWhiteSpace(ParametersSchema) ? "{}" : ParametersSchema) ?? new JsonObject();
 }
 
-/// <summary>内置工具集合 + 调用入口。</summary>
 public sealed class AgentToolRegistry
 {
     private readonly Dictionary<string, AgentToolDefinition> _tools = new(StringComparer.OrdinalIgnoreCase);
@@ -91,7 +78,6 @@ public sealed class AgentToolRegistry
                 .ToList()
             : Array.Empty<AgentToolDefinition>();
 
-    /// <summary>执行一次调用：解参数、确认、超时、异常兜底，全部收敛成一段文本结果。</summary>
     public async Task<(string Content, bool IsError)> InvokeAsync(
         AgentToolCall call, AgentToolContext context, CancellationToken cancellationToken)
     {
@@ -123,18 +109,30 @@ public sealed class AgentToolRegistry
             if (!approved) return ("玩家拒绝执行这个操作。请换一种方式，或先和玩家确认需求。", true);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        // Interactive questions wait for the player, not for the execution timeout.
+        if (tool.Risk == AgentToolRisk.Interactive)
+            return await InvokeHandlerAsync(tool, arguments, context, cancellationToken, cancellationToken, null);
+
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         int seconds = Math.Clamp(context.Settings.Tools.TimeoutSeconds, 3, 120);
         timeout.CancelAfter(TimeSpan.FromSeconds(seconds));
+        return await InvokeHandlerAsync(tool, arguments, context, timeout.Token, cancellationToken, seconds);
+    }
+
+    private static async Task<(string Content, bool IsError)> InvokeHandlerAsync(
+        AgentToolDefinition tool, JsonElement arguments, AgentToolContext context,
+        CancellationToken handlerToken, CancellationToken cancellationToken, int? timeoutSeconds)
+    {
 
         try
         {
-            string content = await tool.Handler(arguments, context, timeout.Token);
+            string content = await tool.Handler(arguments, context, handlerToken);
             return (string.IsNullOrWhiteSpace(content) ? "（工具执行完成，没有返回内容）" : content, false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (timeoutSeconds is not null && !cancellationToken.IsCancellationRequested)
         {
-            return ($"错误：工具 {tool.Name} 执行超过 {seconds} 秒，已中止。", true);
+            return ($"错误：工具 {tool.Name} 执行超过 {timeoutSeconds} 秒，已中止。", true);
         }
         catch (OperationCanceledException)
         {
@@ -146,7 +144,6 @@ public sealed class AgentToolRegistry
         }
     }
 
-    /// <summary>默认工具集：启动器控制 + 交互 + 记忆。</summary>
     public static AgentToolRegistry CreateDefault()
     {
         var registry = new AgentToolRegistry();
@@ -196,6 +193,8 @@ public sealed class AgentToolRegistry
             Name = "launcher.toast",
             Description = "在启动器右下角弹一条轻提示，用来即时反馈一句话（不超过 60 字）。",
             ParametersSchema = """{"type":"object","properties":{"message":{"type":"string","description":"提示内容"}},"required":["message"]}""",
+            Risk = AgentToolRisk.Write,
+            RequiresConfirm = true,
             Handler = LauncherAgentTools.ToastAsync,
         });
 
@@ -244,6 +243,7 @@ public sealed class AgentToolRegistry
         registry.Register(new AgentToolDefinition
         {
             Name = "memory.recall",
+            ExposesLocalInfo = true,
             Description = "在本地记忆里按关键词搜索以前记下的内容。没有关键词时返回最近的若干条。",
             ParametersSchema = """{"type":"object","properties":{"keyword":{"type":"string","description":"关键词，可省略"}},"required":[]}""",
             Handler = (arguments, _, _) =>
@@ -260,7 +260,6 @@ public sealed class AgentToolRegistry
     }
 }
 
-/// <summary>工具参数的宽容读取：模型经常把数字写成字符串、把数组写成逗号分隔。</summary>
 internal static class AgentToolArgs
 {
     public static string? String(JsonElement arguments, string name)
@@ -316,7 +315,6 @@ internal static class AgentToolArgs
     }
 }
 
-/// <summary>跨会话的本地记忆（就是一个小 JSON 数组，存在配置目录下）。</summary>
 public static class AgentMemory
 {
     private static readonly object Gate = new();
@@ -359,7 +357,6 @@ public static class AgentMemory
             }
             catch
             {
-                // 记忆写失败不影响对话
             }
         }
     }

@@ -8,26 +8,19 @@ using MofuCore.Config;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>工具权限：允许调用哪些、写操作是否要先确认。</summary>
 public sealed class AgentToolSettings
 {
-    /// <summary>总开关：关掉后模型拿不到任何工具。</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>启动器控制类工具（开页、启动游戏、提示）总开关。</summary>
     public bool LauncherControl { get; set; } = true;
 
-    /// <summary>写操作（启动游戏等）执行前先弹确认。</summary>
     public bool ConfirmWrites { get; set; } = true;
 
-    /// <summary>单次工具执行超时（秒）。</summary>
     public int TimeoutSeconds { get; set; } = 20;
 
-    /// <summary>被单独关掉的工具名。</summary>
     public List<string> DisabledTools { get; set; } = new();
 }
 
-/// <summary>MofuAgent 的全部可配置项，保存在 {配置目录}/mofuagent/settings.json。</summary>
 public sealed class AgentSettings
 {
     public List<AgentProviderConfig> Providers { get; set; } = new();
@@ -35,24 +28,18 @@ public sealed class AgentSettings
     public string ActiveProviderId { get; set; } = string.Empty;
     public string ActiveModel { get; set; } = string.Empty;
 
-    // ---- 生成参数 ----
     public double TopP { get; set; } = 1.0;
     public int MaxOutputTokens { get; set; } = 2048;
     public bool Streaming { get; set; } = true;
 
-    // ---- 上下文 ----
-    /// <summary>模型上下文窗口（token），用于用量条与自动压缩阈值。</summary>
     public int ContextWindow { get; set; } = 32768;
 
     public bool AutoCompact { get; set; } = true;
 
-    /// <summary>占用超过该比例时自动压缩历史。</summary>
     public double CompactAt { get; set; } = 0.78;
 
-    /// <summary>压缩时保留的最近消息条数。</summary>
     public int KeepRecentMessages { get; set; } = 8;
 
-    // ---- 行为 ----
     public string SystemPrompt { get; set; } = DefaultSystemPrompt;
 
     /// <summary>单轮最多连续工具调用轮次，防止死循环。</summary>
@@ -60,10 +47,8 @@ public sealed class AgentSettings
 
     public AgentToolSettings Tools { get; set; } = new();
 
-    /// <summary>上次打开的会话 id，启动时恢复。</summary>
     public string LastConversationId { get; set; } = string.Empty;
 
-    /// <summary>对话页右侧的上下文仪表是否展开。窄窗口下可以收起来给正文让位。</summary>
     public bool ShowInspector { get; set; } = true;
 
     public const string DefaultSystemPrompt =
@@ -131,7 +116,6 @@ public sealed class AgentSettings
     }
 }
 
-/// <summary>设置读写。文件很小，直接整份读写；写失败不抛给 UI。</summary>
 public static class AgentSettingsStore
 {
     private static readonly object WriteGate = new();
@@ -221,7 +205,7 @@ public static class AgentSettingsStore
                 if (File.Exists(SettingsPath))
                 {
                     try { File.Copy(SettingsPath, BackupPath, true); }
-                    catch { /* 备份失败不阻断正常保存 */ }
+                    catch {  }
                 }
 
                 AtomicWrite(SettingsPath, json);

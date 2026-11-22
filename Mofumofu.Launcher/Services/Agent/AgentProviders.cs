@@ -4,10 +4,6 @@ using System.Net;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>
-/// 一条供应商预设：只描述默认值，不持有运行时状态。
-/// 新增供应商时从这里拷一份，玩家之后随便改。
-/// </summary>
 public sealed record AgentProviderPreset(
     string Id,
     string Name,
@@ -15,13 +11,8 @@ public sealed record AgentProviderPreset(
     AgentProviderKind Kind,
     string BaseUrl);
 
-/// <summary>
-/// 内置供应商预设。预设只是"起步模板"，真正生效的是设置里的
-/// <see cref="AgentProviderConfig"/>，所以玩家可以随意增删、改地址、改模型。
-/// </summary>
 public static class AgentProviderPresets
 {
-    /// <summary>可选预设（不含本地模拟，模拟服务始终内置在默认列表里）。</summary>
     public static IReadOnlyList<AgentProviderPreset> All { get; } = new List<AgentProviderPreset>
     {
         new("openai", "OpenAI", "官方接口",
@@ -58,7 +49,6 @@ public static class AgentProviderPresets
             AgentProviderKind.Gemini, "https://generativelanguage.googleapis.com/v1beta"),
     };
 
-    // 官方 HTTPS 域名白名单：由预设自动推导，明文凭据只发给这些主机。
     private static readonly HashSet<string> OfficialHosts = BuildOfficialHosts();
 
     private static HashSet<string> BuildOfficialHosts()
@@ -88,20 +78,14 @@ public static class AgentProviderPresets
                OfficialHosts.Contains(uri.Host);
     }
 
-    /// <summary>
-    /// 出站主机黑名单：云元数据、链路本地、私网与回环里的非本机地址一律拒绝；
-    /// 只放行内置的 localhost / 127.0.0.1 / ::1 本机 LLM 预设。
-    /// </summary>
     private static bool IsBlockedHost(string host)
     {
         host = host.Trim().Trim('[', ']').ToLowerInvariant();
 
-        // 各家云元数据服务（AWS/GCP/Azure/阿里云/OpenStack）。
         if (host is "metadata" or "metadata.google.internal" or "metadata.azure.internal"
             or "169.254.169.254" or "100.100.100.200")
             return true;
 
-        // 内置 Ollama / LM Studio 预设要能继续用本机服务。
         if (host is "localhost" or "127.0.0.1" or "::1") return false;
 
         if (!IPAddress.TryParse(host, out IPAddress? address)) return false;
@@ -113,7 +97,6 @@ public static class AgentProviderPresets
         byte[] bytes = address.GetAddressBytes();
         if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
         {
-            // IPv6：唯一本地 fc00::/7、链路本地 fe80::/10、未指定与回环均拒绝。
             return bytes[0] == 0xFC || bytes[0] == 0xFD ||
                    (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80) ||
                    address.Equals(IPAddress.IPv6None) ||
@@ -121,7 +104,6 @@ public static class AgentProviderPresets
         }
 
         int a = bytes[0], b = bytes[1];
-        // 0/8、10/8、100.64/10、127/8、169.254/16、172.16/12、192.168/16、224/4 以上。
         return a == 0 || a == 10 || a == 127 ||
                (a == 169 && b == 254) ||
                (a == 172 && b is >= 16 and <= 31) ||
@@ -130,7 +112,6 @@ public static class AgentProviderPresets
                a >= 224;
     }
 
-    /// <summary>按模型名猜一个上下文窗口，用于新建供应商时给个合理默认值。</summary>
     public static int GuessContextWindow(string model)
     {
         string id = model.ToLowerInvariant();
@@ -148,7 +129,6 @@ public static class AgentProviderPresets
         return 32768;
     }
 
-    /// <summary>供应商协议的中文名，设置界面下拉用。</summary>
     public static string DescribeKind(AgentProviderKind kind) => kind switch
     {
         AgentProviderKind.OpenAiCompatible => "OpenAI 兼容",
@@ -169,7 +149,6 @@ public static class AgentProviderPresets
     public static AgentProviderKind KindAt(int index) =>
         AllKinds[Math.Clamp(index, 0, AllKinds.Count - 1)];
 
-    /// <summary>列表里显示的配置状态：已配置 / 缺 Key / 本机服务 / 模拟。</summary>
     public static (string Text, string Tone) DescribeStatus(AgentProviderConfig provider)
     {
         if (string.IsNullOrWhiteSpace(provider.BaseUrl)) return ("未填地址", "warning");

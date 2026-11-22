@@ -8,10 +8,6 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>
-/// 拉取供应商的模型列表。新增自定义供应商时，玩家不用手抄模型 id。
-/// 只做「读」操作，失败时把供应商返回的原文带回界面。
-/// </summary>
 public static partial class AgentClient
 {
     private const string AnthropicVersion = "2023-06-01";

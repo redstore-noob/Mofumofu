@@ -7,12 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>
-/// API Key 与额外请求头的静态加密，跨平台实现：
-/// - 值本身用 AES-256-GCM 加密，密文格式 `aesgcm:v1:base64(nonce|tag|cipher)`；
-/// - 主密钥存放在用户数据目录（不在可搬运的配置目录里），
-///   Windows 用 DPAPI 保护主密钥，macOS / Linux 用 0600 文件权限保护。
-/// </summary>
 public static class AgentSecretProtector
 {
     private const string AesPrefix = "aesgcm:v1:";
@@ -36,7 +30,6 @@ public static class AgentSecretProtector
     /// <summary>密文解不开（换账户 / 换机器 / 主密钥丢失 / 配置损坏），不要覆盖原值。</summary>
     public static bool DecryptFailed { get; private set; }
 
-    /// <summary>主密钥文件路径。放在用户数据目录，和可搬运的 settings.json 分开。</summary>
     public static string KeyPath => Path.Combine(KeyDirectory, "secret.key");
 
     public static string KeyDirectory
@@ -73,10 +66,6 @@ public static class AgentSecretProtector
         DecryptFailed = false;
     }
 
-    /// <summary>
-    /// 删除主密钥并清掉进程内缓存。旧密文随之作废，调用方应同时清空各供应商的 Key。
-    /// 用于主密钥损坏 / 丢失后的恢复。
-    /// </summary>
     public static void ResetKey()
     {
         lock (KeyLock)
@@ -92,7 +81,6 @@ public static class AgentSecretProtector
             }
             catch
             {
-                // 删不掉时下一次 Protect 仍会报错，界面会显示原因。
             }
         }
     }
@@ -133,15 +121,9 @@ public static class AgentSecretProtector
             : value;
     }
 
-    /// <summary>
-    /// 解密并给出每次调用可判别的成功/失败结果。
-    /// 失败时返回 false，plaintext 保留无法解开的原密文，调用方据此 fail-closed
-    /// 地拒绝把它当作有效凭据使用；不再只靠进程级 DecryptFailed 标志或空串来隐式表达失败。
-    /// </summary>
     public static bool TryUnprotect(string? value, out string plaintext)
     {
         plaintext = Unprotect(value);
-        // 带密文前缀的输入若解出来仍是同一份密文（Unprotect 失败时原样返回），即为失败。
         return !LooksEncrypted(value) || !ReferenceEquals(plaintext, value);
     }
 
@@ -308,7 +290,6 @@ public static class AgentSecretProtector
         }
         catch
         {
-            // 某些文件系统不支持 chmod；密钥文件本身仍会尝试 0600。
         }
     }
 
@@ -322,7 +303,6 @@ public static class AgentSecretProtector
         }
         catch
         {
-            // 同上，尽力而为。
         }
     }
 

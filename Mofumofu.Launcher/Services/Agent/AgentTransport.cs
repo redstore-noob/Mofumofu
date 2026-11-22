@@ -14,10 +14,8 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>供应商返回的错误（消息可直接展示给玩家）。</summary>
 public sealed class AgentRequestException(string message) : Exception(message);
 
-/// <summary>一次完整请求的参数。</summary>
 public sealed class AgentRequest
 {
     public required AgentProviderConfig Provider { get; init; }
@@ -30,7 +28,6 @@ public sealed class AgentRequest
     public bool Streaming { get; init; } = true;
 }
 
-/// <summary>一次模型调用的结果。</summary>
 public sealed class AgentTurn
 {
     public string Text { get; set; } = string.Empty;
@@ -41,15 +38,12 @@ public sealed class AgentTurn
     public TimeSpan Elapsed { get; set; }
 }
 
-/// <summary>
-/// 供应商协议适配层：把统一的 AgentRequest 翻译成各家请求体，并把 SSE 增量还原成
-/// 文本 / 思考 / 工具调用。所有分支共享同一条 <see cref="SseReader"/>。
-/// </summary>
 public static partial class AgentClient
 {
     internal static readonly HttpClient Http = new(new SocketsHttpHandler
     {
         ConnectTimeout = TimeSpan.FromSeconds(20),
+        AllowAutoRedirect = false,
         PooledConnectionLifetime = TimeSpan.FromMinutes(10),
         AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
     })
@@ -83,7 +77,6 @@ public static partial class AgentClient
         return turn;
     }
 
-    /// <summary>连通性测试：发一次最短请求，返回耗时与首段回复。</summary>
     public static async Task<(bool Ok, string Message)> TestAsync(
         AgentProviderConfig provider, string model, CancellationToken cancellationToken)
     {
@@ -116,10 +109,6 @@ public static partial class AgentClient
             return (false, error.Message);
         }
     }
-
-    // ==================================================================
-    // 公共小工具
-    // ==================================================================
 
     internal static HttpRequestMessage Build(HttpMethod method, string url, AgentProviderConfig provider)
     {
@@ -212,7 +201,6 @@ public static partial class AgentClient
         }
         catch
         {
-            // 非 JSON 错误体，原样展示
         }
 
         if (string.IsNullOrWhiteSpace(detail)) detail = response.ReasonPhrase ?? "无响应内容";
@@ -222,7 +210,6 @@ public static partial class AgentClient
         return $"HTTP {(int)response.StatusCode} · {detail}";
     }
 
-    /// <summary>错误体回显脱敏：去掉控制字符，掩盖可能被服务端回显出来的密钥/令牌。</summary>
     private static string RedactError(string text)
     {
         if (text.Length == 0) return text;
@@ -240,7 +227,6 @@ public static partial class AgentClient
     }
 }
 
-/// <summary>共享的 JSON 序列化设置。</summary>
 internal static class AgentJson
 {
     public static readonly JsonSerializerOptions Options = new()
@@ -250,7 +236,6 @@ internal static class AgentJson
     };
 }
 
-/// <summary>SSE 行读取器：把 "data: ..." 与 "event: ..." 组合成一条条事件。</summary>
 internal sealed class SseReader
 {
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(180);
@@ -265,7 +250,6 @@ internal sealed class SseReader
         return new SseReader(new StreamReader(stream, Encoding.UTF8));
     }
 
-    /// <summary>读取下一条事件；流结束时返回 null。</summary>
     public async Task<(string? Event, string Data)?> ReadAsync(CancellationToken ct)
     {
         string? eventName = null;
@@ -310,7 +294,6 @@ internal sealed class SseReader
                 if (data.Length > 0) data.Append('\n');
                 data.Append(payload);
             }
-            // 忽略 id: / retry: / 注释行
         }
     }
 }

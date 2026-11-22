@@ -12,10 +12,6 @@ using MofuCore.Launch;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>
-/// 把启动器现有能力（实例、启动、导航、提示）包装成模型可调用的工具。
-/// 这里只做"读事实 + 转调既有服务"，不重复实现业务逻辑。
-/// </summary>
 internal static class LauncherAgentTools
 {
     public static Task<string> ListInstancesAsync(JsonElement _, AgentToolContext __, CancellationToken cancellationToken)
@@ -161,7 +157,6 @@ internal static class LauncherAgentTools
 
     private sealed record InstanceSnapshot(string Id, string Version, int ModCount, DateTime? LastWrite);
 
-    /// <summary>扫 versions 目录；没有版本 JSON 的目录（备份 / 半成品）不算实例。</summary>
     private static List<InstanceSnapshot> ScanInstances()
     {
         var result = new List<InstanceSnapshot>();
@@ -191,7 +186,6 @@ internal static class LauncherAgentTools
                 }
                 catch
                 {
-                    // 版本 JSON 坏掉时按目录名处理
                 }
 
                 int mods = 0;
@@ -215,7 +209,6 @@ internal static class LauncherAgentTools
                 }
                 catch
                 {
-                    // 忽略时间戳读取失败
                 }
 
                 result.Add(new InstanceSnapshot(id, version, mods, lastWrite));
@@ -223,7 +216,6 @@ internal static class LauncherAgentTools
         }
         catch
         {
-            // 目录不可读按空列表处理
         }
 
         return result

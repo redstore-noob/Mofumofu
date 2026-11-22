@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>OpenAI /chat/completions 协议（绝大多数国产与本地推理服务都兼容）。</summary>
 internal static class OpenAiClient
 {
     public static async Task<AgentTurn> CompleteAsync(
@@ -136,7 +135,6 @@ internal static class OpenAiClient
         AgentRequest request, string url, bool includeUsage, CancellationToken ct)
     {
         using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
-        // 明文 Key 只发给官方端点；本机/自定义端点不自动附带。
         if (AgentProviderPresets.IsOfficialEndpoint(request.Provider.BaseUrl) &&
             !string.IsNullOrWhiteSpace(request.Provider.ApiKey))
         {

@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Agent;
 
-/// <summary>Anthropic Messages API（x-api-key + anthropic-version）。</summary>
 internal static class AnthropicClient
 {
     private const string ApiVersion = "2023-06-01";
@@ -43,7 +42,6 @@ internal static class AnthropicClient
         }
 
         using HttpRequestMessage http = AgentClient.Build(HttpMethod.Post, url, request.Provider);
-        // 明文 Key 只发给官方端点；本机/自定义端点不自动附带。
         if (AgentProviderPresets.IsOfficialEndpoint(request.Provider.BaseUrl) &&
             !string.IsNullOrWhiteSpace(request.Provider.ApiKey))
         {
@@ -64,7 +62,6 @@ internal static class AnthropicClient
             return turn;
         }
 
-        // index → 正在累积的工具调用（tool_use 的 input 是分片 JSON 字符串）
         var toolBuffers = new Dictionary<int, (string Id, string Name, StringBuilder Json)>();
         SseReader reader = await SseReader.CreateAsync(response, cancellationToken);
 
@@ -172,7 +169,6 @@ internal static class AnthropicClient
         return turn;
     }
 
-    /// <summary>把统一消息转成 Anthropic 的 user/assistant 交替结构，工具结果放在 user 的 tool_result 块里。</summary>
     private static List<object> BuildMessages(IReadOnlyList<AgentMessage> messages)
     {
         var result = new List<(string Role, List<object> Blocks)>();
