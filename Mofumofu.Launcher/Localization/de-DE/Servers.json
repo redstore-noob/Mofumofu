@@ -1,7 +1,4 @@
-{
-  "Servers.Page.Title": "Server",
-  "Servers.Page.Subtitle": "Lokal gehostete und gemerkte Server",
-  "Servers.Page.SubtitleLocal": "{0} Server · {1} laufen · {2} Spieler online",
+﻿{
   "Servers.Page.NoLocal": "Keine lokalen Server gefunden",
   "Servers.Action.Refresh": "Aktualisieren",
   "Servers.Action.Import": "Serverpaket importieren",
@@ -81,8 +78,6 @@
   "Servers.Toast.Address": "Serveradresse: {0}",
   "Servers.Toast.Refreshed": "Aktualisiert – insgesamt {0} lokale Server",
   "Servers.Toast.NoLocal": "Keine lokalen Server gefunden",
-  "Servers.Toast.Import": "Serverpaket importieren",
-  "Servers.Toast.Create": "Neuer Server",
   "Servers.Toast.BackingUp": "Backup wird erstellt…",
   "Servers.Toast.BackupDone": "Backup abgeschlossen: {0}",
   "Servers.Toast.BackupFailed": "Backup fehlgeschlagen: {0}",
@@ -93,7 +88,6 @@
   "Servers.Toast.BackupDeleteFailed": "Backup konnte nicht gelöscht werden: {0}",
   "Servers.Toast.OpenedFolder": "Serververzeichnis geöffnet: {0}",
   "Servers.Toast.OpenFolderFailed": "Verzeichnis konnte nicht geöffnet werden: {0}",
-  "Servers.Toast.ConfigPath": "Konfigurationsdatei: {0}",
   "Servers.Toast.ConfigMissing": "Konfigurationsdatei nicht gefunden: {0}",
   "Servers.Toast.ConfigOpened": "Konfigurationsdatei geöffnet: {0}",
   "Servers.Toast.EnterPlayerName": "Zuerst einen Spielernamen eingeben",

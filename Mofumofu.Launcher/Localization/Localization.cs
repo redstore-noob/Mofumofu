@@ -10,14 +10,6 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Localization;
 
-/// <summary>
-/// 界面本地化：按语言加载 <c>avares://Mofumofu.Launcher/Localization/&lt;lang&gt;/*.json</c>
-/// 里的扁平键表（键形如 <c>Settings.Game.Title</c>），并把每个键写进
-/// <see cref="Application.Resources"/> 的 <c>L.&lt;key&gt;</c>：
-/// XAML 用 <c>{DynamicResource L.Settings.Game.Title}</c> 实时跟随，
-/// code-behind 用 <see cref="T(string)"/> 取（切语言时主窗口会重建页面刷新）。
-/// 缺键时回退顺序：当前语言 → 简体中文 → 键名本身。
-/// </summary>
 public static class Localization
 {
     private const string AssetRoot = "avares://Mofumofu.Launcher/Localization/";
@@ -32,7 +24,6 @@ public static class Localization
     private static readonly List<string> AppliedKeys = [];
     private static readonly object Gate = new();
 
-    /// <summary>语言选项：代码 / 显示名（显示名自身不翻译）/ 旗帜。</summary>
     public sealed record LanguageOption(string Code, string Name, string FlagImage);
 
     public static IReadOnlyList<LanguageOption> Languages { get; } =
@@ -47,20 +38,16 @@ public static class Localization
         new(SystemLanguage, "跟随系统", "avares://Mofumofu.Launcher/Assets/Flags/system.png"),
     ];
 
-    /// <summary>最近一次生效语言（已解析，不会是 <c>system</c>）。</summary>
     public static string CurrentLanguage { get; private set; } = DefaultLanguage;
 
-    /// <summary>语言切换完成后触发（主窗口用它重建页面）。</summary>
     public static event Action? LanguageChanged;
 
-    /// <summary>载入全部语言表并应用当前设置里的语言；启动时调用一次。</summary>
     public static void Initialize()
     {
         LoadTables();
         Apply(LocalSettings.Current.Language, notify: false);
     }
 
-    /// <summary>切换语言并存进本地设置；<c>system</c> 表示跟随系统。</summary>
     public static void SetLanguage(string? code)
     {
         Apply(code, notify: true);
@@ -75,7 +62,6 @@ public static class Localization
         SetLanguage(codes[(index + 1 + codes.Count) % codes.Count]);
     }
 
-    /// <summary>取翻译；缺键返回键名（便于一眼看出漏翻）。</summary>
     public static string T(string key)
     {
         if (string.IsNullOrEmpty(key)) return string.Empty;
@@ -91,10 +77,8 @@ public static class Localization
         return key;
     }
 
-    /// <summary>取翻译并格式化（<c>{0}</c> 占位）。</summary>
     public static string T(string key, params object?[] args) => Format(T(key), args);
 
-    /// <summary>带兜底文案的取翻译：键不存在时用调用方给的原文字。</summary>
     public static string T(string key, string fallback)
     {
         var value = T(key);
@@ -104,7 +88,6 @@ public static class Localization
     public static string T(string key, string fallback, params object?[] args) =>
         Format(T(key, fallback), args);
 
-    /// <summary>该键是否在任一语言表里存在。</summary>
     public static bool Has(string key)
     {
         lock (Gate)
@@ -118,10 +101,8 @@ public static class Localization
         return false;
     }
 
-    /// <summary>当前语言是否中文（个别地方需要按语言微调排版时用）。</summary>
     public static bool IsChinese => CurrentLanguage.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>把一个键解析后的文本写进任意对象属性（代码里动态建的控件用）。</summary>
     public static string ResourceKey(string key) => ResourcePrefix + key;
 
     private static string Format(string template, object?[] args)
@@ -189,7 +170,6 @@ public static class Localization
 
         if (Tables.ContainsKey(code)) return code;
 
-        // 容错：zh / zh-Hans / en 这类简写
         var twoLetter = code.Length >= 2 ? code[..2] : code;
         foreach (var known in Tables.Keys)
         {
@@ -212,7 +192,6 @@ public static class Localization
         }
         catch
         {
-            // 取系统语言失败时用默认
         }
 
         return DefaultLanguage;
@@ -264,7 +243,6 @@ public static class Localization
                 }
                 catch
                 {
-                    // 单个文件坏掉不影响其它语言包
                 }
             }
         }

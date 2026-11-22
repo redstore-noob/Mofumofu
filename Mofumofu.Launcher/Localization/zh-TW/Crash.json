@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "已複製 ✓",
   "Crash.Action.OpenReport": "打開當機報告",
   "Crash.Action.OpenHsErr": "打開 JVM 錯誤日誌",
-  "Crash.Hint.Close": "點擊彈出視窗外任意位置關闭",
   "Crash.Rescue.Question": "救磚：遊戲當機了，要回檔到啟動前的狀態嗎？",
   "Crash.Rescue.Snapshot": "啟動前快照：{0} · {1}",
   "Crash.Rescue.Safety": "回檔會遺失本次啟動後的進度；回檔前會自動建立安全快照，隨時可以反悔。",

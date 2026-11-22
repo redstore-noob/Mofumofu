@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "Tempolinio de momentokopioj · {0}",
   "Rewind.Target.Default": "Nuna instanco",
   "Rewind.Status.Summary": "{0} · entute {1} momentokopioj · okupas {2}",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "Sekureca kopio",
   "Rewind.Reason.BeforeLaunch": "Antaŭ lanĉo",
   "Rewind.Reason.Scheduled": "Laŭ plano",
-  "Rewind.Reason.Auto": "Aŭtomata kopio",
   "Rewind.Confirm.Rollback": "Konfirmi la restaŭron?",
   "Rewind.Confirm.RollbackHint": "Klaku denove por konfirmi (aŭtomate kreiĝos sekureca kopio)",
   "Rewind.Confirm.Delete": "Certe?",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "Neniuj momentokopioj",
   "Rewind.Footer": "Horizontala tempolinio: malnova → nova (plej dekstre la lasta). Ĉiu kopio konservas nur la dosierojn malsamajn de la antaŭa; antaŭ restaŭro aŭtomate kreiĝos sekureca kopio.",
   "Rewind.Toast.Created": "Momentokopio kreita",
-  "Rewind.Toast.CreatedMock": "Momentokopio kreita",
   "Rewind.Toast.RolledBack": "Restaŭris la momentokopion de {0} (aŭtomate kreis la sekurecan kopion {1})",
   "Rewind.Toast.RolledBackMock": "Restaŭris la momentokopion de {0}",
   "Rewind.Toast.Deleted": "Momentokopio forigita",

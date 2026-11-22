@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "Хронология снимков · {0}",
   "Rewind.Target.Default": "Текущий экземпляр",
   "Rewind.Status.Summary": "{0} · всего снимков: {1} · занято {2}",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "Страховочный снимок",
   "Rewind.Reason.BeforeLaunch": "Перед запуском",
   "Rewind.Reason.Scheduled": "По расписанию",
-  "Rewind.Reason.Auto": "Автоснимок",
   "Rewind.Confirm.Rollback": "Подтвердить откат?",
   "Rewind.Confirm.RollbackHint": "Нажмите ещё раз для подтверждения (сначала будет создан страховочный снимок)",
   "Rewind.Confirm.Delete": "Точно?",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "Снимков пока нет",
   "Rewind.Footer": "Горизонтальная хронология: старые → новые (самый новый справа). Каждый снимок сохраняет только файлы, изменившиеся с прошлого раза; перед откатом автоматически создаётся страховочный снимок.",
   "Rewind.Toast.Created": "Снимок создан",
-  "Rewind.Toast.CreatedMock": "Снимок создан",
   "Rewind.Toast.RolledBack": "Выполнен откат к снимку от {0} (автоматически создан страховочный снимок {1})",
   "Rewind.Toast.RolledBackMock": "Выполнен откат к снимку от {0}",
   "Rewind.Toast.Deleted": "Снимок удалён",

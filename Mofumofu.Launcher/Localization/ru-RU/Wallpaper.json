@@ -1,4 +1,4 @@
-{
+﻿{
   "Wallpaper.Title": "Обои",
   "Wallpaper.Mode": "Режим",
   "Wallpaper.Mode.Image": "Одно изображение",
@@ -16,6 +16,5 @@
   "Wallpaper.Status.Error": "Обои не применены: {0}",
   "Wallpaper.Error.NoContent": "Файл обоев не существует или был удалён",
   "Wallpaper.Blur": "Размытие фона",
-  "Wallpaper.Dim": "Наложение на фон",
-  "Wallpaper.DimHint": "В тёмной теме затемняет фон, в светлой — осветляет; чем больше значение, тем сильнее эффект."
+  "Wallpaper.Dim": "Наложение на фон"
 }

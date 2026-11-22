@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "Kopiert ✓",
   "Crash.Action.OpenReport": "Crash-Bericht öffnen",
   "Crash.Action.OpenHsErr": "JVM-Fehlerprotokoll öffnen",
-  "Crash.Hint.Close": "Klicke irgendwo außerhalb des Dialogs, um zu schließen",
   "Crash.Rescue.Question": "Rettung: Das Spiel ist abgestürzt. Auf den Stand vor dem Start zurücksetzen?",
   "Crash.Rescue.Snapshot": "Snapshot vor dem Start: {0} · {1}",
   "Crash.Rescue.Safety": "Beim Zurücksetzen geht der Fortschritt seit dem Start verloren; vorher wird automatisch ein Sicherheits-Snapshot erstellt, sodass du jederzeit rückgängig machen kannst.",

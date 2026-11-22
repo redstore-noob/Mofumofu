@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "已复制 ✓",
   "Crash.Action.OpenReport": "打开崩溃报告",
   "Crash.Action.OpenHsErr": "打开 JVM 错误日志",
-  "Crash.Hint.Close": "点击弹窗外任意位置关闭",
   "Crash.Rescue.Question": "救砖：游戏崩了，要回档到启动前的状态吗？",
   "Crash.Rescue.Snapshot": "启动前快照：{0} · {1}",
   "Crash.Rescue.Safety": "回档会丢失本次启动后的进度；回档前会自动创建安全快照，随时可以反悔。",

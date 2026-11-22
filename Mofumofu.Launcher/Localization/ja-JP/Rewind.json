@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "インスタンススナップショットのタイムライン · {0}",
   "Rewind.Target.Default": "現在のインスタンス",
   "Rewind.Status.Summary": "{0} · 全 {1} 件のスナップショット · 使用量 {2}",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "安全スナップショット",
   "Rewind.Reason.BeforeLaunch": "起動前",
   "Rewind.Reason.Scheduled": "定期",
-  "Rewind.Reason.Auto": "自動スナップショット",
   "Rewind.Confirm.Rollback": "ロールバックしますか？",
   "Rewind.Confirm.RollbackHint": "もう一度クリックでロールバックを実行します（自動で安全スナップショットを作成します）",
   "Rewind.Confirm.Delete": "削除しますか？",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "スナップショットはありません",
   "Rewind.Footer": "横方向のタイムライン：古い → 新しい（右端が最新）。各スナップショットは前回と異なるファイルのみ保存し、ロールバック前に自動で安全スナップショットを作成します。",
   "Rewind.Toast.Created": "スナップショットを作成しました",
-  "Rewind.Toast.CreatedMock": "スナップショットを作成しました",
   "Rewind.Toast.RolledBack": "{0} のスナップショットへロールバックしました（安全スナップショット {1} を自動作成しました）",
   "Rewind.Toast.RolledBackMock": "{0} のスナップショットへロールバックしました",
   "Rewind.Toast.Deleted": "スナップショットを削除しました",

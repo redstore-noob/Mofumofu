@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "Copied ✓",
   "Crash.Action.OpenReport": "Open crash report",
   "Crash.Action.OpenHsErr": "Open JVM error log",
-  "Crash.Hint.Close": "Click outside the dialog to close",
   "Crash.Rescue.Question": "Unbrick: the game crashed. Roll back to the pre-launch state?",
   "Crash.Rescue.Snapshot": "Pre-launch snapshot: {0} · {1}",
   "Crash.Rescue.Safety": "Rolling back discards progress made since launch; a safety snapshot is created first, so you can always undo.",

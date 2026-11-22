@@ -1,7 +1,4 @@
-{
-  "Servers.Page.Title": "Serviloj",
-  "Servers.Page.Subtitle": "Loke gastigitaj kaj favorataj serviloj",
-  "Servers.Page.SubtitleLocal": "{0} serviloj · {1} ruliĝantaj · {2} ludantoj retaj",
+﻿{
   "Servers.Page.NoLocal": "Neniu loka servilo trovita",
   "Servers.Action.Refresh": "Ĝisdatigi",
   "Servers.Action.Import": "Importi servilan pakon",
@@ -81,8 +78,6 @@
   "Servers.Toast.Address": "Servila adreso: {0}",
   "Servers.Toast.Refreshed": "Ĝisdatigis; entute {0} lokaj serviloj",
   "Servers.Toast.NoLocal": "Neniu loka servilo trovita",
-  "Servers.Toast.Import": "Importi servilan pakon",
-  "Servers.Toast.Create": "Nova servilo",
   "Servers.Toast.BackingUp": "Kreado de sekurkopio…",
   "Servers.Toast.BackupDone": "Sekurkopio finita: {0}",
   "Servers.Toast.BackupFailed": "Sekurkopio malsukcesis: {0}",
@@ -93,7 +88,6 @@
   "Servers.Toast.BackupDeleteFailed": "Forigo de la sekurkopio malsukcesis: {0}",
   "Servers.Toast.OpenedFolder": "Malfermis la servilan dosierujon: {0}",
   "Servers.Toast.OpenFolderFailed": "Malsukcesis malfermi la dosierujon: {0}",
-  "Servers.Toast.ConfigPath": "Agordodosiero: {0}",
   "Servers.Toast.ConfigMissing": "La agordodosiero ne ekzistas: {0}",
   "Servers.Toast.ConfigOpened": "Malfermis la agordodosieron: {0}",
   "Servers.Toast.EnterPlayerName": "Unue entajpu ludantnomon en la kampon",

@@ -1,7 +1,4 @@
-{
-  "Servers.Page.Title": "Серверы",
-  "Servers.Page.Subtitle": "Локальный хостинг и избранные серверы",
-  "Servers.Page.SubtitleLocal": "Серверов: {0} · запущено: {1} · игроков онлайн: {2}",
+﻿{
   "Servers.Page.NoLocal": "Локальные серверы не найдены",
   "Servers.Action.Refresh": "Обновить",
   "Servers.Action.Import": "Импорт пакета сервера",
@@ -81,8 +78,6 @@
   "Servers.Toast.Address": "Адрес сервера: {0}",
   "Servers.Toast.Refreshed": "Обновлено — всего локальных серверов: {0}",
   "Servers.Toast.NoLocal": "Локальные серверы не найдены",
-  "Servers.Toast.Import": "Импорт пакета сервера",
-  "Servers.Toast.Create": "Новый сервер",
   "Servers.Toast.BackingUp": "Создание резервной копии…",
   "Servers.Toast.BackupDone": "Резервная копия создана: {0}",
   "Servers.Toast.BackupFailed": "Не удалось создать копию: {0}",
@@ -93,7 +88,6 @@
   "Servers.Toast.BackupDeleteFailed": "Не удалось удалить копию: {0}",
   "Servers.Toast.OpenedFolder": "Папка сервера открыта: {0}",
   "Servers.Toast.OpenFolderFailed": "Не удалось открыть папку: {0}",
-  "Servers.Toast.ConfigPath": "Файл конфигурации: {0}",
   "Servers.Toast.ConfigMissing": "Файл конфигурации не существует: {0}",
   "Servers.Toast.ConfigOpened": "Файл конфигурации открыт: {0}",
   "Servers.Toast.EnterPlayerName": "Сначала введите ник игрока в поле",

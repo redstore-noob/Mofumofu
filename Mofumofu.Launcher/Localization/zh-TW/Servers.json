@@ -1,7 +1,4 @@
-{
-  "Servers.Page.Title": "伺服器",
-  "Servers.Page.Subtitle": "本机托管與收藏伺服器",
-  "Servers.Page.SubtitleLocal": "{0} 台伺服器 · {1} 台執行中 · {2} 名玩家線上",
+﻿{
   "Servers.Page.NoLocal": "未找到本机伺服器",
   "Servers.Action.Refresh": "重新整理",
   "Servers.Action.Import": "匯入伺服器包",
@@ -81,8 +78,6 @@
   "Servers.Toast.Address": "伺服器地址：{0}",
   "Servers.Toast.Refreshed": "已重新整理，共 {0} 台本机伺服器",
   "Servers.Toast.NoLocal": "未找到本机伺服器",
-  "Servers.Toast.Import": "匯入伺服器包",
-  "Servers.Toast.Create": "新建伺服器",
   "Servers.Toast.BackingUp": "正在建立备份…",
   "Servers.Toast.BackupDone": "备份完成：{0}",
   "Servers.Toast.BackupFailed": "备份失败：{0}",
@@ -93,7 +88,6 @@
   "Servers.Toast.BackupDeleteFailed": "刪除备份失败：{0}",
   "Servers.Toast.OpenedFolder": "已打開伺服器目錄：{0}",
   "Servers.Toast.OpenFolderFailed": "打開目錄失败：{0}",
-  "Servers.Toast.ConfigPath": "配置檔案：{0}",
   "Servers.Toast.ConfigMissing": "配置檔案不存在：{0}",
   "Servers.Toast.ConfigOpened": "已打開配置檔案：{0}",
   "Servers.Toast.EnterPlayerName": "先在輸入框裡填玩家名",

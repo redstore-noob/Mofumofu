@@ -1,4 +1,4 @@
-{
+﻿{
   "Wallpaper.Title": "Fonbildo",
   "Wallpaper.Mode": "Reĝimo",
   "Wallpaper.Mode.Image": "Unuopa bildo",
@@ -16,6 +16,5 @@
   "Wallpaper.Status.Error": "Fonbildo ne efikas: {0}",
   "Wallpaper.Error.NoContent": "La fonbilda dosiero ne ekzistas aŭ estis forigita",
   "Wallpaper.Blur": "Fonmalklareco",
-  "Wallpaper.Dim": "Fona tavolo",
-  "Wallpaper.DimHint": "En malhela etoso malheligas la fonon, en hela etoso heligas ĝin; pli granda valoro pli fortas."
+  "Wallpaper.Dim": "Fona tavolo"
 }

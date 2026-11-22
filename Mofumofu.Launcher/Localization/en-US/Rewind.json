@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "Snapshot timeline · {0}",
   "Rewind.Target.Default": "Current instance",
   "Rewind.Status.Summary": "{0} · {1} snapshots · {2} used",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "Safety snapshot",
   "Rewind.Reason.BeforeLaunch": "Pre-launch",
   "Rewind.Reason.Scheduled": "Scheduled",
-  "Rewind.Reason.Auto": "Auto snapshot",
   "Rewind.Confirm.Rollback": "Confirm rollback?",
   "Rewind.Confirm.RollbackHint": "Click again to confirm (a safety snapshot is created first)",
   "Rewind.Confirm.Delete": "Sure?",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "No snapshots yet",
   "Rewind.Footer": "Horizontal timeline: old → new (latest on the right). Each snapshot only stores files changed since the previous one; a safety snapshot is created before rolling back.",
   "Rewind.Toast.Created": "Snapshot created",
-  "Rewind.Toast.CreatedMock": "Snapshot created",
   "Rewind.Toast.RolledBack": "Rolled back to the snapshot at {0} (safety snapshot {1} created)",
   "Rewind.Toast.RolledBackMock": "Rolled back to the snapshot at {0}",
   "Rewind.Toast.Deleted": "Snapshot deleted",

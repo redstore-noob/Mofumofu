@@ -1,4 +1,4 @@
-{
+﻿{
   "Common.Ok": "确定",
   "Common.Cancel": "取消",
   "Common.Close": "关闭",
@@ -6,28 +6,17 @@
   "Common.Remove": "移除",
   "Common.Add": "添加",
   "Common.Open": "打开",
-  "Common.Save": "保存",
   "Common.Refresh": "刷新",
-  "Common.Search": "搜索",
   "Common.Copy": "复制",
-  "Common.Reset": "重置",
   "Common.Apply": "应用",
   "Common.Back": "返回",
+  "Common.Forward": "前进",
   "Common.Manage": "管理",
-  "Common.More": "更多",
-  "Common.All": "全部",
-  "Common.Yes": "是",
   "Common.No": "否",
   "Common.Enabled": "开",
   "Common.Disabled": "关",
-  "Common.Loading": "加载中…",
-  "Common.Empty": "暂无内容",
   "Common.NotFound": "未找到",
-  "Common.Error": "出错了",
-  "Common.Done": "完成",
-  "Common.Running": "进行中",
   "Common.Pager.JumpHint": "输入页码按回车跳转",
   "Common.Pager.Prev": "上一页",
-  "Common.Pager.Next": "下一页",
-  "Common.Stopped": "已停止"
+  "Common.Pager.Next": "下一页"
 }

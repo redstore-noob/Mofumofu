@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "實例快照時间線 · {0}",
   "Rewind.Target.Default": "當前實例",
   "Rewind.Status.Summary": "{0} · 共 {1} 份快照 · 占用 {2}",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "安全快照",
   "Rewind.Reason.BeforeLaunch": "啟動前",
   "Rewind.Reason.Scheduled": "定時",
-  "Rewind.Reason.Auto": "自動快照",
   "Rewind.Confirm.Rollback": "確認回滚?",
   "Rewind.Confirm.RollbackHint": "再次點擊確認回滚（會先自動建立安全快照）",
   "Rewind.Confirm.Delete": "確定?",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "暂無快照",
   "Rewind.Footer": "横向時间轴：舊 → 新（最右為最新）。每次快照只保存與上一份不同的檔案，回滚前會自動建立安全快照。",
   "Rewind.Toast.Created": "快照已建立",
-  "Rewind.Toast.CreatedMock": "快照已建立",
   "Rewind.Toast.RolledBack": "已回滚到 {0} 的快照（已自動建立安全快照 {1}）",
   "Rewind.Toast.RolledBackMock": "已回滚到 {0} 的快照",
   "Rewind.Toast.Deleted": "快照已刪除",

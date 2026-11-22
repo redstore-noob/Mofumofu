@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "Kopiita ✓",
   "Crash.Action.OpenReport": "Malfermi la kolapsraporton",
   "Crash.Action.OpenHsErr": "Malfermi la JVM-erarprotokolon",
-  "Crash.Hint.Close": "Klaku ie ajn ekster la fenestro por fermi",
   "Crash.Rescue.Question": "Savo: la ludo kolapsis. Ĉu ruli reen al la stato antaŭ la starto?",
   "Crash.Rescue.Snapshot": "Momentkopio antaŭ starto: {0} · {1}",
   "Crash.Rescue.Safety": "Rulado reen perdos la progreson post la starto; sekureca momentkopio estas aŭtomate kreata antaŭe, do vi ĉiam povas malfari.",

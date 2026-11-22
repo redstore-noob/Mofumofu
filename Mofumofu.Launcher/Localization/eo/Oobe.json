@@ -1,9 +1,7 @@
 {
   "Oobe.Title": "Mofumofu Launcher",
-  "Oobe.Subtitle": "Unua lanĉo — dediku minuton al la bazaj agordoj",
   "Oobe.Skip": "Preterlasi",
   "Oobe.WelcomeTitle": "Bonvenon al Mofumofu Launcher",
-  "Oobe.WelcomeBody": "Ĉi tie vi elektas lingvon kaj temon; ĉio ŝanĝeblas poste en Agordoj.",
   "Oobe.Language": "Lingvo",
   "Oobe.Theme": "Aspekto",
   "Oobe.Theme.System": "Laŭ la sistemo",
@@ -29,7 +27,6 @@
   "Oobe.AccountHint": "Nur loka konservado, neniu alŝuto.",
   "Oobe.AccountSkip": "Aldoni konton poste",
   "Oobe.FinishTitle": "Prete",
-  "Oobe.FinishBody": "Konfirmu la agordojn kaj klaku Fini.",
   "Oobe.SummaryLanguage": "Lingvo",
   "Oobe.SummaryDirectory": "Luda dosierujo",
   "Oobe.SummaryJava": "Java",

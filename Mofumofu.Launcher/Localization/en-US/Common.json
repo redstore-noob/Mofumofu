@@ -1,4 +1,4 @@
-{
+﻿{
   "Common.Ok": "OK",
   "Common.Cancel": "Cancel",
   "Common.Close": "Close",
@@ -6,28 +6,17 @@
   "Common.Remove": "Remove",
   "Common.Add": "Add",
   "Common.Open": "Open",
-  "Common.Save": "Save",
   "Common.Refresh": "Refresh",
-  "Common.Search": "Search",
   "Common.Copy": "Copy",
-  "Common.Reset": "Reset",
   "Common.Apply": "Apply",
   "Common.Back": "Back",
+  "Common.Forward": "Forward",
   "Common.Manage": "Manage",
-  "Common.More": "More",
-  "Common.All": "All",
-  "Common.Yes": "Yes",
   "Common.No": "No",
   "Common.Enabled": "On",
   "Common.Disabled": "Off",
-  "Common.Loading": "Loading…",
-  "Common.Empty": "Nothing here yet",
   "Common.NotFound": "Not found",
-  "Common.Error": "Something went wrong",
-  "Common.Done": "Done",
-  "Common.Running": "Running",
   "Common.Pager.JumpHint": "Type a page number and press Enter",
   "Common.Pager.Prev": "Previous page",
-  "Common.Pager.Next": "Next page",
-  "Common.Stopped": "Stopped"
+  "Common.Pager.Next": "Next page"
 }

@@ -1,4 +1,4 @@
-{
+﻿{
   "Rewind.Title": "Instanz-Snapshot-Zeitstrahl · {0}",
   "Rewind.Target.Default": "Aktuelle Instanz",
   "Rewind.Status.Summary": "{0} · {1} Snapshots insgesamt · belegt {2}",
@@ -21,7 +21,6 @@
   "Rewind.Reason.Safety": "Sicherheits-Snapshot",
   "Rewind.Reason.BeforeLaunch": "Vor dem Start",
   "Rewind.Reason.Scheduled": "Geplant",
-  "Rewind.Reason.Auto": "Automatischer Snapshot",
   "Rewind.Confirm.Rollback": "Zurücksetzen bestätigen?",
   "Rewind.Confirm.RollbackHint": "Zum Bestätigen erneut klicken (es wird automatisch ein Sicherheits-Snapshot erstellt)",
   "Rewind.Confirm.Delete": "Wirklich löschen?",
@@ -35,7 +34,6 @@
   "Rewind.Empty": "Noch keine Snapshots",
   "Rewind.Footer": "Horizontaler Zeitstrahl: alt → neu (ganz rechts = neuester). Jeder Snapshot speichert nur Dateien, die sich vom vorherigen unterscheiden; vor dem Zurücksetzen wird automatisch ein Sicherheits-Snapshot erstellt.",
   "Rewind.Toast.Created": "Snapshot erstellt",
-  "Rewind.Toast.CreatedMock": "Snapshot erstellt",
   "Rewind.Toast.RolledBack": "Auf den Snapshot von {0} zurückgesetzt (Sicherheits-Snapshot {1} erstellt)",
   "Rewind.Toast.RolledBackMock": "Auf den Snapshot von {0} zurückgesetzt",
   "Rewind.Toast.Deleted": "Snapshot gelöscht",

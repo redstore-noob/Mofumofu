@@ -1,9 +1,7 @@
 {
   "Oobe.Title": "Mofumofu Launcher",
-  "Oobe.Subtitle": "Erster Start – nimm dir eine Minute für die Grundeinstellungen",
   "Oobe.Skip": "Überspringen",
   "Oobe.WelcomeTitle": "Willkommen bei Mofumofu Launcher",
-  "Oobe.WelcomeBody": "Sprache und Theme werden hier eingestellt – später jederzeit in den Einstellungen änderbar.",
   "Oobe.Language": "Sprache",
   "Oobe.Theme": "Aussehen",
   "Oobe.Theme.System": "System",
@@ -29,7 +27,6 @@
   "Oobe.AccountHint": "Wird nur lokal gespeichert, nie hochgeladen.",
   "Oobe.AccountSkip": "Konto später hinzufügen",
   "Oobe.FinishTitle": "Bereit",
-  "Oobe.FinishBody": "Bestätige die Einstellungen und klicke auf Fertig.",
   "Oobe.SummaryLanguage": "Sprache",
   "Oobe.SummaryDirectory": "Spielverzeichnis",
   "Oobe.SummaryJava": "Java",

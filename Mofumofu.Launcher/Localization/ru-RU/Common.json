@@ -1,4 +1,4 @@
-{
+﻿{
   "Common.Ok": "ОК",
   "Common.Cancel": "Отмена",
   "Common.Close": "Закрыть",
@@ -6,28 +6,17 @@
   "Common.Remove": "Убрать",
   "Common.Add": "Добавить",
   "Common.Open": "Открыть",
-  "Common.Save": "Сохранить",
   "Common.Refresh": "Обновить",
-  "Common.Search": "Поиск",
   "Common.Copy": "Копировать",
-  "Common.Reset": "Сброс",
   "Common.Apply": "Применить",
   "Common.Back": "Назад",
+  "Common.Forward": "Вперёд",
   "Common.Manage": "Управление",
-  "Common.More": "Ещё",
-  "Common.All": "Все",
-  "Common.Yes": "Да",
   "Common.No": "Нет",
   "Common.Enabled": "Вкл",
   "Common.Disabled": "Выкл",
-  "Common.Loading": "Загрузка…",
-  "Common.Empty": "Пусто",
   "Common.NotFound": "Не найдено",
-  "Common.Error": "Ошибка",
-  "Common.Done": "Готово",
-  "Common.Running": "Выполняется",
   "Common.Pager.JumpHint": "Введите номер страницы и нажмите Enter",
   "Common.Pager.Prev": "Предыдущая страница",
-  "Common.Pager.Next": "Следующая страница",
-  "Common.Stopped": "Остановлено"
+  "Common.Pager.Next": "Следующая страница"
 }

@@ -17,7 +17,6 @@
   "Crash.Action.Copied": "コピーしました ✓",
   "Crash.Action.OpenReport": "クラッシュレポートを開く",
   "Crash.Action.OpenHsErr": "JVM エラーログを開く",
-  "Crash.Hint.Close": "ダイアログ外の任意の場所をクリックすると閉じます",
   "Crash.Rescue.Question": "レスキュー：ゲームがクラッシュしました。起動前の状態にロールバックしますか？",
   "Crash.Rescue.Snapshot": "起動前スナップショット：{0} · {1}",
   "Crash.Rescue.Safety": "ロールバックすると起動後の進行状況は失われます。ロールバック前に安全スナップショットが自動作成されるので、いつでも元に戻せます。",

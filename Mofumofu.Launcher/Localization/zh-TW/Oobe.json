@@ -1,9 +1,7 @@
 {
   "Oobe.Title": "Mofumofu Launcher",
-  "Oobe.Subtitle": "第一次啟動，先花一分钟完成基礎設定吧喵",
   "Oobe.Skip": "跳过",
   "Oobe.WelcomeTitle": "欢迎使用 Mofumofu Launcher",
-  "Oobe.WelcomeBody": "这裡設定語言和主題，之後都可以在「設定」裡修改。",
   "Oobe.Language": "介面語言",
   "Oobe.Theme": "外观主題",
   "Oobe.Theme.System": "跟隨系統",
@@ -29,7 +27,6 @@
   "Oobe.AccountHint": "只保存在本机，不會上傳。",
   "Oobe.AccountSkip": "稍後添加帳號",
   "Oobe.FinishTitle": "准备完成",
-  "Oobe.FinishBody": "確認下面的設定，點擊「完成」開始使用。",
   "Oobe.SummaryLanguage": "語言",
   "Oobe.SummaryDirectory": "遊戲目錄",
   "Oobe.SummaryJava": "Java",

@@ -1,7 +1,4 @@
-{
-  "Servers.Page.Title": "サーバー",
-  "Servers.Page.Subtitle": "ローカルホストとお気に入りのサーバー",
-  "Servers.Page.SubtitleLocal": "{0} 台のサーバー · {1} 台が実行中 · {2} 人のプレイヤーがオンライン",
+﻿{
   "Servers.Page.NoLocal": "ローカルサーバーが見つかりません",
   "Servers.Action.Refresh": "更新",
   "Servers.Action.Import": "サーバーパッケージをインポート",
@@ -81,8 +78,6 @@
   "Servers.Toast.Address": "サーバーアドレス：{0}",
   "Servers.Toast.Refreshed": "更新しました。ローカルサーバーは全 {0} 台です",
   "Servers.Toast.NoLocal": "ローカルサーバーが見つかりません",
-  "Servers.Toast.Import": "サーバーパッケージをインポート",
-  "Servers.Toast.Create": "サーバーを新規作成",
   "Servers.Toast.BackingUp": "バックアップを作成中…",
   "Servers.Toast.BackupDone": "バックアップが完了しました：{0}",
   "Servers.Toast.BackupFailed": "バックアップに失敗しました：{0}",
@@ -93,7 +88,6 @@
   "Servers.Toast.BackupDeleteFailed": "バックアップの削除に失敗しました：{0}",
   "Servers.Toast.OpenedFolder": "サーバーフォルダを開きました：{0}",
   "Servers.Toast.OpenFolderFailed": "フォルダを開けませんでした：{0}",
-  "Servers.Toast.ConfigPath": "設定ファイル：{0}",
   "Servers.Toast.ConfigMissing": "設定ファイルが存在しません：{0}",
   "Servers.Toast.ConfigOpened": "設定ファイルを開きました：{0}",
   "Servers.Toast.EnterPlayerName": "先に入力欄にプレイヤー名を入力してください",
