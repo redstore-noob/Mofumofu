@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
@@ -10,6 +9,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+
+using MofuCore.Config;
+using MofuCore.Java;
 
 namespace MofuCore.Server;
 
@@ -40,13 +42,11 @@ public class ServerManage
     private static readonly Regex ListResponseRegex = new(
         @"There are (\d+) of a max of (\d+) players online", RegexOptions.Compiled);
 
-    private static readonly Regex VersionNumberRegex = new(@"version ""(?<version>[^""]+)""", RegexOptions.Compiled);
     private static readonly Regex DigitRunRegex = new(@"\d+", RegexOptions.Compiled);
 
     private static readonly object RuntimesLock = new();
     private static readonly Dictionary<string, ServerRuntime> Runtimes = new();
     private static readonly object TickerLock = new();
-    private static readonly ConcurrentDictionary<string, int> JavaVersionCache = new(StringComparer.OrdinalIgnoreCase);
     private static CancellationTokenSource? _lifetime;
     private static Task? _playerTicker;
 
@@ -1149,244 +1149,38 @@ public class ServerManage
         ServerConfig config, List<string> startupLogs, CancellationToken cancellationToken)
     {
         int? required = RequiredJavaMajorVersion(config.McVersion);
-        string executable = OperatingSystem.IsWindows() ? "java.exe" : "java";
-        List<string> candidates = [];
+        string timestamp = DateTime.Now.ToString("HH:mm:ss");
 
-        string configured = config.JavaPath?.Trim() ?? string.Empty;
-        if (configured.Length > 0)
+        // 复用启动器同一套 Java 探测：已保存的 Java 列表、启动器安装的 runtime 目录、
+        // 环境变量 / 注册表都会参与扫描，避免在「下载 → Java」装好运行时后服务器仍识别不到。
+        string runtimeDirectory = JavaDownload.GetRuntimeDirectory(YamlRead.GameDirectory);
+        string? java = await JavaPathSearch
+            .FindJavaExecutableAsync(config.JavaPath, required, runtimeDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        if (java is not null)
         {
-            if (File.Exists(configured))
-            {
-                candidates.Add(configured);
-            }
-            else if (Directory.Exists(configured))
-            {
-                string nested = Path.Combine(configured, "bin", executable);
-                if (File.Exists(nested))
-                {
-                    candidates.Add(nested);
-                }
-            }
-            else
-            {
-                startupLogs.Add($"[{DateTime.Now:HH:mm:ss}] 配置的 Java 路径不存在：{configured}");
-            }
+            int? major = await JavaPathSearch.DetectMajorVersionAsync(java, cancellationToken).ConfigureAwait(false);
+            startupLogs.Add($"[{timestamp}] 使用 Java {major?.ToString() ?? "?"}：{java}");
+            return java;
         }
-        candidates.AddRange(FindJavaCandidates());
 
-        foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        IReadOnlyList<JavaRuntime> detected = await JavaPathSearch
+            .FindAllJavaAsync(runtimeDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        foreach (JavaRuntime runtime in detected)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            int major = await ReadJavaMajorAsync(candidate, cancellationToken).ConfigureAwait(false);
-            if (major <= 0)
-            {
-                continue;
-            }
-            if (required is null || major >= required)
-            {
-                startupLogs.Add($"[{DateTime.Now:HH:mm:ss}] 使用 Java {major}：{candidate}");
-                return candidate;
-            }
             startupLogs.Add(
-                $"[{DateTime.Now:HH:mm:ss}] 跳过 Java {major}（{candidate}）：Minecraft {config.McVersion} 需要 Java {required}");
+                $"[{timestamp}] 已检测到 Java {runtime.MajorVersion?.ToString() ?? "?"}：{runtime.JavaPath}");
         }
 
+        string available = detected.Count == 0
+            ? "未检测到任何 Java"
+            : "已检测到 " + string.Join("、", detected
+                .Select(runtime => runtime.MajorVersion is int major ? $"Java {major}" : "未知版本")
+                .Distinct());
         throw new InvalidOperationException(required is null
-            ? "没有找到可用的 Java 运行时，请在服务器启动参数里指定 Java 路径"
-            : $"没有找到满足 Java {required} 的运行时（Minecraft {config.McVersion}），请在服务器启动参数里指定 Java 路径");
-    }
-
-    private static List<string> FindJavaCandidates()
-    {
-        string executable = OperatingSystem.IsWindows() ? "java.exe" : "java";
-        List<string> candidates = [];
-
-        void AddIfExists(string? path)
-        {
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                try
-                {
-                    if (File.Exists(path))
-                    {
-                        candidates.Add(path);
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            }
-        }
-
-        string? javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
-        if (!string.IsNullOrWhiteSpace(javaHome))
-        {
-            AddIfExists(Path.Combine(javaHome, "bin", executable));
-        }
-        string? pathVariable = Environment.GetEnvironmentVariable("PATH");
-        if (!string.IsNullOrWhiteSpace(pathVariable))
-        {
-            foreach (string part in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            {
-                AddIfExists(Path.Combine(part.Trim().Trim('"'), executable));
-            }
-        }
-
-        foreach (string root in CommonJavaRoots())
-        {
-            // root 本身可能就是 JDK home（如 macOS 的 Contents/Home）
-            AddIfExists(Path.Combine(root, "bin", executable));
-            string[] directories;
-            try
-            {
-                directories = Directory.GetDirectories(root);
-            }
-            catch (Exception)
-            {
-                continue;
-            }
-            foreach (string directory in directories)
-            {
-                AddIfExists(Path.Combine(directory, "bin", executable));
-            }
-        }
-        return candidates;
-    }
-
-    private static List<string> CommonJavaRoots()
-    {
-        List<string> roots = [];
-        void Add(string? root)
-        {
-            if (!string.IsNullOrWhiteSpace(root))
-            {
-                roots.Add(root);
-            }
-        }
-
-        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (OperatingSystem.IsWindows())
-        {
-            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            foreach (string vendor in new[]
-                     {
-                         "Java", "Eclipse Adoptium", "Microsoft", "Zulu", "BellSoft", "Amazon Corretto",
-                         "Semeru", "OpenJDK",
-                     })
-            {
-                Add(Path.Combine(programFiles, vendor));
-            }
-            string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            Add(Path.Combine(programFilesX86, "Java"));
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            Add(Path.Combine(localAppData, "Programs", "Eclipse Adoptium"));
-        }
-        else if (OperatingSystem.IsLinux())
-        {
-            Add("/usr/lib/jvm");
-            Add("/usr/java");
-            Add("/opt/java");
-            Add("/opt");
-            Add(Path.Combine(userProfile, ".sdkman", "candidates", "java"));
-        }
-        else if (OperatingSystem.IsMacOS())
-        {
-            // macOS 的 JDK home 在 <bundle>.jdk/Contents/Home
-            foreach (string baseDirectory in new[]
-                     {
-                         "/Library/Java/JavaVirtualMachines",
-                         Path.Combine(userProfile, "Library", "Java", "JavaVirtualMachines"),
-                     })
-            {
-                try
-                {
-                    foreach (string bundle in Directory.GetDirectories(baseDirectory))
-                    {
-                        Add(Path.Combine(bundle, "Contents", "Home"));
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            }
-        }
-        Add(Path.Combine(userProfile, ".jdks"));
-        Add(Path.Combine("Mofumofu", "java"));
-        return roots;
-    }
-
-    private static async Task<int> ReadJavaMajorAsync(string javaPath, CancellationToken cancellationToken)
-    {
-        if (JavaVersionCache.TryGetValue(javaPath, out int cached))
-        {
-            return cached;
-        }
-        int major = 0;
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = javaPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            startInfo.ArgumentList.Add("-version");
-            using Process process = new() { StartInfo = startInfo };
-            if (process.Start())
-            {
-                Task<string> stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
-                Task<string> stderr = process.StandardError.ReadToEndAsync(cancellationToken);
-                Task wait = process.WaitForExitAsync(cancellationToken);
-                Task completed = await Task.WhenAny(wait, Task.Delay(TimeSpan.FromSeconds(5), cancellationToken))
-                    .ConfigureAwait(false);
-                if (completed == wait)
-                {
-                    string output = await stdout.ConfigureAwait(false) + await stderr.ConfigureAwait(false);
-                    major = ParseJavaMajor(output);
-                }
-                else
-                {
-                    try
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            major = 0;
-        }
-        JavaVersionCache[javaPath] = major;
-        return major;
-    }
-
-    private static int ParseJavaMajor(string output)
-    {
-        Match match = VersionNumberRegex.Match(output ?? string.Empty);
-        if (!match.Success)
-        {
-            return 0;
-        }
-        string[] parts = match.Groups["version"].Value.Split('.');
-        if (parts.Length == 0 || !int.TryParse(parts[0], out int first))
-        {
-            return 0;
-        }
-        if (first == 1 && parts.Length > 1 && int.TryParse(parts[1], out int legacy))
-        {
-            return legacy;
-        }
-        return first;
+            ? $"没有找到可用的 Java 运行时（{available}），请到「下载 → Java」安装"
+            : $"没有找到满足 Java {required} 的运行时（Minecraft {config.McVersion}，{available}）。请到「下载 → Java」安装 Java {required}");
     }
 
     private static void OnProcessLine(string id, ServerRuntime runtime, string? line)
