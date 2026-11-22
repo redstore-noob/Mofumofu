@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Mofumofu.Launcher.Views.RemoteServerPairDialog">
+    <StackPanel Width="560" Spacing="14">
+        <TextBlock Text="{DynamicResource L.Servers.Remote.PairHint}"
+                   Classes="muted" TextWrapping="Wrap" />
+        <StackPanel Spacing="6">
+            <TextBlock Text="{DynamicResource L.Servers.Remote.PairLink}" Classes="field-label" />
+            <TextBox x:Name="PairBox" Classes="field" MinHeight="72" AcceptsReturn="True" TextWrapping="Wrap"
+                     PlaceholderText="mofumofu://pair?host=...&amp;token=...&amp;instance=...&amp;api=1.0" />
+        </StackPanel>
+        <TextBlock x:Name="PairStatus" Classes="caption" TextWrapping="Wrap" />
+        <Button x:Name="PairButton" Classes="primary" Height="38" HorizontalAlignment="Right"
+                Padding="18,0" Click="OnPairClick"
+                Content="{DynamicResource L.Servers.Remote.PairAction}" />
+    </StackPanel>
+</UserControl>

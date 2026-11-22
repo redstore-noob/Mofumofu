@@ -62,3 +62,8 @@ desktop.ini
 # agent 协作临时目录（构建日志 / QA 截图 / 临时测试工程）
 .dsh-tmp/
 /build/
+
+# Java / NekoProbe（独立构建，不进入 .slnx）
+.gradle/
+*.class
+Mofumofu.NekoProbe/build/

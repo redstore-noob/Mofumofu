@@ -5,4 +5,9 @@
   <Project Path="NekoSolo/NekoSolo.csproj" />
   <Project Path="Mofumofu.Console/Mofumofu.Console.csproj" />
   <Project Path="Mofumofu.Extension.LogshareService/Mofumofu.Extension.LogshareService.csproj" />
+  <Project Path="Mofumofu.RemoteProtocol/Mofumofu.RemoteProtocol.csproj" />
+  <Project Path="Mofumofu.ServerAgent/Mofumofu.ServerAgent.csproj" />
+  <Project Path="tests/Mofumofu.RemoteProtocol.Tests/Mofumofu.RemoteProtocol.Tests.csproj" />
+  <Project Path="tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj" />
+  <Project Path="tests/Mofumofu.ServerAgent.Tests/Mofumofu.ServerAgent.Tests.csproj" />
 </Solution>

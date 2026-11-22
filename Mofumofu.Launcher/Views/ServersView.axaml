@@ -88,6 +88,13 @@
                                        VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <Button Classes="ghost" Height="36" Padding="13,0" Click="OnPairRemoteServerClick">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <controls:IconParkIcon Kind="IconServer" Width="15" Height="15" />
+                            <TextBlock Text="{DynamicResource L.Servers.Remote.AddRemote}" FontSize="12.5"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="primary" Height="36" Padding="14,0" Click="OnCreateServerClick">
                         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
                             <controls:IconParkIcon Kind="IconPlus" Width="15" Height="15" />
@@ -284,7 +291,7 @@
                                                        FontSize="12" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Classes="ghost" Height="34" Padding="12,0"
+                                    <Button x:Name="RestartButton" Classes="ghost" Height="34" Padding="12,0"
                                             Click="OnRestartClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <controls:IconParkIcon Kind="IconFluentArrowClockwise"
@@ -390,19 +397,27 @@
                                                 <Button Classes="ghost" Height="30" Padding="9,0"
                                                         FontSize="11" Margin="0,0,6,0"
                                                         Content="{DynamicResource L.Servers.Players.WhitelistAdd}"
-                                                        Click="OnWhitelistAddClick" />
+                                                        x:Name="WhitelistAddButton" Click="OnWhitelistAddClick" />
                                                 <Button Classes="ghost" Height="30" Padding="9,0"
                                                         FontSize="11" Margin="0,0,6,0"
                                                         Content="{DynamicResource L.Servers.Players.WhitelistRemove}"
-                                                        Click="OnWhitelistRemoveClick" />
+                                                        x:Name="WhitelistRemoveButton" Click="OnWhitelistRemoveClick" />
                                                 <Button Classes="ghost" Height="30" Padding="9,0"
                                                         FontSize="11" Margin="0,0,6,0"
                                                         Content="{DynamicResource L.Servers.Players.OpAdd}"
-                                                        Click="OnOpAddClick" />
+                                                        x:Name="OpAddButton" Click="OnOpAddClick" />
+                                                <Button Classes="ghost" Height="30" Padding="9,0"
+                                                        FontSize="11" Margin="0,0,6,0"
+                                                        Content="{DynamicResource L.Servers.Players.OpRemove}"
+                                                        x:Name="OpRemoveButton" Click="OnOpRemoveClick" />
+                                                <Button Classes="ghost" Height="30" Padding="9,0"
+                                                        FontSize="11" Margin="0,0,6,0"
+                                                        Content="{DynamicResource L.Servers.Players.BanAdd}"
+                                                        x:Name="BanAddButton" Click="OnBanAddClick" />
                                                 <Button Classes="ghost" Height="30" Padding="9,0"
                                                         FontSize="11"
-                                                        Content="{DynamicResource L.Servers.Players.OpRemove}"
-                                                        Click="OnOpRemoveClick" />
+                                                        Content="{DynamicResource L.Servers.Players.BanRemove}"
+                                                        x:Name="BanRemoveButton" Click="OnBanRemoveClick" />
                                             </WrapPanel>
                                         </Grid>
                                     </Border>
@@ -455,7 +470,7 @@
                                                 <Button Grid.Column="1" Classes="ghost" Height="30"
                                                         Padding="14,0" Margin="8,0,0,0" FontSize="11.5"
                                                         Content="{DynamicResource L.Servers.Console.Send}"
-                                                        Click="OnConsoleSendClick" />
+                                                        x:Name="ConsoleSendButton" Click="OnConsoleSendClick" />
                                             </Grid>
                                         </Grid>
                                     </Border>
@@ -466,7 +481,7 @@
                                                        Classes="section-title" FontSize="13" />
                                             <WrapPanel Grid.Row="1">
                                                 <Button Classes="ghost" Height="32" Padding="12,0"
-                                                        Margin="0,0,8,8" Click="OnBackupClick">
+                                                        Margin="0,0,8,8" x:Name="QuickBackupButton" Click="OnBackupClick">
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <controls:IconParkIcon Kind="IconDisk" Width="13"
                                                                                Height="13" />
@@ -475,7 +490,7 @@
                                                     </StackPanel>
                                                 </Button>
                                                 <Button Classes="ghost" Height="32" Padding="12,0"
-                                                        Margin="0,0,8,8" Click="OnOpenFolderClick">
+                                                        Margin="0,0,8,8" x:Name="OpenFolderButton" Click="OnOpenFolderClick">
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <controls:IconParkIcon Kind="IconFolder" Width="13"
                                                                                Height="13" />
@@ -484,11 +499,22 @@
                                                     </StackPanel>
                                                 </Button>
                                                 <Button Classes="ghost" Height="32" Padding="12,0"
-                                                        Margin="0,0,8,8" Click="OnConfigClick">
+                                                        Margin="0,0,8,8" x:Name="ConfigButton" Click="OnConfigClick">
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <controls:IconParkIcon Kind="IconFluentSettings" Width="13"
                                                                                Height="13" />
                                                         <TextBlock Text="{DynamicResource L.Servers.Action.Config}"
+                                                                   FontSize="12" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Classes="ghost" Height="32" Padding="12,0"
+                                                        Margin="0,0,8,8" x:Name="UnpairButton"
+                                                        IsVisible="False" Foreground="{DynamicResource NekoDangerBrush}"
+                                                        Click="OnUnpairServerClick">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <controls:IconParkIcon Kind="IconClose" Width="13"
+                                                                               Height="13" />
+                                                        <TextBlock Text="{DynamicResource L.Servers.Remote.Unpair}"
                                                                    FontSize="12" />
                                                     </StackPanel>
                                                 </Button>
@@ -507,13 +533,13 @@
                                   RowDefinitions="Auto,Auto,*" RowSpacing="8">
                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                     <Button Classes="ghost" Height="32" Padding="11,0"
-                                            Click="OnFileUpClick">
+                                            x:Name="FilesUpButton" Click="OnFileUpClick">
                                         <controls:IconParkIcon Kind="IconArrowLeft" Width="13" Height="13" />
                                     </Button>
                                     <TextBlock Grid.Column="1" x:Name="FileBreadcrumb" Classes="caption"
                                                Margin="10,0" VerticalAlignment="Center" />
                                     <Button Grid.Column="2" Classes="ghost" Height="32" Padding="11,0"
-                                            Click="OnFilesRefreshClick">
+                                            x:Name="FilesRefreshButton" Click="OnFilesRefreshClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <controls:IconParkIcon Kind="IconRefresh" Width="12" Height="12" />
                                             <TextBlock Text="{DynamicResource L.Servers.Files.Refresh}"
@@ -567,12 +593,12 @@
                                 <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
                                     <Button Classes="primary" Height="32" Padding="12,0"
                                             Content="{DynamicResource L.Servers.Properties.Save}"
-                                            Click="OnPropertiesSaveClick" />
+                                            x:Name="PropertiesSaveButton" Click="OnPropertiesSaveClick" />
                                     <TextBlock Grid.Column="1" x:Name="PropertiesStatus" Classes="caption"
                                                Margin="10,0,0,0" VerticalAlignment="Center" />
                                     <Button Grid.Column="2" Classes="ghost" Height="32" Padding="12,0"
                                             Content="{DynamicResource L.Servers.Properties.Reload}"
-                                            Click="OnPropertiesReloadClick" />
+                                            x:Name="PropertiesReloadButton" Click="OnPropertiesReloadClick" />
                                 </Grid>
                             </Grid>
 
@@ -678,7 +704,7 @@
                                               IsCheckedChanged="OnFileWrapChanged" />
                                 <Button Classes="primary" Height="30" Padding="12,0"
                                         Content="{DynamicResource L.Servers.Files.Save}"
-                                        Click="OnFileSaveClick" />
+                                        x:Name="FileSaveButton" Click="OnFileSaveClick" />
                                 <Button Classes="ghost" Height="30" Padding="12,0"
                                         Content="{DynamicResource L.Servers.Files.Close}"
                                         Click="OnFileEditorCloseClick" />

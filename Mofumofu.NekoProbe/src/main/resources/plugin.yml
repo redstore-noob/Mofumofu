@@ -1,0 +1,7 @@
+name: NekoProbe
+version: '${version}'
+main: mofumofu.nekoprobe.NekoProbePlugin
+api-version: '1.21'
+load: STARTUP
+author: Mofumofu
+description: Local-only, scoped remote observation and administration probe.

@@ -1,0 +1,13 @@
+{
+  "description": "Shared cross-end contract vector for NekoProbe -> ServerAgent internal event callbacks. Both the Java producer and the .NET consumer must reproduce these values.",
+  "linkSecret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+  "instanceId": "survival",
+  "method": "POST",
+  "path": "/internal/probe/events",
+  "timestamp": "2026-11-22T12:34:56Z",
+  "nonce": "0123456789abcdef0123456789abcdef",
+  "body": "{\"apiVersion\":\"1.0\",\"details\":{\"state\":\"running\"},\"eventId\":\"evt-contract-1\",\"message\":\"NekoProbe is online\",\"occurredAt\":\"2026-11-22T12:34:56Z\",\"type\":\"server.state_changed\"}",
+  "bodySha256": "f753669e17cacb291cf1e0fdef592cb03d461ba3a636d0a3600c360f3a95f8f0",
+  "canonical": "POST\n/internal/probe/events\nsurvival\n2026-11-22T12:34:56Z\n0123456789abcdef0123456789abcdef\nf753669e17cacb291cf1e0fdef592cb03d461ba3a636d0a3600c360f3a95f8f0",
+  "signature": "b0c5fb93a308f213eaa4c9365285c1bce4150e0f1ca1c3c814a5e448b4f6ae89"
+}

@@ -30,6 +30,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\MofuCore\MofuCore.csproj" />
+        <ProjectReference Include="..\Mofumofu.RemoteProtocol\Mofumofu.RemoteProtocol.csproj" />
         <ProjectReference Include="..\Mofumofu.ExtensionAPI\Mofumofu.ExtensionAPI.csproj" />
     </ItemGroup>
 

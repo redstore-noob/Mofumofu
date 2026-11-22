@@ -36,6 +36,7 @@ using CoreRewindSnapshot = MofuCore.Tools.RewindSnapshot;
 using Mofumofu.Launcher.Models;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Services;
+using Mofumofu.Launcher.Services.Servers;
 using L = Mofumofu.Launcher.Localization.Localization;
 using CoreBackup = MofuCore.Server.ServerBackup;
 using CoreBackupInfo = MofuCore.Server.ServerBackupInfo;
@@ -61,12 +62,18 @@ public partial class ServersView : UserControl
     private bool _ready;
     private bool _localMode;
     private bool _playerRefreshBusy;
+    private bool _statusRefreshBusy;
     private int _playerRefreshToken;
     private int _refreshTick;
     private string? _selectedServerId;
+    private string? _selectedBackendKey;
+    private IServerBackend? _consoleBackend;
+    private long _lastConsoleCursor;
     private string _activeDetailTab = "overview";
     private string _fileRelativePath = string.Empty;
     private string? _openFileRelativePath;
+    private string? _openFileRevision;
+    private string? _propertiesRevision;
     private bool _editorDirty;
     private double _editorFontSize = 13;
     private SearchPanel? _searchPanel;
@@ -104,24 +111,32 @@ public partial class ServersView : UserControl
 
     private bool LoadServers()
     {
+        if (_consoleBackend is not null)
+        {
+            _consoleBackend.ConsoleLine -= OnBackendConsoleLine;
+            _consoleBackend.ConsoleReset -= OnBackendConsoleReset;
+            _consoleBackend = null;
+        }
+        foreach (ServerRow row in _allServers) row.Backend.Dispose();
         _allServers.Clear();
         _localMode = false;
 
         try
         {
-            IReadOnlyList<CoreServerInfo> infos = CoreServer.ListServerInfos();
-            if (infos.Count > 0)
+            IReadOnlyList<BackendRegistration> registrations = ServerBackendRegistry
+                .LoadAsync().GetAwaiter().GetResult();
+            if (registrations.Count > 0)
             {
-                _localMode = true;
-                foreach (CoreServerInfo info in infos)
+                _localMode = registrations.Any(registration => registration.Backend.IsLocal);
+                foreach (BackendRegistration registration in registrations)
                 {
-                    _allServers.Add(ServerRow.FromCore(info, ReadMotd(info.Id)));
+                    _allServers.Add(ServerRow.FromBackend(registration.Backend, registration.Description));
                 }
             }
         }
         catch (Exception e)
         {
-            Debug.WriteLine($"[servers] ListServerInfos failed: {e.Message}");
+            Debug.WriteLine($"[servers] LoadLocalAsync failed: {e.Message}");
         }
 
         FallbackHint.IsVisible = false;
@@ -226,9 +241,18 @@ public partial class ServersView : UserControl
         else ShowEmptyDetail();
     }
 
-    private void LoadDetail(ServerRow row)
+    private async void LoadDetail(ServerRow row)
     {
         _selectedServerId = row.ServerId;
+        _selectedBackendKey = row.Backend.BackendKey;
+        if (_consoleBackend is not null)
+        {
+            _consoleBackend.ConsoleLine -= OnBackendConsoleLine;
+            _consoleBackend.ConsoleReset -= OnBackendConsoleReset;
+        }
+        _consoleBackend = row.Backend;
+        _consoleBackend.ConsoleLine += OnBackendConsoleLine;
+        _consoleBackend.ConsoleReset += OnBackendConsoleReset;
         ShowDetailContent();
 
         DetailName.Text = row.Name;
@@ -238,11 +262,25 @@ public partial class ServersView : UserControl
         DetailPlayers.Text = L.T("Servers.Detail.PlayersCount", "{0} / {1} 名玩家", row.Players, row.MaxPlayers);
         ApplyStatusVisuals(row);
         UpdateToggleVisual(row);
+        UpdateAccessVisuals(row);
+        UnpairButton.IsVisible = !row.IsLocal;
+        TabActions.IsVisible = row.IsLocal;
+        TabBackups.IsVisible = row.IsLocal;
+        if (!row.IsLocal)
+        {
+            _ = RefreshRemoteDescriptionAsync(row);
+        }
+        if ((!row.IsLocal && _activeDetailTab is "actions" or "backups") ||
+            (_activeDetailTab == "files" && !TabFiles.IsVisible) ||
+            (_activeDetailTab == "properties" && !TabProperties.IsVisible))
+        {
+            ShowDetailTab("overview");
+        }
 
         ClearConsole();
-        if (row.ServerId is { } id)
+        if (row.ServerId is not null)
         {
-            LoadConsoleHistory(id);
+            await LoadConsoleHistory(row);
             RefreshOnlinePlayers(row);
             RefreshBackups(row);
         }
@@ -265,31 +303,113 @@ public partial class ServersView : UserControl
         DetailStatus.Foreground = row.StatusFg;
     }
 
+    private static bool HasAccess(ServerRow row, string capability, string scope) =>
+        row.Capabilities.Contains(capability) && row.Scopes.Contains(scope);
+
     private void UpdateToggleVisual(ServerRow row)
     {
         var online = row.Online;
+        bool hasControlCapability = row.Capabilities.Contains(ServerCapability.Control);
+        bool canControl = hasControlCapability && row.Scopes.Contains(ServerScope.Control);
         ToggleIcon.Kind = online ? "IconStop" : "IconPlay";
-        ToggleText.Text = online
-            ? L.T("Servers.Detail.Stop", "停止服务")
-            : L.T("Servers.Detail.Start", "启动服务");
-        ToggleButton.Classes.Set("primary", !online);
-        ToggleButton.Classes.Set("ghost", online);
+        ToggleText.Text = !hasControlCapability
+            ? L.T("Servers.Remote.PanelManaged", "面板接管")
+            : !canControl
+                ? L.T("Servers.Remote.InsufficientScope", "当前令牌未授予所需权限")
+                : online
+                    ? L.T("Servers.Detail.Stop", "停止服务")
+                    : L.T("Servers.Detail.Start", "启动服务");
+        ToggleButton.IsEnabled = canControl;
+        RestartButton.IsEnabled = canControl;
+        string? tip = canControl
+            ? null
+            : hasControlCapability
+                ? L.T("Servers.Remote.InsufficientScope", "当前令牌未授予所需权限")
+                : L.T("Servers.Remote.PanelManagedHint", "请在服务器面板中启停或重启");
+        ToolTip.SetTip(ToggleButton, tip);
+        ToolTip.SetTip(RestartButton, tip);
+        ToggleButton.Classes.Set("primary", !online && canControl);
+        ToggleButton.Classes.Set("ghost", online || !canControl);
+    }
+
+    private async Task RefreshRemoteDescriptionAsync(ServerRow row)
+    {
+        try
+        {
+            ServerDescription description = await row.Backend.GetDescriptionAsync();
+            if (ServerList.SelectedItem is not ServerRow current ||
+                current.Backend.BackendKey != row.Backend.BackendKey) return;
+            DetailVersion.Text = ServerRow.BuildVersion(description.McVersion, description.Core,
+                description.CoreVersion);
+            DetailMotd.Text = description.Motd;
+            DetailPlayers.Text = L.T("Servers.Detail.PlayersCount", "{0} / {1} 名玩家",
+                row.Players, description.MaxPlayers);
+            UpdateToggleVisual(row);
+            UpdateAccessVisuals(row);
+            if (row.ServerId is not null) RefreshBackups(row);
+        }
+        catch (Exception)
+        {
+            // 无法握手时保留配对时缓存的描述，并按已存 scopes 继续降级。
+        }
+    }
+
+    private void UpdateAccessVisuals(ServerRow row)
+    {
+        bool canCommand = HasAccess(row, ServerCapability.Command, ServerScope.Command);
+        bool canPlayers = HasAccess(row, ServerCapability.Players, ServerScope.Players);
+        bool canFiles = HasAccess(row, ServerCapability.Files, ServerScope.Files);
+        bool canProperties = HasAccess(row, ServerCapability.Properties, ServerScope.Files);
+        bool canBackup = HasAccess(row, ServerCapability.Backup, ServerScope.Backup);
+        string scopeHint = L.T("Servers.Remote.InsufficientScope", "当前令牌未授予所需权限");
+
+        TabFiles.IsVisible = canFiles;
+        TabProperties.IsVisible = canProperties;
+        ConsoleInput.IsEnabled = canCommand;
+        ConsoleSendButton.IsEnabled = canCommand;
+        ToolTip.SetTip(ConsoleInput, canCommand ? null : scopeHint);
+        ToolTip.SetTip(ConsoleSendButton, canCommand ? null : scopeHint);
+
+        PlayerNameInput.IsEnabled = canPlayers;
+        foreach (Button button in new[]
+                 {
+                     WhitelistAddButton, WhitelistRemoveButton, OpAddButton, OpRemoveButton,
+                     BanAddButton, BanRemoveButton,
+                 })
+        {
+            button.IsEnabled = canPlayers;
+            ToolTip.SetTip(button, canPlayers ? null : scopeHint);
+        }
+
+        FilesUpButton.IsEnabled = canFiles;
+        FilesRefreshButton.IsEnabled = canFiles;
+        FileSaveButton.IsEnabled = canFiles;
+        PropertiesSaveButton.IsEnabled = canProperties;
+        PropertiesReloadButton.IsEnabled = canProperties;
+        QuickBackupButton.IsEnabled = canBackup;
+        ToolTip.SetTip(QuickBackupButton, canBackup ? null : scopeHint);
+        OpenFolderButton.IsVisible = row.IsLocal;
+        ConfigButton.IsVisible = row.IsLocal;
+        BackupSection.IsVisible = canBackup;
     }
 
     private void ClearConsole()
     {
         _consoleRows.Clear();
+        _lastConsoleCursor = 0;
     }
 
-    private void LoadConsoleHistory(string serverId)
+    private async Task LoadConsoleHistory(ServerRow row)
     {
         try
         {
-            var snapshot = CoreServer.Poll(serverId, 0);
+            BackendStatus snapshot = await row.Backend.GetStatusAsync(0);
+            if (_selectedBackendKey != row.Backend.BackendKey) return;
             foreach (string line in snapshot.LogLines)
             {
                 AppendConsoleLine(line);
             }
+            _lastConsoleCursor = snapshot.NextCursor;
 
             if (_consoleRows.Count == 0)
             {
@@ -303,17 +423,32 @@ public partial class ServersView : UserControl
         }
     }
 
-    private void OnCoreConsoleLine(string serverId, string line)
+    private void OnBackendConsoleLine(object? sender, ServerConsoleEventArgs e)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(() => OnCoreConsoleLine(serverId, line));
+            Dispatcher.UIThread.Post(() => OnBackendConsoleLine(sender, e));
             return;
         }
 
-        if (!_ready || !_localMode) return;
-        if (serverId != _selectedServerId) return;
-        AppendConsoleLine(line);
+        if (!_ready || !ReferenceEquals(sender, _consoleBackend)) return;
+        if (e.Cursor > 0 && e.Cursor <= _lastConsoleCursor) return;
+        _lastConsoleCursor = Math.Max(_lastConsoleCursor, e.Cursor);
+        AppendConsoleLine(e.Line);
+    }
+
+    private void OnBackendConsoleReset(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnBackendConsoleReset(sender, e));
+            return;
+        }
+        if (ReferenceEquals(sender, _consoleBackend))
+        {
+            _lastConsoleCursor = 0;
+            ClearConsole();
+        }
     }
 
     private void AppendConsoleLine(string line)
@@ -350,7 +485,8 @@ public partial class ServersView : UserControl
 
     private async Task SendConsoleInputAsync()
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Command, ServerScope.Command)) return;
 
         var command = (ConsoleInput.Text ?? string.Empty).Trim();
         if (command.Length == 0) return;
@@ -362,7 +498,7 @@ public partial class ServersView : UserControl
         AppendSystemLine(L.T("Servers.Console.CommandEcho", "> {0}", command));
         try
         {
-            await CoreServer.SendCommandAsync(id, command);
+            await row.Backend.SendCommandAsync(command);
         }
         catch (Exception e)
         {
@@ -375,9 +511,13 @@ public partial class ServersView : UserControl
         PlayersPanel.Children.Clear();
         PlayersPanel.Children.Add(new TextBlock
         {
-            Text = row.Online
-                ? L.T("Servers.Players.Unavailable", "在线玩家暂不可用（RCON 未连接）")
-                : L.T("Servers.Players.ServerStopped", "服务器已停止"),
+            Text = !HasAccess(row, ServerCapability.Players, ServerScope.Players)
+                ? L.T("Servers.Remote.InsufficientScope", "当前令牌未授予所需权限")
+                : row.Status == "unreachable"
+                    ? L.T("Servers.Remote.UnreachableHint", "连接中断；面板服请检查插件、端口映射和 Caddy 反代")
+                    : row.Online
+                        ? L.T("Servers.Players.Unavailable", "在线玩家暂不可用（RCON 未连接）")
+                        : L.T("Servers.Players.ServerStopped", "服务器已停止"),
             FontSize = 11,
             Foreground = ThemeTokens.Brush("NekoMutedBrush"),
             Margin = new Thickness(2, 4, 0, 0),
@@ -439,10 +579,9 @@ public partial class ServersView : UserControl
         UiAnimations.FadeSlideIn(chip, 0.9, 4, 140);
     }
 
-    /// <summary>在线玩家名来自 ServerPlayers.Get（RCON / 名单），放后台线程避免阻塞 UI。</summary>
-    private void RefreshOnlinePlayers(ServerRow row)
+    private async void RefreshOnlinePlayers(ServerRow row)
     {
-        if (row.ServerId is not { } id)
+        if (row.ServerId is null || !HasAccess(row, ServerCapability.Players, ServerScope.Players))
         {
             RebuildUnavailablePlayers(row);
             return;
@@ -451,25 +590,22 @@ public partial class ServersView : UserControl
 
         _playerRefreshBusy = true;
         var token = ++_playerRefreshToken;
-        _ = Task.Run(() =>
+        try
         {
-            List<string> online = [];
-            try
-            {
-                online = CorePlayers.Get(id).Online;
-            }
-            catch (Exception)
-            {
-            }
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                _playerRefreshBusy = false;
-                if (token != _playerRefreshToken) return;
-                if (ServerList.SelectedItem is not ServerRow current || current.ServerId != id) return;
-                RebuildOnlinePlayers(current, online);
-            });
-        });
+            BackendPlayers summary = await row.Backend.GetPlayersAsync();
+            if (token != _playerRefreshToken) return;
+            if (ServerList.SelectedItem is not ServerRow current ||
+                current.Backend.BackendKey != row.Backend.BackendKey) return;
+            RebuildOnlinePlayers(current, summary.Online.Select(player => player.Name).ToList());
+        }
+        catch (Exception)
+        {
+            if (token == _playerRefreshToken) RebuildUnavailablePlayers(row);
+        }
+        finally
+        {
+            _playerRefreshBusy = false;
+        }
     }
 
     private async void OnWhitelistAddClick(object? sender, RoutedEventArgs e) =>
@@ -480,7 +616,8 @@ public partial class ServersView : UserControl
 
     private async Task ModifyWhitelistAsync(bool add)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Players, ServerScope.Players)) return;
         if (row.ServerId is not { } id) return;
 
         var name = (PlayerNameInput.Text ?? string.Empty).Trim();
@@ -492,30 +629,7 @@ public partial class ServersView : UserControl
 
         try
         {
-            if (CoreServer.IsRunning(id))
-            {
-                await CorePlayers.RunCommandAsync(id, $"whitelist {(add ? "add" : "remove")} {name}");
-            }
-            else
-            {
-                var summary = await Task.Run(() => CorePlayers.Get(id));
-                List<CoreWhitelistEntry> entries = summary.Whitelist.ToList();
-                CoreWhitelistEntry? existing = entries.FirstOrDefault(entry =>
-                    string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (add)
-                {
-                    if (existing is null)
-                    {
-                        entries.Add(new CoreWhitelistEntry { Name = name });
-                    }
-                }
-                else if (existing is not null)
-                {
-                    entries.Remove(existing);
-                }
-
-                CorePlayers.SaveWhitelist(id, entries);
-            }
+            await row.Backend.ModifyWhitelistAsync(name, add);
 
             PlayerNameInput.Text = string.Empty;
             Shell.Toast(add
@@ -534,7 +648,8 @@ public partial class ServersView : UserControl
 
     private async Task ModifyOpAsync(bool add)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Players, ServerScope.Players)) return;
         if (row.ServerId is not { } id) return;
 
         var name = (PlayerNameInput.Text ?? string.Empty).Trim();
@@ -546,30 +661,7 @@ public partial class ServersView : UserControl
 
         try
         {
-            if (CoreServer.IsRunning(id))
-            {
-                await CorePlayers.RunCommandAsync(id, $"{(add ? "op" : "deop")} {name}");
-            }
-            else
-            {
-                var summary = await Task.Run(() => CorePlayers.Get(id));
-                List<CoreOpEntry> entries = summary.Ops.ToList();
-                CoreOpEntry? existing = entries.FirstOrDefault(entry =>
-                    string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (add)
-                {
-                    if (existing is null)
-                    {
-                        entries.Add(new CoreOpEntry { Name = name, Level = 4 });
-                    }
-                }
-                else if (existing is not null)
-                {
-                    entries.Remove(existing);
-                }
-
-                CorePlayers.SaveOps(id, entries);
-            }
+            await row.Backend.ModifyOpAsync(name, add);
 
             PlayerNameInput.Text = string.Empty;
             Shell.Toast(add
@@ -582,11 +674,40 @@ public partial class ServersView : UserControl
         }
     }
 
-    private void RefreshBackups(ServerRow row)
+    private async void OnBanAddClick(object? sender, RoutedEventArgs e) => await ModifyBanAsync(true);
+
+    private async void OnBanRemoveClick(object? sender, RoutedEventArgs e) => await ModifyBanAsync(false);
+
+    private async Task ModifyBanAsync(bool add)
+    {
+        if (ServerList.SelectedItem is not ServerRow row || row.ServerId is null ||
+            !HasAccess(row, ServerCapability.Players, ServerScope.Players)) return;
+        var name = (PlayerNameInput.Text ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            Shell.Toast(L.T("Servers.Toast.EnterPlayerName", "先在输入框里填玩家名"));
+            return;
+        }
+
+        try
+        {
+            await row.Backend.ModifyBanAsync(name, add, add ? "Banned by Mofumofu" : null);
+            PlayerNameInput.Text = string.Empty;
+            Shell.Toast(add
+                ? L.T("Servers.Toast.BanAdded", "已封禁玩家：{0}", name)
+                : L.T("Servers.Toast.BanRemoved", "已解除封禁：{0}", name));
+        }
+        catch (Exception error)
+        {
+            Shell.Toast(error.Message);
+        }
+    }
+
+    private async void RefreshBackups(ServerRow row)
     {
         BackupPanel.Children.Clear();
 
-        if (row.ServerId is not { } id)
+        if (row.ServerId is null || !HasAccess(row, ServerCapability.Backup, ServerScope.Backup))
         {
             BackupSection.IsVisible = false;
             return;
@@ -594,10 +715,12 @@ public partial class ServersView : UserControl
 
         BackupSection.IsVisible = true;
 
-        IReadOnlyList<CoreBackupInfo> backups;
+        IReadOnlyList<BackendBackup> backups;
         try
         {
-            backups = CoreBackup.List(id);
+            backups = await row.Backend.GetBackupsAsync();
+            if (ServerList.SelectedItem is not ServerRow current ||
+                current.Backend.BackendKey != row.Backend.BackendKey) return;
         }
         catch (Exception)
         {
@@ -616,7 +739,7 @@ public partial class ServersView : UserControl
             return;
         }
 
-        foreach (CoreBackupInfo backup in backups.Take(3))
+        foreach (BackendBackup backup in backups.Take(3))
         {
             var name = new TextBlock
             {
@@ -665,13 +788,23 @@ public partial class ServersView : UserControl
     private async void OnRestoreBackupClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string backupName }) return;
-        if (ServerList.SelectedItem is not ServerRow { ServerId: { } id } row) return;
+        if (ServerList.SelectedItem is not ServerRow { ServerId: not null } row ||
+            !HasAccess(row, ServerCapability.Backup, ServerScope.Backup)) return;
+        if (ConfirmRemoteAction(row, "恢复备份",
+                L.T("Servers.Remote.RestoreConfirm", "将恢复备份 {0}。面板服需要在重启后提交恢复，继续吗？", backupName),
+                () => RestoreBackupAsync(row, backupName))) return;
+        await RestoreBackupAsync(row, backupName);
+    }
 
+    private async Task RestoreBackupAsync(ServerRow row, string backupName)
+    {
         try
         {
             Shell.Toast(L.T("Servers.Toast.Restoring", "正在恢复备份 {0}…", backupName));
-            await CoreBackup.RestoreAsync(id, backupName);
-            Shell.Toast(L.T("Servers.Toast.Restored", "备份已恢复（恢复前已自动创建安全备份）"));
+            BackendOperation result = await row.Backend.RestoreBackupAsync(backupName);
+            Shell.Toast(result.PendingRestart
+                ? L.T("Servers.Remote.RestorePending", "恢复已预提交，请到面板重启服务器")
+                : L.T("Servers.Toast.Restored", "备份已恢复（恢复前已自动创建安全备份）"));
             RefreshBackups(row);
         }
         catch (Exception ex)
@@ -680,14 +813,22 @@ public partial class ServersView : UserControl
         }
     }
 
-    private void OnDeleteBackupClick(object? sender, RoutedEventArgs e)
+    private async void OnDeleteBackupClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string backupName }) return;
-        if (ServerList.SelectedItem is not ServerRow { ServerId: { } id } row) return;
+        if (ServerList.SelectedItem is not ServerRow { ServerId: not null } row ||
+            !HasAccess(row, ServerCapability.Backup, ServerScope.Backup)) return;
+        if (ConfirmRemoteAction(row, "删除备份",
+                L.T("Servers.Remote.DeleteBackupConfirm", "将永久删除远程备份 {0}，继续吗？", backupName),
+                () => DeleteBackupAsync(row, backupName))) return;
+        await DeleteBackupAsync(row, backupName);
+    }
 
+    private async Task DeleteBackupAsync(ServerRow row, string backupName)
+    {
         try
         {
-            CoreBackup.Delete(id, backupName);
+            await row.Backend.DeleteBackupAsync(backupName);
             Shell.Toast(L.T("Servers.Toast.BackupDeleted", "已删除备份 {0}", backupName));
             RefreshBackups(row);
         }
@@ -705,62 +846,77 @@ public partial class ServersView : UserControl
         _ => $"{bytes} B",
     };
 
-    private void OnRefreshTick(object? sender, EventArgs e)
+    private async void OnRefreshTick(object? sender, EventArgs e)
     {
-        if (!_ready) return;
-        if (ServerList.SelectedItem is not ServerRow row) return;
-        if (row.ServerId is not { } id) return;
+        if (!_ready || _statusRefreshBusy) return;
+        if (ServerList.SelectedItem is not ServerRow row || row.ServerId is null) return;
 
-        var status = CoreServer.GetStatus(id);
-        var changed = row.Status != status;
-        row.Status = status;
-
-        var snapshot = CoreServer.Poll(id, long.MaxValue);
-        if (row.Players != snapshot.Players)
+        _statusRefreshBusy = true;
+        try
         {
-            row.Players = snapshot.Players;
-            changed = true;
+            BackendStatus snapshot = await row.Backend.GetStatusAsync(long.MaxValue);
+            if (ServerList.SelectedItem is not ServerRow current ||
+                current.Backend.BackendKey != row.Backend.BackendKey) return;
+            var changed = row.Status != snapshot.Status;
+            row.Status = snapshot.Status;
+
+            if (row.Players != snapshot.Players)
+            {
+                row.Players = snapshot.Players;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                ApplyStatusVisuals(row);
+                UpdateToggleVisual(row);
+                DetailPlayers.Text = L.T("Servers.Detail.PlayersCount", "{0} / {1} 名玩家",
+                    row.Players, row.MaxPlayers);
+                UpdateChips();
+            }
+
+            _refreshTick++;
+            if (_refreshTick % 5 == 0) RefreshOnlinePlayers(row);
         }
-
-        if (changed)
+        catch (Exception)
         {
-            ApplyStatusVisuals(row);
-            UpdateToggleVisual(row);
-            DetailPlayers.Text = L.T("Servers.Detail.PlayersCount", "{0} / {1} 名玩家",
-                row.Players, row.MaxPlayers);
-            UpdateChips();
+            // 远程后端的连接状态由 RemoteServerBackend 事件与详情刷新呈现。
         }
-
-        _refreshTick++;
-        if (_refreshTick % 5 == 0)
+        finally
         {
-            RefreshOnlinePlayers(row);
+            _statusRefreshBusy = false;
         }
     }
 
     private async void OnToggleServerClick(object? sender, RoutedEventArgs e)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow row || row.ServerId is null ||
+            !HasAccess(row, ServerCapability.Control, ServerScope.Control)) return;
+        if (ConfirmRemoteAction(row, row.Online ? "停止服务器" : "启动服务器",
+                L.T("Servers.Remote.ControlConfirm", "将远程{0}「{1}」，继续吗？", row.Online ? "停止" : "启动", row.Name),
+                () => ToggleServerAsync(row))) return;
+        await ToggleServerAsync(row);
+    }
 
-        if (row.ServerId is not { } id) return;
-
+    private async Task ToggleServerAsync(ServerRow row)
+    {
         ToggleButton.IsEnabled = false;
         try
         {
             if (row.Online)
             {
                 Shell.Toast(L.T("Servers.Toast.Stopping", "正在停止「{0}」…", row.Name));
-                await CoreServer.StopAsync(id);
+                await row.Backend.StopAsync();
                 Shell.Toast(L.T("Servers.Toast.Stopped", "已停止「{0}」", row.Name));
             }
             else
             {
                 Shell.Toast(L.T("Servers.Toast.Starting", "正在启动「{0}」…", row.Name));
-                await CoreServer.StartAsync(id);
+                await row.Backend.StartAsync();
                 Shell.Toast(L.T("Servers.Toast.Started", "已启动「{0}」", row.Name));
             }
 
-            row.Status = CoreServer.GetStatus(id);
+            row.Status = (await row.Backend.GetStatusAsync(long.MaxValue)).Status;
             ApplyStatusVisuals(row);
             UpdateToggleVisual(row);
             UpdateChips();
@@ -773,27 +929,32 @@ public partial class ServersView : UserControl
         }
         finally
         {
-            ToggleButton.IsEnabled = true;
+            UpdateToggleVisual(row);
         }
     }
 
     private async void OnRestartClick(object? sender, RoutedEventArgs e)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
-
-        if (row.ServerId is not { } id) return;
-
-        if (!CoreServer.IsRunning(id))
+        if (ServerList.SelectedItem is not ServerRow row || row.ServerId is null ||
+            !HasAccess(row, ServerCapability.Control, ServerScope.Control)) return;
+        if (!row.Online)
         {
             Shell.Toast(L.T("Servers.Toast.NotRunning", "服务器未在运行"));
             return;
         }
+        if (ConfirmRemoteAction(row, "重启服务器",
+                L.T("Servers.Remote.RestartConfirm", "将远程重启「{0}」，继续吗？", row.Name),
+                () => RestartServerAsync(row))) return;
+        await RestartServerAsync(row);
+    }
 
+    private async Task RestartServerAsync(ServerRow row)
+    {
         try
         {
             Shell.Toast(L.T("Servers.Toast.Restarting", "正在重启「{0}」…", row.Name));
-            await CoreServer.RestartAsync(id);
-            row.Status = CoreServer.GetStatus(id);
+            await row.Backend.RestartAsync();
+            row.Status = (await row.Backend.GetStatusAsync(long.MaxValue)).Status;
             ApplyStatusVisuals(row);
             UpdateToggleVisual(row);
             Shell.Toast(L.T("Servers.Toast.Restarted", "已重启「{0}」", row.Name));
@@ -802,6 +963,13 @@ public partial class ServersView : UserControl
         {
             Shell.Toast(ex.Message);
         }
+    }
+
+    private bool ConfirmRemoteAction(ServerRow row, string title, string message, Func<Task> action)
+    {
+        if (row.IsLocal) return false;
+        ShowConfirmDialog(title, message, () => _ = action());
+        return true;
     }
 
     private void OnCopyAddressClick(object? sender, RoutedEventArgs e)
@@ -834,9 +1002,7 @@ public partial class ServersView : UserControl
         if (ServerList.SelectedItem is ServerRow row) LoadDetail(row);
         else ShowEmptyDetail();
 
-        Shell.Toast(_localMode
-            ? L.T("Servers.Toast.Refreshed", "已刷新，共 {0} 台本机服务器", _allServers.Count)
-            : L.T("Servers.Toast.NoLocal", "未找到本机服务器"));
+        Shell.Toast(L.T("Servers.Toast.Refreshed", "已刷新，共 {0} 台服务器", _allServers.Count));
     }
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
@@ -897,6 +1063,23 @@ public partial class ServersView : UserControl
         return -1;
     }
 
+    private void OnPairRemoteServerClick(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new RemoteServerPairDialog();
+        dialog.ServerPaired += connection =>
+        {
+            LoadServers();
+            RefreshServerList();
+            int index = _visibleServers.ToList().FindIndex(server =>
+                server.Backend.BackendKey == connection.BackendKey);
+            ServerList.SelectedIndex = index >= 0 ? index : (_visibleServers.Count > 0 ? 0 : -1);
+            UpdateChips();
+            if (ServerList.SelectedItem is ServerRow paired) LoadDetail(paired);
+            Shell.Toast(L.T("Servers.Remote.PairDone", "配对完成：{0}", connection.Name));
+        };
+        Shell.Dialog(dialog, L.T("Servers.Remote.PairTitle", "连接远程服务器"), sender as Control);
+    }
+
     private void OnCreateServerClick(object? sender, RoutedEventArgs e)
     {
         var dialog = new ServerCreateDialog();
@@ -917,13 +1100,14 @@ public partial class ServersView : UserControl
 
     private async void OnBackupClick(object? sender, RoutedEventArgs e)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Backup, ServerScope.Backup)) return;
         if (row.ServerId is not { } id) return;
 
         try
         {
             Shell.Toast(L.T("Servers.Toast.BackingUp", "正在创建备份…"));
-            CoreBackupInfo info = await CoreBackup.CreateAsync(id);
+            BackendBackup info = await row.Backend.CreateBackupAsync();
             Shell.Toast(L.T("Servers.Toast.BackupDone", "备份完成：{0}", info.Name));
             RefreshBackups(row);
         }
@@ -935,7 +1119,7 @@ public partial class ServersView : UserControl
 
     private void OnOpenFolderClick(object? sender, RoutedEventArgs e)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } row) return;
         if (row.ServerId is not { } id) return;
 
         try
@@ -952,7 +1136,7 @@ public partial class ServersView : UserControl
 
     private void OnConfigClick(object? sender, RoutedEventArgs e)
     {
-        if (ServerList.SelectedItem is not ServerRow row) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } row) return;
         if (row.ServerId is not { } id) return;
 
         string path = Path.Combine(Path.GetFullPath(CoreServer.ServerDirectory(id)), "server.properties");
@@ -976,13 +1160,17 @@ public partial class ServersView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        CoreServer.ConsoleLine += OnCoreConsoleLine;
         _refreshTimer.Start();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        CoreServer.ConsoleLine -= OnCoreConsoleLine;
+        if (_consoleBackend is not null)
+        {
+            _consoleBackend.ConsoleLine -= OnBackendConsoleLine;
+            _consoleBackend.ConsoleReset -= OnBackendConsoleReset;
+        }
+        _consoleBackend = null;
         _refreshTimer.Stop();
         base.OnDetachedFromVisualTree(e);
     }
@@ -1041,7 +1229,7 @@ public partial class ServersView : UserControl
         };
     }
 
-    private void RefreshFiles()
+    private async void RefreshFiles()
     {
         // 有未保存的修改时不刷新面板，避免直接丢弃编辑器里的内容
         if (_editorDirty) return;
@@ -1054,22 +1242,22 @@ public partial class ServersView : UserControl
         FileEditorDirty.IsVisible = false;
         FileEditorOverlay.IsVisible = false;
 
-        if (!_localMode || _selectedServerId is not { } id)
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Files, ServerScope.Files))
         {
-            FileStatus.Text = L.T("Servers.Files.LocalOnly", "仅本机服务器支持文件管理");
+            FileStatus.Text = L.T("Servers.Files.Unavailable", "当前服务器不支持文件管理");
             return;
         }
 
         try
         {
-            var rows = CoreServerFiles.List(id, _fileRelativePath)
-                .Select(entry => new FileEntryRow(
+            IReadOnlyList<BackendFile> entries = await row.Backend.GetFilesAsync(_fileRelativePath);
+            if (_selectedBackendKey != row.Backend.BackendKey) return;
+            var rows = entries.Select(entry => new FileEntryRow(
                     entry.Name,
-                    entry.IsDir,
-                    entry.Size,
-                    string.IsNullOrEmpty(_fileRelativePath)
-                        ? entry.Name
-                        : Path.Combine(_fileRelativePath, entry.Name)))
+                    entry.IsDirectory,
+                    entry.SizeBytes,
+                    entry.RelativePath))
                 .ToList();
 
             FileList.ItemsSource = rows;
@@ -1098,9 +1286,9 @@ public partial class ServersView : UserControl
         if (FileList.SelectedItem is FileEntryRow entry) OpenFileEntry(entry);
     }
 
-    private void OpenFileEntry(FileEntryRow entry)
+    private async void OpenFileEntry(FileEntryRow entry)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row) return;
 
         if (entry.IsDir)
         {
@@ -1111,8 +1299,11 @@ public partial class ServersView : UserControl
 
         try
         {
-            FileEditor.Text = CoreServerFiles.ReadText(id, entry.Relative);
+            BackendFileContent content = await row.Backend.ReadFileAsync(entry.Relative);
+            if (_selectedBackendKey != row.Backend.BackendKey) return;
+            FileEditor.Text = content.Content;
             _openFileRelativePath = entry.Relative;
+            _openFileRevision = content.Revision;
             _editorDirty = false;
             FileEditorDirty.IsVisible = false;
             FileEditorTitle.Text = entry.Relative;
@@ -1152,11 +1343,12 @@ public partial class ServersView : UserControl
         }
     }
 
-    private void OnFileSaveClick(object? sender, RoutedEventArgs e) => SaveCurrentFile();
+    private async void OnFileSaveClick(object? sender, RoutedEventArgs e) => await SaveCurrentFile();
 
-    private bool SaveCurrentFile()
+    private async Task<bool> SaveCurrentFile()
     {
-        if (_selectedServerId is not { } id || _openFileRelativePath is null)
+        if (ServerList.SelectedItem is not ServerRow row || _openFileRelativePath is null ||
+            !HasAccess(row, ServerCapability.Files, ServerScope.Files))
         {
             FileEditorStatus.Text = L.T("Servers.Files.NoFile", "先双击打开一个文本文件");
             return false;
@@ -1164,7 +1356,7 @@ public partial class ServersView : UserControl
 
         try
         {
-            CoreServerFiles.WriteText(id, _openFileRelativePath, FileEditor.Text ?? string.Empty);
+            await row.Backend.WriteFileAsync(_openFileRelativePath, FileEditor.Text ?? string.Empty, _openFileRevision);
             _editorDirty = false;
             FileEditorDirty.IsVisible = false;
             FileEditorStatus.Text = L.T("Servers.Files.Saved", "已保存 {0}", _openFileRelativePath);
@@ -1217,13 +1409,15 @@ public partial class ServersView : UserControl
         ReloadCurrentFile();
     }
 
-    private void ReloadCurrentFile()
+    private async void ReloadCurrentFile()
     {
-        if (_selectedServerId is not { } id || _openFileRelativePath is null) return;
+        if (ServerList.SelectedItem is not ServerRow row || _openFileRelativePath is null) return;
 
         try
         {
-            FileEditor.Text = CoreServerFiles.ReadText(id, _openFileRelativePath);
+            BackendFileContent content = await row.Backend.ReadFileAsync(_openFileRelativePath);
+            FileEditor.Text = content.Content;
+            _openFileRevision = content.Revision;
             _editorDirty = false;
             FileEditorDirty.IsVisible = false;
             UpdateEditorCaret();
@@ -1295,10 +1489,10 @@ public partial class ServersView : UserControl
                 CloseFileEditor();
             });
         var save = MofuDialog.Primary(
-            L.T("Servers.Files.SaveAndClose", "保存并关闭"), () =>
+            L.T("Servers.Files.SaveAndClose", "保存并关闭"), async () =>
             {
                 MofuDialog.Close(content);
-                if (SaveCurrentFile()) CloseFileEditor();
+                if (await SaveCurrentFile()) CloseFileEditor();
             });
 
         content.Children.Add(MofuDialog.Footer(cancel, discard, save));
@@ -1425,7 +1619,7 @@ public partial class ServersView : UserControl
         FileEditor.WordWrap = FileWrapToggle.IsChecked == true;
     }
 
-    private void OnFileEditorKeyDown(object? sender, KeyEventArgs e)
+    private async void OnFileEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
@@ -1440,7 +1634,7 @@ public partial class ServersView : UserControl
         if (e.Key == Key.S)
         {
             e.Handled = true;
-            SaveCurrentFile();
+            await SaveCurrentFile();
         }
         else if (e.Key is Key.OemPlus or Key.Add)
         {
@@ -1463,7 +1657,8 @@ public partial class ServersView : UserControl
 
     private void OnFileListContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (!_localMode || _selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Files, ServerScope.Files)) return;
 
         FileEntryRow? entry = null;
         if (e.TryGetPosition(FileList, out Point point) &&
@@ -1508,12 +1703,12 @@ public partial class ServersView : UserControl
 
     private void CreateNewFile(string parentRelative)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row) return;
 
-        ShowNameDialog(L.T("Servers.Files.NewFile", "新建文件"), L.T("Servers.Files.NamePrompt", "文件名"), string.Empty, name =>
+        ShowNameDialog(L.T("Servers.Files.NewFile", "新建文件"), L.T("Servers.Files.NamePrompt", "文件名"), string.Empty, async name =>
         {
             string relative = CombineRelative(parentRelative, name);
-            CoreServerFiles.CreateTextFile(id, relative);
+            await row.Backend.CreateTextFileAsync(relative);
             _fileRelativePath = parentRelative;
             RefreshFiles();
             OpenFileEntry(new FileEntryRow(name, false, 0, relative));
@@ -1522,11 +1717,11 @@ public partial class ServersView : UserControl
 
     private void CreateNewFolder(string parentRelative)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row) return;
 
-        ShowNameDialog(L.T("Servers.Files.NewFolder", "新建文件夹"), L.T("Servers.Files.NamePrompt", "文件夹名"), string.Empty, name =>
+        ShowNameDialog(L.T("Servers.Files.NewFolder", "新建文件夹"), L.T("Servers.Files.NamePrompt", "文件夹名"), string.Empty, async name =>
         {
-            CoreServerFiles.CreateDirectory(id, CombineRelative(parentRelative, name));
+            await row.Backend.CreateDirectoryAsync(CombineRelative(parentRelative, name));
             _fileRelativePath = parentRelative;
             RefreshFiles();
         });
@@ -1534,11 +1729,11 @@ public partial class ServersView : UserControl
 
     private void RenameEntry(FileEntryRow entry)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row) return;
 
-        ShowNameDialog(L.T("Servers.Files.Rename", "重命名"), L.T("Servers.Files.NamePrompt", "新名称"), entry.Name, name =>
+        ShowNameDialog(L.T("Servers.Files.Rename", "重命名"), L.T("Servers.Files.NamePrompt", "新名称"), entry.Name, async name =>
         {
-            string renamed = CoreServerFiles.Rename(id, entry.Relative, name);
+            string renamed = await row.Backend.RenameFileAsync(entry.Relative, name);
             if (string.Equals(_openFileRelativePath, entry.Relative, StringComparison.OrdinalIgnoreCase))
             {
                 _openFileRelativePath = renamed;
@@ -1555,25 +1750,32 @@ public partial class ServersView : UserControl
 
     private void DeleteEntry(FileEntryRow entry)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row) return;
 
         ShowConfirmDialog(
             L.T("Servers.Files.Delete", "删除"),
             L.T("Servers.Files.DeleteConfirm", "确定要删除「{0}」吗？文件夹会连同内容一起删除。", entry.Name),
-            () =>
+            async () =>
             {
-                CoreServerFiles.Delete(id, entry.Relative);
-
-                if (_openFileRelativePath is not null &&
-                    (_openFileRelativePath.Equals(entry.Relative, StringComparison.OrdinalIgnoreCase) ||
-                     _openFileRelativePath.StartsWith(entry.Relative + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+                try
                 {
-                    CloseFileEditor();
-                    _openFileRelativePath = null;
-                }
+                    await row.Backend.DeleteFileAsync(entry.Relative);
 
-                RefreshFiles();
-                Shell.Toast(L.T("Servers.Files.Deleted", "已删除 {0}", entry.Name));
+                    if (_openFileRelativePath is not null &&
+                        (_openFileRelativePath.Equals(entry.Relative, StringComparison.OrdinalIgnoreCase) ||
+                         _openFileRelativePath.StartsWith(entry.Relative + "/", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        CloseFileEditor();
+                        _openFileRelativePath = null;
+                    }
+
+                    RefreshFiles();
+                    Shell.Toast(L.T("Servers.Files.Deleted", "已删除 {0}", entry.Name));
+                }
+                catch (Exception error)
+                {
+                    Shell.Toast(error.Message);
+                }
             });
     }
 
@@ -1593,9 +1795,9 @@ public partial class ServersView : UserControl
     }
 
     private static string CombineRelative(string parent, string name) =>
-        string.IsNullOrEmpty(parent) ? name : Path.Combine(parent, name);
+        string.IsNullOrEmpty(parent) ? name : parent.TrimEnd('/') + "/" + name;
 
-    private void ShowNameDialog(string title, string label, string initial, Action<string> onConfirm)
+    private void ShowNameDialog(string title, string label, string initial, Func<string, Task> onConfirm)
     {
         var input = MofuDialog.Input(initial);
 
@@ -1603,14 +1805,14 @@ public partial class ServersView : UserControl
         content.Children.Add(MofuDialog.Field(label, input));
 
         var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
-        var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), () =>
+        var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), async () =>
         {
             string value = input.Text?.Trim() ?? string.Empty;
             if (value.Length == 0) return;
             MofuDialog.Close(content);
             try
             {
-                onConfirm(value);
+                await onConfirm(value);
             }
             catch (Exception error)
             {
@@ -1652,7 +1854,7 @@ public partial class ServersView : UserControl
     {
         RewindPanel.Children.Clear();
 
-        if (!_localMode || _selectedServerId is not { } id)
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id)
         {
             RewindHint.Text = L.T("Servers.Rewind.LocalOnly", "仅本机服务器支持 Rewind 备份");
             return;
@@ -1747,7 +1949,7 @@ public partial class ServersView : UserControl
 
     private async void OnRewindCreateClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id) return;
         try
         {
             if (CoreServer.IsRunning(id))
@@ -1772,7 +1974,7 @@ public partial class ServersView : UserControl
 
     private async Task RestoreRewindSnapshotAsync(CoreRewindSnapshot snapshot)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id) return;
 
         try
         {
@@ -1795,7 +1997,7 @@ public partial class ServersView : UserControl
 
     private async Task DeleteRewindSnapshotAsync(CoreRewindSnapshot snapshot)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id) return;
         try
         {
             string worldDirectory = CoreServer.WorldDirectory(id);
@@ -1834,20 +2036,24 @@ public partial class ServersView : UserControl
         new("enable-command-block", "启用命令方块", "是否允许命令方块执行。", IsBool: true),
     ];
 
-    private void BuildPropertiesEditor()
+    private async void BuildPropertiesEditor()
     {
         PropertiesPanel.Children.Clear();
         _propertyGetters.Clear();
 
-        if (!_localMode || _selectedServerId is not { } id)
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Properties, ServerScope.Files))
         {
-            PropertiesStatus.Text = L.T("Servers.Properties.LocalOnly", "仅本机服务器支持属性编辑");
+            PropertiesStatus.Text = L.T("Servers.Properties.Unavailable", "当前服务器不支持属性编辑");
             return;
         }
 
         try
         {
-            List<CoreProperty> properties = CoreProperties.Get(id).ToList();
+            BackendProperties model = await row.Backend.GetPropertiesAsync();
+            if (_selectedBackendKey != row.Backend.BackendKey) return;
+            _propertiesRevision = model.Revision;
+            IReadOnlyList<BackendProperty> properties = model.Values;
             Dictionary<string, string> values = properties
                 .GroupBy(property => property.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
@@ -1863,7 +2069,7 @@ public partial class ServersView : UserControl
             }
 
             AddPropertiesSection(L.T("Servers.Properties.All", "全部属性"));
-            foreach (CoreProperty property in properties)
+            foreach (BackendProperty property in properties)
             {
                 if (commonKeys.Contains(property.Key)) continue;
                 AddPropertyTextRow(property.Key, property.Value);
@@ -1985,18 +2191,29 @@ public partial class ServersView : UserControl
 
     private void OnPropertiesReloadClick(object? sender, RoutedEventArgs e) => BuildPropertiesEditor();
 
-    private void OnPropertiesSaveClick(object? sender, RoutedEventArgs e)
+    private async void OnPropertiesSaveClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedServerId is not { } id) return;
+        if (ServerList.SelectedItem is not ServerRow row ||
+            !HasAccess(row, ServerCapability.Properties, ServerScope.Files)) return;
+        if (ConfirmRemoteAction(row, "覆盖远程配置",
+                L.T("Servers.Remote.PropertiesConfirm", "配置将写盘并在重启后生效，继续吗？"),
+                () => SavePropertiesAsync(row))) return;
+        await SavePropertiesAsync(row);
+    }
 
+    private async Task SavePropertiesAsync(ServerRow row)
+    {
         try
         {
             var values = _propertyGetters
-                .Select(pair => new CoreProperty { Key = pair.Key, Value = pair.Value() })
+                .Select(pair => new BackendProperty(pair.Key, pair.Value()))
                 .ToList();
-            CoreProperties.Set(id, values);
-            PropertiesStatus.Text = L.T("Servers.Properties.Saved", "已保存 server.properties");
-            Shell.Toast(L.T("Servers.Properties.Saved", "已保存 server.properties"));
+            BackendOperation result = await row.Backend.SetPropertiesAsync(values, _propertiesRevision);
+            string message = result.PendingRestart
+                ? L.T("Servers.Properties.RestartRequired", "已保存，重启后生效")
+                : L.T("Servers.Properties.Saved", "已保存 server.properties");
+            PropertiesStatus.Text = message;
+            Shell.Toast(message);
             LoadDetailIfSelected();
         }
         catch (Exception error)
@@ -2012,7 +2229,7 @@ public partial class ServersView : UserControl
 
     private async void OnExportServerClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedServerId is not { } id || !_localMode) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id) return;
 
         try
         {
@@ -2051,9 +2268,44 @@ public partial class ServersView : UserControl
         }
     }
 
+    private void OnUnpairServerClick(object? sender, RoutedEventArgs e)
+    {
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: false } row) return;
+
+        var content = MofuDialog.Stack(width: 380);
+        content.Children.Add(MofuDialog.Message(
+            L.T("Servers.Remote.UnpairConfirm",
+                "确定要解除与「{0}」的配对吗？只会删除本机保存的令牌，服务器端不受影响。", row.Name)));
+
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var confirm = MofuDialog.Danger(L.T("Servers.Remote.Unpair", "解除配对"), () =>
+        {
+            MofuDialog.Close(content);
+            try
+            {
+                RemoteServerStore.Delete(row.Backend.BackendKey);
+                row.Backend.Dispose();
+                LoadServers();
+                RefreshServerList();
+                UpdateChips();
+                ServerList.SelectedIndex = _visibleServers.Count > 0 ? 0 : -1;
+                if (ServerList.SelectedItem is ServerRow remaining) LoadDetail(remaining);
+                else ShowEmptyDetail();
+                Shell.Toast(L.T("Servers.Remote.Unpaired", "已解除与「{0}」的配对", row.Name));
+            }
+            catch (Exception error)
+            {
+                Shell.Toast(L.T("Servers.Remote.UnpairFailed", "解除配对失败：{0}", error.Message));
+            }
+        });
+
+        content.Children.Add(MofuDialog.Footer(cancel, confirm));
+        Shell.Dialog(content, L.T("Servers.Remote.UnpairTitle", "解除远程配对"), sender as Control);
+    }
+
     private void OnDeleteServerClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedServerId is not { } id || !_localMode) return;
+        if (ServerList.SelectedItem is not ServerRow { IsLocal: true } || _selectedServerId is not { } id) return;
 
         if (CoreServer.IsRunning(id))
         {
@@ -2108,22 +2360,26 @@ public sealed class ServerRow : INotifyPropertyChanged
     {
     }
 
-    public static ServerRow FromCore(CoreServerInfo info, string motd) => new()
+    public static ServerRow FromBackend(IServerBackend backend, ServerDescription description) => new()
     {
-        ServerId = info.Id,
-        IsLocal = true,
-        Name = info.Name,
-        Address = $"127.0.0.1:{info.Port}",
-        Version = BuildVersion(info.McVersion, info.Core, info.CoreVersion),
-        Motd = motd,
-        MaxPlayers = info.MaxPlayers,
-        Players = info.Players,
-        Status = info.Status,
+        Backend = backend,
+        ServerId = description.Id,
+        Name = description.Name,
+        Address = description.Address,
+        Version = BuildVersion(description.McVersion, description.Core, description.CoreVersion),
+        Motd = description.Motd,
+        MaxPlayers = description.MaxPlayers,
     };
+
+    public IServerBackend Backend { get; private init; } = null!;
 
     public string? ServerId { get; private init; }
 
-    public bool IsLocal { get; private init; }
+    public bool IsLocal => Backend.IsLocal;
+
+    public IReadOnlyList<string> Capabilities => Backend.Capabilities;
+
+    public IReadOnlyList<string> Scopes => Backend.Scopes;
 
     public string Name { get; private init; } = string.Empty;
 
@@ -2171,20 +2427,22 @@ public sealed class ServerRow : INotifyPropertyChanged
         CoreServer.StatusRunning => L.T("Servers.Status.Running", "运行中"),
         CoreServer.StatusStarting => L.T("Servers.Status.Starting", "启动中"),
         CoreServer.StatusStopping => L.T("Servers.Status.Stopping", "停止中"),
+        "crashed" => L.T("Servers.Status.Crashed", "已崩溃"),
+        "unreachable" => L.T("Servers.Status.Unreachable", "连接中断"),
         _ => L.T("Servers.Status.Stopped", "已停止"),
     };
 
     public IBrush StatusBg => ThemeTokens.Brush(_status switch
     {
         CoreServer.StatusRunning => "NekoSuccessSoftBrush",
-        CoreServer.StatusStarting or CoreServer.StatusStopping => "NekoWarningSoftBrush",
+        CoreServer.StatusStarting or CoreServer.StatusStopping or "crashed" or "unreachable" => "NekoWarningSoftBrush",
         _ => "NekoFieldBrush",
     });
 
     public IBrush StatusFg => ThemeTokens.Brush(_status switch
     {
         CoreServer.StatusRunning => "NekoSuccessBrush",
-        CoreServer.StatusStarting or CoreServer.StatusStopping => "NekoWarningBrush",
+        CoreServer.StatusStarting or CoreServer.StatusStopping or "crashed" or "unreachable" => "NekoWarningBrush",
         _ => "NekoMutedBrush",
     });
 
@@ -2195,13 +2453,14 @@ public sealed class ServerRow : INotifyPropertyChanged
         Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
         Version.Contains(query, StringComparison.OrdinalIgnoreCase);
 
-    private static string BuildVersion(string mcVersion, string core, string coreVersion)
+    internal static string BuildVersion(string mcVersion, string core, string coreVersion)
     {
         var coreName = core switch
         {
             CoreServer.CorePaper => "Paper",
             CoreServer.CoreFabric => "Fabric",
             CoreServer.CoreNeoForge => "NeoForge",
+            "remote" => "Remote",
             _ => "Vanilla",
         };
 

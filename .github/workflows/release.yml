@@ -373,11 +373,90 @@ jobs:
             dist/*.pkg.tar.zst
 
   # ------------------------------------------------------------------
+  # 远程管服：协议测试 + Probe jar + ServerAgent Linux 制品 + 部署脚本
+  # ------------------------------------------------------------------
+  remote:
+    name: Remote Agent/Probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Test remote protocol
+        run: dotnet test tests/Mofumofu.RemoteProtocol.Tests/Mofumofu.RemoteProtocol.Tests.csproj -c Release
+
+      - name: Test launcher backends
+        run: dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Release
+
+      - name: Test ServerAgent
+        run: dotnet test tests/Mofumofu.ServerAgent.Tests/Mofumofu.ServerAgent.Tests.csproj -c Release
+
+      - name: Test and build NekoProbe
+        working-directory: Mofumofu.NekoProbe
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build --no-daemon
+
+      - name: Publish ServerAgent linux-x64
+        run: >
+          dotnet publish Mofumofu.ServerAgent/Mofumofu.ServerAgent.csproj
+          -c Release -r linux-x64 --self-contained true
+          -p:PublishSingleFile=true -p:PublishTrimmed=false
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
+          -o publish/agent-linux-x64
+
+      - name: Publish ServerAgent linux-arm64
+        run: >
+          dotnet publish Mofumofu.ServerAgent/Mofumofu.ServerAgent.csproj
+          -c Release -r linux-arm64 --self-contained true
+          -p:PublishSingleFile=true -p:PublishTrimmed=false
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
+          -o publish/agent-linux-arm64
+
+      - name: Check deployment script
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          bash -n deploy/install.sh
+          shellcheck deploy/install.sh
+
+      - name: Stage remote artifacts and checksums
+        run: |
+          mkdir -p dist
+          cp publish/agent-linux-x64/Mofumofu.ServerAgent dist/Mofumofu.ServerAgent-linux-x64
+          cp publish/agent-linux-arm64/Mofumofu.ServerAgent dist/Mofumofu.ServerAgent-linux-arm64
+          cp Mofumofu.NekoProbe/build/libs/NekoProbe.jar dist/NekoProbe.jar
+          cp deploy/install.sh dist/install.sh
+          cd dist
+          for artifact in NekoProbe.jar install.sh Mofumofu.ServerAgent-linux-x64 Mofumofu.ServerAgent-linux-arm64; do
+            sha256sum "$artifact" > "$artifact.sha256"
+          done
+
+      - name: Upload remote artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-artifacts
+          path: dist/*
+
+  # ------------------------------------------------------------------
   # 汇总发布
   # ------------------------------------------------------------------
   release:
     name: GitHub Release
-    needs: [windows, macos, linux]
+    needs: [windows, macos, linux, remote]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -396,3 +475,4 @@ jobs:
             artifacts/windows-artifacts/*
             artifacts/macos-artifacts/*
             artifacts/linux-artifacts/*
+            artifacts/remote-artifacts/*
