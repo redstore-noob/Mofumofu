@@ -9,10 +9,6 @@ using MofuCore.Java;
 
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>
-/// 五种加载器的版本查询与安装：Fabric / Quilt 走各自的 meta 与 maven；
-/// Forge / NeoForge 读 maven-metadata 与官方安装器；OptiFine 解析官网下载页。
-/// </summary>
 public enum ModLoaderKind
 {
     Vanilla,
@@ -1614,10 +1610,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
         }
     }
 
-    /// <summary>
-    /// 在 libraries/net/neoforged 下找 NeoForge 的 classifier 客户端 jar。
-    /// 按 artifact 分组目录逐个找，避免误命中 installertools 之类同名 jar。
-    /// </summary>
     private static string? FindPatchedClientJar(string libraries)
     {
         string[] artifactRoots =
@@ -1644,7 +1636,6 @@ private const string LoaderTemporarySuffix = ".mofu-download";
             {
                 string artifact = Path.GetFileName(root);
                 string version = Path.GetFileName(versionDirectory);
-                // 只认 {artifact}-{version}-client.jar，排除 sources / universal / installer 等
                 string candidate = Path.Combine(versionDirectory, $"{artifact}-{version}-client.jar");
                 if (File.Exists(candidate)) return candidate;
             }

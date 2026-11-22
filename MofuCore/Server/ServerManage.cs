@@ -13,10 +13,6 @@ using System.Text.RegularExpressions;
 
 namespace MofuCore.Server;
 
-/// <summary>
-/// Minecraft 服务端管理：实例清单、Java 子进程生命周期、控制台环形缓冲、RCON、玩家与备份。
-/// 服务器目录默认在 ./Mofumofu/mc-servers/&lt;id&gt;，元数据为目录内的 server.json。
-/// </summary>
 public class ServerManage
 {
     public const string CoreVanilla = "vanilla";
@@ -54,13 +50,10 @@ public class ServerManage
     private static CancellationTokenSource? _lifetime;
     private static Task? _playerTicker;
 
-    /// <summary>事件：服务器控制台新增一行输出（serverId, line）。前端可据此实时渲染控制台。</summary>
     public static event Action<string, string>? ConsoleLine;
 
-    /// <summary>所有服务器的根目录，默认 ./Mofumofu/mc-servers。</summary>
     public static string ServerRootDirectory { get; set; } = Path.Combine("Mofumofu", "mc-servers");
 
-    /// <summary>某个服务器的目录。</summary>
     public static string ServerDirectory(string id) => Path.Combine(ServerRootDirectory, id);
 
     internal static void ValidateId(string id)
@@ -85,7 +78,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>读取服务器的 server.json，不存在或损坏时返回 null。</summary>
     public static ServerConfig? LoadServerConfig(string id)
     {
         return IsValidId(id) ? LoadServerConfigFromDirectory(ServerDirectory(id)) : null;
@@ -115,7 +107,6 @@ public class ServerManage
             JsonSerializer.Serialize(config, ServerJson.Options));
     }
 
-    /// <summary>扫描全部服务器元数据（按名称排序）。</summary>
     public static IReadOnlyList<ServerConfig> LoadServers()
     {
         List<ServerConfig> result = [];
@@ -140,7 +131,6 @@ public class ServerManage
         return result;
     }
 
-    /// <summary>服务器实际世界存档目录（按 server.properties 的 level-name）。</summary>
     public static string WorldDirectory(string id)
     {
         ValidateId(id);
@@ -158,12 +148,10 @@ public class ServerManage
         }
         catch
         {
-            // 属性文件损坏时回退默认世界目录
         }
         return Path.Combine(directory, SanitizeLevelName(levelName));
     }
 
-    /// <summary>全部服务器摘要（元数据 + 运行状态/在线数）。</summary>
     public static IReadOnlyList<ServerInfo> ListServerInfos()
     {
         IReadOnlyList<ServerConfig> configs = LoadServers();
@@ -175,7 +163,6 @@ public class ServerManage
         return result;
     }
 
-    /// <summary>单个服务器摘要，不存在时返回 null。</summary>
     public static ServerInfo? GetServerInfo(string id)
     {
         ServerConfig? config = LoadServerConfig(id);
@@ -207,10 +194,6 @@ public class ServerManage
         return info;
     }
 
-    /// <summary>创建服务器实例：目录、eula.txt、初始 server.properties 与元数据。</summary>
-    /// <param name="options">创建参数，AcceptEula 必须为 true。</param>
-    /// <param name="installCore">可选的核心安装回调（目录, 配置, 取消令牌），由调用方下载并落盘服务端 jar。</param>
-    /// <param name="cancellationToken">取消令牌。</param>
     public static async Task<string> CreateServerAsync(
         CreateOptions options,
         Func<string, ServerConfig, CancellationToken, Task>? installCore = null,
@@ -291,7 +274,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>删除服务器（必须已停止）。</summary>
     public static void DeleteServer(string id)
     {
         ValidateId(id);
@@ -302,14 +284,12 @@ public class ServerManage
         TryRemoveDirectory(ServerDirectory(id));
     }
 
-    /// <summary>读取崩溃自动重启开关。</summary>
     public static bool AutoRestartEnabled(string id)
     {
         ServerConfig? config = LoadServerConfig(id);
         return config is not null && config.AutoRestart;
     }
 
-    /// <summary>保存崩溃自动重启开关。</summary>
     public static void SetAutoRestart(string id, bool enabled)
     {
         ValidateId(id);
@@ -333,7 +313,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>读取 JVM 启动参数（内存 + 额外参数）。</summary>
     public static LaunchOptions GetLaunchOptions(string id)
     {
         ServerConfig config = LoadServerConfig(id) ?? throw new InvalidOperationException("服务器不存在");
@@ -345,7 +324,6 @@ public class ServerManage
         };
     }
 
-    /// <summary>保存 JVM 启动参数（服务器运行中拒绝修改）。</summary>
     public static void SaveLaunchOptions(string id, LaunchOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -378,7 +356,6 @@ public class ServerManage
         SaveServerConfigToDirectory(directory, config);
     }
 
-    /// <summary>设置服务器使用的 Java 可执行文件路径（运行中拒绝修改）。</summary>
     public static void SetJavaPath(string id, string javaPath)
     {
         ValidateId(id);
@@ -426,7 +403,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>运行指定 Minecraft 版本所需的最低 Java 主版本，无法识别时返回 null。</summary>
     public static int? RequiredJavaMajorVersion(string mcVersion)
     {
         (int major, int minor, int patch) = SplitVersionComponents(mcVersion);
@@ -480,7 +456,6 @@ public class ServerManage
         return (major, minor, patch);
     }
 
-    /// <summary>启动服务器进程：starting → 检测到 Done ( 后 running。</summary>
     public static async Task StartAsync(string id, CancellationToken cancellationToken = default)
     {
         ValidateId(id);
@@ -617,7 +592,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>停止服务器。force=false 软停止（stop 指令 + 宽限期后强杀）；force=true 立即结束进程树。</summary>
     public static async Task StopAsync(string id, bool force = false)
     {
         if (!IsValidId(id))
@@ -702,7 +676,6 @@ public class ServerManage
         await WaitForExitAsync(runtime).ConfigureAwait(false);
     }
 
-    /// <summary>重启服务器：先软停止（宽限期内退出），再重新启动。</summary>
     public static async Task RestartAsync(string id, CancellationToken cancellationToken = default)
     {
         if (!IsRunning(id))
@@ -722,7 +695,6 @@ public class ServerManage
         await StartAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>退出启动器前优雅停止全部托管服务器，返回给日志用的说明行。</summary>
     public static async Task<IReadOnlyList<string>> ShutdownAllAsync(TimeSpan timeout)
     {
         List<string> ids = [];
@@ -834,7 +806,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>向控制台写入一条指令。</summary>
     public static Task SendCommandAsync(string id, string command)
     {
         ServerRuntime? runtime = FindRuntime(id);
@@ -842,9 +813,7 @@ public class ServerManage
         {
             throw new InvalidOperationException("服务器未运行");
         }
-        // 取引用、判状态与实际写入必须同处临界区：AwaitExitAsync 会在此锁内把
-        // Stdin 置空并随后 Dispose 进程，锁外 await 写入可能落到已释放的 StreamWriter，
-        // 且多个调用会并发写同一 writer。
+        // 取引用、判状态与实际写入必须同处临界区：AwaitExitAsync 会在锁内把 Stdin 置空并 Dispose，避免写到已释放的 writer 或并发写。
         lock (runtime.Sync)
         {
             StreamWriter? stdin = runtime.Stdin;
@@ -871,7 +840,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>对指定服务器执行一条 RCON 指令；未启用 RCON 时抛出异常。</summary>
     public static async Task<string> RunRconCommandAsync(string id, string command)
     {
         ServerRuntime? runtime = FindRuntime(id);
@@ -897,7 +865,6 @@ public class ServerManage
         return await RconClient.ExecuteAsync(rcon.Port, rcon.Password, command).ConfigureAwait(false);
     }
 
-    /// <summary>服务器进程状态。</summary>
     public static string GetStatus(string id)
     {
         ServerRuntime? runtime = FindRuntime(id);
@@ -911,7 +878,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>服务器进程 pid，未运行时为 0。</summary>
     public static int GetPid(string id)
     {
         ServerRuntime? runtime = FindRuntime(id);
@@ -925,7 +891,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>服务器进程是否存活（含启动准备与停止中）。</summary>
     public static bool IsRunning(string id)
     {
         ServerRuntime? runtime = FindRuntime(id);
@@ -939,7 +904,6 @@ public class ServerManage
         }
     }
 
-    /// <summary>前端轮询：返回 cursor 之后的新日志与运行指标。</summary>
     public static ServerSnapshot Poll(string id, long cursor)
     {
         ServerSnapshot snapshot = new() { Status = StatusStopped, LogLines = [] };
@@ -1170,7 +1134,6 @@ public class ServerManage
         return arguments;
     }
 
-    /// <summary>Paper 下载的 jar 名带版本号（paper-1.21.4-232.jar），启动时自动找实际文件。</summary>
     private static string ResolvePaperJarName(string directory)
     {
         string legacy = Path.Combine(directory, "paper.jar");
@@ -1251,7 +1214,6 @@ public class ServerManage
                 }
                 catch (Exception)
                 {
-                    // 非法路径直接跳过
                 }
             }
         }
@@ -1345,7 +1307,6 @@ public class ServerManage
                 }
                 catch (Exception)
                 {
-                    // 目录不存在或不可读时忽略
                 }
             }
         }
@@ -1393,7 +1354,6 @@ public class ServerManage
                     }
                     catch (Exception)
                     {
-                        // 进程已经退出
                     }
                 }
             }
@@ -1454,7 +1414,6 @@ public class ServerManage
         }
         catch (Exception)
         {
-            // 订阅方异常不影响进程输出读取
         }
     }
 
@@ -1479,7 +1438,6 @@ public class ServerManage
         }
         catch (Exception)
         {
-            // 进程句柄失效按异常退出处理
         }
 
         bool userRequested;
@@ -1504,7 +1462,6 @@ public class ServerManage
         }
         catch (Exception)
         {
-            // 忽略
         }
         OrphanCleaner.RemovePidFile(ServerDirectory(id));
         exitSignal.TrySetResult(true);
@@ -1634,7 +1591,6 @@ public class ServerManage
         }
         catch (Exception)
         {
-            // 进程退出的竞态，忽略本次采样
         }
     }
 
@@ -1667,7 +1623,6 @@ public class ServerManage
                 }
                 catch (OperationCanceledException)
                 {
-                    // 启动器退出
                 }
             });
         }
@@ -1714,8 +1669,7 @@ public class ServerManage
         {
             try
             {
-                // 与 SendCommandAsync / AwaitExitAsync 串行化：在锁内复核 Stdin
-                // 仍有效后再同步写入，避免写已释放的 StreamWriter 或并发写。
+                // 与 SendCommandAsync / AwaitExitAsync 串行化：锁内复核 Stdin 后再同步写入，避免写已释放的 writer 或并发写。
                 lock (runtime.Sync)
                 {
                     StreamWriter? current = runtime.Stdin;
@@ -1728,7 +1682,6 @@ public class ServerManage
             }
             catch (Exception)
             {
-                // 进程正在退出
             }
         }
     }
@@ -1781,7 +1734,6 @@ public class ServerManage
     }
 }
 
-/// <summary>server.json 落盘的服务器元数据。</summary>
 public class ServerConfig
 {
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
@@ -1798,7 +1750,6 @@ public class ServerConfig
     [JsonPropertyName("autoRestart")] public bool AutoRestart { get; set; }
 }
 
-/// <summary>列表用摘要（合并运行时状态）。</summary>
 public class ServerInfo
 {
     public string Id { get; set; } = string.Empty;
@@ -1812,7 +1763,6 @@ public class ServerInfo
     public int Players { get; set; }
 }
 
-/// <summary>创建服务器参数。AcceptEula 必须为 true 才会创建。</summary>
 public class CreateOptions
 {
     public string Name { get; set; } = string.Empty;
@@ -1825,7 +1775,6 @@ public class CreateOptions
     public bool AcceptEula { get; set; }
 }
 
-/// <summary>JVM 启动参数编辑结构。</summary>
 public class LaunchOptions
 {
     public int MemoryMb { get; set; }
@@ -1833,14 +1782,12 @@ public class LaunchOptions
     public List<string> ExtraJavaArgs { get; set; } = [];
 }
 
-/// <summary>server.properties 单条配置。</summary>
 public class ServerProperty
 {
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>前端轮询返回值：状态 + 占用 + 新增日志。</summary>
 public class ServerSnapshot
 {
     public string Status { get; set; } = ServerManage.StatusStopped;
@@ -1851,7 +1798,6 @@ public class ServerSnapshot
     public long NextCursor { get; set; }
 }
 
-/// <summary>从 server.properties 读出的 RCON 配置。</summary>
 public class RconConfiguration
 {
     public bool Enabled { get; set; }
@@ -1869,17 +1815,14 @@ internal static class ServerJson
     };
 }
 
-/// <summary>server.properties 的读写：保持行序与注释，仅替换/追加键值。</summary>
 public static class ServerProperties
 {
-    /// <summary>读取全部键值（按文件顺序）。</summary>
     public static IReadOnlyList<ServerProperty> Get(string id)
     {
         ServerManage.ValidateId(id);
         return GetValues(ServerManage.ServerDirectory(id));
     }
 
-    /// <summary>更新键值（保留注释与未知行；新键追加到文件末尾）。</summary>
     public static void Set(string id, IEnumerable<ServerProperty> properties)
     {
         ArgumentNullException.ThrowIfNull(properties);
@@ -2087,10 +2030,7 @@ public static class ServerProperties
     }
 }
 
-/// <summary>
-/// RCON 客户端（Source RCON 协议）。报文为长度前缀 + 请求 id + 类型 + 正文，
-/// 小端序：int32 长度、int32 请求 id（鉴权失败回 -1）、int32 类型（3=鉴权 2=指令 0=响应）。
-/// </summary>
+/// <summary>Source RCON：小端序 int32 长度 + 请求 id（鉴权失败回 -1）+ 类型（3=鉴权 2=指令 0=响应）。</summary>
 public sealed class RconClient : IDisposable
 {
     private const int TypeResponse = 0;
@@ -2114,7 +2054,6 @@ public sealed class RconClient : IDisposable
         _stream = stream;
     }
 
-    /// <summary>建立连接并完成鉴权。</summary>
     public static async Task<RconClient> ConnectAsync(
         string host, int port, string password, CancellationToken cancellationToken = default)
     {
@@ -2136,7 +2075,6 @@ public sealed class RconClient : IDisposable
         }
     }
 
-    /// <summary>一次性执行一条 RCON 指令（自己建连、自己关闭）。</summary>
     public static async Task<string> ExecuteAsync(
         int port, string password, string command, CancellationToken cancellationToken = default)
     {
@@ -2159,7 +2097,6 @@ public sealed class RconClient : IDisposable
         }
     }
 
-    /// <summary>执行一条指令并返回响应正文。</summary>
     public async Task<string> CommandAsync(string command, CancellationToken cancellationToken = default)
     {
         await WritePacketAsync(TypeCommand, command, cancellationToken).ConfigureAwait(false);
@@ -2230,20 +2167,17 @@ public sealed class RconClient : IDisposable
         }
         catch (Exception)
         {
-            // 忽略
         }
         _client.Dispose();
     }
 }
 
-/// <summary>whitelist.json 条目。</summary>
 public class WhitelistEntry
 {
     [JsonPropertyName("uuid")] public string Uuid { get; set; } = string.Empty;
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>ops.json 条目。</summary>
 public class OpEntry
 {
     [JsonPropertyName("uuid")] public string Uuid { get; set; } = string.Empty;
@@ -2252,7 +2186,6 @@ public class OpEntry
     [JsonPropertyName("bypassesPlayerLimit")] public bool BypassesPlayerLimit { get; set; }
 }
 
-/// <summary>banned-players.json 条目。</summary>
 public class BannedPlayerEntry
 {
     [JsonPropertyName("uuid")] public string Uuid { get; set; } = string.Empty;
@@ -2263,7 +2196,6 @@ public class BannedPlayerEntry
     [JsonPropertyName("reason")] public string Reason { get; set; } = string.Empty;
 }
 
-/// <summary>一个服务器的玩家与权限全貌。</summary>
 public class ServerPlayerSummary
 {
     public List<string> Online { get; set; } = [];
@@ -2274,7 +2206,6 @@ public class ServerPlayerSummary
     public bool Running { get; set; }
 }
 
-/// <summary>玩家与权限管理：白名单 / OP / 封禁名单的结构化读写 + 在线玩家与广播。</summary>
 public static class ServerPlayers
 {
     private const string WhitelistFileName = "whitelist.json";
@@ -2283,7 +2214,6 @@ public static class ServerPlayers
 
     private static readonly Regex PlayerNamePattern = new(@"^[A-Za-z0-9_]{1,16}$", RegexOptions.Compiled);
 
-    /// <summary>汇总玩家与权限信息。</summary>
     public static ServerPlayerSummary Get(string id)
     {
         if (!ServerManage.IsValidId(id))
@@ -2311,7 +2241,6 @@ public static class ServerPlayers
         return result;
     }
 
-    /// <summary>覆盖写入白名单（服务器必须已停止）。</summary>
     public static void SaveWhitelist(string id, IEnumerable<WhitelistEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -2336,7 +2265,6 @@ public static class ServerPlayers
         WritePlayersEntries(id, WhitelistFileName, normalized);
     }
 
-    /// <summary>覆盖写入 OP 列表（服务器必须已停止）。</summary>
     public static void SaveOps(string id, IEnumerable<OpEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -2356,7 +2284,6 @@ public static class ServerPlayers
         WritePlayersEntries(id, OpsFileName, normalized);
     }
 
-    /// <summary>覆盖写入封禁名单（服务器必须已停止）。</summary>
     public static void SaveBanned(string id, IEnumerable<BannedPlayerEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -2377,14 +2304,12 @@ public static class ServerPlayers
         WritePlayersEntries(id, BannedFileName, normalized);
     }
 
-    /// <summary>开关白名单（写 server.properties；服务器运行中会被拒绝）。</summary>
     public static void SetWhitelistEnabled(string id, bool enabled)
     {
         ServerProperties.Set(id,
             [new ServerProperty { Key = "white-list", Value = enabled ? "true" : "false" }]);
     }
 
-    /// <summary>在运行中的服务器上执行一条玩家/权限指令（RCON 优先，退回控制台 stdin）。</summary>
     public static async Task RunCommandAsync(string id, string command)
     {
         if (string.IsNullOrWhiteSpace(command))
@@ -2489,7 +2414,6 @@ public static class ServerPlayers
         return compact.All(character => Uri.IsHexDigit(character));
     }
 
-    /// <summary>离线模式 UUID：MD5("OfflinePlayer:"+name)，按 RFC 4122 设置版本位与变体位。</summary>
     public static string OfflinePlayerUuid(string name)
     {
         byte[] hash = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + name));
@@ -2500,7 +2424,6 @@ public static class ServerPlayers
     }
 }
 
-/// <summary>一份备份的元信息。</summary>
 public class ServerBackupInfo
 {
     public string Name { get; set; } = string.Empty;
@@ -2510,7 +2433,6 @@ public class ServerBackupInfo
     public bool Hot { get; set; }
 }
 
-/// <summary>备份策略。</summary>
 public class BackupSettings
 {
     public bool Enabled { get; set; }
@@ -2535,10 +2457,7 @@ public class BackupSettings
     }
 }
 
-/// <summary>
-/// 服务器备份：热备份（运行中）+ 冷备份（已停止）+ 保留策略 + 定时任务。
-/// 热备份靠服务端的 save-off / save-all flush 把世界刷盘并暂停写入，压缩期间不产生半写状态。
-/// </summary>
+/// <summary>热备份靠服务端的 save-off / save-all flush 把世界刷盘并暂停写入，压缩期间不产生半写状态。</summary>
 public static class ServerBackup
 {
     internal const int MinimumIntervalHours = 1;
@@ -2558,7 +2477,6 @@ public static class ServerBackup
 
     private static string SettingsPath => Path.Combine(ServerManage.ServerRootDirectory, "backup-settings.json");
 
-    /// <summary>当前备份策略。</summary>
     public static BackupSettings CurrentSettings()
     {
         lock (SettingsLock)
@@ -2582,7 +2500,6 @@ public static class ServerBackup
             }
             catch (Exception)
             {
-                // 配置损坏时用默认值
             }
             settings.Normalize();
             _cachedSettings = settings;
@@ -2590,7 +2507,6 @@ public static class ServerBackup
         }
     }
 
-    /// <summary>保存备份策略。</summary>
     public static void SaveSettings(BackupSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -2610,7 +2526,6 @@ public static class ServerBackup
         }
     }
 
-    /// <summary>为服务器创建一份备份，返回备份信息。</summary>
     public static async Task<ServerBackupInfo> CreateAsync(string id, CancellationToken cancellationToken = default)
     {
         ServerManage.ValidateId(id);
@@ -2695,7 +2610,6 @@ public static class ServerBackup
         }
     }
 
-    /// <summary>列出全部备份（新→旧）。</summary>
     public static IReadOnlyList<ServerBackupInfo> List(string id)
     {
         List<ServerBackupInfo> result = [];
@@ -2733,7 +2647,6 @@ public static class ServerBackup
         return result;
     }
 
-    /// <summary>删除一份备份。</summary>
     public static void Delete(string id, string name)
     {
         ServerManage.ValidateId(id);
@@ -2746,7 +2659,6 @@ public static class ServerBackup
         File.Delete(target);
     }
 
-    /// <summary>按保留策略清理旧备份，返回删除数量。</summary>
     public static int Prune(string id)
     {
         IReadOnlyList<ServerBackupInfo> backups = List(id);
@@ -2783,7 +2695,6 @@ public static class ServerBackup
         return removed;
     }
 
-    /// <summary>用指定备份覆盖服务器目录（要求服务器已停止；覆盖前会自动留一份安全备份）。</summary>
     public static async Task RestoreAsync(string id, string name, CancellationToken cancellationToken = default)
     {
         ServerManage.ValidateId(id);
@@ -2830,7 +2741,6 @@ public static class ServerBackup
         }
     }
 
-    /// <summary>启动自动备份巡检（应用启动时调用一次）。</summary>
     public static void StartScheduler(CancellationToken cancellationToken)
     {
         if (Interlocked.Exchange(ref _schedulerStarted, 1) != 0)
@@ -2849,12 +2759,10 @@ public static class ServerBackup
             }
             catch (OperationCanceledException)
             {
-                // 启动器退出
             }
         }, cancellationToken);
     }
 
-    /// <summary>巡检一轮：对已到间隔的服务器做热/冷备份。</summary>
     public static async Task RunScheduledBackupsAsync(CancellationToken cancellationToken = default)
     {
         BackupSettings settings = CurrentSettings();
@@ -2981,12 +2889,10 @@ public static class ServerBackup
         }
         catch (Exception)
         {
-            // 忽略
         }
     }
 }
 
-/// <summary>服务器目录文件列表项。</summary>
 public class ServerFileEntry
 {
     public string Name { get; set; } = string.Empty;
@@ -2995,12 +2901,10 @@ public class ServerFileEntry
     public DateTime ModTime { get; set; }
 }
 
-/// <summary>服务器目录的文件管理：列表、文本读写（内置编辑器）、存档/模组/插件导入。</summary>
 public static class ServerFiles
 {
     private const long TextFileLimit = 2L << 20;
 
-    /// <summary>列出目录（文件夹在前，名称排序）。</summary>
     public static IReadOnlyList<ServerFileEntry> List(string id, string relativePath)
     {
         string target = ResolvePath(id, relativePath);
@@ -3026,7 +2930,6 @@ public static class ServerFiles
         return result;
     }
 
-    /// <summary>读取文本文件（≤2MB，供内置编辑器）。</summary>
     public static string ReadText(string id, string relativePath)
     {
         string target = ResolvePath(id, relativePath);
@@ -3042,14 +2945,12 @@ public static class ServerFiles
         return File.ReadAllText(target);
     }
 
-    /// <summary>写回文本文件。</summary>
     public static void WriteText(string id, string relativePath, string content)
     {
         string target = ResolvePath(id, relativePath);
         File.WriteAllText(target, content ?? string.Empty);
     }
 
-    /// <summary>新建文本文件（内容为空，已存在时报错）。</summary>
     public static void CreateTextFile(string id, string relativePath)
     {
         string target = ResolvePath(id, relativePath);
@@ -3066,7 +2967,6 @@ public static class ServerFiles
         File.WriteAllText(target, string.Empty);
     }
 
-    /// <summary>新建文件夹（已存在时报错）。</summary>
     public static void CreateDirectory(string id, string relativePath)
     {
         string target = ResolvePath(id, relativePath);
@@ -3077,7 +2977,6 @@ public static class ServerFiles
         Directory.CreateDirectory(target);
     }
 
-    /// <summary>重命名文件/文件夹，返回新的相对路径。</summary>
     public static string Rename(string id, string relativePath, string newName)
     {
         string source = ResolvePath(id, relativePath);
@@ -3103,7 +3002,6 @@ public static class ServerFiles
         return string.IsNullOrEmpty(parentRelative) ? newName.Trim() : Path.Combine(parentRelative, newName.Trim());
     }
 
-    /// <summary>删除文件或文件夹（文件夹递归删除，服务器根目录不可删）。</summary>
     public static void Delete(string id, string relativePath)
     {
         string target = ResolvePath(id, relativePath);
@@ -3134,7 +3032,6 @@ public static class ServerFiles
         }
     }
 
-    /// <summary>导入存档压缩包（zip，顶层为 level.dat 或单层目录）。</summary>
     public static void ImportWorld(string id, string zipPath)
     {
         if (ServerManage.IsRunning(id))
@@ -3147,7 +3044,6 @@ public static class ServerFiles
         ExtractZipRoot(zipPath, worldDirectory);
     }
 
-    /// <summary>复制 mod jar 到 mods/（Fabric/NeoForge）。</summary>
     public static void ImportMod(string id, string jarPath)
     {
         ServerConfig config = ServerManage.LoadServerConfig(id)
@@ -3159,7 +3055,6 @@ public static class ServerFiles
         CopyIntoServerDirectory(id, jarPath, "mods");
     }
 
-    /// <summary>复制插件 jar 到 plugins/（Paper）。</summary>
     public static void ImportPlugin(string id, string jarPath)
     {
         ServerConfig config = ServerManage.LoadServerConfig(id)
@@ -3323,7 +3218,6 @@ public static class ServerFiles
     }
 }
 
-/// <summary>服务端内容目录里的一个条目。</summary>
 public class ServerContentEntry
 {
     public string Name { get; set; } = string.Empty;
@@ -3333,16 +3227,11 @@ public class ServerContentEntry
     public string Path { get; set; } = string.Empty;
 }
 
-/// <summary>服务端下载共用的 URL 与体积安全校验（SSRF 收敛）。</summary>
 internal static class ServerNetworkGuard
 {
     private const int MaxRedirects = 5;
 
-    /// <summary>
-    /// 校验下载地址：仅 HTTPS 绝对地址，且主机不得解析到回环/私网/链路本地地址。
-    /// 明文 http 一律拒绝（内容缺少哈希校验时尤其危险）；若将来确有本地 http 服务需要放行，
-    /// 应由调用方通过显式的 allowInsecureHttp 例外并把主机单独限制到本机，而不是在这里整体放开。
-    /// </summary>
+    /// <summary>仅 HTTPS，主机不得解析到回环/私网/链路本地地址；需要放行本地服务时由调用方显式开例外并限制到本机。</summary>
     internal static async Task<Uri> ValidatePublicHttpUrlAsync(string url, CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri is null ||
@@ -3391,7 +3280,6 @@ internal static class ServerNetworkGuard
         return uri;
     }
 
-    /// <summary>逐跳校验重定向后把响应体限长写入文件（调用方需提供 AllowAutoRedirect=false 的 HttpClient）。</summary>
     internal static async Task DownloadToFileAsync(HttpClient client, string url, string targetPath,
         long maxBytes, CancellationToken cancellationToken)
     {
@@ -3463,7 +3351,6 @@ internal static class ServerNetworkGuard
     }
 }
 
-/// <summary>服务端内容管理：mods / plugins 的列表、启停、删除与安装。</summary>
 public static class ServerContent
 {
     public const string KindMods = "mods";
@@ -3473,7 +3360,6 @@ public static class ServerContent
     private const long MaxContentDownloadBytes = 512L * 1024 * 1024;
     private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) };
 
-    /// <summary>服务器核心对应的内容目录类型。</summary>
     public static string KindForCore(string core)
     {
         return core switch
@@ -3485,7 +3371,6 @@ public static class ServerContent
         };
     }
 
-    /// <summary>列出内容目录里的 jar（含 .disabled）。</summary>
     public static IReadOnlyList<ServerContentEntry> List(string id, string kind)
     {
         List<ServerContentEntry> result = [];
@@ -3526,7 +3411,6 @@ public static class ServerContent
         return result;
     }
 
-    /// <summary>启用/停用：靠 .disabled 后缀改名（服务端只加载 .jar）。</summary>
     public static void SetEnabled(string id, string kind, string fileName, bool enabled)
     {
         string directory = ContentDirectory(id, kind);
@@ -3565,7 +3449,6 @@ public static class ServerContent
         }
     }
 
-    /// <summary>删除一个内容文件。</summary>
     public static void Delete(string id, string kind, string fileName)
     {
         string directory = ContentDirectory(id, kind);
@@ -3578,10 +3461,7 @@ public static class ServerContent
         File.Delete(target);
     }
 
-    /// <summary>
-    /// 下载一个 jar 到内容目录，返回实际写入的文件名（同名不覆盖）。
-    /// <paramref name="expectedSha256"/> 为可选的内容哈希：提供时强校验，未提供时至少记录警告。
-    /// </summary>
+    /// <summary><paramref name="expectedSha256"/> 提供时强校验，未提供时至少记录警告；同名不覆盖。</summary>
     public static async Task<string> InstallFromUrlAsync(string id, string kind, string downloadUrl,
         string fileName, CancellationToken cancellationToken = default, string? expectedSha256 = null)
     {
@@ -3633,7 +3513,6 @@ public static class ServerContent
             }
             catch (Exception)
             {
-                // 忽略
             }
             throw;
         }
@@ -3696,7 +3575,6 @@ public static class ServerContent
     }
 }
 
-/// <summary>整包导出/导入的进度快照（Done/Total 为字节数）。</summary>
 public class ServerTransferProgress
 {
     [JsonPropertyName("serverId")] public string ServerId { get; set; } = string.Empty;
@@ -3705,10 +3583,8 @@ public class ServerTransferProgress
     [JsonPropertyName("total")] public long Total { get; set; }
 }
 
-/// <summary>服务器整包传输：.mofuser 文件（zip 容器）的导出与导入。</summary>
 public static class ServerPackage
 {
-    /// <summary>把服务器目录整包压缩为 .mofuser 文件（运行中拒绝）。</summary>
     public static async Task ExportAsync(string id, string destinationZip,
         IProgress<ServerTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -3763,13 +3639,11 @@ public static class ServerPackage
             }
             catch (Exception)
             {
-                // 忽略
             }
             throw;
         }
     }
 
-    /// <summary>从 .mofuser 包恢复服务器，返回新服务器 id。</summary>
     public static async Task<string> ImportAsync(string zipPath,
         IProgress<ServerTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -3845,7 +3719,6 @@ public static class ServerPackage
                 }
                 catch (Exception)
                 {
-                    // 忽略
                 }
                 throw;
             }
@@ -3896,12 +3769,10 @@ public static class ServerPackage
     }
 }
 
-/// <summary>残留进程清理：启动器异常退出后清理仍在占用服务器目录的 Java 进程（.mofu-pid 记录）。</summary>
 public static class OrphanCleaner
 {
     private const string PidFileName = ".mofu-pid";
 
-    /// <summary>结束占用服务器目录的残留进程，返回给控制台展示的说明行。</summary>
     public static List<string> KillOrphanServerProcesses(string directory)
     {
         List<string> notes = [];
@@ -3940,7 +3811,6 @@ public static class OrphanCleaner
         return notes;
     }
 
-    /// <summary>写入进程 pid 记录。</summary>
     public static void WritePidFile(string directory, int pid)
     {
         try
@@ -3954,7 +3824,6 @@ public static class OrphanCleaner
         }
     }
 
-    /// <summary>删除进程 pid 记录。</summary>
     public static void RemovePidFile(string directory)
     {
         try
@@ -3967,11 +3836,9 @@ public static class OrphanCleaner
         }
         catch (Exception)
         {
-            // 忽略
         }
     }
 
-    /// <summary>判断 pid 对应的进程是否还活着。</summary>
     public static bool ProcessAlive(int pid)
     {
         if (pid <= 0)
@@ -3989,7 +3856,6 @@ public static class OrphanCleaner
         }
     }
 
-    /// <summary>结束进程及其全部子进程（Java 可能经由转发器启动，必须杀整棵树）。</summary>
     public static bool KillProcessTree(int pid)
     {
         try
@@ -4001,7 +3867,6 @@ public static class OrphanCleaner
         }
         catch (Exception)
         {
-            // taskkill 兜底
         }
         try
         {
@@ -4025,7 +3890,6 @@ public static class OrphanCleaner
         }
     }
 
-    /// <summary>结束一个进程对象及其子进程。</summary>
     public static void KillProcessTree(Process process)
     {
         try
@@ -4040,7 +3904,6 @@ public static class OrphanCleaner
             }
             catch (Exception)
             {
-                // 进程已经退出
             }
         }
     }

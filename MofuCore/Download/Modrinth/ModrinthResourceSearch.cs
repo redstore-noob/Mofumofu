@@ -11,7 +11,6 @@ using MofuCore.Config;
 
 namespace MofuCore.Download.Modrinth;
 
-/// <summary>Modrinth search 接口的命中项。</summary>
 public sealed class ModrinthProject
 {
 
@@ -49,7 +48,6 @@ public sealed class ModrinthProject
     };
 }
 
-/// <summary>Modrinth search 响应（含分页信息）。</summary>
 public sealed class ModrinthSearchResult
 {
     [JsonPropertyName("hits")] public List<ModrinthProject> Hits { get; set; } = [];
@@ -58,7 +56,6 @@ public sealed class ModrinthSearchResult
     [JsonPropertyName("total_hits")] public int TotalHits { get; set; }
 }
 
-/// <summary>Modrinth 版本中的单个文件。</summary>
 public sealed class ModrinthVersionFile
 {
 
@@ -79,7 +76,6 @@ public sealed class ModrinthVersionFile
     };
 }
 
-/// <summary>Modrinth 版本的依赖条目。</summary>
 public sealed class ModrinthDependency
 {
     [JsonPropertyName("project_id")] public string? ProjectId { get; set; }
@@ -99,7 +95,6 @@ public sealed class ModrinthDependency
     };
 }
 
-/// <summary>Modrinth 版本条目。</summary>
 public sealed class ModrinthVersion
 {
     private const int GameVersionsPreviewCount = 3;
@@ -161,9 +156,6 @@ public sealed class ModrinthVersion
     }
 }
 
-/// <summary>
-/// Modrinth API v2 客户端：官方地址 + 国内镜像回退，8 秒请求超时，失败给出可读错误。
-/// </summary>
 internal static class ModrinthApiClient
 {
     public const string OfficialApiRoot = "https://api.modrinth.com/v2";
@@ -206,10 +198,7 @@ internal static class ModrinthApiClient
         return index >= 0 ? trimmed[..index] : trimmed;
     }
 
-    /// <summary>
-    /// 校验外部来源的下载地址：仅允许 HTTPS，且主机不是环回/私网/链路本地字面 IP。
-    /// 域名被解析到内网的情形需由统一网络出口层处理。
-    /// </summary>
+    /// <summary>仅允许 HTTPS 且主机不是环回/私网/链路本地字面 IP；域名解析到内网的情形由统一网络出口层处理。</summary>
     internal static bool IsAllowedDownloadUrl(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)
@@ -347,7 +336,6 @@ internal static class ModrinthApiClient
             }
             catch (Exception)
             {
-                // 重试仍失败：走统一错误描述
             }
         }
 
@@ -472,13 +460,11 @@ internal static class ModrinthApiClient
             }
             catch (IOException)
             {
-                // 清理失败不影响主流程
             }
         }
     }
 }
 
-/// <summary>Modrinth 接口返回非 2xx 状态码。</summary>
 internal sealed class ModrinthStatusException : Exception
 {
     public ModrinthStatusException(int statusCode) : base($"接口返回 HTTP {statusCode}")
@@ -489,9 +475,6 @@ internal sealed class ModrinthStatusException : Exception
     public int StatusCode { get; }
 }
 
-/// <summary>
-/// Modrinth 项目搜索：关键词、项目类型、MC 版本、加载器过滤，支持分页与排序。
-/// </summary>
 public sealed class ModrinthResourceSearch
 {
     public const string SiteUrl = ModrinthApiClient.SiteUrl;
@@ -503,7 +486,7 @@ public sealed class ModrinthResourceSearch
 
     public static void ResetEndpoints() => ModrinthApiClient.ResetEndpoints();
 
-    /// <summary>搜索项目（单页）。projectType: mod / modpack / resourcepack / shader / plugin。</summary>
+    /// <summary>projectType: mod / modpack / resourcepack / shader / plugin。</summary>
     public static async Task<IReadOnlyList<ModrinthProject>> SearchAsync(
         string query,
         string projectType = "mod",
@@ -518,7 +501,6 @@ public sealed class ModrinthResourceSearch
         return page.Hits;
     }
 
-    /// <summary>搜索项目并返回分页信息。</summary>
     public static async Task<ModrinthSearchResult> SearchPageAsync(
         string query,
         string projectType = "mod",
@@ -554,7 +536,6 @@ public sealed class ModrinthResourceSearch
         return await ModrinthApiClient.GetJsonAsync<ModrinthSearchResult>(endpoint.ToString(), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>无关键词的浏览列表（下载页默认列表）。</summary>
     public static Task<ModrinthSearchResult> BrowseAsync(
         string projectType = "mod",
         string? gameVersion = null,

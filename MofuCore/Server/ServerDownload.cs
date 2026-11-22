@@ -10,12 +10,8 @@ using MofuCore;
 
 namespace MofuCore.Server;
 
-/// <summary>
-/// 目前支持paper，vanilla，fabric，neoforge四种服务器的直接下载与安装。
-/// </summary>
 public sealed class ServerDownload
 {
-    /// <summary>服务端核心类型。</summary>
     public enum CoreKind
     {
         Vanilla,
@@ -24,12 +20,11 @@ public sealed class ServerDownload
         NeoForge,
     }
 
-    /// <summary>安装参数。</summary>
     public sealed class InstallOptions
     {
         public CoreKind Core { get; set; } = CoreKind.Vanilla;
         public string MinecraftVersion { get; set; } = string.Empty;
-        /// <summary>Paper 构建号 / Fabric Loader 版本 / NeoForge 版本；空串表示最新。</summary>
+        /// <summary>空串表示最新。</summary>
         public string CoreVersion { get; set; } = string.Empty;
         public string ServerDirectory { get; set; } = string.Empty;
         public bool AcceptEula { get; set; }
@@ -39,7 +34,6 @@ public sealed class ServerDownload
         public string Motd { get; set; } = "Mofumofu Server";
     }
 
-    /// <summary>安装结果。</summary>
     public sealed class InstallResult
     {
         public string ServerDirectory { get; set; } = string.Empty;
@@ -50,7 +44,6 @@ public sealed class ServerDownload
         public List<string> Warnings { get; } = [];
     }
 
-    /// <summary>安装/下载进度。</summary>
     public sealed record InstallProgress(int Stage, string Detail, long DownloadedBytes = 0, long TotalBytes = 0)
     {
         public double Percentage => TotalBytes <= 0 ? 0 : Math.Clamp(DownloadedBytes * 100.0 / TotalBytes, 0, 100);
@@ -77,9 +70,6 @@ public sealed class ServerDownload
         return client;
     }
 
-    // ---------------------------------------------------------------- 版本列表
-
-    /// <summary>某核心支持的 MC 版本（新→旧，仅正式版）。</summary>
     public static async Task<IReadOnlyList<string>> ListMinecraftVersionsAsync(CoreKind core, CancellationToken cancellationToken = default)
     {
         List<string> releases = await GetMojangReleasesAsync(cancellationToken).ConfigureAwait(false);
@@ -101,7 +91,6 @@ public sealed class ServerDownload
         return result;
     }
 
-    /// <summary>某核心在指定 MC 版本下的全部服务端版本（新→旧）。</summary>
     public static Task<IReadOnlyList<string>> ListCoreVersionsAsync(CoreKind core, string minecraftVersion, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(minecraftVersion)) throw new InvalidOperationException("minecraftVersion 不能为空。");
@@ -249,9 +238,6 @@ public sealed class ServerDownload
         return fresh;
     }
 
-    // ---------------------------------------------------------------- 安装
-
-    /// <summary>创建服务器目录、下载核心、写 eula.txt / server.properties / 启动脚本。</summary>
     public static async Task<InstallResult> InstallAsync(
         InstallOptions options,
         IProgress<InstallProgress>? progress = null,
@@ -302,7 +288,6 @@ public sealed class ServerDownload
         return result;
     }
 
-    /// <summary>仅下载核心 jar（不创建目录布局）。</summary>
     public static async Task<string> DownloadCoreAsync(
         CoreKind core,
         string minecraftVersion,
@@ -340,8 +325,6 @@ public sealed class ServerDownload
         }
         return result.CoreJarPath;
     }
-
-    // ---------------------------------------------------------------- 各核心下载
 
     private static async Task InstallVanillaAsync(InstallResult result, CancellationToken cancellationToken)
     {
@@ -446,9 +429,6 @@ public sealed class ServerDownload
         result.CoreJarPath = argsFile;
     }
 
-    // ---------------------------------------------------------------- 目录布局
-
-    /// <summary>写入 eula.txt（accepted=false 时写 eula=false 并提示）。</summary>
     public static async Task WriteEulaAsync(string serverDirectory, bool accepted, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(serverDirectory);
@@ -456,7 +436,6 @@ public sealed class ServerDownload
         await File.WriteAllTextAsync(Path.Combine(serverDirectory, "eula.txt"), content, new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>写入初始 server.properties（已有文件时保留原内容，只补缺失键）。</summary>
     public static async Task WriteInitialPropertiesAsync(string serverDirectory, InstallOptions options, CancellationToken cancellationToken = default)
     {
         string path = Path.Combine(serverDirectory, "server.properties");
@@ -489,7 +468,6 @@ public sealed class ServerDownload
         await File.WriteAllTextAsync(path, builder.ToString(), new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>写入启动脚本（Windows 写 start.bat，非 Windows 写 start.sh）。</summary>
     public static async Task<string> WriteStartScriptAsync(InstallResult result, InstallOptions options, CancellationToken cancellationToken = default)
     {
         string jarName = SanitizeFileName(Path.GetFileName(result.CoreJarPath));
@@ -636,7 +614,6 @@ public sealed class ServerDownload
         }
         catch (Exception)
         {
-            // 进程已退出
         }
     }
 
@@ -645,8 +622,6 @@ public sealed class ServerDownload
         string[] lines = text.Trim().Split('\n');
         return string.Join("\n", lines.Length <= count ? lines : lines[^count..]);
     }
-
-    // ---------------------------------------------------------------- HTTP
 
     private static async Task<T?> HttpGetJsonAsync<T>(string url, CancellationToken cancellationToken)
     {
@@ -708,7 +683,6 @@ public sealed class ServerDownload
         }
         catch (IOException)
         {
-            // 清理失败不影响主流程
         }
     }
 

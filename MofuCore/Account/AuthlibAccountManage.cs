@@ -8,7 +8,6 @@ using System.Text.Json.Serialization;
 using MofuCore.Config;
 namespace MofuCore.Account;
 
-/// <summary>皮肤站（authlib-injector / Yggdrasil 规范）账号的持久化凭据。</summary>
 public sealed class AuthlibCredential
 {
     [JsonPropertyName("Username")] public string Username { get; set; } = string.Empty;
@@ -24,9 +23,6 @@ public sealed class AuthlibCredential
     }
 }
 
-
-
-/// <summary>皮肤站认证流程中抛出的错误；Message 已面向用户可读。</summary>
 public sealed class AuthlibAuthenticationException : Exception
 {
     public AuthlibAuthenticationException(string message, bool captchaRequired = false, Exception? inner = null)
@@ -39,9 +35,6 @@ public sealed class AuthlibAuthenticationException : Exception
     public bool CaptchaRequired { get; }
 }
 
-
-
-/// <summary>解析后的皮肤站信息：归一化的 API 根 + 元数据。</summary>
 public sealed class AuthlibServerInfo
 {
     public string ApiRoot { get; set; } = string.Empty;
@@ -49,14 +42,12 @@ public sealed class AuthlibServerInfo
     public IReadOnlyList<string> SkinDomains { get; set; } = [];
 }
 
-/// <summary>皮肤站上的一个游戏角色档案（Yggdrasil availableProfiles 条目）。</summary>
 public sealed class AuthlibProfileInfo
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>皮肤站登录成功结果：访问令牌 + 可选角色列表。</summary>
 public sealed class AuthlibLoginResult
 {
     public string AccessToken { get; set; } = string.Empty;
@@ -64,9 +55,6 @@ public sealed class AuthlibLoginResult
     public string ServerName { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// authlib-injector（Yggdrasil 规范）皮肤站认证：服务器发现、密码登录、令牌校验与刷新。
-/// </summary>
 public class AuthlibAccountManage
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -80,9 +68,6 @@ public class AuthlibAccountManage
         _storageDirectory = storageDirectory;
     }
 
-    /// <summary>
-    /// 解析用户输入的皮肤站地址为标准 Yggdrasil API 根：输入可以是根域名或完整的 API 根地址。
-    /// </summary>
     public async Task<AuthlibServerInfo> ResolveServerAsync(string serverUrl, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(serverUrl))
@@ -200,7 +185,6 @@ public class AuthlibAccountManage
         return current + "/" + location;
     }
 
-    /// <summary>请求来源的 HTTPS authority（去掉可能的 http 降级）。</summary>
     private static string HttpsAuthority(Uri baseUri)
     {
         string authority = baseUri.GetLeftPart(UriPartial.Authority);
@@ -209,7 +193,6 @@ public class AuthlibAccountManage
             : authority;
     }
 
-    /// <summary>取主机的注册域（最后两段），用于判断跨源 API 根是否仍属于同一站点。</summary>
     private static string RegistrableDomain(string host)
     {
         string normalized = host.Trim('[', ']').ToLowerInvariant();
@@ -315,7 +298,6 @@ public class AuthlibAccountManage
         }
     }
 
-    /// <summary>使用账号密码登录皮肤站，返回访问令牌与可选角色列表。</summary>
     public async Task<AuthlibLoginResult> AuthenticateAsync(
         string apiRoot,
         string username,
@@ -387,7 +369,6 @@ public class AuthlibAccountManage
         }
         catch (JsonException)
         {
-            // 非 JSON 错误体：走默认文案
         }
 
         // 皮肤站开了验证码（Blessing Skin 私有行为）：引导用户到网页完成验证
@@ -411,10 +392,7 @@ public class AuthlibAccountManage
             : new AuthlibAuthenticationException($"登录失败：{errorMessage}");
     }
 
-    /// <summary>
-    /// 启动前的令牌保活：validate 通过则原样返回；失效则 refresh 换新令牌；
-    /// 全部失败时提示重新登录。返回可用的访问令牌。
-    /// </summary>
+    /// <summary>validate 通过则原样返回；失效则 refresh 换新令牌，全部失败提示重新登录。</summary>
     public async Task<string> ValidateOrRefreshAsync(
         AuthlibCredential credential,
         string clientToken,
@@ -515,7 +493,6 @@ public class AuthlibAccountManage
     }
 }
 
-/// <summary>authlib-injector latest.json 的产物描述（兼容新旧两种字段布局）。</summary>
 public sealed class AuthlibArtifact
 {
     [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
@@ -536,9 +513,6 @@ public sealed class AuthlibArtifact
     }
 }
 
-/// <summary>
-/// authlib-injector 注入器的下载与缓存：官方源优先，BMCLAPI 镜像兜底，全源失败时退回本地旧版 jar。
-/// </summary>
 public static class AuthlibInjector
 {
     private const string OfficialLatestJsonUrl = "https://authlib-injector.yushi.moe/artifact/latest.json";
@@ -546,7 +520,6 @@ public static class AuthlibInjector
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(2) };
 
-    /// <summary>确保 minecraftDirectory 下存在可用的注入器 jar，返回其绝对路径。</summary>
     public static async Task<string> EnsureAsync(
         string minecraftDirectory,
         Action<string>? log = null,
@@ -656,7 +629,6 @@ public static class AuthlibInjector
             return artifactUrl;
         }
 
-        // 镜像与官方目录结构一致，仅替换主机与前缀
         string mirrorRoot = MirrorLatestJsonUrl[..(MirrorLatestJsonUrl.LastIndexOf('/') + 1)];
         mirrorRoot = mirrorRoot[..(mirrorRoot.TrimEnd('/').LastIndexOf('/') + 1)];
         int index = artifactUrl[8..].IndexOf('/');
@@ -737,5 +709,4 @@ public static class AuthlibInjector
         return index >= 0 ? rest[..index] : rest;
     }
 }
-
 

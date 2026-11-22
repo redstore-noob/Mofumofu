@@ -4,10 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace MofuCore.Account;
 
-/// <summary>
-/// 账号凭据的统一落盘入口：Microsoft / Authlib 账号与 Yggdrasil clientToken
-/// 统一加密保存在 <c>accounts.token</c>，登录流程不再直接处理文件。
-/// </summary>
+// Microsoft / Authlib 账号与 Yggdrasil clientToken 统一加密保存在 accounts.token。
 public sealed class AccountStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -24,7 +21,6 @@ public sealed class AccountStore
 
     public MinecraftTokenCrypto Crypto => _crypto;
 
-    /// <summary>保存/更新一个正版账号（按 UUID 去重，新的排在最前）。</summary>
     public void SaveMicrosoftAccount(MicrosoftAccount account)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -37,13 +33,11 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>读取全部已保存的正版账号。</summary>
     public IReadOnlyList<MicrosoftAccount> LoadMicrosoftAccounts()
     {
         lock (VaultGate) return LoadVault().Microsoft;
     }
 
-    /// <summary>删除一个正版账号（按 UUID）。</summary>
     public bool RemoveMicrosoftAccount(string uuid)
     {
         lock (VaultGate)
@@ -60,7 +54,6 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>保存/更新一个皮肤站账号（按 UUID + API 根去重）。</summary>
     public void SaveAuthlibCredential(AuthlibCredential credential)
     {
         ArgumentNullException.ThrowIfNull(credential);
@@ -75,13 +68,11 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>读取全部已保存的皮肤站凭据。</summary>
     public IReadOnlyList<AuthlibCredential> LoadAuthlibCredentials()
     {
         lock (VaultGate) return LoadVault().Authlib;
     }
 
-    /// <summary>删除一个皮肤站账号（按 UUID + API 根）。</summary>
     public bool RemoveAuthlibCredential(string profileUuid, string apiRoot)
     {
         string uuid = (profileUuid ?? string.Empty).Trim();
@@ -106,7 +97,6 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>保存一个离线账号名（按名称去重，新账号排在最前）。</summary>
     public void SaveOfflineAccount(string username)
     {
         string name = (username ?? string.Empty).Trim();
@@ -128,13 +118,11 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>读取全部离线账号名。</summary>
     public IReadOnlyList<string> LoadOfflineAccounts()
     {
         lock (VaultGate) return LoadVault().Offline;
     }
 
-    /// <summary>删除一个离线账号名。</summary>
     public bool RemoveOfflineAccount(string username)
     {
         string name = (username ?? string.Empty).Trim();
@@ -154,7 +142,7 @@ public sealed class AccountStore
         }
     }
 
-    /// <summary>本安装固定的 Yggdrasil clientToken（首次调用时生成并落盘）。</summary>
+    /// <summary>本安装固定，首次调用时生成并落盘。</summary>
     public string GetOrCreateClientToken()
     {
         lock (VaultGate)

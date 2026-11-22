@@ -5,12 +5,6 @@ using MofuCore.Config;
 
 namespace MofuCore.Tools;
 
-/// <summary>
-/// Rewind 快照 / 时间线回滚系统：把任意目标目录（世界存档或实例游戏目录）的多次状态串成时间线。
-/// 采用文件级内容寻址（类似 Git）：按 SHA-256 去重存进全局 blobs，每个快照是一份
-/// 「相对路径 → 数据块摘要」清单；回滚时把数据块复制回目标目录，快照本身不可变。
-/// 仓库位于 {DataRoot}/Mofumofu/rewind（blobs/ 与 repos/&lt;repoKey&gt;/manifests/）。
-/// </summary>
 public class RewindSystem
 {
     public const string RootDirectoryName = "rewind";
@@ -53,7 +47,6 @@ public class RewindSystem
 
     private static string __dataRoot = AppContext.BaseDirectory;
 
-    /// <summary>启动器数据根目录（默认跟随程序目录）；快照仓库位于 {DataRoot}/Mofumofu/rewind。</summary>
     public static string DataRoot
     {
         get => __dataRoot;
@@ -66,22 +59,17 @@ public class RewindSystem
         }
     }
 
-    /// <summary>Rewind 仓库根目录。</summary>
     public static string RewindDirectory => Path.Combine(__dataRoot, "Mofumofu", RootDirectoryName);
 
-    /// <summary>全局内容寻址数据块目录。</summary>
     public static string BlobsDirectory => Path.Combine(RewindDirectory, BlobsDirectoryName);
 
-    /// <summary>各目标清单仓库的父目录。</summary>
     public static string ReposRootDirectory => Path.Combine(RewindDirectory, ReposDirectoryName);
 
-    /// <summary>列出某个目录（世界存档或实例游戏目录）的全部快照，新的在前。</summary>
     public static IReadOnlyList<RewindSnapshot> ListSnapshots(string targetDirectory)
     {
         return ListSnapshotsAsync(targetDirectory).GetAwaiter().GetResult();
     }
 
-    /// <summary>异步列出快照，新的在前。</summary>
     public static Task<IReadOnlyList<RewindSnapshot>> ListSnapshotsAsync(
         string targetDirectory,
         CancellationToken cancellationToken = default)
@@ -94,13 +82,11 @@ public class RewindSystem
         }, cancellationToken);
     }
 
-    /// <summary>按天分组的时间线（新的在前）。</summary>
     public static RewindTimeline GetTimeline(string targetDirectory)
     {
         return BuildTimeline(ListSnapshots(targetDirectory));
     }
 
-    /// <summary>异步获取按天分组的时间线。</summary>
     public static async Task<RewindTimeline> GetTimelineAsync(
         string targetDirectory,
         CancellationToken cancellationToken = default)
@@ -109,9 +95,6 @@ public class RewindSystem
         return BuildTimeline(snapshots);
     }
 
-    /// <summary>
-    /// 把快照列表按天分组（今天 / 昨天 / X 月 X 日 / XXXX 年 X 月 X 日）。
-    /// </summary>
     public static RewindTimeline BuildTimeline(IEnumerable<RewindSnapshot> snapshots)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -148,9 +131,6 @@ public class RewindSystem
         return timeline;
     }
 
-    /// <summary>
-    /// 给目标目录当前状态创建一个手动快照。
-    /// </summary>
     public static Task<RewindSnapshot> CreateSnapshotAsync(
         string targetDirectory,
         RewindKind kind = RewindKind.Save,
@@ -162,10 +142,6 @@ public class RewindSystem
             targetDirectory, kind, label, color, RewindReasons.Manual, DefaultRetention(), cancellationToken);
     }
 
-    /// <summary>
-    /// 启动前的"还原点"快照：内容与最近一份快照一致时跳过（连续启动不堆相同的还原点）。
-    /// 跳过或目录不存在时返回 null。
-    /// </summary>
     public static async Task<RewindSnapshot?> CreateLaunchSnapshotAsync(
         string targetDirectory,
         RewindKind kind = RewindKind.Save,
@@ -186,9 +162,6 @@ public class RewindSystem
             .ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// 定时快照（由 <see cref="RewindScheduler"/> 调用）。
-    /// </summary>
     public static Task<RewindSnapshot> CreateScheduledSnapshotAsync(
         string targetDirectory,
         RewindKind kind = RewindKind.Save,
@@ -221,9 +194,6 @@ public class RewindSystem
         }
     }
 
-    /// <summary>
-    /// 把目标目录回滚到指定快照。回滚前自动创建安全快照（返回值里带上，便于反悔）。
-    /// </summary>
     public static async Task<RewindRollbackResult> RollbackAsync(
         string targetDirectory,
         string snapshotId,
@@ -271,9 +241,6 @@ public class RewindSystem
         }
     }
 
-    /// <summary>
-    /// 删除指定快照，并回收不再被任何快照引用的数据块。快照不存在时返回 true（幂等）。
-    /// </summary>
     public static async Task<bool> DeleteSnapshotAsync(
         string targetDirectory,
         string snapshotId,
@@ -305,17 +272,11 @@ public class RewindSystem
         }
     }
 
-    /// <summary>
-    /// 删除快照的同步版本。
-    /// </summary>
     public static bool DeleteSnapshot(string targetDirectory, string snapshotId)
     {
         return DeleteSnapshotAsync(targetDirectory, snapshotId).GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// 更新快照的标记颜色（语义色键：primary/secondary/success/warning/danger；空串恢复默认色）。
-    /// </summary>
     public static async Task<bool> SetSnapshotColorAsync(
         string targetDirectory,
         string snapshotId,
@@ -344,10 +305,6 @@ public class RewindSystem
         }
     }
 
-    /// <summary>
-    /// 按保留策略清理指定目标的快照，返回删除数量。
-    /// 带用户标记（备注或颜色）的快照永不自动删除。
-    /// </summary>
     public static async Task<int> PruneAsync(
         string targetDirectory,
         RewindRetention? retention = null,
@@ -372,17 +329,11 @@ public class RewindSystem
         }
     }
 
-    /// <summary>
-    /// 跨全部仓库的 Rewind 汇总（主页小组件用）：快照数、数据块占用、预算、最近颜色。
-    /// </summary>
     public static RewindSummary GetSummary()
     {
         return GetSummaryAsync().GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// 异步计算 Rewind 全局汇总。
-    /// </summary>
     public static Task<RewindSummary> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(() =>
@@ -418,9 +369,6 @@ public class RewindSystem
         }, cancellationToken);
     }
 
-    /// <summary>
-    /// 列出实例 saves/ 下的世界（按最后修改时间降序），并附带各自的快照统计。
-    /// </summary>
     public static IReadOnlyList<RewindWorldInfo> ListWorlds(string instanceDirectory)
     {
         List<RewindWorldInfo> worlds = [];
@@ -479,10 +427,6 @@ public class RewindSystem
             .ToList();
     }
 
-    /// <summary>
-    /// 启动某个目标的定时快照（同目标重复启动会替换旧调度器）。
-    /// interval 为空时用 settings 里的间隔。
-    /// </summary>
     public static RewindScheduler StartScheduler(
         string targetDirectory,
         TimeSpan? interval = null,
@@ -512,7 +456,6 @@ public class RewindSystem
         return scheduler;
     }
 
-    /// <summary>停止全部定时快照调度器。</summary>
     public static void StopAllSchedulers()
     {
         RewindScheduler[] toStop;
@@ -529,7 +472,6 @@ public class RewindSystem
         }
     }
 
-    /// <summary>读取 Rewind 设置（config.yaml 的 rewind* 键）。</summary>
     public static RewindSettings LoadSettings()
     {
         RewindSettings settings = new()
@@ -551,7 +493,6 @@ public class RewindSystem
         return settings;
     }
 
-    /// <summary>保存 Rewind 设置（单次事务写入 config.yaml）。</summary>
     public static bool SaveSettings(RewindSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -568,7 +509,6 @@ public class RewindSystem
         });
     }
 
-    /// <summary>默认保留策略。</summary>
     public static RewindRetention DefaultRetention()
     {
         return new RewindRetention
@@ -577,8 +517,6 @@ public class RewindSystem
             MaximumBytes = DefaultMaximumTotalBytes,
         };
     }
-
-    // ---- 快照创建 ----
 
     private static async Task<RewindSnapshot> CreateSnapshotLockedAsync(
         RewindKind kind,
@@ -811,14 +749,11 @@ public class RewindSystem
             }
             catch (Exception)
             {
-                // 读不到的项按没变化处理
             }
         }
 
         return false;
     }
-
-    // ---- 回滚 ----
 
     private static async Task RestoreSnapshotAtomicallyAsync(
         RewindKind kind,
@@ -916,7 +851,6 @@ public class RewindSystem
                 }
                 catch (Exception)
                 {
-                    // 清理失败不影响回滚结果
                 }
             }
         }
@@ -979,7 +913,6 @@ public class RewindSystem
         }
         catch (Exception)
         {
-            // 恢复失败时保持原样，交给下面的整体清理
         }
         finally
         {
@@ -989,7 +922,6 @@ public class RewindSystem
             }
             catch (Exception)
             {
-                // 清理失败不影响后续流程
             }
         }
     }
@@ -1011,12 +943,9 @@ public class RewindSystem
             }
             catch (Exception)
             {
-                // 保留目录都是可再生内容，搬不回去也不影响数据安全
             }
         }
     }
-
-    // ---- 保留策略 ----
 
     private static int PruneLocked(string repo, string keepId, RewindRetention retention)
     {
@@ -1029,7 +958,6 @@ public class RewindSystem
         manifests.Sort(CompareNewestFirst);
         HashSet<string> remove = new(StringComparer.Ordinal);
 
-        // 1. 自动快照（回滚前/启动前/定时）只保留最近 N 个
         int autoKept = 0;
         foreach (RewindSnapshotManifest manifest in manifests)
         {
@@ -1050,7 +978,6 @@ public class RewindSystem
             }
         }
 
-        // 2. 保留最近 N 份（显式策略）
         if (retention.KeepLastCount > 0)
         {
             for (int index = retention.KeepLastCount; index < manifests.Count; index++)
@@ -1065,7 +992,6 @@ public class RewindSystem
             }
         }
 
-        // 3. 只保留最近 N 天（显式策略）
         if (retention.KeepDays > 0)
         {
             DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-retention.KeepDays);
@@ -1082,7 +1008,6 @@ public class RewindSystem
             }
         }
 
-        // 4. 体积预算：从最旧的开始淘汰，先自动快照、再未标记的手动快照
         long totalBytes = 0;
         foreach (RewindSnapshotManifest manifest in manifests)
         {
@@ -1157,8 +1082,6 @@ public class RewindSystem
         int byTime = right.CreatedAt.CompareTo(left.CreatedAt);
         return byTime != 0 ? byTime : string.CompareOrdinal(right.Id, left.Id);
     }
-
-    // ---- 数据块 ----
 
     private static Action PinBlob(string hash)
     {
@@ -1268,7 +1191,6 @@ public class RewindSystem
             }
             catch (Exception)
             {
-                // 临时文件清理失败不影响结果
             }
         }
     }
@@ -1336,7 +1258,6 @@ public class RewindSystem
                     }
                     catch (Exception)
                     {
-                        // 单个数据块删不掉时留到下次回收
                     }
                 }
 
@@ -1349,13 +1270,10 @@ public class RewindSystem
                 }
                 catch (Exception)
                 {
-                    // 空目录删不掉不影响结果
                 }
             }
         }
     }
-
-    // ---- 清单读写 ----
 
     // 快照 id / 清单 id 白名单：仅允许字母、数字、点、连字符、下划线，
     // 杜绝路径分隔符、".." 段与超长值，避免拼出越界路径
@@ -1462,7 +1380,6 @@ public class RewindSystem
             }
             catch (Exception) when (!failClosed)
             {
-                // 单个清单损坏时跳过，不让整个列表失败
             }
         }
 
@@ -1547,7 +1464,6 @@ public class RewindSystem
             }
             catch (Exception)
             {
-                // 临时文件清理失败不影响结果
             }
         }
     }
@@ -1593,8 +1509,6 @@ public class RewindSystem
             WorldName = manifest.WorldName,
         };
     }
-
-    // ---- 路径与工具 ----
 
     private static string NormalizeTargetDirectory(string targetDirectory)
     {
@@ -1726,13 +1640,11 @@ public class RewindSystem
                 }
                 catch (Exception)
                 {
-                    // 读不到的项跳过
                 }
             }
         }
         catch (Exception)
         {
-            // 目录不可读时返回已统计的部分
         }
 
         return total;
@@ -1765,17 +1677,13 @@ public class RewindSystem
     }
 }
 
-/// <summary>快照目标类型。</summary>
 public enum RewindKind
 {
-    /// <summary>单个世界存档目录（saves/&lt;世界&gt;）。</summary>
     Save,
 
-    /// <summary>实例游戏目录（.minecraft 式根目录，跳过 libraries/assets 等可再生目录）。</summary>
     Instance,
 }
 
-/// <summary>快照来源（触发方式）。</summary>
 public static class RewindReasons
 {
     public const string Manual = "manual";
@@ -1783,13 +1691,11 @@ public static class RewindReasons
     public const string BeforeLaunch = "before-launch";
     public const string Scheduled = "scheduled";
 
-    /// <summary>系统自动创建的来源（共享自动快照保留上限与淘汰优先级）。</summary>
     public static bool IsAutomatic(string? reason)
     {
         return reason is BeforeRollback or BeforeLaunch or Scheduled;
     }
 
-    /// <summary>来源的中文名称。</summary>
     public static string Label(string? reason)
     {
         return reason switch
@@ -1802,7 +1708,6 @@ public static class RewindReasons
     }
 }
 
-/// <summary>时间线上的单个快照。</summary>
 public class RewindSnapshot
 {
     public string Id { get; set; } = string.Empty;
@@ -1811,34 +1716,26 @@ public class RewindSnapshot
 
     public string Label { get; set; } = string.Empty;
 
-    /// <summary>来源：manual / before-rollback / before-launch / scheduled。</summary>
     public string Reason { get; set; } = RewindReasons.Manual;
 
-    /// <summary>用户标记的语义色键（空串表示未标记）。</summary>
     public string Color { get; set; } = string.Empty;
 
     public RewindKind Kind { get; set; }
 
     public int FileCount { get; set; }
 
-    /// <summary>快照内全部文件原始大小之和。</summary>
     public long TotalSize { get; set; }
 
-    /// <summary>相对上一快照新写入的数据块字节（近似新增占盘）。</summary>
     public long AddedSize { get; set; }
 
     public int AddedFiles { get; set; }
 
-    /// <summary>目标目录名（展示用）。</summary>
     public string WorldName { get; set; } = string.Empty;
 
-    /// <summary>回滚前自动创建的安全快照。</summary>
     public bool IsSafetySnapshot => Reason == RewindReasons.BeforeRollback;
 
-    /// <summary>系统自动创建的快照（回滚前 / 启动前 / 定时）。</summary>
     public bool IsAutomatic => RewindReasons.IsAutomatic(Reason);
 
-    /// <summary>来源中文名称。</summary>
     public string ReasonLabel => RewindReasons.Label(Reason);
 
     public string TotalSizeDisplay => MemoryRead.FormatBytes(TotalSize);
@@ -1846,22 +1743,17 @@ public class RewindSnapshot
     public string AddedSizeDisplay => MemoryRead.FormatBytes(AddedSize);
 }
 
-/// <summary>清单里的单个文件。</summary>
 public class RewindSnapshotFile
 {
-    /// <summary>相对目标目录的路径（正斜杠）。</summary>
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>SHA-256 十六进制摘要（内容寻址键）。</summary>
     public string Hash { get; set; } = string.Empty;
 
     public long Size { get; set; }
 
-    /// <summary>文件最后修改时间（Unix 纳秒）；启动前变更检测的基准。</summary>
     public long ModTime { get; set; }
 }
 
-/// <summary>快照清单的存储模型（repos/&lt;repoKey&gt;/manifests/&lt;id&gt;.json）。</summary>
 public class RewindSnapshotManifest
 {
     public string Id { get; set; } = string.Empty;
@@ -1874,7 +1766,6 @@ public class RewindSnapshotManifest
 
     public string Color { get; set; } = string.Empty;
 
-    /// <summary>目标类型："save" 或 "instance"。</summary>
     public string Kind { get; set; } = "save";
 
     public int FileCount { get; set; }
@@ -1890,7 +1781,6 @@ public class RewindSnapshotManifest
     public List<RewindSnapshotFile> Files { get; set; } = [];
 }
 
-/// <summary>按天分组的时间线。</summary>
 public class RewindTimeline
 {
     public int SnapshotCount { get; set; }
@@ -1903,16 +1793,13 @@ public class RewindTimeline
 
     public DateTimeOffset? OldestAt { get; set; }
 
-    /// <summary>按天分组（新的在前）。</summary>
     public List<RewindDayGroup> Days { get; set; } = [];
 }
 
-/// <summary>时间线里的一天。</summary>
 public class RewindDayGroup
 {
     public DateTime Date { get; set; }
 
-    /// <summary>今天 / 昨天 / X 月 X 日 / XXXX 年 X 月 X 日。</summary>
     public string Label { get; set; } = string.Empty;
 
     public int Count { get; set; }
@@ -1924,31 +1811,23 @@ public class RewindDayGroup
     public List<RewindSnapshot> Snapshots { get; set; } = [];
 }
 
-/// <summary>Rewind 仓库的全局汇总（主页小组件用）。</summary>
 public class RewindSummary
 {
-    /// <summary>全部仓库的快照总数。</summary>
     public int SnapshotCount { get; set; }
 
-    /// <summary>数据块实际占用（全局共享，同一块只算一次）。</summary>
     public long BlobBytes { get; set; }
 
-    /// <summary>数据块预算（超过后按"先自动、后手动"淘汰最旧快照）。</summary>
     public long BudgetBytes { get; set; }
 
     public DateTimeOffset? LastSnapshotAt { get; set; }
 
-    /// <summary>最近若干次快照的标记颜色（新的在前，空串表示未标记）。</summary>
     public List<string> RecentColors { get; set; } = [];
 }
 
-/// <summary>保留策略。</summary>
 public class RewindRetention
 {
-    /// <summary>自动快照（回滚前/启动前/定时）保留上限。</summary>
     public int MaximumAutoSnapshots { get; set; } = RewindSystem.DefaultMaximumAutoSnapshots;
 
-    /// <summary>单仓库数据块预算（字节）。</summary>
     public long MaximumBytes { get; set; }
 
     /// <summary>只保留最近 N 份（0 = 不限；带用户标记的快照永不自动删除）。</summary>
@@ -1958,15 +1837,12 @@ public class RewindRetention
     public int KeepDays { get; set; }
 }
 
-/// <summary>Rewind 设置（config.yaml 的 rewind* 键）。</summary>
 public class RewindSettings
 {
     public bool AutoSnapshotEnabled { get; set; }
 
-    /// <summary>救砖模式：启动前自动创建还原点快照，游戏崩溃时弹窗询问是否回档。</summary>
     public bool RescueEnabled { get; set; } = true;
 
-    /// <summary>定时快照间隔（秒，30~86400）。</summary>
     public int AutoSnapshotIntervalSeconds { get; set; } = 900;
 
     public int MaximumAutoSnapshots { get; set; } = RewindSystem.DefaultMaximumAutoSnapshots;
@@ -1989,19 +1865,15 @@ public class RewindSettings
     }
 }
 
-/// <summary>回滚结果。</summary>
 public class RewindRollbackResult
 {
     public string TargetDirectory { get; set; } = string.Empty;
 
-    /// <summary>本次回滚被恢复到的快照。</summary>
     public RewindSnapshot RestoredSnapshot { get; set; } = new();
 
-    /// <summary>回滚前自动创建的安全快照（可用于反悔）。</summary>
     public RewindSnapshot SafetySnapshot { get; set; } = new();
 }
 
-/// <summary>实例 saves/ 下的一个世界。</summary>
 public class RewindWorldInfo
 {
     public string Name { get; set; } = string.Empty;
@@ -2015,9 +1887,6 @@ public class RewindWorldInfo
     public DateTimeOffset? LatestSnapshotAt { get; set; }
 }
 
-/// <summary>
-/// 定时快照调度器：每 Interval 给目标目录创建一份定时快照。
-/// </summary>
 public sealed class RewindScheduler : IDisposable
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -2038,10 +1907,8 @@ public sealed class RewindScheduler : IDisposable
 
     public bool IsRunning => _loop is { IsCompleted: false };
 
-    /// <summary>每次创建成功后触发。</summary>
     public event Action<RewindSnapshot>? SnapshotCreated;
 
-    /// <summary>创建失败时触发（不会中断调度）。</summary>
     public event Action<Exception>? Error;
 
     internal void Start()
@@ -2049,7 +1916,6 @@ public sealed class RewindScheduler : IDisposable
         _loop ??= Task.Run(LoopAsync);
     }
 
-    /// <summary>停止调度并等待当前循环退出。</summary>
     public async Task StopAsync()
     {
         _cancellation.Cancel();
@@ -2061,7 +1927,6 @@ public sealed class RewindScheduler : IDisposable
             }
             catch (OperationCanceledException)
             {
-                // 正常停止
             }
         }
     }
@@ -2078,11 +1943,9 @@ public sealed class RewindScheduler : IDisposable
             }
             catch (OperationCanceledException)
             {
-                // 正常停止
             }
             catch (Exception)
             {
-                // 后台循环内部异常已在 LoopAsync 处理，释放阶段不再抛出
             }
         }
 

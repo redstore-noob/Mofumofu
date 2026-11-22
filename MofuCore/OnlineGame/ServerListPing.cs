@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using MofuCore.Config;
 namespace MofuCore.OnlineGame;
 
-/// <summary>一次 Server List Ping 的结果；不在线时 <see cref="Online"/> 为 false，其余字段为默认值。</summary>
+/// <summary>不在线时 <see cref="Online"/> 为 false，其余字段为默认值。</summary>
 public sealed record ServerPingResult(
     bool Online,
     string? Motd,
@@ -22,21 +22,16 @@ public sealed record ServerPingResult(
     public static ServerPingResult Offline { get; } = new(false, null, null, 0, 0, null);
 }
 
-/// <summary>
-/// Minecraft Java 版 Server List Ping（status 协议）：TCP 握手包 + 状态请求，
-/// 解析玩家数 / MOTD / 服务器图标（favicon base64 PNG）。
-/// </summary>
+/// <summary>status 协议：TCP 握手包 + 状态请求，favicon 为 base64 PNG。</summary>
 public static class ServerListPing
 {
     private const int TimeoutMs = 4000;
 
-    /// <summary>PNG 文件头：89 50 4E 47 0D 0A 1A 0A。</summary>
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
     /// <summary>状态请求包：长度 1 + 包 id 0x00（必须带长度前缀，否则服务端会挂起）。</summary>
     private static readonly byte[] StatusRequestPacket = [0x01, 0x00];
 
-    /// <summary>按地址 ping 一台服务器；host 支持带端口的 "host:port" 写法。</summary>
     public static Task<ServerPingResult> PingAsync(string address, CancellationToken cancellationToken = default)
     {
         var (host, port) = ParseAddress(address);
@@ -72,13 +67,11 @@ public static class ServerListPing
         }
     }
 
-    /// <summary>"host" / "host:port" → (host, port)；端口非法时回退 25565。</summary>
     public static (string Host, int Port) ParseAddress(string address)
     {
         var value = (address ?? string.Empty).Trim();
         if (value.Length == 0) return (string.Empty, 25565);
 
-        // [IPv6]:port 与 host:port 两种形态
         int port = 25565;
         if (value.StartsWith('['))
         {
@@ -117,7 +110,6 @@ public static class ServerListPing
         return packet.ToArray();
     }
 
-    /// <summary>读完整一个 status 响应包并取出 JSON 字符串（跳过包 id）。</summary>
     private static async Task<string> ReadStatusPayloadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         var length = await ReadVarIntAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -194,7 +186,6 @@ public static class ServerListPing
                 }
                 catch (FormatException)
                 {
-                    // 图标数据坏掉时按没有图标处理
                 }
             }
         }

@@ -6,16 +6,11 @@ using Microsoft.Win32;
 using MofuCore.Config;
 namespace MofuCore.Java;
 
-/// <summary>
-/// 本机 Java 运行时搜索：环境变量、注册表、常见安装目录与 Mojang runtime 目录，
-/// 并解析 java 的主版本、供应商与架构。
-/// </summary>
 public class JavaPathSearch
 {
-    /// <summary>显式指定 java 可执行文件的环境变量（优先级高于自动探测）。</summary>
+    /// <summary>优先级高于自动探测。</summary>
     public const string JavaPathVariable = "MOFUMOFU_JAVA";
 
-    /// <summary>Minecraft runtime 根目录的环境变量（不传 runtimeDirectory 时使用）。</summary>
     public const string JavaRuntimeVariable = "MOFUMOFU_JAVA_RUNTIME";
 
     private const int MaximumScanDepth = 6;
@@ -27,12 +22,8 @@ public class JavaPathSearch
         "\\$(?:\\{(?<braced>\\w+)\\}|(?<plain>\\w+))",
         RegexOptions.Compiled);
 
-    /// <summary>当前平台的 java 可执行文件名。</summary>
     public static string JavaExecutableName => OperatingSystem.IsWindows() ? "java.exe" : "java";
 
-    /// <summary>
-    /// 探测指定 java 可执行文件的主版本、供应商与架构；无法执行或解析失败时返回 null。
-    /// </summary>
     public static async Task<JavaRuntime?> DetectAsync(string javaExecutable, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(javaExecutable))
@@ -64,30 +55,17 @@ public class JavaPathSearch
         return BuildRuntime(fullPath, output);
     }
 
-    /// <summary>
-    /// 同步探测指定 java 可执行文件；失败返回 null。
-    /// </summary>
     public static JavaRuntime? Detect(string javaExecutable)
     {
         return DetectAsync(javaExecutable).GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// 探测指定 java 可执行文件的主版本号；失败返回 null。
-    /// </summary>
     public static async Task<int?> DetectMajorVersionAsync(string javaExecutable, CancellationToken cancellationToken = default)
     {
         JavaRuntime? runtime = await DetectAsync(javaExecutable, cancellationToken).ConfigureAwait(false);
         return runtime?.MajorVersion;
     }
 
-    /// <summary>
-    /// 查找 java 可执行文件。
-    /// </summary>
-    /// <param name="configuredPath">用户显式配置的 java 路径（最高优先）。</param>
-    /// <param name="requiredMajorVersion">Minecraft 版本要求的最低 Java 主版本；为空时不校验版本。</param>
-    /// <param name="runtimeDirectory">Minecraft runtime 根目录；为空时读取 MOFUMOFU_JAVA_RUNTIME。</param>
-    /// <param name="cancellationToken">取消令牌。</param>
     public static async Task<string?> FindJavaExecutableAsync(
         string? configuredPath = null,
         int? requiredMajorVersion = null,
@@ -167,9 +145,6 @@ public class JavaPathSearch
         return null;
     }
 
-    /// <summary>
-    /// 查找主版本精确匹配的 Java；找不到返回 null。
-    /// </summary>
     public static async Task<string?> FindExactMatchJavaAsync(
         string? configuredPath,
         int requiredMajorVersion,
@@ -204,9 +179,6 @@ public class JavaPathSearch
         return preferredExact;
     }
 
-    /// <summary>
-    /// 列出所有可用的 Java 运行时（去重、存在性过滤、带版本与供应商），按主版本降序。
-    /// </summary>
     public static async Task<IReadOnlyList<JavaRuntime>> FindAllJavaAsync(
         string? runtimeDirectory = null,
         CancellationToken cancellationToken = default)
@@ -243,9 +215,6 @@ public class JavaPathSearch
             .ToList();
     }
 
-    /// <summary>
-    /// 收集全部候选 java 路径（未做存在性过滤）。
-    /// </summary>
     public static IReadOnlyList<string> CollectCandidates(string? configuredPath = null, string? runtimeDirectory = null)
     {
         return BuildCandidates(configuredPath, runtimeDirectory)
@@ -254,9 +223,7 @@ public class JavaPathSearch
             .ToList();
     }
 
-    /// <summary>
-    /// 在目录树中查找 java 可执行文件（要求父目录为 bin）；找不到返回 null。
-    /// </summary>
+    /// <summary>要求父目录为 bin。</summary>
     public static string? FindJavaExecutableInDirectory(string directory)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
@@ -297,20 +264,17 @@ public class JavaPathSearch
     {
         List<JavaCandidate> candidates = [];
 
-        // 1. 用户显式指定的路径
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
             candidates.Add(new JavaCandidate(configuredPath.Trim(), true));
         }
 
-        // 2. MOFUMOFU_JAVA 环境变量
         string? environmentJava = Environment.GetEnvironmentVariable(JavaPathVariable);
         if (!string.IsNullOrWhiteSpace(environmentJava))
         {
             candidates.Add(new JavaCandidate(environmentJava.Trim(), true));
         }
 
-        // 3. 启动器中已保存的 Java（设置页添加 / 自动检索的结果）
         foreach (Config.JavaPathItem item in Config.YamlRead.GetJavaPaths())
         {
             if (!string.IsNullOrWhiteSpace(item.Path))
@@ -319,7 +283,6 @@ public class JavaPathSearch
             }
         }
 
-        // 4. JAVA_HOME / JDK_HOME
         foreach (string variable in new[] { "JAVA_HOME", "JDK_HOME" })
         {
             string? home = Environment.GetEnvironmentVariable(variable);
@@ -329,7 +292,6 @@ public class JavaPathSearch
             }
         }
 
-        // 5. Minecraft runtime 目录（递归扫描）
         string? configuredRuntime = runtimeDirectory;
         if (string.IsNullOrWhiteSpace(configuredRuntime))
         {
@@ -338,7 +300,6 @@ public class JavaPathSearch
 
         candidates.AddRange(EnumerateRuntimeJavaExecutables(configuredRuntime));
 
-        // 6. PATH 中的每个目录
         string? pathValue = Environment.GetEnvironmentVariable("PATH");
         if (!string.IsNullOrWhiteSpace(pathValue))
         {
@@ -352,10 +313,8 @@ public class JavaPathSearch
             }
         }
 
-        // 7. Windows 注册表登记的 JavaHome
         candidates.AddRange(RegistryJavaHomes().Select(home => new JavaCandidate(Path.Combine(home, "bin", JavaExecutableName), false)));
 
-        // 8. Windows 常见安装目录
         candidates.AddRange(CommonInstallDirectories().Select(directory => new JavaCandidate(Path.Combine(directory, "bin", JavaExecutableName), false)));
 
         return candidates;
@@ -381,7 +340,6 @@ public class JavaPathSearch
         }
         catch (Exception)
         {
-            // 目录不可读时忽略
         }
 
         return result;
@@ -472,7 +430,6 @@ public class JavaPathSearch
                 }
                 catch (Exception)
                 {
-                    // 目录不可读时忽略
                 }
             }
         }
@@ -505,7 +462,6 @@ public class JavaPathSearch
             }
             catch (Exception)
             {
-                // 目录不可读时忽略
             }
         }
 
@@ -543,7 +499,6 @@ public class JavaPathSearch
             }
             catch (Exception)
             {
-                // 目录不可读时忽略
             }
         }
 
@@ -604,7 +559,6 @@ public class JavaPathSearch
                 }
                 catch (Exception)
                 {
-                    // 注册表不可读（权限/平台）时忽略
                 }
             }
         }
@@ -705,7 +659,6 @@ public class JavaPathSearch
             }
             catch
             {
-                // 进程可能已经退出
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -860,9 +813,6 @@ public class JavaPathSearch
     private sealed record ProbedCandidate(string Path, int MajorVersion, int Index, bool IsPreferred);
 }
 
-/// <summary>
-/// Java 供应商。
-/// </summary>
 public enum JavaVendor
 {
     Unknown,
@@ -883,9 +833,6 @@ public enum JavaVendor
     Mojang,
 }
 
-/// <summary>
-/// 供应商显示名。
-/// </summary>
 public static class JavaVendors
 {
     public static string DisplayName(JavaVendor vendor)
@@ -912,26 +859,19 @@ public static class JavaVendors
     }
 }
 
-/// <summary>
-/// 一个已探测到的 Java 运行时。
-/// </summary>
 public class JavaRuntime
 {
-    /// <summary>java 可执行文件路径。</summary>
     public string JavaPath { get; set; } = string.Empty;
 
-    /// <summary>java 版本号，如 21.0.1 或 1.8.0_202。</summary>
     public string VersionString { get; set; } = string.Empty;
 
-    /// <summary>主版本号（旧式 1.8 记为 8）。</summary>
+    /// <summary>旧式 1.8 记为 8。</summary>
     public int? MajorVersion { get; set; }
 
     public JavaVendor Vendor { get; set; } = JavaVendor.Unknown;
 
-    /// <summary>架构：x64 / aarch64 / x86，未知为空串。</summary>
     public string Architecture { get; set; } = string.Empty;
 
-    /// <summary>JDK/JRE 根目录（java 所在 bin 的上一级）。</summary>
     public string HomePath { get; set; } = string.Empty;
 
     public string VendorName => JavaVendors.DisplayName(Vendor);

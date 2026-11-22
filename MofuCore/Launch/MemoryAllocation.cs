@@ -3,7 +3,7 @@ using MofuCore.Tools;
 
 namespace MofuCore.Launch;
 
-/// <summary>启动和设置预览共用的堆内存策略。所有容量均为 MiB。</summary>
+/// <summary>容量单位均为 MiB。</summary>
 public static class MemoryAllocation
 {
     public const int MinimumMb = 1024;
@@ -19,7 +19,7 @@ public static class MemoryAllocation
         return Calculate(global, instance, total / 1048576, available < 0 ? -1 : available / 1048576, modCount, modded);
     }
 
-    /// <summary>纯计算入口；自动模式预留系统和 JVM 非堆开销，手动模式保留用户选择。</summary>
+    /// <summary>自动模式预留系统和 JVM 非堆开销，手动模式沿用用户选择。</summary>
     public static MemoryAllocationResult Calculate(GlobalLaunchSettings global, InstanceJavaConfig? instance,
         long totalMb, long availableMb, int modCount = 0, bool modded = false)
     {
@@ -38,7 +38,7 @@ public static class MemoryAllocation
         {
             if (totalMb > 0)
             {
-                // 总量约束始终生效；无法读取可用量时仅使用总量约束。
+                // 总量约束始终生效；读不到可用量时只用总量约束。
                 long budget = Math.Min(totalMb / 2, totalMb - Math.Max(1024, totalMb / 4));
                 if (availableMb >= 0)
                     budget = Math.Min(budget, Math.Max(0, availableMb - Math.Clamp(totalMb / 16, 768, 2048)));
@@ -55,7 +55,7 @@ public static class MemoryAllocation
                 ? instance.MaxMemoryMB : global.MaximumMemoryMb);
         }
 
-        // 统一钳制：无论走哪条分支，结果都必须落在合法区间，且最小堆不超过最大堆。
+        // 无论走哪条分支，结果都必须落在合法区间。
         maximum = NormalizeMaximum(maximum);
         int minimum = Math.Clamp(automatic ? MinimumMb :
             (instance is { MinMemoryMB: > 0 } ? instance.MinMemoryMB : global.MinimumMemoryMb),

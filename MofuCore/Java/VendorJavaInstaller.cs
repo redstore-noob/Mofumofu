@@ -6,21 +6,15 @@ using System.Text.Json;
 
 namespace MofuCore.Java;
 
-/// <summary>
-/// Java 运行时安装进度。
-/// </summary>
 public sealed record VendorJavaProgress(
     string Phase,
     long CompletedBytes,
     long TotalBytes,
     double BytesPerSecond);
 
-/// <summary>
-/// Java JDK 供应商。
-/// </summary>
 public enum VendorJavaKind
 {
-    /// <summary>Azul Zulu（默认，官方构建、免费商用）。</summary>
+    /// <summary>默认，官方构建、免费商用。</summary>
     Zulu,
 
     /// <summary>Oracle JDK（官方直接下载仅提供 Java 21+）。</summary>
@@ -30,9 +24,6 @@ public enum VendorJavaKind
     Temurin
 }
 
-/// <summary>
-/// 已安装的 Java 运行时。
-/// </summary>
 public sealed record VendorJavaRuntime(
     string DirectoryPath,
     string JavaExecutablePath,
@@ -48,7 +39,6 @@ public sealed record VendorJavaRuntime(
         }
     }
 
-    /// <summary>供应商中文显示名。</summary>
     public static string VendorDisplayName(VendorJavaKind vendor) => vendor switch
     {
         VendorJavaKind.Zulu => "Zulu",
@@ -58,9 +48,6 @@ public sealed record VendorJavaRuntime(
     };
 }
 
-/// <summary>
-/// 从供应商 API 实时查询到的 JDK 下载候选条目（供版本列表展示与下载）。
-/// </summary>
 public sealed record VendorJavaCandidate(
     VendorJavaKind Vendor,
     int MajorVersion,
@@ -73,10 +60,8 @@ public sealed record VendorJavaCandidate(
 
     public string SizeDisplay => SizeBytes > 0 ? $"{SizeBytes / 1048576.0:0.0} MB" : "";
 
-    /// <summary>列表主标题：如 "Zulu JDK 21"。</summary>
     public string DisplayName => $"{VendorName} JDK {MajorVersion}";
 
-    /// <summary>列表副标题：实际构建版本号 + 大小，如 "21.0.12.1 · 184.2 MB"。</summary>
     public string DetailText
     {
         get
@@ -87,13 +72,8 @@ public sealed record VendorJavaCandidate(
     }
 }
 
-/// <summary>
-/// Java 运行时安装器。按平台自动选择安装包（Windows/macOS/Linux × x64/arm64），
-/// 支持从 Azul Zulu、Oracle JDK、Eclipse Temurin 三个供应商实时查询并下载 JDK。
-/// </summary>
 public sealed class VendorJavaInstaller
 {
-    /// <summary>可自动下载的 Java 主版本（覆盖 Minecraft 全系版本需求）。</summary>
     public static readonly int[] SupportedVersions = [8, 11, 17, 21, 25];
 
     /// <summary>Oracle JDK 官方直接下载仅支持 Java 21+（11/17 的 latest 链接返回 404，8 需登录许可）。</summary>
@@ -118,9 +98,6 @@ public sealed class VendorJavaInstaller
         return client;
     }
 
-    /// <summary>
-    /// 获取 Java 运行时根目录（与启动器启动时的搜索目录保持一致）。
-    /// </summary>
     private readonly string _runtimeDirectory;
 
     public VendorJavaInstaller(string gameDirectory)
@@ -131,9 +108,6 @@ public sealed class VendorJavaInstaller
     public static string GetRuntimeDirectory(string gameDirectory) =>
         Path.Combine(gameDirectory, "runtime");
 
-    /// <summary>
-    /// 当前平台的说明文字（如 "Windows x64"、"macOS Apple Silicon"）。
-    /// </summary>
     public static string GetPlatformDisplayName()
     {
         var os = OperatingSystem.IsWindows() ? "Windows"
@@ -143,9 +117,6 @@ public sealed class VendorJavaInstaller
         return $"{os} {arch}";
     }
 
-    /// <summary>
-    /// 扫描已安装的 Java 运行时（支持 vendor 命名目录与历史遗留目录）。
-    /// </summary>
     public static IReadOnlyList<VendorJavaRuntime> GetInstalledRuntimes(string gameDirectory)
     {
         var runtimeDirectory = GetRuntimeDirectory(gameDirectory);
@@ -171,9 +142,6 @@ public sealed class VendorJavaInstaller
             .ToArray();
     }
 
-    /// <summary>
-    /// 删除已安装的 Java 运行时目录。
-    /// </summary>
     public void DeleteRuntime(string directoryPath)
     {
         if (string.IsNullOrWhiteSpace(directoryPath))
@@ -190,14 +158,7 @@ public sealed class VendorJavaInstaller
             Directory.Delete(fullPath, recursive: true);
     }
 
-    // ------------------------------------------------------------------
-    // 实时查询可用版本
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// 实时查询指定供应商在当前平台下所有可用 JDK 版本（含实际构建号与大小）。
-    /// Oracle 无公开动态 API，返回其官方直接下载支持的两个版本。
-    /// </summary>
+    /// <summary>Oracle 无公开动态 API，返回其官方直接下载支持的两个版本。</summary>
     public static async Task<IReadOnlyList<VendorJavaCandidate>> QueryAvailableVersionsAsync(
         VendorJavaKind vendor,
         CancellationToken cancellationToken = default)
@@ -216,7 +177,6 @@ public sealed class VendorJavaInstaller
                 }
                 catch
                 {
-                    // 某个版本不可用则跳过
                 }
             }
             return oracleResults;
@@ -245,7 +205,6 @@ public sealed class VendorJavaInstaller
             .ToArray();
     }
 
-    /// <summary>Zulu：Azul Metadata API，返回最新 GA 构建。</summary>
     private static async Task<VendorJavaCandidate?> QueryZuluCandidateAsync(
         int majorVersion,
         string os,
@@ -291,7 +250,6 @@ public sealed class VendorJavaInstaller
             VendorJavaKind.Zulu, majorVersion, buildVersion, downloadUrl, sha256, size);
     }
 
-    /// <summary>Temurin：Adoptium API，带 SHA-256 校验。</summary>
     private static async Task<VendorJavaCandidate?> QueryTemurinCandidateAsync(
         int majorVersion,
         string os,
@@ -350,9 +308,6 @@ public sealed class VendorJavaInstaller
             VendorJavaKind.Oracle, majorVersion, "latest", url, null, 0);
     }
 
-    /// <summary>
-    /// 从 Zulu 文件名中提取实际 JDK 版本号（如 "zulu21.52.203-ca-jdk21.0.12.1-win_x64.zip" → "21.0.12.1"）。
-    /// </summary>
     internal static string ExtractJdkVersionFromName(string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -367,17 +322,6 @@ public sealed class VendorJavaInstaller
         return segment[..end];
     }
 
-    // ------------------------------------------------------------------
-    // 安装
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// 下载并安装指定的 JDK 候选条目到 runtime 目录。
-    /// </summary>
-    /// <param name="candidate">由 <see cref="QueryAvailableVersionsAsync"/> 查询到的候选条目。</param>
-    /// <param name="progress">进度回调。</param>
-    /// <param name="cancellationToken">取消令牌。</param>
-    /// <returns>安装完成的运行时信息。</returns>
     public async Task<VendorJavaRuntime> InstallCandidateAsync(
         VendorJavaCandidate candidate,
         IProgress<VendorJavaProgress>? progress = null,
@@ -401,7 +345,6 @@ public sealed class VendorJavaInstaller
             await DownloadAsync(candidate.DownloadUrl, temporaryArchive, candidate.SizeBytes, progress, cancellationToken)
                 .ConfigureAwait(false);
 
-            // SHA-256 完整性校验（有校验值才校验；无公开校验值时靠 https + 下载大小校验 + 解压逐条目校验兜底）
             if (!string.IsNullOrWhiteSpace(candidate.Sha256))
             {
                 Report(progress, "校验文件完整性", candidate.SizeBytes, candidate.SizeBytes, 0);
@@ -421,7 +364,6 @@ public sealed class VendorJavaInstaller
                 await ExtractArchiveAsync(temporaryArchive, extractionDirectory, cancellationToken)
                     .ConfigureAwait(false);
 
-                // 定位解压出的 JDK 根目录并移动到正式位置
                 var extractedRoot = FindJdkRoot(extractionDirectory);
                 if (extractedRoot is null)
                     throw new InvalidDataException("下载的压缩包中没有找到 JDK 目录。");
@@ -451,7 +393,6 @@ public sealed class VendorJavaInstaller
                     throw;
                 }
 
-                // 旧目录可能仍被运行中的 java 占用，删除失败不影响已就位的新安装
                 if (backupDirectory is not null)
                 {
                     TryDeleteDirectory(backupDirectory);
@@ -475,10 +416,6 @@ public sealed class VendorJavaInstaller
         }
     }
 
-    // ------------------------------------------------------------------
-    // 平台判定
-    // ------------------------------------------------------------------
-
     private static bool IsArm64() =>
         System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
             is System.Runtime.InteropServices.Architecture.Arm64;
@@ -490,10 +427,6 @@ public sealed class VendorJavaInstaller
 
     private static string GetArchiveExtension(VendorJavaKind vendor) =>
         OperatingSystem.IsWindows() ? "zip" : "tar.gz";
-
-    // ------------------------------------------------------------------
-    // 下载与校验
-    // ------------------------------------------------------------------
 
     private static async Task DownloadAsync(
         string url,
@@ -692,13 +625,6 @@ public sealed class VendorJavaInstaller
         }
     }
 
-    // ------------------------------------------------------------------
-    // 辅助
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// 在解压目录中定位 JDK 根目录（含 bin/java 的那一层）。
-    /// </summary>
     private static string? FindJdkRoot(string baseDirectory)
     {
         var root = FindJavaExecutable(baseDirectory);
@@ -718,9 +644,6 @@ public sealed class VendorJavaInstaller
         return null;
     }
 
-    /// <summary>
-    /// 从目录名（java-zulu-21 / java-oracle-17 / java-temurin-8 或历史遗留 java-21）解析供应商。
-    /// </summary>
     private static VendorJavaKind? ResolveVendorFromDirectory(string directoryPath)
     {
         var name = Path.GetFileName(directoryPath);
@@ -742,10 +665,7 @@ public sealed class VendorJavaInstaller
             System.Text.RegularExpressions.RegexOptions.CultureInvariant |
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    /// <summary>
-    /// 执行 java -version 探测主版本号；失败返回 null。
-    /// 先等待退出（带 3 秒超时）再读流，避免同步 ReadToEnd 永久阻塞 UI 线程。
-    /// </summary>
+    /// <summary>先等待退出（带 3 秒超时）再读流，避免同步 ReadToEnd 永久阻塞 UI 线程。</summary>
     private static int? TryGetJavaMajorVersion(string javaExecutable)
     {
         try
@@ -763,7 +683,6 @@ public sealed class VendorJavaInstaller
             if (process is null)
                 return null;
 
-            // 先等待退出（超时则强杀），再读取输出，杜绝挂起
             if (!process.WaitForExit(3000))
             {
                 process.Kill(entireProcessTree: true);

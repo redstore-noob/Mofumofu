@@ -59,7 +59,6 @@ public static class CurseForgeBundleInstall
     private const long MaximumManifestBytes = MofuCore.Config.SizeLimits.BundleIndexMaximumBytes;
     private const long MaximumArchiveBytes = MofuCore.Config.SizeLimits.PackageArchiveMaximumBytes;
     private const long MaximumDownloadBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
-    // 解压条目数 / 单条目 / 累计解压体积上限（复用 SizeLimits 的 Bundle* 常量）
     private const int MaximumExtractedEntries = 20000;
     private const long MaximumEntryBytes = MofuCore.Config.SizeLimits.BundleEntryMaximumBytes;
     private const long MaximumExtractedBytes = MofuCore.Config.SizeLimits.BundleExtractedMaximumBytes;
@@ -510,6 +509,30 @@ public static class CurseForgeBundleInstall
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// 按玩家明确给出的 modId / fileId 下载单个模组文件；不搜索、不浏览、不推荐任何 CurseForge 内容。
+    /// 返回 null 表示作者关闭了第三方分发或接口没有可用下载地址。
+    /// </summary>
+    public static async Task<string?> DownloadModFileAsync(
+        int modId, int fileId, string destinationDirectory, string apiKey,
+        IProgress<(int Completed, int Total, string Detail)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new ArgumentException("CurseForge API Key 未配置。", nameof(apiKey));
+
+        var client = new CurseForgeClient(apiKey);
+        string? url = await client.GetDownloadUrlAsync(modId, fileId, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(url)) return null;
+
+        Directory.CreateDirectory(destinationDirectory);
+        string fileName = SanitizeFileName(GetFileNameFromUrl(url));
+        string target = Path.Combine(destinationDirectory, fileName);
+        await DownloadAsync(url, target, cancellationToken).ConfigureAwait(false);
+        progress?.Report((1, 1, fileName));
+        return target;
     }
 
     private sealed class CurseForgeClient

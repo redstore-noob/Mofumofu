@@ -3,9 +3,6 @@ using System.Runtime.InteropServices;
 
 namespace MofuCore.Tools;
 
-/// <summary>
-/// 读取当前系统电脑占用，便于更好的管理内存等。
-/// </summary>
 public class MemoryRead
 {
     private static readonly object __cpuLock = new();
@@ -13,9 +10,6 @@ public class MemoryRead
     private static ulong __lastTotalTime;
     private static bool __hasCpuSample;
 
-    /// <summary>
-    /// 一次内存快照：启动器自身内存、JVM 内存与 Java 进程数。
-    /// </summary>
     public static MemorySnapshot Snapshot()
     {
         MemorySnapshot snapshot = new();
@@ -50,7 +44,6 @@ public class MemoryRead
                 }
                 catch
                 {
-                    // 单个进程访问失败按 0 处理
                 }
                 finally
                 {
@@ -62,17 +55,11 @@ public class MemoryRead
         return snapshot;
     }
 
-    /// <summary>
-    /// 异步采集内存快照。
-    /// </summary>
     public static Task<MemorySnapshot> SnapshotAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(Snapshot, cancellationToken);
     }
 
-    /// <summary>
-    /// 采集当前全系统占用：CPU（与上次采样的差值，首次调用返回 0）、物理内存、磁盘。
-    /// </summary>
     public static SystemUsage SystemUsageNow()
     {
         SystemUsage usage = new();
@@ -93,17 +80,11 @@ public class MemoryRead
         return usage;
     }
 
-    /// <summary>
-    /// 异步采集全系统占用。
-    /// </summary>
     public static Task<SystemUsage> SystemUsageNowAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(SystemUsageNow, cancellationToken);
     }
 
-    /// <summary>
-    /// 在指定时间窗口内采样一次 CPU 占用率（不依赖历史采样，适合首次显示）。
-    /// </summary>
     public static async Task<double> CpuPercentAsync(TimeSpan? sampleWindow = null, CancellationToken cancellationToken = default)
     {
         TimeSpan window = sampleWindow ?? TimeSpan.FromMilliseconds(200);
@@ -127,9 +108,6 @@ public class MemoryRead
         return ComputeCpuPercent(idleBefore, totalBefore, idleAfter, totalAfter);
     }
 
-    /// <summary>
-    /// 采集指定路径所在分区的磁盘占用。
-    /// </summary>
     public static DiskUsage GetDiskUsage(string path)
     {
         DiskUsage usage = new() { Path = path };
@@ -162,17 +140,11 @@ public class MemoryRead
         return usage;
     }
 
-    /// <summary>
-    /// 异步采集指定路径所在分区的磁盘占用。
-    /// </summary>
     public static Task<DiskUsage> GetDiskUsageAsync(string path, CancellationToken cancellationToken = default)
     {
         return Task.Run(() => GetDiskUsage(path), cancellationToken);
     }
 
-    /// <summary>
-    /// 把字节数格式化为便于显示的文字（KB / MB / GB）。
-    /// </summary>
     public static string FormatBytes(long bytes)
     {
         double value = Math.Abs((double)bytes);
@@ -416,62 +388,39 @@ public class MemoryRead
     private static extern bool GetSystemTimes(out FILETIME lpIdleTime, out FILETIME lpKernelTime, out FILETIME lpUserTime);
 }
 
-/// <summary>
-/// 进程级内存快照：启动器自身内存、JVM 内存与 Java 进程数。
-/// </summary>
 public class MemorySnapshot
 {
-    /// <summary>启动器自身工作集（MB）。</summary>
     public double LauncherMemoryMb { get; set; }
 
-    /// <summary>所有 java/javaw 进程工作集之和（MB）。</summary>
     public double JvmMemoryMb { get; set; }
 
-    /// <summary>java + javaw 进程总数。</summary>
     public int JavaProcessCount { get; set; }
 }
 
-/// <summary>
-/// 全系统占用采样，百分比均为 0~100。
-/// </summary>
 public class SystemUsage
 {
-    /// <summary>全部核心的整体 CPU 占用率。</summary>
     public double CpuPercent { get; set; }
 
-    /// <summary>物理内存占用率。</summary>
     public double MemoryPercent { get; set; }
 
-    /// <summary>已用物理内存（GB）。</summary>
     public double MemoryUsedGb { get; set; }
 
-    /// <summary>物理内存总量（GB）。</summary>
     public double MemoryTotalGb { get; set; }
 
-    /// <summary>已用物理内存（字节）。</summary>
     public long MemoryUsedBytes { get; set; }
 
-    /// <summary>可用物理内存（字节）。</summary>
     public long MemoryAvailableBytes { get; set; }
 
-    /// <summary>物理内存总量（字节）。</summary>
     public long MemoryTotalBytes { get; set; }
 }
 
-/// <summary>
-/// 磁盘占用采样（按路径所在分区统计）。
-/// </summary>
 public class DiskUsage
 {
-    /// <summary>发起采样的目录路径。</summary>
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>分区总容量（字节）。</summary>
     public long TotalBytes { get; set; }
 
-    /// <summary>分区剩余容量（字节）。</summary>
     public long FreeBytes { get; set; }
 
-    /// <summary>已用百分比 0~100。</summary>
     public double UsedPercent { get; set; }
 }

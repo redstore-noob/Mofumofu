@@ -7,9 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace MofuCore.Tools;
 
-/// <summary>
-/// 用于打包Minecraft资源包的类。
-/// </summary>
 public class ResourcePackMake
 {
     public const int MaximumFiles = 5000;
@@ -42,7 +39,7 @@ public class ResourcePackMake
 
     private static string __dataRoot = AppContext.BaseDirectory;
 
-    /// <summary>启动器数据根目录（默认跟随程序目录）；草稿写在 {DataRoot}/Mofumofu/resourcepack-draft。</summary>
+    /// <summary>草稿写在 {DataRoot}/Mofumofu/resourcepack-draft。</summary>
     public static string DataRoot
     {
         get => __dataRoot;
@@ -59,7 +56,6 @@ public class ResourcePackMake
 
     public static string DraftFilePath => Path.Combine(DraftDirectory, "draft.json");
 
-    /// <summary>创建一个空工程；name 为空时使用默认名。</summary>
     public static ResourcePackProject CreateDraft(string name = DefaultPackName)
     {
         return new ResourcePackProject
@@ -70,7 +66,6 @@ public class ResourcePackMake
         };
     }
 
-    /// <summary>添加（或覆盖）文本文件，如 pack.mcmeta / 模型 JSON / lang。</summary>
     public static ResourcePackFile AddTextFile(ResourcePackProject project, string path, string text)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -81,7 +76,6 @@ public class ResourcePackMake
         return project.Files.First(file => file.Path == cleaned);
     }
 
-    /// <summary>添加（或覆盖）PNG 贴图；内容必须是合法 PNG。</summary>
     public static ResourcePackFile AddTexture(ResourcePackProject project, string path, byte[] pngBytes)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -111,7 +105,6 @@ public class ResourcePackMake
         return project.Files.First(file => file.Path == cleaned);
     }
 
-    /// <summary>添加（或覆盖）任意二进制文件（ogg / ttf 等原样透传）。</summary>
     public static ResourcePackFile AddBinaryFile(ResourcePackProject project, string path, byte[] data)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -127,7 +120,6 @@ public class ResourcePackMake
         return project.Files.First(file => file.Path == cleaned);
     }
 
-    /// <summary>添加（或覆盖）item/block 模型 JSON（要求是合法 JSON）。</summary>
     public static ResourcePackFile AddModelJson(ResourcePackProject project, string path, string json)
     {
         string cleaned = CleanArchivePath(path);
@@ -149,7 +141,6 @@ public class ResourcePackMake
         return AddTextFile(project, cleaned, json);
     }
 
-    /// <summary>读取工程中的某个文件；不存在返回 null。</summary>
     public static ResourcePackFile? GetFile(ResourcePackProject project, string path)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -157,7 +148,6 @@ public class ResourcePackMake
         return project.Files.FirstOrDefault(file => string.Equals(file.Path, cleaned, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>删除工程中的某个文件；不存在返回 false。</summary>
     public static bool RemoveFile(ResourcePackProject project, string path)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -172,14 +162,12 @@ public class ResourcePackMake
         return true;
     }
 
-    /// <summary>把工程文件按包内路径排序，便于 UI 树形展示。</summary>
     public static void SortFiles(ResourcePackProject project)
     {
         ArgumentNullException.ThrowIfNull(project);
         project.Files.Sort((left, right) => string.CompareOrdinal(left.Path, right.Path));
     }
 
-    /// <summary>生成 pack.mcmeta 的 JSON 文本。</summary>
     public static string CreatePackMetaJson(int packFormat, string description, int? minimumFormat = null)
     {
         ResourcePackMeta meta = new()
@@ -201,19 +189,16 @@ public class ResourcePackMake
         });
     }
 
-    /// <summary>写入（或覆盖）pack.mcmeta。</summary>
     public static ResourcePackFile WritePackMeta(ResourcePackProject project, int packFormat, string description, int? minimumFormat = null)
     {
         return AddTextFile(project, PackMetaName, CreatePackMetaJson(packFormat, description, minimumFormat));
     }
 
-    /// <summary>设置 pack.png 图标（必须是合法 PNG）。</summary>
     public static ResourcePackFile SetIcon(ResourcePackProject project, byte[] pngBytes)
     {
         return AddTexture(project, PackIconName, pngBytes);
     }
 
-    /// <summary>按主色生成一个简单的棋盘格 pack.png 图标（无外部依赖）。</summary>
     public static ResourcePackFile GenerateIcon(ResourcePackProject project, int size = 128, uint rgb = 0x3FC6C1)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -221,7 +206,6 @@ public class ResourcePackMake
         return SetIcon(project, CreateCheckerPng(actualSize, rgb));
     }
 
-    /// <summary>导出为 .zip；targetPath 不带扩展名时自动补 .zip，返回实际写入路径。</summary>
     public static async Task<string> ExportAsync(
         ResourcePackProject project,
         string targetPath,
@@ -300,13 +284,11 @@ public class ResourcePackMake
                 }
                 catch (Exception)
                 {
-                    // 清理失败不影响结果
                 }
             }
         }
     }
 
-    /// <summary>从 .zip 或资源包目录导入为一个可编辑工程。</summary>
     public static async Task<ResourcePackProject> ImportAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
@@ -330,7 +312,6 @@ public class ResourcePackMake
         return await ImportZipAsync(source, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>原子保存工程草稿（失败不破坏旧草稿）。</summary>
     public static async Task SaveDraftAsync(ResourcePackProject project, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -371,12 +352,10 @@ public class ResourcePackMake
             }
             catch (Exception)
             {
-                // 临时文件清理失败不影响结果
             }
         }
     }
 
-    /// <summary>读取草稿；不存在时返回 Found=false 的空草稿。</summary>
     public static async Task<ResourcePackDraft> LoadDraftAsync(CancellationToken cancellationToken = default)
     {
         if (!File.Exists(DraftFilePath))
@@ -399,7 +378,6 @@ public class ResourcePackMake
         }
     }
 
-    /// <summary>删除草稿（不存在视为成功）。</summary>
     public static Task ClearDraftAsync()
     {
         if (File.Exists(DraftFilePath))
@@ -410,7 +388,7 @@ public class ResourcePackMake
         return Task.CompletedTask;
     }
 
-    /// <summary>把相对包内路径规范化成正斜杠形式，拒绝绝对路径与 .. 逃逸。</summary>
+    /// <summary>拒绝绝对路径与 .. 逃逸。</summary>
     public static string CleanArchivePath(string path)
     {
         string normalized = (path ?? string.Empty).Replace('\\', '/').Trim();
@@ -858,32 +836,23 @@ public class ResourcePackMake
     }
 }
 
-/// <summary>资源包内单个文件；导出时按 PngBase64 / Base64 / Text 三选一取内容。</summary>
 public class ResourcePackFile
 {
-    /// <summary>包内相对路径（正斜杠）。</summary>
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>文件类型标注：png / text / binary（导入结果有意义）。</summary>
     public string Kind { get; set; } = string.Empty;
 
-    /// <summary>PNG 内容（裸 base64 或 data URI）。</summary>
     public string PngBase64 { get; set; } = string.Empty;
 
-    /// <summary>任意二进制内容（裸 base64 或 data URI）。</summary>
     public string Base64 { get; set; } = string.Empty;
 
-    /// <summary>文本内容（pack.mcmeta / 模型 JSON / lang 等）。</summary>
     public string Text { get; set; } = string.Empty;
 }
 
-/// <summary>一个可编辑的资源包工程。</summary>
 public class ResourcePackProject
 {
-    /// <summary>建议的包名。</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>导入来源的绝对路径（新建工程为空）。</summary>
     public string Root { get; set; } = string.Empty;
 
     public List<ResourcePackFile> Files { get; set; } = [];
@@ -891,7 +860,6 @@ public class ResourcePackProject
     public int FileCount => Files.Count;
 }
 
-/// <summary>资源包工程草稿（自动保存）。</summary>
 public class ResourcePackDraft
 {
     public bool Found { get; set; }
@@ -903,7 +871,6 @@ public class ResourcePackDraft
     public List<ResourcePackFile> Files { get; set; } = [];
 }
 
-/// <summary>pack.mcmeta 模型。</summary>
 public class ResourcePackMeta
 {
     [JsonPropertyName("pack")] public ResourcePackMetaPack Pack { get; set; } = new();

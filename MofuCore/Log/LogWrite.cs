@@ -4,9 +4,6 @@ using System.Text.RegularExpressions;
 using MofuCore.Config;
 namespace MofuCore.Log;
 
-/// <summary>
-/// 写入日志的类
-/// </summary>
 public class LogWrite
 {
     private const long MaximumFileSizeBytes = SizeLimits.LogFileMaximumBytes;
@@ -30,9 +27,6 @@ public class LogWrite
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         MatchTimeout);
 
-    /// <summary>
-    /// 启动器数据根目录，日志写在 {DataRoot}/Mofumofu/log 下。
-    /// </summary>
     public static string DataRoot
     {
         get => __dataRoot;
@@ -45,37 +39,21 @@ public class LogWrite
         }
     }
 
-    /// <summary>
-    /// 日志目录：{DataRoot}/Mofumofu/log。
-    /// </summary>
     public static string LogDirectory => Path.Combine(__dataRoot, "Mofumofu", "log");
 
-    /// <summary>
-    /// 本次运行的日志文件路径，文件名为启动时的时间。
-    /// </summary>
     public static string LogFilePath => Path.Combine(LogDirectory, __fileName);
 
-    /// <summary>
-    /// 返回一串当前日志记录时间的字符串
-    /// </summary>
-    /// <returns>当前日期的字符串</returns>
     private static string DateTimeString()
     {
         return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
-    /// <summary>
-    /// 写一条日志到本次运行的日志文件，同时输出到控制台。
-    /// </summary>
-    /// <returns>本次操作是否成功</returns>
     public static bool AddLog(string type, string message)
     {
         return Write(type, message);
     }
 
-    /// <summary>
-    /// 写一条日志；写入失败或 type 为 ERROR 时调用 onError（可为 null）。
-    /// </summary>
+    /// <summary>写入失败或 type 为 ERROR 时调用 onError（可为 null）。</summary>
     public static bool AddLogs(string message, Action? onError, string type = "INFO")
     {
         bool result = Write(type, message);
@@ -87,9 +65,7 @@ public class LogWrite
         return result;
     }
 
-    /// <summary>
-    /// 写一条日志前统一净化：转义换行/控制字符防止伪造日志注入，并脱敏令牌与凭据。
-    /// </summary>
+    /// <summary>转义换行/控制字符防止伪造日志注入，并脱敏令牌与凭据。</summary>
     private static string SanitizeLogText(string? text)
     {
         if (string.IsNullOrEmpty(text))
@@ -135,9 +111,7 @@ public class LogWrite
         }
     }
 
-    /// <summary>
-    /// 写一条日志。文件写入加锁，控制台输出在锁外。
-    /// </summary>
+    /// <summary>文件写入加锁，控制台输出在锁外。</summary>
     public static bool Write(string type, string message)
     {
         string line = $"[{DateTimeString()}][{SanitizeLogText(type)}]{SanitizeLogText(message)}";
@@ -163,7 +137,6 @@ public class LogWrite
         }
         catch
         {
-            // 控制台不可用时忽略，不影响日志落盘结果
         }
 
         if (failure is not null)
@@ -174,7 +147,6 @@ public class LogWrite
             }
             catch
             {
-                // 控制台不可用
             }
 
             return false;
@@ -183,9 +155,6 @@ public class LogWrite
         return true;
     }
 
-    /// <summary>
-    /// 初始化日志系统，写一条 INFO 日志。
-    /// </summary>
     public static void Init()
     {
         if (!Write("INFO", "日志系统初始化成功"))
@@ -196,14 +165,10 @@ public class LogWrite
             }
             catch
             {
-                // 控制台不可用
             }
         }
     }
 
-    /// <summary>
-    /// 读取本次运行日志文件的全部内容；尚未产生日志时返回空串。
-    /// </summary>
     public static string ReadCurrent()
     {
         string path = LogFilePath;
@@ -218,9 +183,6 @@ public class LogWrite
         }
     }
 
-    /// <summary>
-    /// 把本次运行的日志导出到目标文件；尚未产生日志时写出空文件。
-    /// </summary>
     public static bool ExportCurrent(string destinationPath)
     {
         if (string.IsNullOrWhiteSpace(destinationPath))
@@ -247,9 +209,6 @@ public class LogWrite
         }
     }
 
-    /// <summary>
-    /// 清空日志目录下的全部日志文件，返回删除数量；目录不存在返回 0，异常返回 -1。
-    /// </summary>
     public static int ClearLogs()
     {
         string directory = LogDirectory;
@@ -274,7 +233,6 @@ public class LogWrite
                         }
                         catch
                         {
-                            // 单个文件删不掉不影响其它文件
                         }
                     }
                 }
@@ -289,41 +247,26 @@ public class LogWrite
         return deleted;
     }
 
-    /// <summary>
-    /// 异步写一条日志。
-    /// </summary>
     public static Task<bool> AddLogAsync(string type, string message, CancellationToken cancellationToken = default)
     {
         return Task.Run(() => AddLog(type, message), cancellationToken);
     }
 
-    /// <summary>
-    /// 异步读取本次运行的日志内容。
-    /// </summary>
     public static Task<string> ReadCurrentAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(ReadCurrent, cancellationToken);
     }
 
-    /// <summary>
-    /// 异步导出本次运行的日志。
-    /// </summary>
     public static Task<bool> ExportCurrentAsync(string destinationPath, CancellationToken cancellationToken = default)
     {
         return Task.Run(() => ExportCurrent(destinationPath), cancellationToken);
     }
 
-    /// <summary>
-    /// 异步清空日志目录。
-    /// </summary>
     public static Task<int> ClearLogsAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(ClearLogs, cancellationToken);
     }
 
-    /// <summary>
-    /// 日志文件超过大小上限时归档为 .old 文件（只保留一代），失败时放弃本次轮转。
-    /// </summary>
     private static void RotateIfTooLarge(string path)
     {
         try
@@ -341,7 +284,6 @@ public class LogWrite
         }
         catch
         {
-            // 轮转失败不中断写入
         }
     }
 }

@@ -3,7 +3,6 @@ using MofuCore.Download.Minecraft;
 
 namespace MofuCore.Download.Modrinth;
 
-/// <summary>Modrinth 文件哈希反查命中的归属信息。</summary>
 public sealed record ModrinthVersionFileMatch(
     string ProjectId,
     string VersionId,
@@ -13,10 +12,8 @@ public sealed record ModrinthVersionFileMatch(
     string DatePublished,
     ModrinthVersionFileInfo File);
 
-/// <summary>一个可下载文件的简要信息。</summary>
 public sealed record ModrinthVersionFileInfo(string Url, string Filename, long Size);
 
-/// <summary>批量「取最新版本」接口对一个哈希的回答。</summary>
 public sealed record ModrinthVersionFileUpdate(
     string Hash,
     string VersionId,
@@ -27,7 +24,6 @@ public sealed record ModrinthVersionFileUpdate(
     string DatePublished,
     ModrinthVersionFileInfo File);
 
-/// <summary>已下载到磁盘的单个文件。</summary>
 public sealed record ModrinthDownloadedFile(
     string ProjectId,
     string VersionId,
@@ -36,25 +32,19 @@ public sealed record ModrinthDownloadedFile(
     long Size,
     bool IsDependency);
 
-/// <summary>按版本 + 依赖下载的结果。</summary>
 public sealed class ModrinthDownloadResult
 {
     public List<ModrinthDownloadedFile> Files { get; } = [];
     public List<string> Warnings { get; } = [];
 }
 
-/// <summary>按依赖下载的进度。</summary>
 public sealed record ModrinthDownloadProgress(int Completed, int Total, string Detail);
 
-/// <summary>
-/// Modrinth 版本与文件接口：版本列表、单版本详情、主文件下载、按依赖下载、哈希反查与更新检测。
-/// </summary>
 public sealed class ModrinthResourceDownload
 {
     public const int VersionFileLookupBatchSize = 100;
     private const int MaximumDependencyDepth = 8;
 
-    /// <summary>获取项目版本列表，可按 MC 版本与加载器过滤。</summary>
     public static async Task<IReadOnlyList<ModrinthVersion>> GetVersionsAsync(
         string projectId,
         IEnumerable<string>? gameVersions = null,
@@ -89,7 +79,6 @@ public sealed class ModrinthResourceDownload
         }
     }
 
-    /// <summary>获取指定项目在指定 MC 版本 + 加载器下的版本列表。</summary>
     public static Task<IReadOnlyList<ModrinthVersion>> GetVersionsForComboAsync(
         string projectId,
         string gameVersion,
@@ -101,14 +90,12 @@ public sealed class ModrinthResourceDownload
         return GetVersionsAsync(projectId, versions, loaders, cancellationToken);
     }
 
-    /// <summary>获取单个版本详情。</summary>
     public static async Task<ModrinthVersion> GetVersionAsync(string versionId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(versionId)) throw new InvalidOperationException("versionId 不能为空。");
         return await ModrinthApiClient.GetJsonAsync<ModrinthVersion>("/version/" + Uri.EscapeDataString(versionId), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>取项目在指定 MC 版本 + 加载器下最新版本的主文件。</summary>
     public static async Task<ModrinthVersionFile?> GetPrimaryFileAsync(
         string projectId,
         string? gameVersion = null,
@@ -132,7 +119,6 @@ public sealed class ModrinthResourceDownload
         return string.IsNullOrWhiteSpace(payload.Title) ? payload.Slug : payload.Title;
     }
 
-    /// <summary>下载单个版本文件到目标目录（含 SHA-1 校验），返回落盘路径。</summary>
     public static async Task<string> DownloadVersionFileAsync(
         ModrinthVersionFile file,
         string targetDirectory,
@@ -160,9 +146,7 @@ public sealed class ModrinthResourceDownload
         return targetPath;
     }
 
-    /// <summary>
-    /// 下载指定版本及其必需依赖到目标目录。依赖按 project_id 去重，递归深度上限 8。
-    /// </summary>
+    /// <summary>依赖按 project_id 去重，递归深度上限 8。</summary>
     public static async Task<ModrinthDownloadResult> DownloadWithDependenciesAsync(
         string versionId,
         string targetDirectory,
@@ -238,7 +222,6 @@ public sealed class ModrinthResourceDownload
         throw new InvalidOperationException($"项目 {projectId} 没有可用版本。");
     }
 
-    /// <summary>批量按 SHA-1 反查文件归属；查不到的哈希不会出现在结果里（404 按全部查不到处理）。</summary>
     public static async Task<IReadOnlyDictionary<string, ModrinthVersionFileMatch>> GetVersionFilesByHashesAsync(
         IEnumerable<string> hashes,
         CancellationToken cancellationToken = default)
@@ -277,7 +260,6 @@ public sealed class ModrinthResourceDownload
         return result;
     }
 
-    /// <summary>批量查询这些哈希对应的最新版本；没有兼容版本时该哈希不会出现在结果里。</summary>
     public static async Task<IReadOnlyDictionary<string, ModrinthVersionFileUpdate>> GetLatestVersionFilesByHashesAsync(
         IEnumerable<string> hashes,
         IEnumerable<string>? gameVersions = null,

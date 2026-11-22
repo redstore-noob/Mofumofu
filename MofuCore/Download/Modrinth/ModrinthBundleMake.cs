@@ -22,10 +22,8 @@ public sealed record ModpackContentItem(string Category, string RelativePath, st
     };
 }
 
-/// <summary>整合包导出进度。</summary>
 public sealed record ModpackExportProgress(string Phase, int Current, int Total);
 
-/// <summary>导出参数。</summary>
 public sealed class ModpackExportOptions
 {
     public string PackName { get; set; } = string.Empty;
@@ -42,7 +40,6 @@ public sealed class ModpackExportOptions
     public bool OnlyModrinthContent { get; set; }
 }
 
-/// <summary>导出结果统计。</summary>
 public sealed class ModpackExportResult
 {
     public string OutputPath { get; set; } = string.Empty;
@@ -51,7 +48,6 @@ public sealed class ModpackExportResult
     public List<string> Warnings { get; } = [];
 }
 
-/// <summary>mrpack 的 modrinth.index.json。</summary>
 public sealed class ModrinthIndex
 {
     [JsonPropertyName("formatVersion")] public int FormatVersion { get; set; } = 1;
@@ -63,7 +59,6 @@ public sealed class ModrinthIndex
     [JsonPropertyName("dependencies")] public Dictionary<string, string> Dependencies { get; set; } = [];
 }
 
-/// <summary>mrpack index 中的单个文件声明。</summary>
 public sealed class ModrinthIndexFile
 {
     [JsonPropertyName("path")] public string Path { get; set; } = string.Empty;
@@ -73,14 +68,12 @@ public sealed class ModrinthIndexFile
     [JsonPropertyName("fileSize")] public long FileSize { get; set; }
 }
 
-/// <summary>index 文件的客户端/服务端适用性。</summary>
 public sealed class ModrinthIndexEnvironment
 {
     [JsonPropertyName("client")] public string Client { get; set; } = "required";
     [JsonPropertyName("server")] public string Server { get; set; } = "required";
 }
 
-/// <summary>导入（读取 + 解压）结果。</summary>
 public sealed class ModrinthBundleImportResult
 {
     public ModrinthIndex? Index { get; set; }
@@ -88,10 +81,7 @@ public sealed class ModrinthBundleImportResult
     public List<string> Warnings { get; } = [];
 }
 
-/// <summary>
-/// Modrinth 整合包（.mrpack）生成与读取：overrides/ 承载实例文件，mods 等可回收内容
-/// 按 SHA-1 匹配 Modrinth version_file 后改为 index 直链声明。
-/// </summary>
+/// <summary>Modrinth 整合包（.mrpack）：overrides/ 承载实例文件，mods 等可回收内容按 SHA-1 匹配 version_file 后改为 index 直链声明。</summary>
 public sealed class ModrinthBundleMake
 {
     private const int MaxReportedExclusions = 8;
@@ -114,7 +104,6 @@ public sealed class ModrinthBundleMake
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    /// <summary>收集实例内容目录中可打包的内容单元。</summary>
     public static IReadOnlyList<ModpackContentItem> CollectContent(string contentDirectory)
     {
         List<ModpackContentItem> items = [];
@@ -185,7 +174,6 @@ public sealed class ModrinthBundleMake
         return items;
     }
 
-    /// <summary>导出 .mrpack；单个文件读取失败时跳过并记入 Warnings。</summary>
     public static async Task<ModpackExportResult> ExportAsync(
         ModpackExportOptions options,
         string contentDirectory,
@@ -351,7 +339,6 @@ public sealed class ModrinthBundleMake
         return result;
     }
 
-    /// <summary>读取 .mrpack 的 modrinth.index.json。</summary>
     public static async Task<ModrinthIndex> ReadIndexAsync(string mrpackPath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(mrpackPath) || !File.Exists(mrpackPath))
@@ -396,7 +383,6 @@ public sealed class ModrinthBundleMake
         }
     }
 
-    /// <summary>把 .mrpack 的 overrides/ 解压到目标目录（文件已存在时覆盖）。</summary>
     public static async Task<ModrinthBundleImportResult> ExtractOverridesAsync(
         string mrpackPath,
         string targetDirectory,
@@ -467,7 +453,6 @@ public sealed class ModrinthBundleMake
         return result;
     }
 
-    /// <summary>按 SHA-1 查询 Modrinth 的 version_file（返回 null 表示未收录）。</summary>
     public static async Task<ModrinthVersionFile?> ResolveModrinthFileAsync(string sha1, CancellationToken cancellationToken = default)
     {
         if (!MinecraftFileHash.IsSha1(sha1)) return null;
@@ -491,8 +476,6 @@ public sealed class ModrinthBundleMake
             return null;
         }
     }
-
-    // ---------------------------------------------------------------- 打包
 
     private static async Task WriteArchiveAsync(
         string temporaryPath,
@@ -573,8 +556,6 @@ public sealed class ModrinthBundleMake
                lower.StartsWith(CategoryShaderPacks + "/", StringComparison.Ordinal);
     }
 
-    // ---------------------------------------------------------------- 辅助
-
     private static async Task WriteTextEntryAsync(ZipArchive archive, string entryName, string content, CancellationToken cancellationToken)
     {
         ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
@@ -647,7 +628,6 @@ public sealed class ModrinthBundleMake
             }
             catch (IOException)
             {
-                // 读不到的文件按 0 计
             }
         }
         return total;
@@ -682,7 +662,6 @@ public sealed class ModrinthBundleMake
         }
         catch (IOException)
         {
-            // 清理失败不影响主流程
         }
     }
 

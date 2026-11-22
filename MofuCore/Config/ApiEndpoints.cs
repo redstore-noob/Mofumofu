@@ -1,6 +1,5 @@
 namespace MofuCore.Config;
 
-/// <summary>官方与镜像服务的主机入口。</summary>
 public static class ApiEndpoints
 {
     public const string MojangManifest = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";

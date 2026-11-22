@@ -4,16 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace MofuCore.Launch;
 
-/// <summary>
-/// 加载Minecraft实例的版本信息等。
-/// 沿 inheritsFrom 向上追溯（深度上限防环），把参数/库/资源等声明合并为最终启动档案。
-/// </summary>
 public class VersionLoader
 {
-    /// <summary>继承链深度上限（防环）。</summary>
+    /// <summary>防环。</summary>
     public const int MaximumInheritanceDepth = 16;
 
-    /// <summary>异步加载并合并版本继承链。</summary>
     public async Task<LaunchProfile> LoadAsync(
         string minecraftDirectory,
         string versionId,
@@ -63,11 +58,7 @@ public class VersionLoader
         return profile;
     }
 
-    /// <summary>
-    /// 尽力加载：完整链解析失败（父版本 JSON 缺失、下载中的半成品文件等）时，
-    /// 降级为只含 id / inheritsFrom / type 的部分档案，让实例仍出现在列表里。
-    /// 仅当实例自身的 JSON 完全不可读时才返回 null。
-    /// </summary>
+    /// <summary>完整链解析失败时降级为只含 id / inheritsFrom / type 的部分档案；仅当实例自身 JSON 不可读时返回 null。</summary>
     public LaunchProfile? TryLoad(string minecraftDirectory, string versionId)
     {
         try
@@ -129,7 +120,6 @@ public class VersionLoader
         }
     }
 
-    /// <summary>同步加载（实例列表扫描等轻量场景使用）。</summary>
     public LaunchProfile Load(string minecraftDirectory, string versionId)
     {
         string checkedVersionId = ValidateVersionId(versionId);
@@ -174,7 +164,6 @@ public class VersionLoader
         return profile;
     }
 
-    /// <summary>直接合并已读出的版本链（下载器复用）。</summary>
     internal static LaunchProfile MergeProfiles(string requestedVersionId, List<VersionChainEntry> chain)
     {
         string mainClass = string.Empty;
@@ -366,7 +355,6 @@ public class VersionLoader
             : null;
     }
 
-    /// <summary>库坐标键：group:artifact:classifier@ext。</summary>
     private static string LibraryCoordinateKey(JsonElement library)
     {
         string? name = TryGetString(library, "name");
@@ -397,14 +385,12 @@ public class VersionLoader
     internal sealed record VersionChainEntry(string Id, JsonElement Root);
 }
 
-/// <summary>版本 JSON 库/参数条目的 rules 评估器（JsonElement 版本）。</summary>
 public static class MinecraftRuleEvaluator
 {
     /// <summary>Mojang 约定的系统名：windows / osx / linux。</summary>
     public static string OperatingSystemName =>
         OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "osx" : "linux";
 
-    /// <summary>创建标准 Minecraft 特性字典（用于库规则评估）。</summary>
     public static Dictionary<string, bool> CreateDefaultFeatures(bool hasCustomResolution)
     {
         return new Dictionary<string, bool>(StringComparer.Ordinal)
@@ -418,7 +404,6 @@ public static class MinecraftRuleEvaluator
         };
     }
 
-    /// <summary>判断版本 JSON 条目（library / argument）的 rules 是否允许当前环境。</summary>
     public static bool IsAllowed(JsonElement item, IReadOnlyDictionary<string, bool> features)
     {
         if (!item.TryGetProperty("rules", out JsonElement rules) ||

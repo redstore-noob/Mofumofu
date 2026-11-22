@@ -7,11 +7,6 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace MofuCore.Config;
 
-/// <summary>
-/// Minecraft 运行配置读取类，格式为 YAML。
-/// 配置目录为 ./Mofumofu/config，包含 config.yaml（常规配置）与 game.yaml（游戏设置）；
-/// 启动器自身的主题/窗口等配置由 Mofumofu.Launcher 的 LocalSettings 负责。
-/// </summary>
 public class YamlRead
 {
     public const string DataDirectoryName = "Mofumofu";
@@ -19,7 +14,6 @@ public class YamlRead
     public const string ConfigFileName = "config.yaml";
     public const string GameFileName = "game.yaml";
 
-    /// <summary>默认游戏根目录名（相对启动器数据根目录，即 ./.minecraft）。</summary>
     public const string DefaultGameDirectoryName = ".minecraft";
 
     private const int MinimumWindowWidth = 320;
@@ -74,9 +68,6 @@ public class YamlRead
 
     private static string __dataRoot = AppContext.BaseDirectory;
 
-    /// <summary>
-    /// 启动器数据根目录（默认跟随程序目录）；配置写在 {DataRoot}/Mofumofu/config 下。
-    /// </summary>
     public static string DataRoot
     {
         get => __dataRoot;
@@ -95,26 +86,17 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 配置目录：{DataRoot}/Mofumofu/config。
-    /// </summary>
     public static string ConfigDirectory => Path.Combine(__dataRoot, DataDirectoryName, ConfigDirectoryName);
 
     public static string ConfigFilePath => Path.Combine(ConfigDirectory, ConfigFileName);
 
     public static string GameFilePath => Path.Combine(ConfigDirectory, GameFileName);
 
-    /// <summary>
-    /// 创建配置目录与三份配置文件，并补全缺失的默认配置项。
-    /// </summary>
     public static async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await Task.Run(Initialize, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// 创建配置目录与三份配置文件，并补全缺失的默认配置项。
-    /// </summary>
     public static void Initialize()
     {
         Directory.CreateDirectory(ConfigDirectory);
@@ -134,9 +116,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 重新从磁盘加载配置；不指定域时重载全部。
-    /// </summary>
     public static void Reload(YamlDomain? domain = null)
     {
         lock (__syncRoot)
@@ -151,33 +130,21 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 读取配置项；按内置键表路由到 config.yaml / game.yaml。
-    /// </summary>
     public static string GetValue(string key)
     {
         return GetValue(DomainOf(key), key);
     }
 
-    /// <summary>
-    /// 写入配置项；按内置键表路由到对应的配置文件。
-    /// </summary>
     public static bool SetValue(string key, string value)
     {
         return SetValue(DomainOf(key), key, value);
     }
 
-    /// <summary>
-    /// 删除配置项；不存在时返回 false。
-    /// </summary>
     public static bool ClearValue(string key)
     {
         return RemoveValue(DomainOf(key), key);
     }
 
-    /// <summary>
-    /// 读取指定配置文件中的配置项。
-    /// </summary>
     public static string GetValue(YamlDomain domain, string key)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -188,9 +155,6 @@ public class YamlRead
         return Store(domain).Get(key);
     }
 
-    /// <summary>
-    /// 写入指定配置文件中的配置项。
-    /// </summary>
     public static bool SetValue(YamlDomain domain, string key, string value)
     {
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
@@ -201,9 +165,6 @@ public class YamlRead
         return Store(domain).Set(key, value);
     }
 
-    /// <summary>
-    /// 删除指定配置文件中的配置项；不存在时返回 false。
-    /// </summary>
     public static bool RemoveValue(YamlDomain domain, string key)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -214,26 +175,17 @@ public class YamlRead
         return Store(domain).Remove(key);
     }
 
-    /// <summary>
-    /// 读取整份配置文件（深拷贝，调用方修改不会影响内存中的配置）。
-    /// </summary>
     public static IReadOnlyDictionary<string, object?> ReadAll(YamlDomain domain)
     {
         return Store(domain).Snapshot();
     }
 
-    /// <summary>
-    /// 在单次原子写入中应用多项修改：返回 false 时不落盘，异常时回滚。
-    /// </summary>
     public static bool UpdateInTransaction(YamlDomain domain, Func<Dictionary<string, object?>, bool> mutation)
     {
         ArgumentNullException.ThrowIfNull(mutation);
         return Store(domain).Update(mutation);
     }
 
-    /// <summary>
-    /// 已保存的全部 Java 路径（列表首位为默认 Java）。
-    /// </summary>
     public static IReadOnlyList<JavaPathItem> GetJavaPaths()
     {
         YamlFileStore store = Store(YamlDomain.Config);
@@ -243,9 +195,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 用唯一的首选 Java 替换 Java 路径列表。
-    /// </summary>
     public static bool SaveJava(string javaPath, string javaVersion)
     {
         if (string.IsNullOrWhiteSpace(javaPath))
@@ -269,9 +218,6 @@ public class YamlRead
         });
     }
 
-    /// <summary>
-    /// 添加一条 Java 路径；路径已存在时更新其版本。
-    /// </summary>
     public static bool AddJava(string javaPath, string javaVersion)
     {
         if (string.IsNullOrWhiteSpace(javaPath))
@@ -309,9 +255,6 @@ public class YamlRead
         });
     }
 
-    /// <summary>
-    /// 移除一条 Java 路径；不存在时返回 false。
-    /// </summary>
     public static bool RemoveJava(string javaPath)
     {
         if (string.IsNullOrWhiteSpace(javaPath))
@@ -345,9 +288,6 @@ public class YamlRead
         });
     }
 
-    /// <summary>
-    /// 把指定路径设为默认 Java（列表首位）；路径不存在时返回 false。
-    /// </summary>
     public static bool SetPrimaryJava(string javaPath)
     {
         if (string.IsNullOrWhiteSpace(javaPath))
@@ -391,9 +331,6 @@ public class YamlRead
         });
     }
 
-    /// <summary>
-    /// 首选 Java 可执行文件（java.exe）路径；未配置时返回空串。
-    /// </summary>
     public static string JavaExecutable
     {
         get
@@ -403,9 +340,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 首选 Java 的版本号；未配置时返回空串。
-    /// </summary>
     public static string JavaVersion
     {
         get
@@ -415,9 +349,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 游戏根目录（.minecraft 或自定义目录）；未配置时默认为 ./.minecraft。
-    /// </summary>
     public static string GameDirectory
     {
         get
@@ -435,7 +366,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>默认游戏根目录（{DataRoot}/.minecraft），路径不可解析时返回原样拼接值。</summary>
     public static string DefaultGameDirectory
     {
         get
@@ -451,7 +381,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>确保游戏根目录存在（不存在时创建），返回其绝对路径。</summary>
     public static string EnsureGameDirectory()
     {
         string directory = GameDirectory;
@@ -467,41 +396,27 @@ public class YamlRead
         return directory;
     }
 
-    /// <summary>
-    /// 保存游戏根目录。
-    /// </summary>
     public static bool SaveGameDirectory(string path)
     {
         return !string.IsNullOrWhiteSpace(path) && SetValue(YamlDomain.Config, Keys.MinecraftPath, path.Trim());
     }
 
-    /// <summary>
-    /// 清除已保存的游戏根目录（恢复自动检测）。
-    /// </summary>
     public static bool ClearGameDirectory()
     {
         return RemoveValue(YamlDomain.Config, Keys.MinecraftPath);
     }
 
-    /// <summary>
-    /// 全局默认版本隔离：true = 新实例默认隔离。未配置或值损坏时默认开启。
-    /// </summary>
+    /// <summary>未配置或值损坏时默认开启。</summary>
     public static bool DefaultVersionIsolation => ReadBool(Keys.DefaultVersionIsolation, true);
 
-    /// <summary>保存全局版本隔离开关。</summary>
     public static bool SaveDefaultVersionIsolation(bool enabled)
     {
         return SetValue(YamlDomain.Config, Keys.DefaultVersionIsolation, enabled ? "True" : "False");
     }
 
-    /// <summary>
-    /// 启动前是否校验游戏文件完整性并自动补全。未配置或值损坏时默认开启。
-    /// </summary>
+    /// <summary>未配置或值损坏时默认开启。</summary>
     public static bool VerifyFilesBeforeLaunch => ReadBool(Keys.VerifyFilesBeforeLaunch, true);
 
-    /// <summary>
-    /// 加载全局高级启动设置（game.yaml）。
-    /// </summary>
     public static GlobalLaunchSettings LoadGlobalLaunchSettings()
     {
         return new GlobalLaunchSettings
@@ -526,17 +441,11 @@ public class YamlRead
         };
     }
 
-    /// <summary>
-    /// 异步加载全局高级启动设置。
-    /// </summary>
     public static Task<GlobalLaunchSettings> LoadGlobalLaunchSettingsAsync(CancellationToken cancellationToken = default)
     {
         return Task.Run(LoadGlobalLaunchSettings, cancellationToken);
     }
 
-    /// <summary>
-    /// 保存整份全局高级启动设置（参数先去空白并剔除空项）。
-    /// </summary>
     public static bool SaveGlobalLaunchSettings(GlobalLaunchSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -577,17 +486,12 @@ public class YamlRead
         });
     }
 
-    /// <summary>
-    /// 异步保存整份全局高级启动设置。
-    /// </summary>
     public static Task<bool> SaveGlobalLaunchSettingsAsync(GlobalLaunchSettings settings, CancellationToken cancellationToken = default)
     {
         return Task.Run(() => SaveGlobalLaunchSettings(settings), cancellationToken);
     }
 
-    /// <summary>
-    /// 归一化进程优先级取值；非法值（含空串）归一为 normal。
-    /// </summary>
+    /// <summary>非法值（含空串）归一为 normal。</summary>
     public static string NormalizeProcessPriority(string? value)
     {
         return value?.Trim().ToLowerInvariant() switch
@@ -600,9 +504,6 @@ public class YamlRead
         };
     }
 
-    /// <summary>
-    /// 加载实例目录下的 java_config.yaml；文件不存在时返回空配置（使用全局设置）。
-    /// </summary>
     public static InstanceJavaConfig LoadInstanceJavaConfig(string instanceDirectory)
     {
         if (string.IsNullOrWhiteSpace(instanceDirectory))
@@ -630,9 +531,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 保存实例目录下的 java_config.yaml。
-    /// </summary>
     public static bool SaveInstanceJavaConfig(string instanceDirectory, InstanceJavaConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -660,9 +558,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 删除实例目录下的 java_config.yaml（回退到全局设置）。
-    /// </summary>
     public static bool DeleteInstanceJavaConfig(string instanceDirectory)
     {
         if (string.IsNullOrWhiteSpace(instanceDirectory))
@@ -687,9 +582,6 @@ public class YamlRead
         }
     }
 
-    /// <summary>
-    /// 配置项键名。
-    /// </summary>
     public static class Keys
     {
         public const string JavaPath = "javaPath";
@@ -712,7 +604,6 @@ public class YamlRead
         public const string GameJvmTuning = "globalLaunchJvmTuning";
         public const string GameAllowUnsafeVersionJvmArguments = "globalLaunchAllowUnsafeVersionJvmArguments";
 
-        /// <summary>Java 路径的"自动选择"占位值。</summary>
         public const string AutomaticJavaValue = "$auto";
     }
 
@@ -906,18 +797,12 @@ public class YamlRead
     }
 }
 
-/// <summary>
-/// 配置文件域：config.yaml（Minecraft 常规配置）、game.yaml（游戏设置）。
-/// </summary>
 public enum YamlDomain
 {
     Config,
     Game,
 }
 
-/// <summary>
-/// 一条已保存的 Java 路径。
-/// </summary>
 public class JavaPathItem
 {
     public string Path { get; set; } = string.Empty;
@@ -927,14 +812,6 @@ public class JavaPathItem
     public string DisplayName => string.IsNullOrWhiteSpace(Version) ? Path : $"{Path} (Java {Version})";
 }
 
-/// <summary>
-/// 启动器窗口尺寸。
-/// </summary>
-
-
-/// <summary>
-/// 全局高级启动设置的内存快照（game.yaml）。
-/// </summary>
 public class GlobalLaunchSettings
 {
     public int WindowWidth { get; set; } = 854;
@@ -947,7 +824,6 @@ public class GlobalLaunchSettings
 
     public List<string> AdditionalGameArguments { get; set; } = [];
 
-    /// <summary>游戏进程优先级：low / belownormal / normal / abovenormal / high。</summary>
     public string ProcessPriority { get; set; } = "normal";
 
     /// <summary>包装命令模板，需含 %command% 占位。</summary>
@@ -966,19 +842,15 @@ public class GlobalLaunchSettings
 
     public int MaximumMemoryMb { get; set; } = 4096;
 
-    /// <summary>JVM 调优预设：default / off / aggressive。</summary>
     public string JvmTuning { get; set; } = "default";
 
     /// <summary>是否信任版本 JSON 里自带的 JVM 参数（默认关闭：只放行白名单内的）。</summary>
     public bool AllowUnsafeVersionJvmArguments { get; set; }
 }
 
-/// <summary>
-/// 实例 Java 配置（存放在实例目录的 java_config.yaml）。
-/// </summary>
 public class InstanceJavaConfig
 {
-    /// <summary>null 继承全局；旧配置已有最大内存时继续按手动处理。</summary>
+    /// <summary>null 表示继承全局。</summary>
     public bool? AutomaticMemory { get; set; }
 
     public string JavaExecutable { get; set; } = string.Empty;
@@ -992,9 +864,6 @@ public class InstanceJavaConfig
     public List<string> AdditionalGameArguments { get; set; } = [];
 }
 
-/// <summary>
-/// 单个 YAML 配置文件的管理器：原子落盘、损坏时备份后重建、瞬时 IO 失败不覆盖原文件。
-/// </summary>
 internal sealed class YamlFileStore
 {
     private static readonly ISerializer Serializer = new SerializerBuilder().Build();
@@ -1208,7 +1077,6 @@ internal sealed class YamlFileStore
                 }
                 catch
                 {
-                    // 临时文件清理失败不应掩盖原始保存结果
                 }
             }
         }

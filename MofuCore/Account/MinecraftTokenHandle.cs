@@ -13,11 +13,6 @@ using System.Text.RegularExpressions;
 using MofuCore.Config;
 namespace MofuCore.Account;
 
-/// <summary>
-/// 获取正版玩家的Token的流程类：Microsoft OAuth 设备码 → Xbox Live → XSTS → Minecraft 服务链，
-/// 档案获取与令牌刷新；皮肤站（authlib-injector）认证由 <see cref="AuthlibAccountManage"/> 负责。
-/// 已做好肥美的三系统对应加密方案（令牌落盘统一走 <see cref="MinecraftTokenCrypto"/>）。
-/// </summary>
 public class MinecraftTokenHandle
 {
     private const int StreamCopyBufferSize = 1024;
@@ -36,7 +31,6 @@ public class MinecraftTokenHandle
 
     private const int DeviceCodeTransientRetryLimit = 3;
 
-    /// <summary>浏览器登录的整体预算：从打开登录页到整条链路结束。</summary>
     private static readonly TimeSpan BrowserLoginTimeout = TimeSpan.FromMinutes(10);
 
     private const int LoopbackListenRetryLimit = 5;
@@ -74,14 +68,8 @@ public class MinecraftTokenHandle
 
     public MinecraftTokenCrypto Crypto => _crypto;
 
-    /// <summary>皮肤站（authlib-injector / Yggdrasil）相关认证。</summary>
     public AuthlibAccountManage Authlib { get; }
 
-    // ------------------------------------------------------------------
-    // 设备码登录
-    // ------------------------------------------------------------------
-
-    /// <summary>请求设备码，返回给用户展示的 user_code 与验证地址。</summary>
     public async Task<DeviceCodeInfo> RequestDeviceCodeAsync(CancellationToken cancellationToken = default)
     {
         Dictionary<string, string> form = new()
@@ -114,11 +102,6 @@ public class MinecraftTokenHandle
         };
     }
 
-    /// <summary>
-    /// 完成设备码登录全流程：展示设备码 → 轮询令牌 → XBL/XSTS/Minecraft 交换 → 获取档案。
-    /// </summary>
-    /// <param name="deviceCodeHandler">拿到设备码后的回调（展示验证码、打开浏览器等）；可为空。</param>
-    /// <param name="onStep">链路阶段回调（Microsoft 令牌 / Xbox Live / XSTS / Minecraft / 档案完成）；可为空。</param>
     public async Task<MicrosoftAccount> AuthenticateAsync(
         Func<DeviceCodeInfo, CancellationToken, Task>? deviceCodeHandler = null,
         Action<LoginStep>? onStep = null,
@@ -137,7 +120,6 @@ public class MinecraftTokenHandle
             .ConfigureAwait(false);
     }
 
-    /// <summary>兼容旧调用：设备码登录（不接收链路阶段回调）。</summary>
     public Task<MicrosoftAccount> AuthenticateAsync(
         Func<DeviceCodeInfo, CancellationToken, Task>? deviceCodeHandler,
         CancellationToken cancellationToken)
@@ -232,20 +214,6 @@ public class MinecraftTokenHandle
             "设备码登录超时，请重试。", MicrosoftAuthErrorCodes.DeviceCodeExpired);
     }
 
-    // ------------------------------------------------------------------
-    // 浏览器登录（授权码 + PKCE + 本地回环回调）
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// 正版登录（系统浏览器）：生成 PKCE 与 state，在 127.0.0.1 随机端口起本地回环
-    /// HTTP 服务，把微软授权地址交给 <paramref name="openLoginPage"/> 打开，收到授权码后
-    /// 依次换取 Microsoft 令牌 → XBL → XSTS → Minecraft → 档案，最后加密落盘。
-    /// </summary>
-    /// <param name="openLoginPage">打开系统浏览器的回调（参数为微软授权页 URL）；不要等用户登录完成。</param>
-    /// <param name="onStep">链路阶段回调：Authorized → MicrosoftToken → XboxLive → Xsts → Minecraft → Done。</param>
-    /// <param name="cancellationToken">取消登录（会关闭回环服务并抛 <see cref="OperationCanceledException"/>）。</param>
-    /// <returns>登录成功且已落盘的账号（<see cref="MicrosoftAccount"/>）。</returns>
-    /// <exception cref="MicrosoftAuthenticationException">登录被拒绝、失败或超时（10 分钟）。</exception>
     public static Task<MicrosoftAccount> StartBrowserLoginAsync(
         Func<string, Task> openLoginPage,
         IProgress<LoginStep>? onStep = null,
@@ -325,7 +293,6 @@ public class MinecraftTokenHandle
         }
     }
 
-    /// <summary>授权码 + PKCE 校验串换取 Microsoft 令牌。</summary>
     private async Task<(string AccessToken, string RefreshToken)> RequestTokenByAuthorizationCodeAsync(
         string code,
         string verifier,
@@ -361,7 +328,6 @@ public class MinecraftTokenHandle
         return (token.AccessToken, token.RefreshToken);
     }
 
-    /// <summary>构造微软授权页地址（公共客户端 + PKCE S256）。</summary>
     private string BuildAuthorizeUrl(string redirectUri, string codeChallenge, string state)
     {
         Dictionary<string, string> query = new()
@@ -380,18 +346,15 @@ public class MinecraftTokenHandle
         return AuthorizeEndpoint + "?" + queryString;
     }
 
-    /// <summary>生成 URL 安全的随机串（PKCE verifier / state 共用）。</summary>
     private static string CreateRandomUrlSafeString(int byteCount)
         => Base64UrlEncode(RandomNumberGenerator.GetBytes(byteCount));
 
-    /// <summary>PKCE S256 挑战：BASE64URL(SHA256(verifier))。</summary>
     private static string CreatePkceChallenge(string verifier)
         => Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
 
     private static string Base64UrlEncode(byte[] bytes)
         => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    /// <summary>把授权页返回的 error 映射为可读错误。</summary>
     private static MicrosoftAuthenticationException CreateOAuthCallbackError(string code, string description)
     {
         string message;
@@ -411,7 +374,6 @@ public class MinecraftTokenHandle
         return new MicrosoftAuthenticationException(RedactSecrets(message), code);
     }
 
-    /// <summary>一次 OAuth 回环回调的内容。</summary>
     private sealed class OAuthCallbackResult
     {
         public string Code { get; init; } = string.Empty;
@@ -420,10 +382,6 @@ public class MinecraftTokenHandle
         public string ErrorDescription { get; init; } = string.Empty;
     }
 
-    /// <summary>
-    /// 本地回环回调服务：只监听 127.0.0.1 的随机端口（自动重试端口冲突），
-    /// 接受浏览器对 <c>/callback</c> 的一次访问并把授权码交给上层，响应一个提示页后关闭。
-    /// </summary>
     private sealed class LoopbackCallbackServer : IDisposable
     {
         private const int MaxRequestBytes = 16 * 1024;
@@ -471,7 +429,6 @@ public class MinecraftTokenHandle
                     }
                     catch (Exception)
                     {
-                        // 已释放
                     }
                 }
             }
@@ -548,7 +505,6 @@ public class MinecraftTokenHandle
                             "登录校验失败", "回调 state 校验失败，请重试登录。"), readCts.Token).ConfigureAwait(false);
                         return;
                     }
-                    // 重复回调（浏览器重试 / 预取）以第一次为准
                     _result.TrySetResult(result);
 
                     if (string.IsNullOrWhiteSpace(result.ErrorCode))
@@ -567,7 +523,6 @@ public class MinecraftTokenHandle
                 }
                 catch (Exception)
                 {
-                    // 浏览器提前断开、请求不完整、读取超时等都无需上报：等待回调的任务会超时收尾
                 }
             }
         }
@@ -700,7 +655,6 @@ public class MinecraftTokenHandle
             }
             catch (ObjectDisposedException)
             {
-                // 已释放
             }
 
             try
@@ -709,7 +663,6 @@ public class MinecraftTokenHandle
             }
             catch (SocketException)
             {
-                // 已释放
             }
 
             // 先等待接收循环与在途请求收尾，再释放 CTS，避免后台任务访问已释放对象
@@ -726,18 +679,12 @@ public class MinecraftTokenHandle
             }
             catch (Exception)
             {
-                // 关闭阶段无需上报：超时后直接释放
             }
 
             _acceptCts.Dispose();
         }
     }
 
-    // ------------------------------------------------------------------
-    // 刷新 / 校验
-    // ------------------------------------------------------------------
-
-    /// <summary>使用刷新令牌无感刷新账号令牌。</summary>
     public async Task<MicrosoftAccount> RefreshAsync(MicrosoftAccount account, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -764,7 +711,6 @@ public class MinecraftTokenHandle
         }
     }
 
-    /// <summary>校验令牌；已过期时自动刷新。</summary>
     public Task<MicrosoftAccount> ValidateAsync(MicrosoftAccount account, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -805,12 +751,6 @@ public class MinecraftTokenHandle
         return (token.AccessToken, newRefreshToken);
     }
 
-    // ------------------------------------------------------------------
-    // Microsoft → Xbox Live → XSTS → Minecraft
-    // ------------------------------------------------------------------
-
-    /// <summary>把 Microsoft 令牌逐步交换为完整的正版账号。</summary>
-    /// <param name="onStep">每完成一个链路阶段回调一次（<see cref="LoginStep"/>）；可为空。</param>
     public async Task<MicrosoftAccount> ExchangeForMinecraftAccountAsync(
         string microsoftAccessToken,
         string refreshToken,
@@ -935,7 +875,6 @@ public class MinecraftTokenHandle
         }
         catch (JsonException)
         {
-            // 非 JSON 错误体：走默认文案
         }
 
         string message = errorCode switch
@@ -1008,7 +947,6 @@ public class MinecraftTokenHandle
         return profile;
     }
 
-    /// <summary>上传正版皮肤（64×64 PNG），variant 为 classic / slim。</summary>
     public async Task UploadSkinAsync(
         MicrosoftAccount account,
         byte[] pngBytes,
@@ -1047,7 +985,6 @@ public class MinecraftTokenHandle
         }
     }
 
-    /// <summary>从 Minecraft 访问令牌（JWT）的 payload 中解析 Xbox 用户 ID。</summary>
     public static string ExtractXuidFromMinecraftToken(string accessToken)
     {
         if (string.IsNullOrWhiteSpace(accessToken))
@@ -1074,7 +1011,6 @@ public class MinecraftTokenHandle
         }
     }
 
-    /// <summary>把档案 UUID 归一化为 32 位无连字符格式。</summary>
     public static string CompactUuid(string uuid)
     {
         if (string.IsNullOrWhiteSpace(uuid) || uuid.Length == 32)
@@ -1085,40 +1021,23 @@ public class MinecraftTokenHandle
         return uuid.Replace("-", string.Empty, StringComparison.Ordinal);
     }
 
-    // ------------------------------------------------------------------
-    // 令牌落盘（统一委托 AccountStore）
-    // ------------------------------------------------------------------
-
-    /// <summary>保存/更新一个正版账号（按 UUID 去重，新的排在最前）。</summary>
     public void SaveMicrosoftAccount(MicrosoftAccount account) => _store.SaveMicrosoftAccount(account);
 
-    /// <summary>读取全部已保存的正版账号。</summary>
     public IReadOnlyList<MicrosoftAccount> LoadMicrosoftAccounts() => _store.LoadMicrosoftAccounts();
 
-    /// <summary>删除一个正版账号（按 UUID）。</summary>
     public bool RemoveMicrosoftAccount(string uuid) => _store.RemoveMicrosoftAccount(uuid);
 
-    /// <summary>保存/更新一个皮肤站账号（按 UUID + API 根去重）。</summary>
     public void SaveAuthlibCredential(AuthlibCredential credential) => _store.SaveAuthlibCredential(credential);
 
-    /// <summary>读取全部已保存的皮肤站凭据。</summary>
     public IReadOnlyList<AuthlibCredential> LoadAuthlibCredentials() => _store.LoadAuthlibCredentials();
 
-    /// <summary>保存一个离线账号名（按名称去重，新账号排在最前）。</summary>
     public void SaveOfflineAccount(string username) => _store.SaveOfflineAccount(username);
 
-    /// <summary>读取全部离线账号名。</summary>
     public IReadOnlyList<string> LoadOfflineAccounts() => _store.LoadOfflineAccounts();
 
-    /// <summary>删除一个离线账号名。</summary>
     public bool RemoveOfflineAccount(string username) => _store.RemoveOfflineAccount(username);
 
-    /// <summary>本安装固定的 Yggdrasil clientToken（首次调用时生成并落盘）。</summary>
     public string GetOrCreateClientToken() => _store.GetOrCreateClientToken();
-
-    // ------------------------------------------------------------------
-    // HTTP 辅助
-    // ------------------------------------------------------------------
 
     private async Task<(HttpStatusCode StatusCode, string Body)> PostFormAsync(
         string endpoint,
@@ -1195,10 +1114,6 @@ public class MinecraftTokenHandle
             ? string.Empty
             : SensitiveValueRegex.Replace(value, "${prefix}[REDACTED]");
 
-    // ------------------------------------------------------------------
-    // 内部 DTO
-    // ------------------------------------------------------------------
-
     private sealed class DeviceCodePayload
     {
         [JsonPropertyName("device_code")] public string DeviceCode { get; set; } = string.Empty;
@@ -1248,7 +1163,6 @@ public class MinecraftTokenHandle
 
 }
 
-/// <summary>Microsoft OAuth 设备码登录过程中需要展示给用户的信息。</summary>
 public sealed class DeviceCodeInfo
 {
     public string UserCode { get; init; } = string.Empty;
@@ -1257,11 +1171,9 @@ public sealed class DeviceCodeInfo
     public TimeSpan ExpiresIn { get; init; }
     public int PollIntervalSeconds { get; init; }
 
-    /// <summary>预填了用户码的完整验证地址，可直接用于打开浏览器。</summary>
     public string VerificationUriFull => VerificationUri + "?user_code=" + Uri.EscapeDataString(UserCode);
 }
 
-/// <summary>通过 Microsoft 账号（正版）登录后获得的 Minecraft 账号。</summary>
 public sealed class MicrosoftAccount
 {
     [JsonPropertyName("Username")] public string Username { get; set; } = string.Empty;
@@ -1282,29 +1194,21 @@ public sealed class MicrosoftAccount
     }
 }
 
-/// <summary>Microsoft 认证流程的链路阶段（设备码 / 浏览器登录共用的进度回调）。</summary>
 public enum LoginStep
 {
-    /// <summary>已在登录页完成授权（拿到授权码）。</summary>
     Authorized = 1,
 
-    /// <summary>已换取 Microsoft 访问令牌。</summary>
     MicrosoftToken = 2,
 
-    /// <summary>Xbox Live 认证完成。</summary>
     XboxLive = 3,
 
-    /// <summary>XSTS 授权完成。</summary>
     Xsts = 4,
 
-    /// <summary>Minecraft 令牌获取完成。</summary>
     Minecraft = 5,
 
-    /// <summary>档案获取完成，整条链路结束。</summary>
     Done = 6,
 }
 
-/// <summary>Microsoft 认证相关错误码。</summary>
 public static class MicrosoftAuthErrorCodes
 {
     public const string AuthorizationDeclined = "authorization_declined";
@@ -1316,7 +1220,6 @@ public static class MicrosoftAuthErrorCodes
     public const string XboxAgeVerification = "2148916238";
 }
 
-/// <summary>Microsoft 认证流程（设备码、Xbox、Minecraft 服务）失败时抛出的错误。</summary>
 public sealed class MicrosoftAuthenticationException : Exception
 {
     public MicrosoftAuthenticationException(string message, string errorCode = "", Exception? inner = null)
@@ -1325,11 +1228,9 @@ public sealed class MicrosoftAuthenticationException : Exception
         ErrorCode = errorCode;
     }
 
-    /// <summary>原始错误码，便于调用方区分失败原因。</summary>
     public string ErrorCode { get; }
 }
 
-/// <summary>「刷新令牌已成功轮换，但后续 Minecraft 档案交换失败」的复合错误。</summary>
 public sealed class RotatedCredentialsException : Exception
 {
     public RotatedCredentialsException(string message, MicrosoftAccount refreshedAccount, Exception? inner = null)
@@ -1342,14 +1243,9 @@ public sealed class RotatedCredentialsException : Exception
     public MicrosoftAccount RefreshedAccount { get; }
 }
 
-/// <summary>
-/// 对令牌数据进行加密的类，三个平台各有对应方案：
-/// Windows 走 DPAPI（当前用户范围），macOS 把主密钥存进钥匙串，Linux 优先 libsecret（secret-tool），
-/// 两者都不可用时退回 0600 权限的密钥文件。
-/// </summary>
+// Windows 走 DPAPI（当前用户范围），macOS 把主密钥存进钥匙串，Linux 优先 libsecret（secret-tool），都不可用时退回 0600 权限的密钥文件。
 public class MinecraftTokenCrypto
 {
-    /// <summary>加密存储值的前缀。</summary>
     public const string EncryptedPrefix = "mofuenc1:";
 
     private const string KeychainService = "MofuCore.Token";
@@ -1371,19 +1267,16 @@ public class MinecraftTokenCrypto
 
     private readonly string _storageDirectory;
 
-    /// <param name="storageDirectory">密钥文件所在目录，默认为 %APPDATA%/Mofumofu（其它平台为配置目录）。</param>
     public MinecraftTokenCrypto(string? storageDirectory = null)
     {
         _storageDirectory = string.IsNullOrWhiteSpace(storageDirectory) ? DefaultStorageDirectory : storageDirectory!;
     }
 
-    /// <summary>默认的启动器存储目录。</summary>
     public static string DefaultStorageDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mofumofu");
 
     public string StorageDirectory => _storageDirectory;
 
-    /// <summary>当前平台是否有可用的加密方案。</summary>
     public static bool IsAvailable
     {
         get
@@ -1405,7 +1298,7 @@ public class MinecraftTokenCrypto
         }
     }
 
-    /// <summary>加密文本，返回带前缀的存储串；失败返回空串（调用方应回落明文，宁明文不丢数据）。</summary>
+    /// <summary>失败返回空串。</summary>
     public string Encrypt(string plaintext)
     {
         if (string.IsNullOrEmpty(plaintext))
@@ -1423,13 +1316,11 @@ public class MinecraftTokenCrypto
         }
     }
 
-    /// <summary>解密 <see cref="Encrypt(string)"/> 产出的存储串；失败返回空串。</summary>
     public string Decrypt(string stored)
     {
         return TryDecrypt(stored, out string plaintext) ? plaintext : string.Empty;
     }
 
-    /// <summary>解密存储串，返回是否成功。</summary>
     public bool TryDecrypt(string stored, out string plaintext)
     {
         plaintext = string.Empty;
@@ -1456,14 +1347,12 @@ public class MinecraftTokenCrypto
         }
     }
 
-    /// <summary>加密字节数组，返回带前缀的存储串的 UTF-8 字节。</summary>
     public byte[] Encrypt(byte[] plaintext)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
         return Encoding.UTF8.GetBytes(EncryptCore(plaintext));
     }
 
-    /// <summary>解密字节数组；失败返回 null。</summary>
     public byte[]? Decrypt(byte[] stored)
     {
         ArgumentNullException.ThrowIfNull(stored);
@@ -1512,10 +1401,6 @@ public class MinecraftTokenCrypto
             ? UnprotectWithDPAPI(raw)
             : UnprotectWithAes(raw);
     }
-
-    // ------------------------------------------------------------------
-    // Windows：DPAPI
-    // ------------------------------------------------------------------
 
     private const int CryptProtectUiForbidden = 0x1;
 
@@ -1608,10 +1493,6 @@ public class MinecraftTokenCrypto
         }
     }
 
-    // ------------------------------------------------------------------
-    // macOS / Linux：主密钥 + AES-256-GCM
-    // ------------------------------------------------------------------
-
     private byte[] ProtectWithAes(byte[] plaintext)
     {
         byte[] key = LoadOrCreateMasterKey(_storageDirectory);
@@ -1678,9 +1559,7 @@ public class MinecraftTokenCrypto
                 : WriteKeyToSecretService(generated);
             if (!stored && !OperatingSystem.IsMacOS())
             {
-                // Linux 等没有系统凭据库（secret-tool / 钥匙环守护进程缺失）的环境：
-                // 退回仅当前用户可读（0600）的密钥文件，保证账号功能可用。
-                // 读取侧本就按 secret-tool → 密钥文件的顺序取键，两条路径一致。
+                // Linux 等没有系统凭据库的环境退回仅当前用户可读（0600）的密钥文件；读取侧按 secret-tool → 密钥文件的顺序取键。
                 stored = WriteKeyToFile(generated, storageDirectory);
             }
             if (!stored)
@@ -1711,7 +1590,6 @@ public class MinecraftTokenCrypto
         (int exitCode, _) = RunProcess("secret-tool",
             ["store", "--label=MofuCore 账号令牌", "service", KeychainService, "key", KeychainAccount],
             encoded);
-        // 失败时由调用方退回 0600 密钥文件；两者都失败才 fail-closed
         return exitCode == 0;
     }
 
@@ -1757,7 +1635,6 @@ public class MinecraftTokenCrypto
                 }
                 catch
                 {
-                    // 临时文件清理失败不影响结果
                 }
             }
         }

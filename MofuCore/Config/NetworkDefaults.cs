@@ -2,7 +2,6 @@ using System;
 
 namespace MofuCore.Config;
 
-/// <summary>网络请求的超时、轮询与并发默认值。</summary>
 public static class NetworkDefaults
 {
     public static readonly TimeSpan HttpRequestTimeout = TimeSpan.FromSeconds(30);

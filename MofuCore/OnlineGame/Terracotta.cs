@@ -11,36 +11,23 @@ using MofuCore.Server;
 
 namespace MofuCore.OnlineGame;
 
-/// <summary>
-/// 适配陶瓦联机功能，可以直接与他人进行联机。
-/// 注：陶瓦联机实际上与本项目没有任何关系，Terracotta是第三方软件，本项目尊重所有关于Terracotta的版权。
-/// 仅做客户端适配：按官方约定的 `terracotta --hmcl &lt;文件&gt;` 拉起本机服务，
-/// 读端口文件后用 rocket 的 /state 系列接口驱动状态机。
-/// </summary>
+// Terracotta 是第三方软件，本项目仅做客户端适配：按 `terracotta --hmcl <文件>` 拉起服务，读端口文件后用 rocket 的 /state 接口驱动状态机。
 public class Terracotta
 {
-    /// <summary>项目主页。</summary>
     public const string Homepage = "https://github.com/burningtnt/Terracotta";
 
-    /// <summary>发行包下载页。</summary>
     public const string ReleasesUrl = "https://github.com/burningtnt/Terracotta/releases";
 
-    /// <summary>国内镜像发行页。</summary>
     public const string MirrorReleasesUrl = "https://gitee.com/burningtnt/Terracotta/releases";
 
-    /// <summary>空闲，可以建房或加入。</summary>
     public const string StateIdle = "idle";
 
-    /// <summary>准备中（拉起进程 / 等待对端）。</summary>
     public const string StateStarting = "starting";
 
-    /// <summary>我是房主，房间已就绪。</summary>
     public const string StateHosting = "hosting";
 
-    /// <summary>我是房客，已接入房主的网络。</summary>
     public const string StateJoined = "joined";
 
-    /// <summary>出错，需要用户处理。</summary>
     public const string StateError = "error";
 
     private const string Provider = "terracotta";
@@ -70,8 +57,6 @@ public class Terracotta
     private long _since;
     private CancellationTokenSource? _watcher;
 
-    /// <param name="binaryPath">手动指定的陶瓦联机可执行文件路径；为空时自动探测。</param>
-    /// <param name="storageDirectory">启动器数据目录（自动安装与自动探测的根）；为空时使用默认目录。</param>
     public Terracotta(string? binaryPath = null, string? storageDirectory = null)
     {
         _binaryPath = string.IsNullOrWhiteSpace(binaryPath) ? null : binaryPath!.Trim();
@@ -85,26 +70,21 @@ public class Terracotta
         };
     }
 
-    /// <summary>默认的启动器数据目录。</summary>
     public static string DefaultStorageDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mofumofu");
 
     public string StorageDirectory { get; }
 
-    /// <summary>会话状态变更回调（前端据此刷新联机页）。</summary>
     public Action<TerracottaStatus>? StatusChanged { get; set; }
 
-    /// <summary>过程日志回调。</summary>
     public Action<string>? Log { get; set; }
 
-    /// <summary>手动指定的可执行文件路径（空 = 自动探测）。</summary>
     public string? BinaryPath
     {
         get => _binaryPath;
         set => _binaryPath = string.IsNullOrWhiteSpace(value) ? null : value!.Trim();
     }
 
-    /// <summary>当前会话快照。</summary>
     public TerracottaStatus CurrentStatus
     {
         get
@@ -116,11 +96,6 @@ public class Terracotta
         }
     }
 
-    // ------------------------------------------------------------------
-    // 信息 / 运行时
-    // ------------------------------------------------------------------
-
-    /// <summary>静态介绍 + 当前可用性（可执行文件是否存在）。</summary>
     public TerracottaProviderInfo GetInfo()
     {
         TerracottaProviderInfo info = new()
@@ -149,7 +124,6 @@ public class Terracotta
         return info;
     }
 
-    /// <summary>本机守护进程状态。</summary>
     public TerracottaRuntime GetRuntime()
     {
         lock (_gate)
@@ -166,11 +140,6 @@ public class Terracotta
         }
     }
 
-    // ------------------------------------------------------------------
-    // 建房 / 加入 / 退出
-    // ------------------------------------------------------------------
-
-    /// <summary>建房：让陶瓦扫描本机开放的局域网世界并生成房间码。</summary>
     public async Task HostAsync(string? player = null, CancellationToken cancellationToken = default)
     {
         await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -203,7 +172,6 @@ public class Terracotta
         }
     }
 
-    /// <summary>加入房间：房间码形态不做假设，逐个候选尝试。</summary>
     public async Task JoinAsync(string room, string? player = null, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<string> variants = RoomCode.Variants(room);
@@ -260,7 +228,6 @@ public class Terracotta
         }
     }
 
-    /// <summary>退出会话：把状态机拉回空闲，但保留守护进程（马上再开一局更快）。</summary>
     public async Task LeaveAsync(CancellationToken cancellationToken = default)
     {
         StopWatcher();
@@ -280,7 +247,6 @@ public class Terracotta
                 .ConfigureAwait(false);
             if (error is not null)
             {
-                // 退出是尽力而为，不阻断状态回收，但要记录失败便于排查
                 Log?.Invoke($"退出陶瓦联机会话失败（HTTP {statusCode}）：{error.Message}");
             }
         }
@@ -294,7 +260,6 @@ public class Terracotta
         });
     }
 
-    /// <summary>结束本机守护进程（用户在界面上显式要求；会一并关掉用户自己开的窗口）。</summary>
     public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         StopWatcher();
@@ -341,17 +306,11 @@ public class Terracotta
         }
     }
 
-    /// <summary>应用退出：只停本进程的轮询，守护进程按设计常驻（下次进来直接复用）。</summary>
     public void Close()
     {
         StopWatcher();
     }
 
-    // ------------------------------------------------------------------
-    // 进程与端口
-    // ------------------------------------------------------------------
-
-    /// <summary>定位陶瓦联机可执行文件：用户指定 → 启动器数据目录 → PATH。</summary>
     private string? ResolveBinary(out string? error)
     {
         error = null;
@@ -534,7 +493,6 @@ public class Terracotta
         }
         catch (IOException)
         {
-            // 清理失败忽略
         }
     }
 
@@ -622,10 +580,6 @@ public class Terracotta
         }
     }
 
-    // ------------------------------------------------------------------
-    // 状态机
-    // ------------------------------------------------------------------
-
     private void StartWatcher()
     {
         StopWatcher();
@@ -648,7 +602,6 @@ public class Terracotta
             }
             catch (OperationCanceledException)
             {
-                // 正常停止
             }
         });
     }
@@ -761,7 +714,7 @@ public class Terracotta
                 status.Error = ExceptionText(payload.Type);
                 status.Tip = "点「退出房间」后可以重新建房或加入。";
                 break;
-            default: // waiting
+            default:
                 status.State = StateIdle;
                 status.Phase = "空闲";
                 status.Tip = "点「创建房间」开一局，或粘贴朋友的房间码加入。";
@@ -773,7 +726,6 @@ public class Terracotta
 
         if (status.State is StateIdle or StateError)
         {
-            // 会话已经不在陶瓦那边了，没必要继续轮询
             lock (_gate)
             {
                 _since = 0;
@@ -815,10 +767,6 @@ public class Terracotta
             _ => $"陶瓦联机报错（代码 {kind}）。",
         };
     }
-
-    // ------------------------------------------------------------------
-    // 状态发布
-    // ------------------------------------------------------------------
 
     private void Begin(string phase, string tip)
     {
@@ -869,15 +817,9 @@ public class Terracotta
         }
         catch
         {
-            // 单个订阅者异常不扩散
         }
     }
 
-    // ------------------------------------------------------------------
-    // 自动安装
-    // ------------------------------------------------------------------
-
-    /// <summary>自动下载并安装陶瓦联机：查 GitHub Releases → 按平台挑资产 → 下载 → 解压。</summary>
     public async Task<TerracottaInstallResult> InstallAsync(CancellationToken cancellationToken = default)
     {
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -940,7 +882,6 @@ public class Terracotta
             }
             catch (IOException)
             {
-                // 权限设置失败不影响后续
             }
         }
 
@@ -1013,9 +954,7 @@ public class Terracotta
         return best;
     }
 
-    /// <summary>
-    /// 给资产名打分：平台 + 架构都对上才给正分；校验文件、源码包一律不选。
-    /// </summary>
+    /// <summary>平台 + 架构都对上才给正分；校验文件、源码包一律不选。</summary>
     public static int AssetPlatformScore(string name, string platform, string architecture)
     {
         string lower = name.ToLowerInvariant();
@@ -1094,7 +1033,6 @@ public class Terracotta
                 break;
         }
 
-        // 可解压格式优先
         if (lower.EndsWith(".zip", StringComparison.Ordinal))
         {
             score += 3;
@@ -1183,7 +1121,6 @@ public class Terracotta
         return cleaned;
     }
 
-    /// <summary>在安装目录里找可执行文件（深搜；固定名优先，其次按带版本号文件名挑当前平台最匹配的）。</summary>
     private static bool LocateBinary(string directory, out string? binary)
     {
         binary = null;
@@ -1224,7 +1161,6 @@ public class Terracotta
         return binary is not null;
     }
 
-    /// <summary>新版发行包里的带版本号可执行文件（terracotta-&lt;版本&gt;-&lt;平台&gt;[-&lt;架构&gt;][.exe]）。</summary>
     private static bool IsVersionedBinary(string name)
     {
         string lower = name.ToLowerInvariant();
@@ -1266,10 +1202,6 @@ public class Terracotta
         return score;
     }
 
-    // ------------------------------------------------------------------
-    // 内部 DTO
-    // ------------------------------------------------------------------
-
     private sealed class TerracottaStatePayload
     {
         [JsonPropertyName("state")] public string State { get; set; } = string.Empty;
@@ -1310,7 +1242,6 @@ public static class TerracottaPlayerKind
     public const string Guest = "GUEST";
 }
 
-/// <summary>房间成员（陶瓦联机 /state 的 profiles 字段）。</summary>
 public sealed class TerracottaPlayer
 {
     public string Name { get; set; } = string.Empty;
@@ -1318,41 +1249,30 @@ public sealed class TerracottaPlayer
     public string Vendor { get; set; } = string.Empty;
 }
 
-/// <summary>联机会话快照：前端唯一的状态来源。</summary>
 public sealed class TerracottaStatus
 {
     public string Provider { get; set; } = string.Empty;
 
-    /// <summary>idle / starting / hosting / joined / error。</summary>
     public string State { get; set; } = string.Empty;
 
-    /// <summary>当前阶段的说明文案。</summary>
     public string Phase { get; set; } = string.Empty;
 
-    /// <summary>房间码（陶瓦）。</summary>
     public string Room { get; set; } = string.Empty;
 
-    /// <summary>别人要连接的目标（陶瓦是房间码）。</summary>
     public string Address { get; set; } = string.Empty;
 
-    /// <summary>本机在游戏里直连的地址（陶瓦房客为 127.0.0.1:&lt;port&gt;）。</summary>
     public string LocalAddress { get; set; } = string.Empty;
 
-    /// <summary>一键进服参数（为空表示当前状态还不能进服）。</summary>
     public string JoinHost { get; set; } = string.Empty;
 
     public int JoinPort { get; set; }
 
-    /// <summary>房间成员。</summary>
     public IReadOnlyList<TerracottaPlayer> Players { get; set; } = [];
 
-    /// <summary>当前状态下给用户的一句操作提示。</summary>
     public string Tip { get; set; } = string.Empty;
 
-    /// <summary>出错信息（State == error 时有值）。</summary>
     public string Error { get; set; } = string.Empty;
 
-    /// <summary>本次会话开始时间（Unix 秒；0 表示当前没有会话）。</summary>
     public long Since { get; set; }
 
     public TerracottaStatus Clone()
@@ -1375,7 +1295,6 @@ public sealed class TerracottaStatus
     }
 }
 
-/// <summary>供应商的静态介绍（联机页说明卡片用）。</summary>
 public sealed class TerracottaProviderInfo
 {
     public string Id { get; set; } = string.Empty;
@@ -1383,10 +1302,8 @@ public sealed class TerracottaProviderInfo
     public string Summary { get; set; } = string.Empty;
     public string Homepage { get; set; } = string.Empty;
 
-    /// <summary>当前是否可用（本机存在可执行文件）。</summary>
     public bool Ready { get; set; }
 
-    /// <summary>不可用时的处理建议。</summary>
     public string Hint { get; set; } = string.Empty;
 
     public bool NeedsMod { get; set; }
@@ -1395,15 +1312,12 @@ public sealed class TerracottaProviderInfo
     public string JoinNote { get; set; } = string.Empty;
 }
 
-/// <summary>供应商在本机的运行时状态（设置卡片与"关闭后台服务"按钮用）。</summary>
 public sealed class TerracottaRuntime
 {
     public string Provider { get; set; } = string.Empty;
 
-    /// <summary>本机服务已在运行（HTTP 服务可达）。</summary>
     public bool Running { get; set; }
 
-    /// <summary>由本启动器会话拉起（关闭它不会影响用户自己开的窗口）。</summary>
     public bool Managed { get; set; }
 
     public string Version { get; set; } = string.Empty;
@@ -1411,26 +1325,18 @@ public sealed class TerracottaRuntime
     public int Port { get; set; }
 }
 
-/// <summary>自动安装的结果（前端展示用）。</summary>
 public sealed class TerracottaInstallResult
 {
-    /// <summary>release 的 tag。</summary>
     public string Version { get; set; } = string.Empty;
 
-    /// <summary>选中的资产文件名。</summary>
     public string AssetName { get; set; } = string.Empty;
 
-    /// <summary>安装后的可执行文件路径（已写回设置）。</summary>
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>非空表示"需要用户手动完成"：内容是原因与发行页地址。</summary>
     public string ManualHint { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// 陶瓦联机房间码（Scaffolding 协议）：`U/XXXX-XXXX-XXXX-XXXX`，字符集为 0-9 加除 I、O 外的大写字母。
-/// 用户粘贴时可能带前缀也可能不带，这里只做收敛与候选生成，合法性最终由陶瓦进程判定。
-/// </summary>
+// 房间码形如 `U/XXXX-XXXX-XXXX-XXXX`，字符集为 0-9 加除 I、O 外的大写字母；合法性最终由陶瓦进程判定。
 public static class RoomCode
 {
     private const string Prefix = "U/";
@@ -1438,7 +1344,6 @@ public static class RoomCode
     private const int BodyLength = 16;
     private const int Group = 4;
 
-    /// <summary>只保留字母数字：丢掉连字符、斜杠、空白与全角符号，并统一转大写。</summary>
     private static string Sanitize(string raw)
     {
         System.Text.StringBuilder builder = new();
@@ -1453,7 +1358,6 @@ public static class RoomCode
         return builder.ToString();
     }
 
-    /// <summary>返回去掉前缀后的 16 位房间码主体；位数不符时返回空串。</summary>
     public static string Body(string raw)
     {
         string body = Sanitize(raw);
@@ -1465,7 +1369,6 @@ public static class RoomCode
         return body.Length == BodyLength ? body : string.Empty;
     }
 
-    /// <summary>把房间码按 4 位一段重新分组。</summary>
     public static string Format(string body)
     {
         if (body.Length != BodyLength)
@@ -1482,14 +1385,12 @@ public static class RoomCode
         return string.Join("-", groups);
     }
 
-    /// <summary>粗校验房间码：位数正确且字符都在协议字符集内。</summary>
     public static bool LooksValid(string raw)
     {
         string body = Body(raw);
         return body.Length > 0 && body.All(character => Alphabet.Contains(character, StringComparison.Ordinal));
     }
 
-    /// <summary>返回按可信度排序的候选房间码，进房时逐个尝试。</summary>
     public static IReadOnlyList<string> Variants(string raw)
     {
         string body = Body(raw);
@@ -1503,7 +1404,6 @@ public static class RoomCode
         return [Prefix + formatted, formatted];
     }
 
-    /// <summary>把用户输入或进程回传的房间码整理成展示形态；无法解析时原样返回。</summary>
     public static string FormatForDisplay(string raw)
     {
         string body = Body(raw);

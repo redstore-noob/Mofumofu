@@ -2,19 +2,11 @@ using System.Text;
 
 namespace MofuCore.Launch;
 
-/// <summary>
-/// 命令行文本与参数列表之间的转换。启动器 UI、包装命令、旧版 minecraftArguments 共用同一套规则：
-/// 引号（单/双）内的空白不切分，反斜杠可转义引号与反斜杠，引号外的空白分隔参数。
-/// </summary>
-/// <remarks>
-/// 以前每个入口各写一套分词：UI 直接按空格 Split（带空格的 -D 参数会被拆成裸 token，
-/// 进而被 Java 当成主类），包装命令只认双引号，旧版参数只认 \"。
-/// 统一到这里后「文本框怎么显示」和「真正传给进程的 argv」始终能原样互转。
-/// </remarks>
+// UI、包装命令、旧版 minecraftArguments 必须共用同一套规则，否则「文本框显示」与真正传给进程的 argv 无法原样互转。
+// 引号（单/双）内的空白不切分，反斜杠可转义引号与反斜杠，引号外的空白分隔参数。
 public static class CommandLineTokenizer
 {
-    /// <summary>把一段命令行文本拆成参数列表（保留空参数，例如 <c>""</c>）。</summary>
-    /// <exception cref="FormatException">引号未闭合。</exception>
+    /// <summary>保留空参数（例如 <c>""</c>）。</summary>
     public static List<string> Split(string? commandLine)
     {
         if (!TrySplit(commandLine, out List<string> tokens, out string? error))
@@ -25,7 +17,6 @@ public static class CommandLineTokenizer
         return tokens;
     }
 
-    /// <summary>拆分命令行文本；引号未闭合时返回 false 并给出可展示的原因。</summary>
     public static bool TrySplit(string? commandLine, out List<string> tokens, out string? error)
     {
         tokens = [];
@@ -107,7 +98,7 @@ public static class CommandLineTokenizer
         return true;
     }
 
-    /// <summary>把单个参数格式化成 <see cref="Split"/> 能原样还原的文本片段。</summary>
+    /// <summary>结果必须能被 <see cref="Split"/> 原样还原。</summary>
     public static string Quote(string argument)
     {
         ArgumentNullException.ThrowIfNull(argument);
@@ -131,7 +122,7 @@ public static class CommandLineTokenizer
         return builder.ToString();
     }
 
-    /// <summary>把参数列表拼成一行可读、可再次 <see cref="Split"/> 的命令行文本。</summary>
+    /// <summary>结果必须能被 <see cref="Split"/> 原样还原。</summary>
     public static string Join(IEnumerable<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);

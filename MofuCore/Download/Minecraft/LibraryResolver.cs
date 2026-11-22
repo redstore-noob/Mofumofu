@@ -7,12 +7,8 @@ using MofuCore.Launch;
 
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>
-/// 处理所有与Minecraft相关的库，启动时调用补全一次，下载时调用补全一次。
-/// </summary>
 public class LibraryResolver
 {
-    /// <summary>按 rules 过滤版本库列表，返回 classpath 与 native 依赖；缺失文件时报错。</summary>
     public Task<ResolvedLibraries> ResolveAsync(
         LaunchProfile profile,
         string minecraftDirectory,
@@ -91,7 +87,6 @@ public class LibraryResolver
         return Task.FromResult(new ResolvedLibraries { Classpath = classpath, Natives = natives });
     }
 
-    /// <summary>下载时补全依赖库：给出每条库的下载地址与目标相对路径。</summary>
     public IReadOnlyList<LibraryDownloadPlan> ResolveDownloads(
         IEnumerable<MinecraftLibrary> libraries,
         IReadOnlyDictionary<string, bool> features)
@@ -156,10 +151,7 @@ public class LibraryResolver
         return plans;
     }
 
-    /// <summary>
-    /// 解压 native 依赖到 Minecraft 目录下的 .mofu-natives，返回解压目录。
-    /// 目录名由「版本 ID + 依赖指纹」决定：同一套依赖只解压一次，之后每次启动直接复用。
-    /// </summary>
+    /// <summary>目录名由「版本 ID + 依赖指纹」决定，同一套依赖只解压一次。</summary>
     public Task<string> ExtractNativesAsync(
         string versionId,
         IReadOnlyList<NativeLibrary> nativeLibraries,
@@ -179,7 +171,6 @@ public class LibraryResolver
         string nativeDirectory = Path.Combine(baseDirectory, directoryName);
         string markerPath = Path.Combine(nativeDirectory, NativeCacheMarker);
 
-        // 已经解压过的同一套依赖：直接复用，不再每次启动重解压
         if (File.Exists(markerPath))
         {
             CleanupStaleNativeDirectories(baseDirectory, directoryName);
@@ -215,7 +206,6 @@ public class LibraryResolver
     /// <summary>native 缓存完整标记：存在才认为目录可用。</summary>
     public const string NativeCacheMarker = ".mofu-natives-complete";
 
-    /// <summary>依赖库集合的指纹：路径 + 大小 + 修改时间，用于判断缓存是否仍然适用。</summary>
     private static string ComputeNativesFingerprint(string versionId, IReadOnlyList<NativeLibrary> nativeLibraries)
     {
         StringBuilder builder = new(versionId);
@@ -234,7 +224,6 @@ public class LibraryResolver
             }
             catch (IOException)
             {
-                // 读不到元数据时退化为只按路径算指纹
             }
 
             foreach (string exclusion in nativeLibrary.Exclusions)
@@ -247,7 +236,6 @@ public class LibraryResolver
         return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
     }
 
-    /// <summary>尽力删除目录；游戏退出后的临时文件清理不应影响主流程。</summary>
     public static void TryDeleteDirectory(string? directory)
     {
         if (string.IsNullOrWhiteSpace(directory))
@@ -264,18 +252,13 @@ public class LibraryResolver
         }
         catch (IOException)
         {
-            // 占用中/权限不足时忽略
         }
         catch (UnauthorizedAccessException)
         {
-            // 占用中/权限不足时忽略
         }
     }
 
-    /// <summary>
-    /// 清理不再使用的 native 缓存。只删一天以前的旧目录：另一个启动器进程可能正用着
-    /// 某个目录里的 dll 启动游戏，删掉会让它加载失败。
-    /// </summary>
+    /// <summary>只删一天以前的旧目录：另一个启动器进程可能正用着其中的 dll，删掉会让它加载失败。</summary>
     private static void CleanupStaleNativeDirectories(string baseDirectory, string keepDirectoryName)
     {
         try
@@ -301,21 +284,17 @@ public class LibraryResolver
                 }
                 catch (IOException)
                 {
-                    // 上一轮游戏的进程还没退干净时保留目录
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // 忽略
                 }
             }
         }
         catch (IOException)
         {
-            // 忽略
         }
         catch (UnauthorizedAccessException)
         {
-            // 忽略
         }
     }
 
@@ -494,7 +473,6 @@ public class LibraryResolver
         return Path.Combine(groupPath, parts[1], parts[2], $"{parts[1]}-{parts[2]}{classifier}.{extension}");
     }
 
-    /// <summary>旧版本 natives 的 Maven 路径回退（name + classifier）。</summary>
     public static string CreateNativeMavenPath(string coordinate, string classifier)
     {
         if (string.IsNullOrWhiteSpace(coordinate) || string.IsNullOrWhiteSpace(classifier)) return string.Empty;
@@ -542,21 +520,18 @@ public class LibraryResolver
     }
 }
 
-/// <summary>一个待解压的 native 依赖库。</summary>
 public sealed class NativeLibrary
 {
     public string ArchivePath { get; set; } = string.Empty;
     public IReadOnlyList<string> Exclusions { get; set; } = [];
 }
 
-/// <summary>依赖库解析结果：classpath 条目 + 待解压 natives。</summary>
 public sealed class ResolvedLibraries
 {
     public List<string> Classpath { get; init; } = [];
     public List<NativeLibrary> Natives { get; init; } = [];
 }
 
-/// <summary>下载用的依赖库条目。</summary>
 public sealed record LibraryDownloadPlan(
     string RelativePath,
     string Url,

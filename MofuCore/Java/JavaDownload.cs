@@ -8,10 +8,7 @@ using System.Text.Json.Serialization;
 using MofuCore.Config;
 namespace MofuCore.Java;
 
-/// <summary>
-/// 从 Mojang 的 java runtime 清单（launchermeta products/java-runtime）下载并安装 Java 运行时。
-/// 安装目录为 {游戏目录}/runtime/{组件}/{平台}，与官方启动器一致。
-/// </summary>
+/// <summary>安装目录为 {游戏目录}/runtime/{组件}/{平台}，与官方启动器一致。</summary>
 public class JavaDownload
 {
     public const string DefaultAllManifestUrl =
@@ -27,9 +24,6 @@ public class JavaDownload
     private static IReadOnlyList<MojangJavaRuntime>? __cachedRuntimes;
     private static DateTimeOffset __cachedAt;
 
-    /// <summary>
-    /// 当前平台的清单键，如 windows-x64 / windows-arm64 / mac-os / linux。
-    /// </summary>
     public static string PlatformKey
     {
         get
@@ -58,9 +52,6 @@ public class JavaDownload
         }
     }
 
-    /// <summary>
-    /// 当前平台的说明文字（如 "Windows x64"）。
-    /// </summary>
     public static string PlatformDisplayName
     {
         get
@@ -78,17 +69,11 @@ public class JavaDownload
         }
     }
 
-    /// <summary>
-    /// Java 运行时根目录：{游戏目录}/runtime。
-    /// </summary>
     public static string GetRuntimeDirectory(string gameDirectory)
     {
         return Path.Combine(gameDirectory, "runtime");
     }
 
-    /// <summary>
-    /// 查询当前平台全部可下载的 Mojang Java 运行时（按主版本降序），10 分钟内重复调用使用缓存。
-    /// </summary>
     public static async Task<IReadOnlyList<MojangJavaRuntime>> GetAvailableAsync(
         string? allManifestUrl = null,
         CancellationToken cancellationToken = default)
@@ -171,9 +156,6 @@ public class JavaDownload
         return sorted;
     }
 
-    /// <summary>
-    /// 清空可用版本缓存。
-    /// </summary>
     public static void InvalidateCache()
     {
         lock (__cacheLock)
@@ -182,9 +164,6 @@ public class JavaDownload
         }
     }
 
-    /// <summary>
-    /// 下载并安装指定组件的 Java 运行时，返回安装结果。
-    /// </summary>
     public static async Task<InstalledJavaRuntime> InstallAsync(
         string component,
         string gameDirectory,
@@ -295,9 +274,6 @@ public class JavaDownload
         };
     }
 
-    /// <summary>
-    /// 安装满足指定主版本的最新 Java 运行时；没有匹配的组件时返回 null。
-    /// </summary>
     public static async Task<InstalledJavaRuntime?> InstallForMajorVersionAsync(
         int majorVersion,
         string gameDirectory,
@@ -314,9 +290,6 @@ public class JavaDownload
             : await InstallAsync(selected.Component, gameDirectory, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// 扫描已安装的 Java 运行时（{游戏目录}/runtime 下的全部组件与平台）。
-    /// </summary>
     public static async Task<IReadOnlyList<InstalledJavaRuntime>> GetInstalledRuntimesAsync(
         string gameDirectory,
         CancellationToken cancellationToken = default)
@@ -364,9 +337,6 @@ public class JavaDownload
             .ToList();
     }
 
-    /// <summary>
-    /// 删除已安装的 Java 运行时目录（仅允许 runtime 目录内的路径）。
-    /// </summary>
     public static bool DeleteRuntime(string gameDirectory, string directoryPath)
     {
         if (string.IsNullOrWhiteSpace(gameDirectory) || string.IsNullOrWhiteSpace(directoryPath))
@@ -399,9 +369,7 @@ public class JavaDownload
         }
     }
 
-    /// <summary>
-    /// 从版本名推导 Java 主版本（如 17.0.8 → 17，1.8.0_74 → 8）。
-    /// </summary>
+    /// <summary>如 17.0.8 → 17，1.8.0_74 → 8。</summary>
     public static int? ParseMajorVersion(string? versionName)
     {
         if (string.IsNullOrWhiteSpace(versionName))
@@ -657,15 +625,10 @@ public class JavaDownload
     }
 }
 
-/// <summary>
-/// Mojang Java 运行时清单中的一条候选。
-/// </summary>
 public class MojangJavaRuntime
 {
-    /// <summary>组件名，如 java-runtime-gamma。</summary>
     public string Component { get; set; } = string.Empty;
 
-    /// <summary>版本名，如 17.0.8。</summary>
     public string VersionName { get; set; } = string.Empty;
 
     public DateTimeOffset Released { get; set; }
@@ -674,7 +637,6 @@ public class MojangJavaRuntime
 
     public string ManifestSha1 { get; set; } = string.Empty;
 
-    /// <summary>从版本名推导的 Java 主版本。</summary>
     public int? MajorVersion { get; set; }
 
     public string DisplayName => MajorVersion is null ? Component : $"Java {MajorVersion}";
@@ -682,9 +644,6 @@ public class MojangJavaRuntime
     public string DetailText => string.IsNullOrWhiteSpace(VersionName) ? Component : $"{VersionName} · {Component}";
 }
 
-/// <summary>
-/// Java 运行时安装进度。
-/// </summary>
 public class JavaRuntimeInstallProgress
 {
     public string Phase { get; set; } = string.Empty;
@@ -702,24 +661,16 @@ public class JavaRuntimeInstallProgress
     public double Percent => TotalBytes > 0 ? Math.Clamp((double)CompletedBytes / TotalBytes * 100d, 0, 100) : 0;
 }
 
-/// <summary>
-/// 已安装的 Java 运行时。
-/// </summary>
 public class InstalledJavaRuntime
 {
-    /// <summary>安装目录（平台目录）。</summary>
     public string DirectoryPath { get; set; } = string.Empty;
 
-    /// <summary>java 可执行文件路径。</summary>
     public string JavaExecutablePath { get; set; } = string.Empty;
 
-    /// <summary>Mojang 组件名，如 java-runtime-gamma。</summary>
     public string Component { get; set; } = string.Empty;
 
-    /// <summary>平台键，如 windows-x64。</summary>
     public string Platform { get; set; } = string.Empty;
 
-    /// <summary>java 版本号。</summary>
     public string VersionName { get; set; } = string.Empty;
 
     public int? MajorVersion { get; set; }

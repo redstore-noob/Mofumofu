@@ -11,42 +11,26 @@ using MofuCore;
 using MofuCore.Config;
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>
-/// 一个完整的下载源定义，包含所有需要替换的基础 URL。
-/// </summary>
 public sealed class DownloadSource
 {
     public string Name { get; init; } = string.Empty;
     public string LauncherMeta { get; init; } = string.Empty;
 
-    /// <summary>清单与资源索引（官方 piston-meta，v1/packages）。</summary>
     public string Meta { get; init; } = string.Empty;
 
-    /// <summary>
-    /// 具体对象（官方 piston-data，v1/objects：客户端 jar、日志配置等）。
-    /// 未单独指定时退回 <see cref="Meta"/>（镜像两者同域）。
-    /// </summary>
     public string Data { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Fabric 元数据。未单独指定时退回 <see cref="Meta"/> + "/fabric-meta"（镜像约定路径）。
-    /// </summary>
     public string FabricMeta { get; init; } = string.Empty;
 
     public string Libraries { get; init; } = string.Empty;
     public string Resources { get; init; } = string.Empty;
     public string Maven { get; init; } = string.Empty;
 
-    /// <summary>对象域，缺失时用 Meta 兜底。</summary>
     public string DataBase => string.IsNullOrWhiteSpace(Data) ? Meta : Data;
 
-    /// <summary>Fabric 元数据域，缺失时用 Meta + "/fabric-meta" 兜底。</summary>
     public string FabricMetaBase => string.IsNullOrWhiteSpace(FabricMeta) ? Meta + "/fabric-meta" : FabricMeta;
 }
 
-/// <summary>
-/// 内置下载源。
-/// </summary>
 public static class DownloadSources
 {
     public static readonly DownloadSource Official = new()
@@ -76,9 +60,6 @@ public static class DownloadSources
     public static readonly IReadOnlyList<DownloadSource> All = [Bmcl, Official];
 }
 
-/// <summary>
-/// 下载源提供器：所有下载逻辑通过它把 Mojang 官方地址换成活跃源地址。
-/// </summary>
 public static class DownloadSourceProvider
 {
     private static readonly object Gate = new();
@@ -216,7 +197,6 @@ public static class DownloadSourceProvider
         throw new InvalidOperationException($"获取下载内容失败（{primaryUrl}）：{primaryError?.Message}", primaryError);
     }
 
-    /// <summary>绕过当前下载源，直接访问给定地址（加载器安装器的官方 Maven 兜底）。</summary>
     public static Task<byte[]> GetBytesDirectAsync(
         string url,
         TimeSpan? timeout = null,
@@ -274,12 +254,7 @@ public static class DownloadSourceProvider
         return url;
     }
 
-    /// <summary>
-    /// 校验实际下载地址：必须是 HTTPS，且主机在允许列表内。
-    /// 版本 JSON 里的 URL 可被篡改成任意 https 地址，仅靠 <see cref="EnsureHttps"/> 挡不住；
-    /// 允许列表 = 官方 / 内置源域 + 当前主源 / 回退源（含用户自定义镜像）的主机，
-    /// 因此 Resolve 替换 base URL 之后的镜像域名同样放行，镜像回退保持可用。
-    /// </summary>
+    /// <summary>版本 JSON 里的 URL 可被篡改成任意 https 地址，仅靠 <see cref="EnsureHttps"/> 挡不住；允许列表含官方 / 内置源域与当前主源 / 回退源的主机。</summary>
     internal static void EnsureAllowedUrl(string url)
     {
         EnsureHttps(url);
@@ -317,13 +292,10 @@ public static class DownloadSourceProvider
             AddEndpoint(source.Maven);
         }
 
-        // 内置官方源与 BMCLAPI 源
         foreach (DownloadSource source in DownloadSources.All) AddSource(source);
-        // 当前主源 / 回退源可能是用户自定义镜像，其主机必须放行
         AddSource(active);
         if (fallback is not null) AddSource(fallback);
 
-        // 官方静态入口（加载器元数据、Maven、GitHub 等域）
         AddEndpoint(ApiEndpoints.MojangManifest);
         AddEndpoint(ApiEndpoints.MojangLauncherMeta);
         AddEndpoint(ApiEndpoints.MojangLibraries);
@@ -346,7 +318,6 @@ public static class DownloadSourceProvider
     private static string ReplaceBaseUrl(string rawUrl, DownloadSource target)
     {
         string lower = rawUrl.ToLowerInvariant();
-        // Quilt 无镜像，直连官方
         if (lower.Contains("meta.quiltmc.org", StringComparison.Ordinal) || lower.Contains("maven.quiltmc.org", StringComparison.Ordinal))
         {
             return rawUrl;
@@ -397,15 +368,11 @@ public static class DownloadSourceProvider
     }
 }
 
-/// <summary>单个下载源的延迟探测结果。</summary>
 public sealed record SourceLatency(string Name, int LatencyMs)
 {
     public bool Available => LatencyMs >= 0;
 }
 
-/// <summary>
-/// 全局下载暂停门：暂停期间读取循环停在门口，连接保持，恢复后从原连接继续。
-/// </summary>
 public static class DownloadPauseGate
 {
     private static readonly object Gate = new();
@@ -448,9 +415,6 @@ public static class DownloadPauseGate
     }
 }
 
-/// <summary>
-/// 全局下载限速：按秒记账的令牌桶，所有并发连接共享同一份配额（0 = 不限速）。
-/// </summary>
 public static class DownloadSpeedLimiter
 {
     private const int MinimumKbps = 1;
@@ -516,9 +480,6 @@ public static class DownloadSpeedLimiter
     }
 }
 
-/// <summary>
-/// 下载设置：并行线程数与全局限速（持久化由配置层负责，这里只保存运行期值）。
-/// </summary>
 public static class DownloadSettings
 {
     public const int DefaultParallelDownloads = 32;
@@ -540,7 +501,6 @@ public static class DownloadSettings
     }
 }
 
-/// <summary>版本 JSON 中的文件下载声明。</summary>
 public sealed class MinecraftDownloadInfo
 {
     [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
@@ -550,7 +510,6 @@ public sealed class MinecraftDownloadInfo
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
 }
 
-/// <summary>版本 JSON 中的 rules 条目。</summary>
 public sealed class MinecraftRuleOs
 {
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
@@ -558,7 +517,6 @@ public sealed class MinecraftRuleOs
     [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
 }
 
-/// <summary>版本 JSON 中的单条规则。</summary>
 public sealed class MinecraftRule
 {
     [JsonPropertyName("action")] public string Action { get; set; } = string.Empty;
@@ -566,20 +524,17 @@ public sealed class MinecraftRule
     [JsonPropertyName("features")] public Dictionary<string, bool>? Features { get; set; }
 }
 
-/// <summary>库的 downloads 段。</summary>
 public sealed class MinecraftLibraryDownloads
 {
     [JsonPropertyName("artifact")] public MinecraftDownloadInfo? Artifact { get; set; }
     [JsonPropertyName("classifiers")] public Dictionary<string, MinecraftDownloadInfo>? Classifiers { get; set; }
 }
 
-/// <summary>库的 extract 段（natives 解压排除项）。</summary>
 public sealed class MinecraftLibraryExtract
 {
     [JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
 }
 
-/// <summary>版本 JSON 中的 libraries 条目。</summary>
 public sealed class MinecraftLibrary
 {
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
@@ -590,14 +545,12 @@ public sealed class MinecraftLibrary
     [JsonPropertyName("extract")] public MinecraftLibraryExtract? Extract { get; set; }
 }
 
-/// <summary>版本 JSON 的 downloads 段。</summary>
 public sealed class MinecraftDownloads
 {
     [JsonPropertyName("client")] public MinecraftDownloadInfo? Client { get; set; }
     [JsonPropertyName("server")] public MinecraftDownloadInfo? Server { get; set; }
 }
 
-/// <summary>日志配置声明。</summary>
 public sealed class MinecraftLoggingClient
 {
     [JsonPropertyName("argument")] public string Argument { get; set; } = string.Empty;
@@ -605,15 +558,11 @@ public sealed class MinecraftLoggingClient
     [JsonPropertyName("type")] public string Type { get; set; } = string.Empty;
 }
 
-/// <summary>版本 JSON 的 logging 段。</summary>
 public sealed class MinecraftLogging
 {
     [JsonPropertyName("client")] public MinecraftLoggingClient? Client { get; set; }
 }
 
-/// <summary>
-/// 版本 JSON（安装期所需子集）。继承链通过 <see cref="InheritsFrom"/> 合并为自包含对象。
-/// </summary>
 public sealed class MinecraftVersionJson
 {
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -633,7 +582,6 @@ public sealed class MinecraftVersionJson
     [JsonPropertyName("clientVersion")] public string? ClientVersion { get; set; }
 }
 
-/// <summary>版本 JSON 规则求值（与启动侧保持同一套语义）。</summary>
 public static class MinecraftRuleEvaluator
 {
     public static Dictionary<string, bool> DefaultFeatures() => new() { ["has_custom_resolution"] = true };
@@ -722,7 +670,6 @@ public static class MinecraftRuleEvaluator
     }
 }
 
-/// <summary>安装进度快照（百分比由字节数推导）。</summary>
 public sealed record MinecraftInstallProgress(
     int StageIndex,
     string StageName,
@@ -744,7 +691,6 @@ public sealed record MinecraftInstallProgress(
     }
 }
 
-/// <summary>单个零碎文件的下载作业。</summary>
 public sealed record MinecraftSmallFileJob(
     string Name,
     string Url,
@@ -752,9 +698,6 @@ public sealed record MinecraftSmallFileJob(
     string? ExpectedSha1 = null,
     string? ExpectedSha512 = null);
 
-/// <summary>
-/// 文件哈希与校验工具（供下载器与 Modrinth 共用）。
-/// </summary>
 public static class MinecraftFileHash
 {
     public static bool IsSha1(string value) => IsHexDigest(value, 40);
@@ -814,10 +757,6 @@ public static class MinecraftFileHash
     }
 }
 
-/// <summary>
-/// Minecraft 版本下载与安装：client.jar / libraries / assets / 资源索引 / 日志配置，
-/// 含 natives 解压、规则求值、并行下载、限速、暂停、断点续传、SHA-1 校验与继承链合并。
-/// </summary>
 public sealed class MinecraftDownload
 {
     public const int StageCount = 7;
@@ -872,7 +811,6 @@ public sealed class MinecraftDownload
         return fullPath;
     }
 
-    /// <summary>获取版本清单（使用活跃下载源，10 分钟内复用缓存）。</summary>
     public static Task<IReadOnlyList<MinecraftVersion>> GetVersionsAsync(CancellationToken cancellationToken = default)
     {
         return GetManifest().GetVersionsAsync(cancellationToken);
@@ -892,7 +830,6 @@ public sealed class MinecraftDownload
         }
     }
 
-    /// <summary>按版本 ID 从版本清单查元数据地址；找不到返回 null。</summary>
     public static async Task<string?> FindVersionMetadataUrlAsync(string versionId, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<MinecraftVersion> versions = await GetVersionsAsync(cancellationToken).ConfigureAwait(false);
@@ -906,14 +843,12 @@ public sealed class MinecraftDownload
         return null;
     }
 
-    /// <summary>下载并安装版本清单中的某个版本。</summary>
     public Task InstallAsync(MinecraftVersion version, IProgress<MinecraftInstallProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(version);
         return InstallAsync(version.Id, version.Url, progress, cancellationToken);
     }
 
-    /// <summary>下载指定版本的元数据并完成安装。</summary>
     public async Task InstallAsync(string versionId, string metadataUrl, IProgress<MinecraftInstallProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ValidateVersionId(versionId);
@@ -928,7 +863,6 @@ public sealed class MinecraftDownload
         await InstallFromMetadataBytesAsync(versionId, metadataBytes, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>用已有的版本 JSON 字节完成安装（供继承链合并后的调用方复用）。</summary>
     public async Task InstallFromMetadataBytesAsync(string versionId, byte[] metadataBytes, IProgress<MinecraftInstallProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ValidateVersionId(versionId);
@@ -991,7 +925,6 @@ public sealed class MinecraftDownload
         counters.AddTotalFiles(assetFiles.Count);
         await DownloadStageAsync(6, StageNames[5], assetFiles, progress, counters, started, cancellationToken).ConfigureAwait(false);
 
-        // natives 解压到版本目录，启动时 --natives_directory 直接指向这里
         int extracted = await ExtractNativesAsync(versionId, metadata, cancellationToken).ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -1006,13 +939,11 @@ public sealed class MinecraftDownload
             counters.WindowBytesPerSecond());
     }
 
-    /// <summary>校验并补全指定版本的游戏文件（版本 JSON / 客户端 JAR / 库 / 日志配置）。</summary>
     public Task<int> VerifyAndRepairAsync(string versionId, bool hasCustomResolution = true, IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
         return new MinecraftGameFileVerifier(this).VerifyAndRepairAsync(versionId, hasCustomResolution, status, cancellationToken);
     }
 
-    /// <summary>读取版本的完整配置（自动合并 inheritsFrom 继承链）。</summary>
     public async Task<MinecraftVersionJson> LoadVersionJsonAsync(string versionId, CancellationToken cancellationToken = default)
     {
         ValidateVersionId(versionId);
@@ -1020,7 +951,6 @@ public sealed class MinecraftDownload
         return chain.Count == 1 ? chain[0].Json : await MergeVersionChainAsync(versionId, chain, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>解压版本声明的 natives 到 versions/&lt;id&gt;/natives。</summary>
     public async Task<int> ExtractNativesAsync(string versionId, MinecraftVersionJson? metadata = null, CancellationToken cancellationToken = default)
     {
         ValidateVersionId(versionId);
@@ -1060,7 +990,6 @@ public sealed class MinecraftDownload
         return extracted;
     }
 
-    /// <summary>下载单个文件（含断点续传、重试、主备源与 SHA-1 校验）。</summary>
     public static async Task DownloadFileToPathAsync(
         string url,
         string targetPath,
@@ -1088,7 +1017,6 @@ public sealed class MinecraftDownload
         }, null, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>并行下载一组小文件，返回与 jobs 等长的错误数组（成功位为 null）。</summary>
     public static async Task<Exception?[]> DownloadSmallFilesAsync(
         IReadOnlyList<MinecraftSmallFileJob> jobs,
         int workers = 0,
@@ -1151,8 +1079,6 @@ public sealed class MinecraftDownload
         await Task.WhenAll(tasks).ConfigureAwait(false);
         return errors;
     }
-
-    // ---------------------------------------------------------------- 下载清单
 
     private static List<MinecraftDownloadFile> CreateClientPlan(MinecraftVersionJson metadata, string versionId, string versionDirectory)
     {
@@ -1277,8 +1203,6 @@ public sealed class MinecraftDownload
         foreach (string key in order) files.Add(result[key]);
         return files;
     }
-
-    // ---------------------------------------------------------------- 分阶段下载
 
     private async Task DownloadStageAsync(
         int stageIndex,
@@ -1470,7 +1394,6 @@ public sealed class MinecraftDownload
                 onBytes: bytes =>
                 {
                     watchdog.Touch();
-                    // FastDownloader 重试 / 分片回退会回滚字节（负 delta），不参与涓流窗口统计
                     if (bytes > 0) watchdog.AddBytes(bytes);
                     addProgressBytes(bytes);
                     reportProgress?.Invoke();
@@ -1541,8 +1464,6 @@ public sealed class MinecraftDownload
             throw new InvalidOperationException($"下载文件为空：{file.DisplayName}");
         }
     }
-
-    // ---------------------------------------------------------------- 继承链
 
     private async Task<List<(string Id, MinecraftVersionJson Json)>> LoadVersionChainAsync(string versionId, MinecraftVersionJson? leafJson, CancellationToken cancellationToken)
     {
@@ -1670,8 +1591,6 @@ public sealed class MinecraftDownload
         return (parts[0] + ":" + parts[1] + ":" + classifier + extension).ToLowerInvariant();
     }
 
-    // ---------------------------------------------------------------- natives
-
     private static async Task<int> ExtractNativeArchiveAsync(string jarPath, string destinationRoot, string[] excludes, CancellationToken cancellationToken)
     {
         int extracted = 0;
@@ -1707,8 +1626,6 @@ public sealed class MinecraftDownload
 
     private static string NormalizeArchivePath(string path) => path.Replace('\\', '/').TrimStart('/');
 
-    // ---------------------------------------------------------------- 公共辅助
-
     /// <summary>校验版本 ID 只能作为 versions/ 下的单个文件夹名使用。</summary>
     public static void ValidateVersionId(string versionId)
     {
@@ -1720,10 +1637,7 @@ public sealed class MinecraftDownload
         }
     }
 
-    /// <summary>
-    /// 远端 logging.client.file.id 拼进日志配置路径前的净化：拒绝路径分隔符 / .. / 非法文件名字符，
-    /// 杜绝越出 assets/log_configs 目录写文件（Zip Slip 式的远端清单注入）。
-    /// </summary>
+    /// <summary>拒绝路径分隔符 / .. / 非法文件名字符，杜绝越出 assets/log_configs 写文件（Zip Slip 式的远端清单注入）。</summary>
     public static string ResolveLoggingConfigPath(string minecraftDirectory, string id)
     {
         if (string.IsNullOrWhiteSpace(id) || id is "." or ".." ||
@@ -1761,7 +1675,6 @@ public sealed class MinecraftDownload
         return Path.Combine(groupPath, parts[1], parts[2], $"{parts[1]}-{parts[2]}{classifier}.{extension}");
     }
 
-    /// <summary>旧版本 natives 的 Maven 路径回退（name + classifier）。</summary>
     public static string CreateNativeMavenPath(string coordinate, string classifier)
     {
         if (string.IsNullOrWhiteSpace(coordinate) || string.IsNullOrWhiteSpace(classifier)) return string.Empty;
@@ -1845,7 +1758,6 @@ public sealed class MinecraftDownload
         }
         catch (IOException)
         {
-            // 清理失败不影响主流程
         }
     }
 
@@ -1901,11 +1813,7 @@ public sealed class MinecraftDownload
         public void AddTotalBytes(long value) => Interlocked.Add(ref _totalBytes, value);
         public void AddTotalFiles(int value) => Interlocked.Add(ref _totalFiles, value);
 
-        /// <summary>
-        /// 最近下载速率（EMA 平滑，时间常数约 1.5 秒）。
-        /// 全程平均速率会把"限流前快、限流后涓流"糊成一团，看不出恢复；瞬时值才是用户要的信号。
-        /// 只允许进度报告路径调用（ReportThrottled 已用 CAS 串行化，阶段收尾报告是顺序执行）。
-        /// </summary>
+        /// <summary>瞬时值而非全程平均才能看出限流后的恢复；只允许进度报告路径调用（ReportThrottled 已用 CAS 串行化）。</summary>
         public double WindowBytesPerSecond()
         {
             long now = Environment.TickCount64;
@@ -1927,7 +1835,6 @@ public sealed class MinecraftDownload
     }
 }
 
-/// <summary>下载停滞看门狗：进度感知，只有连接彻底停滞超过阈值才取消尝试。</summary>
 internal sealed class StallWatchdog : IDisposable
 {
     // 涓流判定：镜像限速后连接不会完全断流，而是每 1-2 分钟吐一小口数据，
@@ -1954,7 +1861,6 @@ internal sealed class StallWatchdog : IDisposable
 
     public void Touch() => Interlocked.Exchange(ref _lastActivityTicks, Environment.TickCount64);
 
-    /// <summary>记录本次实际收到的字节数（涓流判定的依据）。</summary>
     public void AddBytes(long delta) => Interlocked.Add(ref _windowBytes, delta);
 
     private void CheckStall()
@@ -1997,7 +1903,6 @@ internal sealed class StallWatchdog : IDisposable
     }
 }
 
-/// <summary>断点续传的临时文件与远端内容不一致（416）。</summary>
 internal sealed class RangeMismatchException : Exception
 {
     public RangeMismatchException() : base("断点信息与远端文件不一致，已重置下载。")
@@ -2005,9 +1910,6 @@ internal sealed class RangeMismatchException : Exception
     }
 }
 
-/// <summary>
-/// 游戏文件完整性校验器：沿 inheritsFrom / jar 链检查版本 JSON、客户端 JAR、库与日志配置，缺失时补全。
-/// </summary>
 public sealed class MinecraftGameFileVerifier
 {
     private readonly MinecraftDownload _download;
@@ -2018,7 +1920,6 @@ public sealed class MinecraftGameFileVerifier
         _download = download;
     }
 
-    /// <summary>校验并补全，返回补全的条目数（0 = 无需补全）。</summary>
     public async Task<int> VerifyAndRepairAsync(
         string versionId,
         bool hasCustomResolution = true,
@@ -2213,7 +2114,6 @@ public sealed class MinecraftGameFileVerifier
     }
 }
 
-/// <summary>下载任务阶段。</summary>
 public enum MinecraftDownloadPhase
 {
     Idle,
@@ -2224,7 +2124,6 @@ public enum MinecraftDownloadPhase
     Cancelled,
 }
 
-/// <summary>下载任务快照（对外发布的不可变进度状态）。</summary>
 public sealed record MinecraftDownloadSnapshot
 {
     public long Revision { get; init; }
@@ -2251,10 +2150,6 @@ public sealed record MinecraftDownloadSnapshot
     };
 }
 
-/// <summary>
-/// 下载任务状态机：包装 <see cref="MinecraftDownload"/>，用阶段 + 快照对外发布进度，
-/// 并提供取消 / 暂停 / 恢复。
-/// </summary>
 public sealed class MinecraftDownloadTask
 {
     private readonly object _gate = new();
@@ -2278,7 +2173,6 @@ public sealed class MinecraftDownloadTask
         get { lock (_gate) return _current; }
     }
 
-    /// <summary>开始下载并安装原版版本；已有活跃任务时返回 false。</summary>
     public async Task<bool> StartAsync(MinecraftVersion version, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(version);
@@ -2369,7 +2263,6 @@ public sealed class MinecraftDownloadTask
         }
     }
 
-    /// <summary>取消当前活跃任务。</summary>
     public bool CancelActive()
     {
         CancellationTokenSource? active;
@@ -2379,7 +2272,6 @@ public sealed class MinecraftDownloadTask
         return true;
     }
 
-    /// <summary>暂停当前活跃任务（读取循环停在暂停门）。</summary>
     public bool PauseActive()
     {
         MinecraftDownloadSnapshot previous = Current;
@@ -2389,7 +2281,6 @@ public sealed class MinecraftDownloadTask
         return true;
     }
 
-    /// <summary>恢复被暂停的下载。</summary>
     public bool ResumeActive()
     {
         if (!DownloadPauseGate.IsPaused) return false;
@@ -2402,7 +2293,6 @@ public sealed class MinecraftDownloadTask
         return true;
     }
 
-    /// <summary>记录一条任务级非致命警告（随完成快照展示）。</summary>
     public void AddWarning(string text)
     {
         lock (_gate) _warnings.Add(text);
@@ -2450,12 +2340,10 @@ public sealed class MinecraftDownloadTask
         }
         catch (Exception)
         {
-            // 订阅者异常不影响发布方
         }
     }
 }
 
-/// <summary>同步转发的进度实现（不捕获 SynchronizationContext）。</summary>
 public sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
 {
     public void Report(T value) => handler(value);

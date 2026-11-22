@@ -7,7 +7,6 @@ using MofuCore.Launch;
 
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>实例版本更新的统一进度。</summary>
 public sealed record InstanceUpdateProgress(
     string StageName,
     string Detail,
@@ -24,10 +23,7 @@ public sealed record InstanceUpdateResult(
     string LoaderVersion,
     string SnapshotInstanceId);
 
-/// <summary>
-/// 对一个实例进行 Minecraft 版本更新：新版本先在暂存目录完成安装与校验，
-/// 成功后把原版本转正为 <c>{实例}-snapshot{版本}</c> 快照实例；失败或崩溃按提交日志回滚。
-/// </summary>
+/// <summary>新版本先在暂存目录安装并校验，成功后将原版本转为 {实例}-snapshot{版本}；失败或崩溃按提交日志回滚。</summary>
 public sealed class InstanceUpdate
 {
     private const int CopyBufferSize = 128 * 1024;
@@ -787,7 +783,6 @@ public sealed class InstanceUpdate
         return candidate;
     }
 
-    /// <summary>把隐藏备份目录转正为快照实例，并让目录名、json 名与内部 id 对齐。</summary>
     private static void PromoteSnapshot(
         string versionsRoot,
         string backupDirectory,

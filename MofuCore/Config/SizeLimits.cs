@@ -1,10 +1,6 @@
 namespace MofuCore.Config;
 
-/// <summary>
-/// 下载、缓存与文件处理的统一字节阈值。
-/// Package* 系列与 StreamCopyBufferBytes 由各解压 / 流拷贝处直接引用
-/// （NekoexInstaller、ServerNetworkGuard、CurseForgeBundleInstall），与 Bundle* 口径保持一致，勿删除。
-/// </summary>
+// Package* 与 StreamCopyBufferBytes 被 NekoexInstaller、ServerNetworkGuard、CurseForgeBundleInstall 直接引用，口径需与 Bundle* 保持一致。
 public static class SizeLimits
 {
     public const long SegmentedDownloadMinimumBytes = 8L * 1024 * 1024;

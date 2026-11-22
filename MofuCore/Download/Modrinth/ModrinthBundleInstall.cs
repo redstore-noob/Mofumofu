@@ -7,7 +7,6 @@ using MofuCore.Download.Minecraft;
 using MofuCore.Config;
 namespace MofuCore.Download.Modrinth;
 
-/// <summary>整合包声明的 Mod Loader 类型。</summary>
 public enum ModpackLoader
 {
     Vanilla,
@@ -18,7 +17,6 @@ public enum ModpackLoader
     OptiFine,
 }
 
-/// <summary>整合包清单声明的运行要求（来自 modrinth.index.json 的 dependencies）。</summary>
 public class ModpackRequirements
 {
     public string MinecraftVersion { get; set; } = string.Empty;
@@ -36,7 +34,6 @@ public class ModpackRequirements
         or ModpackLoader.Forge or ModpackLoader.NeoForge;
 }
 
-/// <summary>加载器展示名。</summary>
 public static class ModpackLoaders
 {
     public static string DisplayName(ModpackLoader loader) => loader switch
@@ -50,23 +47,17 @@ public static class ModpackLoaders
     };
 }
 
-/// <summary>整合包安装选项。</summary>
 public class ModpackInstallOptions
 {
-    /// <summary>解压完成后是否自动下载并安装清单声明的加载器。</summary>
     public bool InstallLoader { get; set; } = true;
 
-    /// <summary>依赖文件并发下载数。</summary>
     public int ParallelDownloads { get; set; } = 16;
 
-    /// <summary>单个文件下载失败后的最大重试次数。</summary>
     public int MaximumRetries { get; set; } = 2;
 
-    /// <summary>运行 Forge/NeoForge 安装器用的 Java（为空时自动探测）。</summary>
     public string JavaExecutable { get; set; } = string.Empty;
 }
 
-/// <summary>整合包安装进度（阶段 + 字节 / 文件计数）。</summary>
 public sealed record ModpackInstallProgress(
     string Phase,
     long CompletedBytes,
@@ -84,19 +75,14 @@ public sealed record ModpackInstallProgress(
     }
 }
 
-/// <summary>整合包安装结果。</summary>
 public class ModpackInstallResult
 {
-    /// <summary>识别出的清单格式（当前恒为 modrinth）。</summary>
     public string DetectedFormat { get; set; } = "modrinth";
 
-    /// <summary>从包内解压到实例目录的文件数。</summary>
     public int InstalledFiles { get; set; }
 
-    /// <summary>按清单声明下载的依赖文件数。</summary>
     public int DownloadedFiles { get; set; }
 
-    /// <summary>本地已存在且哈希相符而跳过的依赖数。</summary>
     public int ReusedFiles { get; set; }
 
     public List<string> Errors { get; } = [];
@@ -111,16 +97,11 @@ public class ModpackInstallResult
 
     public bool DeclaredLoaderSupported { get; set; } = true;
 
-    /// <summary>自动安装成功后的版本目录名（失败或未安装为空）。</summary>
     public string InstalledLoaderVersionId { get; set; } = string.Empty;
 
     public bool Success => Errors.Count == 0;
 }
 
-/// <summary>
-/// .mrpack 整合包安装：读取 modrinth.index.json、按层叠顺序解压 overrides、
-/// 下载并校验清单声明的依赖文件，可选自动安装 Fabric/Quilt/Forge/NeoForge 加载器。
-/// </summary>
 public class ModrinthBundleInstall
 {
     private const int MaximumArchiveEntries = 20000;
@@ -147,10 +128,6 @@ public class ModrinthBundleInstall
         "instance.cfg", ".packignore", "icon.png",
     };
 
-    /// <summary>
-    /// 把 .mrpack 安装到实例游戏目录（mods/config/saves 等的父目录）。
-    /// 清单声明的直链依赖会被下载并按 sha1/sha512 校验；overrides 按 mrpack 规范层叠解压。
-    /// </summary>
     public static async Task<ModpackInstallResult> InstallAsync(
         string mrpackPath,
         string gameDirectory,
@@ -274,7 +251,6 @@ public class ModrinthBundleInstall
         return result;
     }
 
-    /// <summary>读取 .mrpack 里的 modrinth.index.json。</summary>
     public static async Task<ModrinthIndex> ReadIndexAsync(string mrpackPath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(mrpackPath))
@@ -308,7 +284,6 @@ public class ModrinthBundleInstall
         }
     }
 
-    /// <summary>解析 .mrpack 声明的 Minecraft 版本与加载器；未声明时返回 null。</summary>
     public static async Task<ModpackRequirements?> ReadRequirementsAsync(
         string mrpackPath,
         CancellationToken cancellationToken = default)
@@ -317,11 +292,7 @@ public class ModrinthBundleInstall
         return BuildRequirements(index.Dependencies);
     }
 
-    /// <summary>
-    /// 按清单要求安装加载器，返回生成的版本目录名（versions 下的 ID）。
-    /// Fabric/Quilt 直接写 meta profile JSON；Forge/NeoForge 下载安装器并运行
-    /// <c>java -jar installer --installClient</c>。
-    /// </summary>
+    /// <summary>Fabric/Quilt 直接写 meta profile JSON；Forge/NeoForge 下载安装器并运行 java -jar installer --installClient。</summary>
     public static async Task<string> InstallLoaderAsync(
         string gameDirectory,
         ModpackRequirements requirements,
@@ -357,7 +328,6 @@ public class ModrinthBundleInstall
             throw new InvalidOperationException("整合包暂不支持自动安装 OptiFine。");
         }
 
-        // 加载器安装统一交给 MofuCore.Download.Minecraft，避免和下载页各写一套
         ModLoaderVersionInfo version = ModLoaderInstaller.CreateVersion(kind, minecraftVersion, loaderVersion);
         IProgress<ModLoaderInstallProgress>? loaderProgress = progress is null
             ? null
@@ -914,7 +884,6 @@ public class ModrinthBundleInstall
         }
         catch (Exception)
         {
-            // 清理失败不影响结果
         }
     }
 

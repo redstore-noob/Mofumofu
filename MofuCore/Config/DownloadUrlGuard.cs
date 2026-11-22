@@ -4,19 +4,12 @@ using MofuCore.Server;
 
 namespace MofuCore.Config;
 
-/// <summary>
-/// 下载用 URL 安全校验：复用 ServerNetworkGuard 的 HTTPS 强制与 DNS 私网拦截，
-/// 对重定向逐跳校验，避免 302 把请求引向内网或云元数据地址。
-/// 仅供本组 Download/ 下的整合包下载模块使用。
-/// </summary>
+// 复用 ServerNetworkGuard 的 HTTPS 强制与 DNS 私网拦截，对重定向逐跳校验，避免 302 把请求引向内网或云元数据地址。
 internal static class DownloadUrlGuard
 {
     private const int MaxRedirects = 5;
 
-    /// <summary>
-    /// 逐跳校验后返回最终响应（调用方负责 Dispose 与 EnsureSuccessStatusCode）。
-    /// 传入的 client 应设置 AllowAutoRedirect=false；即便误开，也会额外校验最终 RequestUri。
-    /// </summary>
+    /// <summary>逐跳校验后返回最终响应（调用方负责 Dispose 与 EnsureSuccessStatusCode）；client 应设置 AllowAutoRedirect=false。</summary>
     internal static async Task<HttpResponseMessage> SendWithRedirectGuardAsync(
         HttpClient client, string url, CancellationToken cancellationToken)
     {

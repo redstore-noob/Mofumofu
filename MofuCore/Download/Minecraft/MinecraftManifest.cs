@@ -6,14 +6,11 @@ using MofuCore.Config;
 
 namespace MofuCore.Download.Minecraft;
 
-/// <summary>
-/// Minecraft 版本清单服务：拉取并解析 Mojang 的 version_manifest_v2.json。
-/// </summary>
 public class MinecraftManifest
 {
     public const string DefaultUrl = ApiEndpoints.MojangManifest;
 
-    /// <summary>单次拉取版本清单的超时：BMCL 等镜像偶尔会挂起数十秒，超过该预算就换下一个源。</summary>
+    /// <summary>BMCL 等镜像偶尔会挂起数十秒，超过该预算就换下一个源。</summary>
     private const int ManifestAttemptTimeoutSeconds = 8;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
@@ -25,7 +22,6 @@ public class MinecraftManifest
     private List<MinecraftVersion>? _cachedVersions;
     private DateTimeOffset _cachedAt;
 
-    /// <param name="url">Minecraft 版本清单的 URL，默认 Mojang 官方地址。</param>
     public MinecraftManifest(string url = DefaultUrl)
     {
         _url = string.IsNullOrWhiteSpace(url) ? DefaultUrl : url.Trim();
@@ -35,9 +31,6 @@ public class MinecraftManifest
 
     public LatestVersions? Latest { get; private set; }
 
-    /// <summary>
-    /// 获取版本列表（按发布时间降序），10 分钟内重复调用直接返回缓存。
-    /// </summary>
     public async Task<IReadOnlyList<MinecraftVersion>> GetVersionsAsync(CancellationToken cancellationToken = default)
     {
         if (TryGetCached(out var cached))
@@ -123,15 +116,11 @@ public class MinecraftManifest
             throw lastError;
         }
 
-        // 保留每个地址原有的中文错误描述，并说明实际尝试过哪些源
         throw new InvalidOperationException(
             $"获取版本清单失败（已依次尝试 {string.Join("、", candidates)}）：{lastError.Message}", lastError);
     }
 
-    /// <summary>
-    /// 候选清单地址：当前配置的源 → 用户配置的回退源 → Mojang 官方。
-    /// BMCL 等镜像挂起时直接回退，避免下载页把 20 秒超时耗在单一源上。
-    /// </summary>
+    // 当前配置的源 → 用户配置的回退源 → Mojang 官方；镜像挂起时直接回退，避免把超时耗在单一源上。
     private List<string> BuildFetchCandidates()
     {
         List<string> candidates = [];
@@ -182,21 +171,18 @@ public class MinecraftManifest
     }
 }
 
-/// <summary>版本清单根对象（Mojang API）。</summary>
 public class VersionManifest
 {
     [JsonPropertyName("latest")] public LatestVersions Latest { get; set; } = new();
     [JsonPropertyName("versions")] public List<MinecraftVersion> Versions { get; set; } = [];
 }
 
-/// <summary>最新正式版 / 快照版版本号。</summary>
 public class LatestVersions
 {
     [JsonPropertyName("release")] public string Release { get; set; } = string.Empty;
     [JsonPropertyName("snapshot")] public string Snapshot { get; set; } = string.Empty;
 }
 
-/// <summary>版本清单中的单个版本条目。</summary>
 public class MinecraftVersion
 {
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;

@@ -14,13 +14,8 @@ using ResolvedLibraries = MofuCore.Download.Minecraft.ResolvedLibraries;
 
 namespace MofuCore.Launch;
 
-/// <summary>
-/// 游戏启动的类：解析版本 JSON 继承链、评估 rules、解析依赖库与 natives、定位 Java、
-/// 装配启动参数、拉起 Java 进程并逐行转发 stdout/stderr，退出后给出退出码与崩溃诊断。
-/// </summary>
 public class GameLaunch
 {
-    /// <summary>全局共享实例。</summary>
     public static GameLaunch Shared { get; } = new();
 
     private static readonly Regex OfflineUsernamePattern = new(@"^[A-Za-z0-9_]{1,16}$", RegexOptions.Compiled);
@@ -43,7 +38,6 @@ public class GameLaunch
     // 避免两个并发启动都通过 IsGameRunning 检查后各拉起一个进程、后者覆盖 _current。
     private int _launchInProgress;
 
-    /// <summary>当前运行中的游戏进程；没有运行时为 null。</summary>
     public MinecraftLaunchResult? Current
     {
         get
@@ -57,13 +51,11 @@ public class GameLaunch
 
     public bool IsGameRunning => Current is not null;
 
-    /// <summary>启动 Minecraft。</summary>
     public async Task<MinecraftLaunchResult> LaunchAsync(
         MinecraftLaunchOptions options,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        // 进入启动流程前先校验版本 ID：后续目录拼接、实例锁、版本加载都基于它
         options.VersionId = VersionLoader.ValidateVersionId(options.VersionId);
         if (IsGameRunning)
         {
@@ -87,7 +79,6 @@ public class GameLaunch
         bool gateAcquired = false;
         try
         {
-            // 原子占位：与 IsGameRunning 检查配合，跨所有 await 保证只有一个启动能进入临界区。
             if (Interlocked.CompareExchange(ref _launchInProgress, 1, 0) != 0)
             {
                 throw new MinecraftLaunchException("游戏已经在运行或正在启动中。");
@@ -171,12 +162,7 @@ public class GameLaunch
         }
     }
 
-    /// <summary>
-    /// Java 运行时策略（对齐参考启动器）：
-    /// 1) 优先使用已有主版本精确匹配；
-    /// 2) 没有精确匹配时自动向 Mojang 下载所需 Java 到游戏目录 runtime/；
-    /// 3) 下载失败再回退到满足最低版本要求的现有 Java。
-    /// </summary>
+    /// <summary>优先主版本精确匹配；缺失时自动下载 Mojang 运行时，失败再回退到满足最低版本的现有 Java。</summary>
     private async Task<string> ResolveJavaExecutableAsync(
         MinecraftLaunchOptions options,
         string minecraftDirectory,
@@ -234,10 +220,6 @@ public class GameLaunch
         return true;
     }
 
-    // ------------------------------------------------------------------
-    // 账号 / 语言 / 进程
-    // ------------------------------------------------------------------
-
     private static async Task<IReadOnlyList<string>> PrepareAccountJvmArgumentsAsync(
         MinecraftLaunchOptions options,
         string minecraftDirectory,
@@ -258,11 +240,7 @@ public class GameLaunch
         return arguments;
     }
 
-    /// <summary>
-    /// 新实例语言跟随系统：启动前检查实例游戏目录的 options.txt，若尚未写入 lang 键
-    /// （新实例 / 从未运行过的实例），按电脑系统语言写入；已有 lang 的实例不做覆盖。
-    /// 返回是否真的写入。失败只记日志，不阻断启动。
-    /// </summary>
+    /// <summary>仅当实例 options.txt 尚无 lang 键时按系统语言写入；失败只记日志，不阻断启动。</summary>
     public static bool SyncInstanceLanguage(string gameDirectory, Action<string>? log = null)
     {
         if (string.IsNullOrWhiteSpace(gameDirectory))
@@ -291,7 +269,6 @@ public class GameLaunch
 
         if (MinecraftLanguage.HasOptionsKey(content, "lang"))
         {
-            // 实例已经跑过一次（MC 首次运行就会写入 lang）或用户设置过语言
             return false;
         }
 
@@ -380,7 +357,6 @@ public class GameLaunch
         string wrapperCommand,
         Action<string>? log)
     {
-        // 支持双引号 / 单引号包裹带空格的程序路径，转义规则与游戏参数一致
         List<string> wrapper = TokenizeWrapperCommand(wrapperCommand ?? string.Empty, log);
         if (wrapper.Count == 0)
         {
@@ -417,7 +393,6 @@ public class GameLaunch
         return (program, expanded.Skip(1).ToList());
     }
 
-    /// <summary>包装命令按命令行规则分词（支持单/双引号与反斜杠转义）。</summary>
     private static List<string> TokenizeWrapperCommand(string command, Action<string>? log)
     {
         if (string.IsNullOrWhiteSpace(command))
@@ -436,7 +411,6 @@ public class GameLaunch
         }
     }
 
-    /// <summary>包装命令解析出的程序做基本合法性校验，拒绝空值与控制字符。</summary>
     private static void ValidateWrapperProgram(string program)
     {
         if (string.IsNullOrWhiteSpace(program) || program.Any(c => char.IsControl(c)))
@@ -479,7 +453,6 @@ public class GameLaunch
         int estimated = 0;
         foreach (string argument in arguments)
         {
-            // 每项按“空格 + 引号包裹 + 转义”的最坏情况估算，宁可早报错也不冒启动失败的风险。
             estimated += argument.Length + 3;
             if (estimated > maxCommandLineLength)
             {
@@ -499,10 +472,7 @@ public class GameLaunch
         return Path.GetFullPath(path);
     }
 
-    /// <summary>
-    /// 未显式指定 GameDirectory 时的默认值：版本隔离开启时使用 versions/{versionId}
-    /// （不存在则连同 mods/saves 等子目录一起创建），关闭时回到共享根目录。
-    /// </summary>
+    /// <summary>版本隔离开启时使用 versions/{versionId}（不存在则创建），关闭时用共享根目录。</summary>
     private static string ResolveDefaultGameDirectory(string minecraftDirectory, string versionId)
     {
         if (!Config.YamlRead.DefaultVersionIsolation)
@@ -528,11 +498,6 @@ public class GameLaunch
         }
     }
 
-    // ------------------------------------------------------------------
-    // 直接进服 / 快速进存档参数
-    // ------------------------------------------------------------------
-
-    /// <summary>直接进服：优先 Minecraft 1.20+ 的 Quick Play 参数，同时附上旧版兼容参数。</summary>
     public static IReadOnlyList<string> BuildServerArguments(string serverHost, int serverPort = 25565)
     {
         if (string.IsNullOrWhiteSpace(serverHost))
@@ -556,36 +521,30 @@ public class GameLaunch
         ];
     }
 
-    /// <summary>快速进入存档（需 Minecraft 1.20+，旧版本会忽略）。</summary>
     public static IReadOnlyList<string> BuildWorldArguments(string worldName)
     {
         return string.IsNullOrWhiteSpace(worldName) ? [] : ["--quickPlaySingleplayer", worldName];
     }
 
-    /// <summary>离线用户名是否合法（1–16 位，只含英文字母、数字和下划线）。</summary>
     public static bool IsValidOfflineUsername(string username)
     {
         return OfflineUsernamePattern.IsMatch((username ?? string.Empty).Trim());
     }
 
-    /// <summary>把 UUID 归一化为 32 位无连字符格式。</summary>
     public static string CompactUuid(string uuid)
     {
         return (uuid ?? string.Empty).Trim().Replace("-", string.Empty, StringComparison.Ordinal);
     }
 }
 
-/// <summary>可供 Minecraft 启动使用的统一账号抽象。</summary>
 public interface IMinecraftAccount
 {
-    /// <summary>offline / microsoft / authlib。</summary>
     string Kind { get; }
 
     string Username { get; }
     string Uuid { get; }
     string AccessToken { get; }
 
-    /// <summary>msa / legacy。</summary>
     string UserType { get; }
 
     string XboxUserId { get; }
@@ -593,7 +552,6 @@ public interface IMinecraftAccount
     string ClientId { get; }
 }
 
-/// <summary>不包含任何访问令牌的离线 Minecraft 账号。</summary>
 public sealed class OfflineAccount : IMinecraftAccount
 {
     private OfflineAccount(string username, string uuid)
@@ -610,7 +568,6 @@ public sealed class OfflineAccount : IMinecraftAccount
     public string XboxUserId => string.Empty;
     public string ClientId => string.Empty;
 
-    /// <summary>构造离线账号；用户名非法时抛错。</summary>
     public static OfflineAccount Create(string username)
     {
         string normalized = (username ?? string.Empty).Trim();
@@ -623,7 +580,6 @@ public sealed class OfflineAccount : IMinecraftAccount
         return new OfflineAccount(normalized, OfflineUuid(normalized));
     }
 
-    /// <summary>Java UUID.nameUUIDFromBytes("OfflinePlayer:" + name) 语义：MD5 + RFC 4122 位。</summary>
     private static string OfflineUuid(string username)
     {
         byte[] hash = System.Security.Cryptography.MD5.HashData(
@@ -634,7 +590,6 @@ public sealed class OfflineAccount : IMinecraftAccount
     }
 }
 
-/// <summary>正版（Microsoft）账号的启动视图。</summary>
 public sealed class MicrosoftLaunchAccount : IMinecraftAccount
 {
     public string Username { get; set; } = string.Empty;
@@ -648,7 +603,6 @@ public sealed class MicrosoftLaunchAccount : IMinecraftAccount
     public string UserType => "msa";
     public bool IsExpired => ExpiresAt != default && DateTimeOffset.UtcNow > ExpiresAt.AddMinutes(-5);
 
-    /// <summary>由认证器产出的账号转换而来。</summary>
     public static MicrosoftLaunchAccount From(MicrosoftAccount account)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -664,14 +618,12 @@ public sealed class MicrosoftLaunchAccount : IMinecraftAccount
     }
 }
 
-/// <summary>皮肤站（authlib-injector）账号的启动视图。</summary>
 public sealed class AuthlibLaunchAccount : IMinecraftAccount
 {
     public string ProfileName { get; set; } = string.Empty;
     public string ProfileUuid { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;
 
-    /// <summary>皮肤站 Yggdrasil API 根地址（javaagent 注入目标）。</summary>
     public string ApiRoot { get; set; } = string.Empty;
 
     public string Kind => "authlib";
@@ -682,7 +634,6 @@ public sealed class AuthlibLaunchAccount : IMinecraftAccount
     public string ClientId => string.Empty;
 }
 
-/// <summary>Minecraft 启动失败时抛出的错误。</summary>
 public sealed class MinecraftLaunchException : Exception
 {
     public MinecraftLaunchException(string message, Exception? inner = null) : base(message, inner)
@@ -690,25 +641,18 @@ public sealed class MinecraftLaunchException : Exception
     }
 }
 
-/// <summary>离线/正版启动所需的外部配置。版本文件、依赖库和资源应已存在于游戏目录。</summary>
 public sealed class MinecraftLaunchOptions
 {
-    /// <summary>Minecraft 根目录（.minecraft）。</summary>
     public string MinecraftDirectory { get; set; } = string.Empty;
 
-    /// <summary>可选的实例游戏目录，用于隔离 mods/config/saves；为空时使用 MinecraftDirectory。</summary>
     public string GameDirectory { get; set; } = string.Empty;
 
-    /// <summary>要启动的版本 ID。</summary>
     public string VersionId { get; set; } = string.Empty;
 
-    /// <summary>启动使用的账号（离线 / 正版 / 皮肤站）。</summary>
     public IMinecraftAccount? Account { get; set; }
 
-    /// <summary>可选的 Java 可执行文件；为空时依次检查 MOFUCORE_JAVA、JAVA_HOME 和 PATH。</summary>
     public string JavaExecutable { get; set; } = string.Empty;
 
-    /// <summary>可选的 Minecraft runtime 根目录；会递归查找并选择版本要求的 Java。</summary>
     public string JavaRuntimeDirectory { get; set; } = string.Empty;
 
     public int MinimumMemoryMb { get; set; } = MemoryAllocation.MinimumMb;
@@ -720,38 +664,22 @@ public sealed class MinecraftLaunchOptions
     public IList<string> AdditionalJvmArguments { get; set; } = new List<string>();
     public IList<string> AdditionalGameArguments { get; set; } = new List<string>();
 
-    /// <summary>游戏进程优先级（low/belownormal/abovenormal/high，空串与 normal 表示不调整）。</summary>
     public string ProcessPriority { get; set; } = string.Empty;
 
-    /// <summary>包装命令模板（含 %command% 占位）；空串表示直接启动 Java。</summary>
     public string WrapperCommand { get; set; } = string.Empty;
 
-    /// <summary>注入游戏进程的额外环境变量。</summary>
     public IDictionary<string, string> EnvironmentVariables { get; set; } = new Dictionary<string, string>();
 
-    /// <summary>
-    /// 以全屏启动：由 <see cref="MinecraftArgumentBuilder.Build"/> 追加 <c>--fullscreen</c> 游戏参数。
-    /// </summary>
     public bool LaunchFullscreen { get; set; }
 
-    /// <summary>
-    /// JVM 性能调优预设：default（默认）/ off（不注入任何调优参数）/ aggressive（更早启用大堆参数）。
-    /// </summary>
     public string JvmTuning { get; set; } = MinecraftArgumentBuilder.TuningDefault;
 
-    /// <summary>
-    /// 是否信任版本 JSON 自带的 JVM 参数（跳过白名单）。默认 false：整合包自带的
-    /// <c>-javaagent:</c> 等参数会被拒绝启动；用户确认来源可信时可以打开这个逃生门。
-    /// </summary>
     public bool AllowUnsafeVersionJvmArguments { get; set; }
 
-    /// <summary>启动过程中的文本日志回调（可为空）。</summary>
     public Action<string>? LogCallback { get; set; }
 
-    /// <summary>游戏进程 stdout/stderr 行回调；第二个参数为是否 stderr（可为空）。</summary>
     public Action<string, bool>? GameOutputCallback { get; set; }
 
-    /// <summary>返回一个除账号外其余配置完全相同的副本。</summary>
     public MinecraftLaunchOptions WithAccount(IMinecraftAccount account)
     {
         MinecraftLaunchOptions copy = (MinecraftLaunchOptions)MemberwiseClone();
@@ -760,7 +688,6 @@ public sealed class MinecraftLaunchOptions
     }
 }
 
-/// <summary>Minecraft 实例启动后的结果。</summary>
 public sealed class MinecraftLaunchResult
 {
     private readonly TaskCompletionSource<int> _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -816,10 +743,8 @@ public sealed class MinecraftLaunchResult
 
     public int? RequiredJavaMajorVersion { get; }
 
-    /// <summary>本次解压出来的 natives 目录（退出后自动清理）。</summary>
     public string NativeDirectory { get; }
 
-    /// <summary>是否由用户手动停止（Kill 的退出码非 0，不能当异常报）。</summary>
     public bool StoppedManually { get; set; }
 
     public int ExitCode { get; private set; } = int.MinValue;
@@ -830,10 +755,8 @@ public sealed class MinecraftLaunchResult
 
     public int Pid => Process.Id;
 
-    /// <summary>等待进程退出，返回退出码。</summary>
     public Task<int> WaitForExitAsync() => _exit.Task;
 
-    /// <summary>结束游戏进程树。</summary>
     public void Kill()
     {
         StoppedManually = true;
@@ -899,14 +822,12 @@ public sealed class MinecraftLaunchResult
                 }
                 catch (Exception)
                 {
-                    // 清理失败不影响退出信号。
                 }
                 ExitCode = exitCode;
                 _exit.TrySetResult(exitCode);
             }
         });
 
-        // 观察后台任务异常，避免 fire-and-forget 变成未观察异常。
         _ = monitor.ContinueWith(
             static completed => { _ = completed.Exception; },
             CancellationToken.None,
@@ -915,7 +836,6 @@ public sealed class MinecraftLaunchResult
     }
 }
 
-/// <summary>启动参数装配器。</summary>
 public sealed class MinecraftArgumentBuilder
 {
     private static readonly Regex PlaceholderPattern = new(@"\$\{([^}]+)\}", RegexOptions.Compiled);
@@ -949,7 +869,6 @@ public sealed class MinecraftArgumentBuilder
         "-client", "-server", "-d64", "-showversion", "-version",
     ];
 
-    /// <summary>生成最终 Java 命令行参数。</summary>
     public IReadOnlyList<string> Build(
         LaunchProfile profile,
         MinecraftLaunchOptions options,
@@ -1054,7 +973,6 @@ public sealed class MinecraftArgumentBuilder
         AppendEncodingArguments(result, userJvmArguments);
         result.AddRange(BuildTuningArguments(tuningMemoryMb, options.JvmTuning));
 
-        // 用户参数已由 ValidateJvmArguments 整段校验过，这里直接追加
         result.AddRange(userJvmArguments);
 
         // additionalJvmArguments 是启动器内部注入的可信参数（authlib-injector 的 -javaagent:）：
@@ -1138,16 +1056,12 @@ public sealed class MinecraftArgumentBuilder
         };
     }
 
-    /// <summary>调优预设：默认（15 条 G1 基准参数 + 按堆大小分档）。</summary>
     public const string TuningDefault = "default";
 
-    /// <summary>调优预设：不注入任何调优参数，完全交给用户或整合包。</summary>
     public const string TuningOff = "off";
 
-    /// <summary>调优预设：更早启用大堆参数（2G 起字符串去重、4G 起预触碰）。</summary>
     public const string TuningAggressive = "aggressive";
 
-    /// <summary>把配置里的调优预设归一到已知值；无法识别时回落 default。</summary>
     public static string NormalizeTuningMode(string? value) => value?.Trim().ToLowerInvariant() switch
     {
         "off" or "none" or "disabled" or "disable" => TuningOff,
@@ -1155,10 +1069,6 @@ public sealed class MinecraftArgumentBuilder
         _ => TuningDefault,
     };
 
-    /// <summary>
-    /// 通用 JVM 性能优化参数（针对 Minecraft 工作负载特性优化）。
-    /// maximumMemoryMb 应当是"真正生效的堆大小"（用户自己写了 -Xmx 时取那个值）。
-    /// </summary>
     private static IReadOnlyList<string> BuildTuningArguments(int maximumMemoryMb, string? tuningMode)
     {
         string mode = NormalizeTuningMode(tuningMode);
@@ -1220,12 +1130,7 @@ public sealed class MinecraftArgumentBuilder
         return arguments;
     }
 
-    /// <summary>
-    /// 让 JVM 用 UTF-8 输出日志。子进程的输出流本来就按 UTF-8 解码（见 StartProcess），
-    /// 但 Windows 上 JVM 默认跟随系统代码页，中文 mod 日志会变成乱码。
-    /// Java 8 认 file.encoding，Java 18+ 认 stdout/stderr.encoding；未知 -D 属性无副作用。
-    /// 用户自己写了同名属性时不再覆盖。
-    /// </summary>
+    /// <summary>Windows 上 JVM 默认跟随系统代码页，中文 mod 日志会乱码；Java 8 认 file.encoding，Java 18+ 认 stdout/stderr.encoding。</summary>
     private static void AppendEncodingArguments(List<string> target, IReadOnlyList<string> userJvmArguments)
     {
         (string Name, string Value)[] encodings =
@@ -1256,7 +1161,6 @@ public sealed class MinecraftArgumentBuilder
             string.Equals(argument[..prefix.Length], prefix, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>从用户参数里读出真正生效的 -Xmx（MB）；找不到或格式无法识别时返回 null。</summary>
     private static int? ParseMemoryMegabytes(IEnumerable<string> arguments)
     {
         foreach (string argument in arguments)
@@ -1301,7 +1205,6 @@ public sealed class MinecraftArgumentBuilder
         return Directory.Exists(virtualDirectory) ? virtualDirectory : assetsDirectory;
     }
 
-    /// <summary>追加版本 JSON 的 arguments 段；返回"是否已由版本档案提供 ${classpath}"。</summary>
     private static bool AppendModernArguments(
         List<string> target,
         IReadOnlyList<JsonElement> elements,
@@ -1355,10 +1258,6 @@ public sealed class MinecraftArgumentBuilder
         return classpathDeclared;
     }
 
-    /// <summary>
-    /// 追加一个已解析参数；可空占位符解析为空时，连同刚追加的标志一起省略，
-    /// 避免留下悬空空参数或失去取值的标志（离线账号的 ${clientid}）。
-    /// </summary>
     private static void AppendResolvedArgument(List<string> target, string source, string resolved)
     {
         if (resolved.Length > 0 || !IsNullablePlaceholder(source))
@@ -1401,7 +1300,6 @@ public sealed class MinecraftArgumentBuilder
         return declaresClasspath;
     }
 
-    /// <summary>按同一白名单策略校验整段 JVM 参数；source 仅用于错误文案。</summary>
     private static void ValidateJvmArguments(IReadOnlyList<string> arguments, string source)
     {
         for (int index = 0; index < arguments.Count; index++)
@@ -1433,7 +1331,6 @@ public sealed class MinecraftArgumentBuilder
         }
     }
 
-    /// <summary>按白名单校验单条 JVM 参数；source 仅用于错误文案。</summary>
     private static void EnsureAllowedJvmArgument(string argument, string source)
     {
         // 不以 '-' 开头的是前面选项的取值（classpath、模块名、路径等），无可执行语义。
@@ -1501,7 +1398,6 @@ public sealed class MinecraftArgumentBuilder
             : throw new MinecraftLaunchException($"版本参数包含暂不支持的占位符：{failure}");
     }
 
-    /// <summary>切分旧版 minecraftArguments（与 UI、包装命令共用同一套引号规则）。</summary>
     private static IReadOnlyList<string> TokenizeLegacyArguments(string commandLine)
     {
         try
@@ -1515,16 +1411,11 @@ public sealed class MinecraftArgumentBuilder
     }
 }
 
-/// <summary>Java 运行时定位器：找可执行文件并校验主版本。</summary>
 public sealed class JavaRuntimeLocator
 {
     private static readonly Regex JavaVersionPattern =
         new("version\\s+\"(\\d+)(?:\\.(\\d+))?", RegexOptions.Compiled);
 
-    /// <summary>
-    /// 查找符合要求的 Java：显式配置 → MOFUCORE_JAVA → runtime 目录 → JAVA_HOME → PATH，
-    /// 优先主版本精确匹配，其次满足最低要求的最低版本。
-    /// </summary>
     public async Task<string> FindJavaExecutableAsync(
         string configuredPath,
         int? requiredMajorVersion,
@@ -1592,7 +1483,6 @@ public sealed class JavaRuntimeLocator
             }
         }
 
-        // 显式配置且 ≥ 最低要求
         foreach ((string path, int majorVersion, int _, bool preferred) in probed)
         {
             if (preferred && majorVersion >= required)
@@ -1601,7 +1491,6 @@ public sealed class JavaRuntimeLocator
             }
         }
 
-        // 自动探测中最低且 ≥ 最低要求
         foreach ((string path, int majorVersion, int _, bool _) in probed.OrderBy(item => item.MajorVersion))
         {
             if (majorVersion >= required)
@@ -1619,7 +1508,6 @@ public sealed class JavaRuntimeLocator
         throw new MinecraftLaunchException(message);
     }
 
-    /// <summary>探测指定 java 可执行文件的主版本号；无法执行或解析失败时返回 null。</summary>
     public static Task<int?> TryGetJavaMajorVersionAsync(string javaExecutable,
         CancellationToken cancellationToken = default)
     {
@@ -1681,7 +1569,6 @@ public sealed class JavaRuntimeLocator
         }
     }
 
-    /// <summary>终止 java -version 探测进程（整棵进程树）；已退出或无权终止时忽略。</summary>
     private static void KillProbeProcess(Process? process)
     {
         if (process is null)
@@ -1698,7 +1585,6 @@ public sealed class JavaRuntimeLocator
         }
         catch (Exception)
         {
-            // 进程已退出或无法终止：忽略，finally 里的 Dispose 仍会释放句柄
         }
     }
 
@@ -1734,7 +1620,6 @@ public sealed class JavaRuntimeLocator
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
-                    // 扫描失败忽略
                 }
             }
         }
@@ -1770,7 +1655,6 @@ public sealed class JavaRuntimeLocator
     }
 }
 
-/// <summary>Windows 进程优先级 / 进程树强杀。</summary>
 public static class ProcessPriority
 {
     private const int ProcessSetInformation = 0x0200;
@@ -1789,7 +1673,6 @@ public static class ProcessPriority
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
-    /// <summary>按配置调整进程优先级；priority 为空或 "normal" 时不调整，失败只记日志。</summary>
     public static void Apply(Process process, string? priority, Action<string>? log)
     {
         if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(priority))
@@ -1833,7 +1716,6 @@ public static class ProcessPriority
         }
     }
 
-    /// <summary>整棵进程树强杀：只杀主进程会留下孤儿 Java 进程。</summary>
     public static void ForceKillTree(Process process)
     {
         if (OperatingSystem.IsWindows())
@@ -1856,7 +1738,6 @@ public static class ProcessPriority
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
             {
-                // 退回主进程 Kill
             }
         }
 
@@ -1866,12 +1747,10 @@ public static class ProcessPriority
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            // 进程已退出
         }
     }
 }
 
-/// <summary>系统语言（BCP-47）→ Minecraft 语言码（options.txt 的 lang 值）映射。</summary>
 public static class MinecraftLanguage
 {
     private static readonly HashSet<string> KnownCodes = new(StringComparer.Ordinal)
@@ -1898,7 +1777,6 @@ public static class MinecraftLanguage
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int GetUserDefaultLocaleName(char[] localeName, int localeNameLength);
 
-    /// <summary>读取系统区域名（BCP-47，如 zh-CN / en-US）；失败返回空串。</summary>
     public static string ReadSystemLocale()
     {
         if (OperatingSystem.IsWindows())
@@ -1914,7 +1792,6 @@ public static class MinecraftLanguage
             }
             catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
             {
-                // 退回 CultureInfo
             }
         }
 
@@ -1922,13 +1799,11 @@ public static class MinecraftLanguage
         return name.Length > 0 ? name : string.Empty;
     }
 
-    /// <summary>系统语言对应的 Minecraft 语言码；无法识别返回空串。</summary>
     public static string SystemLanguageCode()
     {
         return CodeForLocale(ReadSystemLocale());
     }
 
-    /// <summary>把 BCP-47 区域名映射成 Minecraft 语言码。</summary>
     public static string CodeForLocale(string locale)
     {
         string normalized = (locale ?? string.Empty).Trim().ToLowerInvariant().Replace('_', '-');
@@ -1967,7 +1842,6 @@ public static class MinecraftLanguage
         string code = lang + "_" + region;
         if (!KnownCodes.Contains(code))
         {
-            // 系统 region 对应的语言文件 MC 没有时回落默认区域
             code = lang + "_" + DefaultRegions.GetValueOrDefault(lang, string.Empty);
             if (!KnownCodes.Contains(code))
             {
@@ -1992,7 +1866,6 @@ public static class MinecraftLanguage
 
             if (part.Length == 4 && script.Length == 0)
             {
-                // 文字体系标签固定 4 字母（hans / hant / cyrl…）
                 script = part;
             }
             else if (part.Length == 2 && region.Length == 0 && lang.Length > 0)
@@ -2008,14 +1881,12 @@ public static class MinecraftLanguage
         return (lang, script, region);
     }
 
-    /// <summary>判断 options.txt 内容里是否已有某个键。</summary>
     public static bool HasOptionsKey(string content, string key)
     {
         string prefix = key + ":";
         return content.Split('\n').Any(line => line.Trim().StartsWith(prefix, StringComparison.Ordinal));
     }
 
-    /// <summary>写入（或替换）options.txt 的一个键，保留其余行原样。</summary>
     public static string UpsertOptionsKey(string content, string key, string value)
     {
         string entry = key + ":" + value;
@@ -2038,11 +1909,6 @@ public static class MinecraftLanguage
     }
 }
 
-/// <summary>
-/// 崩溃诊断：把"游戏非零退出"从一句提示变成可执行的结论。
-/// 旧的内建正则规则已并入 <see cref="Log.LogAnalysis"/>（模组冲突提取、hs_err_pid 解析、
-/// Minecraft Wiki「Crash」条目列出的全部崩溃成因类别），这里只做结果形状转换。
-/// </summary>
 public sealed class CrashDiagnosis
 {
     private const int MaxCrashEvidenceLines = 8;
@@ -2052,7 +1918,6 @@ public sealed class CrashDiagnosis
         @"(?i)(--accessToken|auth_access_token|auth_session|access_token|refresh_token|Bearer|token:)([\s:=]+)(\S+)",
         RegexOptions.Compiled);
 
-    /// <summary>把命令行里的访问令牌替换成 [REDACTED]；日志与预览都必须先过这里。</summary>
     public static string RedactSecrets(string? text)
     {
         return text is null
@@ -2061,10 +1926,6 @@ public sealed class CrashDiagnosis
                 match => match.Groups[1].Value + match.Groups[2].Value + "[REDACTED]");
     }
 
-    /// <summary>
-    /// 生成可写进日志的最终命令行（已脱敏）。排障时第一眼要看的就是它：
-    /// 用户报"启动失败"时能直接确认内存、编码、classpath 和主类是否符合预期。
-    /// </summary>
     public static string DescribeCommandLine(string javaExecutable, IReadOnlyList<string> arguments)
     {
         return RedactSecrets(CommandLineTokenizer.Join(
@@ -2073,28 +1934,20 @@ public sealed class CrashDiagnosis
 
 
 
-    /// <summary>最新崩溃报告路径；没找到为空串。</summary>
     public string ReportPath { get; set; } = string.Empty;
 
-    /// <summary>崩溃报告里的 Description 字段。</summary>
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>崩溃报告里的首个异常行（含 Caused by 链首条）。</summary>
     public string Exception { get; set; } = string.Empty;
 
-    /// <summary>命中的原因（中文原文，可能是多条）。</summary>
     public IReadOnlyList<string> Suspected { get; set; } = [];
 
-    /// <summary>与 Suspected 一一对应的处置建议（中文原文）。</summary>
     public IReadOnlyList<string> Suggestions { get; set; } = [];
 
-    /// <summary>一句话结论，直接作为弹窗正文。</summary>
     public string Summary { get; set; } = string.Empty;
 
-    /// <summary>从崩溃报告/日志里摘出的具体报错行（原始文本）。</summary>
     public IReadOnlyList<string> Details { get; set; } = [];
 
-    /// <summary>诊断最近一次崩溃。</summary>
     public static CrashDiagnosis Diagnose(CrashDiagnosisInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -2133,26 +1986,19 @@ public sealed class CrashDiagnosis
     }
 }
 
-/// <summary>崩溃诊断输入（由绑定层采集）。</summary>
 public sealed class CrashDiagnosisInput
 {
-    /// <summary>实例游戏目录下的 crash-reports。</summary>
     public string CrashReportsDirectory { get; set; } = string.Empty;
 
-    /// <summary>启动日志全文（含游戏输出）。</summary>
     public string LogText { get; set; } = string.Empty;
 
-    /// <summary>当前实例的版本 id（仅用于报告展示）。</summary>
     public string MinecraftVersion { get; set; } = string.Empty;
 
-    /// <summary>当前使用的 Java 版本描述。</summary>
     public string JavaVersion { get; set; } = string.Empty;
 
-    /// <summary>当前实例的最大内存（MiB，0 表示未知）。</summary>
     public int MemoryMb { get; set; }
 }
 
-/// <summary>扁平化结果：是否发生了合并、被合并掉的依赖版本 id 列表。</summary>
 public sealed class VersionFlattenResult
 {
     public bool Flattened { get; set; }
@@ -2160,11 +2006,7 @@ public sealed class VersionFlattenResult
     public string ClientJarProviderId { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// 版本继承扁平化：把 inheritsFrom 继承链（如 Fabric 实例 → 原版）合并为单个自包含的版本 JSON，
-/// 并把依赖版本的客户端 JAR 复制为实例自己的 {实例id}.jar。合并语义与
-/// <see cref="VersionLoader"/> 完全一致。
-/// </summary>
+/// <summary>把 inheritsFrom 链合并为自包含版本 JSON，并把依赖客户端 JAR 复制为 {实例id}.jar；合并语义与 <see cref="VersionLoader"/> 一致。</summary>
 public sealed class MinecraftVersionJsonFlattener
 {
     private static readonly string[] ScalarProperties =
@@ -2251,7 +2093,6 @@ public sealed class MinecraftVersionJsonFlattener
             }
             catch (Exception)
             {
-                // 自动回滚失败时保留备份文件，便于用户手动恢复
                 backupKept = hasOriginal;
             }
 
@@ -2274,7 +2115,6 @@ public sealed class MinecraftVersionJsonFlattener
         };
     }
 
-    /// <summary>清理扁平化产生的临时/备份文件，清理失败不影响结果。</summary>
     private static void TryDeleteQuietly(string path)
     {
         try
@@ -2286,11 +2126,9 @@ public sealed class MinecraftVersionJsonFlattener
         }
         catch (Exception)
         {
-            // 临时文件清理失败不影响结果
         }
     }
 
-    /// <summary>检查指定版本是否仍被其它版本的 inheritsFrom 引用。</summary>
     public bool IsVersionReferenced(string minecraftDirectory, string versionId)
     {
         string versionsDirectory = Path.Combine(minecraftDirectory, "versions");
@@ -2345,10 +2183,6 @@ public sealed class MinecraftVersionJsonFlattener
 
         return false;
     }
-
-    // ------------------------------------------------------------------
-    // 继承链加载与合并
-    // ------------------------------------------------------------------
 
     private static async Task<List<(string Id, JsonObject Root)>> LoadChainAsync(
         string minecraftDirectory,
@@ -2553,10 +2387,6 @@ public sealed class MinecraftVersionJsonFlattener
             : null;
     }
 
-    /// <summary>
-    /// 客户端 JAR 来源版本：显式 jar 字段优先（取最后声明），
-    /// 否则为链中最后一个声明 downloads.client 的版本 id。
-    /// </summary>
     private static string ResolveClientJarProviderId(List<(string Id, JsonObject Root)> chain)
     {
         string providerId = string.Empty;

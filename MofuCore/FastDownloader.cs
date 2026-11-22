@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using MofuCore.Config;
 namespace MofuCore.Download;
 
-/// <summary>一个待下载文件：支持多个备用 URL 与可选的 SHA1 校验。</summary>
 public sealed record FastDownloadItem(
     string Url,
     string TargetPath,
@@ -20,17 +19,12 @@ public sealed record FastDownloadItem(
     string? Sha1 = null,
     IReadOnlyList<string>? FallbackUrls = null);
 
-/// <summary>批量下载进度（已接收字节 / 预估总字节）。</summary>
 public sealed record FastDownloadProgress(
     int CompletedFiles,
     int TotalFiles,
     long ReceivedBytes,
     long TotalBytes);
 
-/// <summary>
-/// 高速下载器：多文件并行 + 大文件多连接分段（HTTP Range）下载。
-/// 专为 Minecraft 的 library / jar / 资源文件这类小文件多、单文件大的场景设计。
-/// </summary>
 public static class FastDownloader
 {
     private const int BufferSize = 128 * 1024;
@@ -55,11 +49,6 @@ public static class FastDownloader
         return client;
     }
 
-    /// <summary>
-    /// 批量下载多个文件：文件之间并行，单个大文件内部再按 Range 分段并行。
-    /// </summary>
-    /// <param name="fileParallelism">同时下载的文件数，默认 8。</param>
-    /// <param name="segments">单个大文件的分段连接数，默认 4。</param>
     public static async Task DownloadAllAsync(
         IEnumerable<FastDownloadItem> items,
         int fileParallelism = 32,
@@ -109,7 +98,6 @@ public static class FastDownloader
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    /// <summary>下载单个文件；大文件自动分段并行下载，失败会尝试备用 URL 并重试。</summary>
     public static async Task DownloadFileAsync(
         FastDownloadItem item,
         int segments,
@@ -216,10 +204,6 @@ public static class FastDownloader
         throw new InvalidOperationException($"下载失败：{item.TargetPath}", lastError);
     }
 
-    // ------------------------------------------------------------------
-    // 单连接下载
-    // ------------------------------------------------------------------
-
     private static async Task DownloadSingleAsync(
         string url,
         string targetPath,
@@ -252,10 +236,6 @@ public static class FastDownloader
 
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
-
-    // ------------------------------------------------------------------
-    // 多连接分段下载
-    // ------------------------------------------------------------------
 
     private static async Task<bool> TryDownloadSegmentedAsync(
         string url,
@@ -391,10 +371,6 @@ public static class FastDownloader
         }
     }
 
-    // ------------------------------------------------------------------
-    // 工具
-    // ------------------------------------------------------------------
-
     private static async Task<bool> MatchesSha1Async(
         string path,
         string expectedSha1,
@@ -435,7 +411,6 @@ public static class FastDownloader
         }
         catch
         {
-            // 删除失败不影响下载结果
         }
     }
 

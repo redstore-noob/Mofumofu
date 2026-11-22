@@ -1,9 +1,6 @@
 ﻿namespace MofuCore.Download;
 
-/// <summary>
-/// 用于匹配对应资源的中文名。
-/// 数据来源为mcmod，所有中文名归mcmod.cn版权所有。
-/// </summary>
+// 中文名数据来源为 mcmod，版权归 mcmod.cn 所有。
 public class ChineseResourceName
 {
     // 键为 Modrinth / CurseForge 常见的英文标题或 slug（小写），值为 mcmod 上的中文名。
@@ -143,7 +140,7 @@ public class ChineseResourceName
         ["purebdcraft"] = "Sphax 五边形",
     };
 
-    // 中文名 → 英文检索词（搜索时把中文关键词换成 Modrinth 认得的英文）
+    // 中文名 → 英文检索词（Modrinth 只认英文）
     private static readonly Dictionary<string, string> Reverse = BuildReverse();
 
     private static Dictionary<string, string> BuildReverse()
@@ -157,7 +154,6 @@ public class ChineseResourceName
         return reverse;
     }
 
-    /// <summary>按英文标题或 slug 查中文名。</summary>
     public static bool TryGet(string? nameOrSlug, out string chinese)
     {
         chinese = string.Empty;
@@ -188,14 +184,12 @@ public class ChineseResourceName
         return false;
     }
 
-    /// <summary>没有中文名时返回原标题。</summary>
     public static string Of(string? nameOrSlug)
     {
         if (TryGet(nameOrSlug, out string chinese)) return chinese;
         return nameOrSlug?.Trim() ?? string.Empty;
     }
 
-    /// <summary>优先用标题查中文名，其次 slug。</summary>
     public static string Display(string? title, string? slug)
     {
         if (TryGet(title, out string chinese)) return chinese;
@@ -203,7 +197,6 @@ public class ChineseResourceName
         return string.IsNullOrWhiteSpace(title) ? slug?.Trim() ?? string.Empty : title.Trim();
     }
 
-    /// <summary>把中文搜索词换成英文；不是已知中文名时原样返回。</summary>
     public static string ToSearchKeyword(string? keyword)
     {
         string trimmed = (keyword ?? string.Empty).Trim();
@@ -211,7 +204,6 @@ public class ChineseResourceName
         return Reverse.TryGetValue(trimmed, out string? english) ? english : trimmed;
     }
 
-    /// <summary>标题 / slug / 中文名任一命中关键词。</summary>
     public static bool Matches(string? title, string? slug, string? keyword)
     {
         string query = (keyword ?? string.Empty).Trim();
@@ -222,7 +214,6 @@ public class ChineseResourceName
         return TryGet(title, out string chinese) && chinese.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>全部内置条目（只读，按英文键排序）。</summary>
     public static IReadOnlyDictionary<string, string> All =>
         Names.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);

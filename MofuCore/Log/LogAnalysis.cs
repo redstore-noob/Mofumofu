@@ -3,59 +3,42 @@ using System.Text.RegularExpressions;
 
 namespace MofuCore.Log;
 
-/// <summary>单条分析结论的严重程度。</summary>
 public enum LogAnalysisSeverity
 {
-    /// <summary>背景信息（如手动触发的调试崩溃、崩溃报告位置）。</summary>
     Info = 0,
 
-    /// <summary>很可能参与了崩溃，但没有直接因果证据。</summary>
     Warning = 1,
 
-    /// <summary>有直接证据的崩溃原因。</summary>
     Critical = 2,
 }
 
-/// <summary>模组依赖问题的种类。</summary>
 public enum ModIssueKind
 {
-    /// <summary>缺少前置模组。</summary>
     MissingDependency,
 
-    /// <summary>前置/游戏版本与要求不匹配。</summary>
     VersionMismatch,
 
-    /// <summary>重复安装（同 mod id 出现多份 jar）。</summary>
     Duplicate,
 
-    /// <summary>模组与游戏本体版本不兼容。</summary>
     GameIncompatible,
 }
 
-/// <summary>一条具体的模组依赖 / 冲突问题（由 Fabric / Forge / NeoForge 的报错块解析而来）。</summary>
 public sealed class ModDependencyIssue
 {
-    /// <summary>提出依赖要求的模组 id（如 examplemod）；未知为空串。</summary>
     public string SourceMod { get; init; } = string.Empty;
 
-    /// <summary>被依赖的模组 id 或 minecraft。</summary>
     public string Dependency { get; init; } = string.Empty;
 
-    /// <summary>要求的版本 / 版本区间原文（如 ^1.2.0、[1.20.1,1.21)、any version）。</summary>
     public string RequiredVersion { get; init; } = string.Empty;
 
-    /// <summary>实际安装的版本；缺失时为空串。</summary>
     public string ActualVersion { get; init; } = string.Empty;
 
     public ModIssueKind Kind { get; init; }
 
-    /// <summary>触发这条结论的原始报错行。</summary>
     public string EvidenceLine { get; init; } = string.Empty;
 
-    /// <summary>该问题来自哪个加载器的报错格式。</summary>
     public string Loader { get; init; } = string.Empty;
 
-    /// <summary>人话描述：谁、要求什么、现状是什么。</summary>
     public override string ToString()
     {
         string source = SourceMod.Length > 0 ? SourceMod : "某模组";
@@ -77,21 +60,16 @@ public sealed class ModDependencyIssue
         string.IsNullOrWhiteSpace(RequiredVersion) ? "任意版本" : RequiredVersion;
 }
 
-/// <summary>一条崩溃分析结论：原因 + 证据 + 决策。</summary>
 public sealed class LogAnalysisFinding
 {
-    /// <summary>结论类别码（如 jvm.arg、memory.heap、mod.mixin），供程序区分，不用于展示。</summary>
     public string Category { get; init; } = string.Empty;
 
     public LogAnalysisSeverity Severity { get; init; }
 
-    /// <summary>一句话原因，必须包含解析出的具体对象（模组名 / 版本 / 参数 / 路径）。</summary>
     public string Title { get; init; } = string.Empty;
 
-    /// <summary>命中的原始日志行（最多 3 条，已去重截断）。</summary>
     public IReadOnlyList<string> Evidence { get; init; } = [];
 
-    /// <summary>对应的处置决策，按顺序执行即可。</summary>
     public IReadOnlyList<string> Decisions { get; init; } = [];
 
     public string SeverityDisplay => Severity switch
@@ -102,88 +80,61 @@ public sealed class LogAnalysisFinding
     };
 }
 
-/// <summary>崩溃日志分析的输入。</summary>
 public sealed class LogAnalysisInput
 {
-    /// <summary>启动日志全文（含游戏进程 stdout/stderr），分析时只看末尾。</summary>
     public string LogText { get; set; } = string.Empty;
 
-    /// <summary>实例游戏目录下的 crash-reports 目录。</summary>
     public string CrashReportsDirectory { get; set; } = string.Empty;
 
-    /// <summary>实例游戏目录（用于查找 JVM 崩溃产生的 hs_err_pid*.log 与相对路径的崩溃报告）。</summary>
     public string GameDirectory { get; set; } = string.Empty;
 
-    /// <summary>游戏进程退出码；启动前失败（进程没拉起）时为 null。</summary>
     public int? ExitCode { get; set; }
 
-    /// <summary>当前实例的版本 id（用于结论里引用）。</summary>
     public string MinecraftVersion { get; set; } = string.Empty;
 
-    /// <summary>当前使用的 Java 版本描述（如 17.0.8）。</summary>
     public string JavaVersion { get; set; } = string.Empty;
 
-    /// <summary>当前实例的最大内存 MiB（0 表示未知）。</summary>
     public int MemoryMb { get; set; }
 
-    /// <summary>本次启动开始时间：用于只采信本次运行生成的崩溃报告 / hs_err 文件，避免把旧报告当新崩溃。</summary>
     public DateTimeOffset? GameStartedAt { get; set; }
 }
 
-/// <summary>崩溃日志分析结果。</summary>
 public sealed class LogAnalysisResult
 {
-    /// <summary>全部结论（已按严重程度降序，去重）。</summary>
     public IReadOnlyList<LogAnalysisFinding> Findings { get; set; } = [];
 
-    /// <summary>解析出的模组依赖 / 冲突问题明细。</summary>
     public IReadOnlyList<ModDependencyIssue> ModIssues { get; set; } = [];
 
-    /// <summary>本次崩溃对应的崩溃报告路径；没有为空串。</summary>
     public string CrashReportPath { get; set; } = string.Empty;
 
-    /// <summary>崩溃报告的 Description 字段（如 Ticking entity）。</summary>
     public string CrashDescription { get; set; } = string.Empty;
 
-    /// <summary>崩溃报告 / 日志里的首个异常行（含 Caused by 链首条）。</summary>
     public string CrashException { get; set; } = string.Empty;
 
-    /// <summary>崩溃报告 System Details 里的 Is Modded 行。</summary>
     public string IsModdedLine { get; set; } = string.Empty;
 
-    /// <summary>从 Is Modded / 日志推断出的加载器：vanilla / fabric / forge / neoforge / quilt / unknown。</summary>
     public string ModLoader { get; set; } = "unknown";
 
-    /// <summary>JVM 原生崩溃日志（hs_err_pid*.log）路径；没有为空串。</summary>
     public string HsErrPath { get; set; } = string.Empty;
 
-    /// <summary>hs_err 中的 Problematic frame（如 C [aticfx64.dll+0x1a2b3]）。</summary>
     public string HsErrProblematicFrame { get; set; } = string.Empty;
 
-    /// <summary>hs_err 中的信号（如 SIGSEGV / EXCEPTION_ACCESS_VIOLATION）。</summary>
     public string HsErrSignal { get; set; } = string.Empty;
 
     public int? ExitCode { get; set; }
 
-    /// <summary>退出码含义（映射 Windows NT 状态码 / Unix 信号）；未知为空串。</summary>
     public string ExitCodeMeaning { get; set; } = string.Empty;
 
-    /// <summary>一句话结论，直接作为弹窗正文开头。</summary>
     public string Summary { get; set; } = string.Empty;
 
-    /// <summary>是否识别出了至少一条确定性或可疑原因。</summary>
     public bool HasFindings => Findings.Count > 0;
 
-    /// <summary>分析引用的版本信息（由分析器回填，供文本导出使用）。</summary>
     public string MinecraftVersion { get; set; } = string.Empty;
 
-    /// <summary>分析引用的 Java 版本描述（由分析器回填）。</summary>
     public string JavaVersion { get; set; } = string.Empty;
 
-    /// <summary>分析引用的内存上限 MiB（由分析器回填）。</summary>
     public int MemoryMb { get; set; }
 
-    /// <summary>生成可直接复制上报 / 搜索的纯文本诊断。</summary>
     public string BuildPlainText()
     {
         StringBuilder text = new();
@@ -282,17 +233,7 @@ public sealed class LogAnalysisResult
     }
 }
 
-/// <summary>
-/// 崩溃日志自动分析引擎：游戏非零退出后，把三路证据跑一遍正则规则库——
-/// 1) 启动日志末尾（进程退出前的最后几屏）；
-/// 2) 实例 crash-reports 里本次运行新生成的崩溃报告（含 Description / 堆栈 / Is Modded）；
-/// 3) 游戏根目录的 hs_err_pid*.log（JVM 原生崩溃时 Minecraft 不写 crash-reports，只写这个）。
-/// 规则覆盖 Minecraft Wiki「Crash」条目归纳的崩溃成因类别：模组（缺前置 / 冲突 / 重复 /
-/// 版本不匹配）、Java 版本不匹配、硬件问题（内存 / 显卡）、软件拦截（杀毒软件 / 权限）、
-/// JVM 原生崩溃、内存不足、世界文件损坏与手动触发（F3+C）。
-/// 每条结论都提取具体对象（模组 id、版本区间、JVM 参数、文件名、显卡驱动 DLL），
-/// 不输出笼统的「未知错误」。
-/// </summary>
+// 证据来自启动日志末尾、本次运行新生成的 crash-reports 与游戏根目录的 hs_err_pid*.log；规则覆盖 Minecraft Wiki「Crash」归纳的成因类别，每条结论都提取具体对象而非笼统的「未知错误」。
 public static class LogAnalysis
 {
     private const int MaxEvidenceLines = 3;
@@ -300,11 +241,6 @@ public static class LogAnalysis
 
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(2);
 
-    // ------------------------------------------------------------------
-    // 公共入口
-    // ------------------------------------------------------------------
-
-    /// <summary>分析一次崩溃，永不抛异常（内部异常吞掉并反映为空结论）。</summary>
     public static LogAnalysisResult Analyze(LogAnalysisInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -407,10 +343,6 @@ public static class LogAnalysis
         return "未找到崩溃报告，也未识别出已知崩溃模式；可把诊断信息发给开发者进一步分析。";
     }
 
-    // ------------------------------------------------------------------
-    // 证据采集
-    // ------------------------------------------------------------------
-
     private sealed class Evidence
     {
         public string LogTailText { get; init; } = string.Empty;
@@ -484,7 +416,6 @@ public static class LogAnalysis
         };
     }
 
-    /// <summary>Is Modded 行最可信；没有报告时再从日志里的加载器横幅推断。</summary>
     private static string DetectModLoader(string isModdedLine, string haystack)
     {
         string text = isModdedLine + "\n" + haystack;
@@ -516,10 +447,6 @@ public static class LogAnalysis
 
         return "unknown";
     }
-
-    // ------------------------------------------------------------------
-    // 退出码
-    // ------------------------------------------------------------------
 
     private static void AnalyzeExitCode(
         LogAnalysisInput input, List<LogAnalysisFinding> findings)
@@ -566,7 +493,6 @@ public static class LogAnalysis
         });
     }
 
-    /// <summary>Windows NT 状态码 / Unix 信号 → 含义；未知返回 null。</summary>
     private static string? DescribeExitCode(int code)
     {
         return code switch
@@ -592,10 +518,6 @@ public static class LogAnalysis
             _ => null,
         };
     }
-
-    // ------------------------------------------------------------------
-    // JVM 启动失败（进程一闪而过 / 根本没起来）
-    // ------------------------------------------------------------------
 
     private static void AnalyzeJvmStartup(
         string haystack, LogAnalysisInput input, List<LogAnalysisFinding> findings)
@@ -702,11 +624,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // Java 版本不匹配
-    // ------------------------------------------------------------------
-
-    /// <summary>class 文件主版本号 → Java 大版本。</summary>
     private static int? JavaMajorFromClassFile(int classFileVersion)
     {
         return classFileVersion is >= 45 and <= 76 ? classFileVersion - 44 : null;
@@ -726,7 +643,6 @@ public static class LogAnalysis
         Match compiled = newer.Success ? newer : legacy;
         if (!compiled.Success)
         {
-            // 最老的 Java 8 报文只给需要的版本，不给当前版本
             Match majorOnly = Rx(@"Unsupported major\.minor version (?<needed>\d+)").Match(haystack);
             if (majorOnly.Success && int.TryParse(majorOnly.Groups["needed"].Value, out int onlyNeeded) &&
                 JavaMajorFromClassFile(onlyNeeded) is int onlyJava)
@@ -822,10 +738,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // 内存
-    // ------------------------------------------------------------------
-
     private static void AnalyzeMemory(
         string haystack, LogAnalysisInput input, Evidence evidence, List<LogAnalysisFinding> findings)
     {
@@ -915,10 +827,6 @@ public static class LogAnalysis
             });
         }
     }
-
-    // ------------------------------------------------------------------
-    // 显卡 / 渲染
-    // ------------------------------------------------------------------
 
     private static void AnalyzeGraphics(string haystack, List<LogAnalysisFinding> findings)
     {
@@ -1032,10 +940,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // JVM 原生崩溃（hs_err_pid*.log）
-    // ------------------------------------------------------------------
-
     private static void AnalyzeHsErr(Evidence evidence, List<LogAnalysisFinding> findings)
     {
         if (evidence.HsErrContent.Length == 0)
@@ -1070,7 +974,6 @@ public static class LogAnalysis
         });
     }
 
-    /// <summary>从 Problematic frame 的 DLL 名推断出问题的组件。</summary>
     private static string DescribeNativeModule(string frame)
     {
         string module = (frame ?? string.Empty).ToLowerInvariant();
@@ -1107,10 +1010,6 @@ public static class LogAnalysis
 
         return string.Empty;
     }
-
-    // ------------------------------------------------------------------
-    // 模组加载器：缺前置 / 版本冲突 / 重复（核心）
-    // ------------------------------------------------------------------
 
     private static void AnalyzeLoaderErrors(
         string haystack, List<ModDependencyIssue> modIssues, List<LogAnalysisFinding> findings)
@@ -1233,7 +1132,6 @@ public static class LogAnalysis
 
         if (modIssues.Count > 0)
         {
-            // 同一条依赖问题可能同时命中 Fabric / Forge 两种报错格式，先去重再计数展示
             List<ModDependencyIssue> distinctIssues = modIssues
                 .DistinctBy(issue => issue.ToString(), StringComparer.Ordinal)
                 .ToList();
@@ -1320,10 +1218,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // 类缺失 → 反推所属模组 / 前置
-    // ------------------------------------------------------------------
-
     private static readonly (string Prefix, string Owner)[] KnownPackageOwners =
     [
         ("net.minecraft.", "Minecraft 原版"),
@@ -1381,7 +1275,6 @@ public static class LogAnalysis
         });
     }
 
-    /// <summary>com.simibubi.create.Create → create；取包名末段或驼峰首段作模组 id 线索。</summary>
     private static string GuessModFromClassName(string className)
     {
         string[] segments = className.Split('.');
@@ -1393,10 +1286,6 @@ public static class LogAnalysis
         return segments[0];
     }
 
-    // ------------------------------------------------------------------
-    // 堆栈里出现的第三方包 → 可疑模组清单
-    // ------------------------------------------------------------------
-
     private static readonly HashSet<string> VanillaPackages = new(StringComparer.Ordinal)
     {
         "net.minecraft", "com.mojang", "java", "javax", "jdk", "sun", "io.netty",
@@ -1405,10 +1294,7 @@ public static class LogAnalysis
         "org.lwjgl", "com.ibm", "jdk.nashorn", "javassist", "org.objectweb",
     };
 
-    /// <summary>
-    /// 从崩溃堆栈提取非原厂包名，得到「崩溃发生在哪些模组的代码路径里」。
-    /// 这是嫌疑清单而非定罪：Mixin/反射调用会让原版堆栈夹着模组帧。
-    /// </summary>
+    /// <summary>这是嫌疑清单而非定罪：Mixin/反射调用会让原版堆栈夹着模组帧。</summary>
     private static void InferSuspectMods(Evidence evidence, List<LogAnalysisFinding> findings)
     {
         string stackSource = evidence.ReportContent + "\n" + evidence.LogTailText;
@@ -1426,7 +1312,6 @@ public static class LogAnalysis
                 continue;
             }
 
-            // 原版 / 随游戏分发的库不进嫌疑清单；命中 2 段前缀（net.minecraft）或首段（java）
             bool vanilla = VanillaPackages.Contains(parts[0]) ||
                            VanillaPackages.Contains(parts[0] + "." + parts[1]);
             if (vanilla)
@@ -1434,7 +1319,6 @@ public static class LogAnalysis
                 continue;
             }
 
-            // 完整前缀（最多三段）作为嫌疑标识，出现越频繁越可疑
             string suspect = string.Join('.', parts.Length >= 3 ? parts[..3] : parts);
             counts[suspect] = counts.TryGetValue(suspect, out int value) ? value + 1 : 1;
         }
@@ -1458,10 +1342,6 @@ public static class LogAnalysis
             ],
         });
     }
-
-    // ------------------------------------------------------------------
-    // 登录会话
-    // ------------------------------------------------------------------
 
     private static void AnalyzeAuth(string haystack, List<LogAnalysisFinding> findings)
     {
@@ -1509,10 +1389,6 @@ public static class LogAnalysis
             });
         }
     }
-
-    // ------------------------------------------------------------------
-    // 文件完整性 / 系统环境
-    // ------------------------------------------------------------------
 
     private static void AnalyzeFiles(string haystack, List<LogAnalysisFinding> findings)
     {
@@ -1591,10 +1467,6 @@ public static class LogAnalysis
             });
         }
     }
-
-    // ------------------------------------------------------------------
-    // 世界 / 存档
-    // ------------------------------------------------------------------
 
     private static void AnalyzeWorld(Evidence evidence, List<LogAnalysisFinding> findings)
     {
@@ -1691,10 +1563,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // 其他游戏内崩溃场景
-    // ------------------------------------------------------------------
-
     private static void AnalyzeGameSpecific(string haystack, List<LogAnalysisFinding> findings)
     {
         if (Rx("Watching server").IsMatch(haystack))
@@ -1742,10 +1610,6 @@ public static class LogAnalysis
         }
     }
 
-    // ------------------------------------------------------------------
-    // 小工具
-    // ------------------------------------------------------------------
-
     private static Regex Rx(string expression) =>
         new(expression, RegexOptions.Compiled | RegexOptions.IgnoreCase, MatchTimeout);
 
@@ -1787,7 +1651,6 @@ public static class LogAnalysis
         return groupName is null ? match.Value.Trim() : match.Groups[groupName].Value.Trim();
     }
 
-    /// <summary>收集包含任一关键词的原始行（去重，最多 3 条，单行截 240 字符）。</summary>
     private static IReadOnlyList<string> CollectEvidenceLines(string haystack, params string[] keywords)
     {
         List<string> lines = [];
@@ -1814,7 +1677,6 @@ public static class LogAnalysis
         return lines;
     }
 
-    /// <summary>取文本末尾 maxLines 行；不足 minChars 时改为取末尾 minChars 字节并对齐行首。</summary>
     private static string TailText(string text, int maxLines, int minChars)
     {
         if (string.IsNullOrEmpty(text))
@@ -1870,7 +1732,6 @@ public static class LogAnalysis
         }
     }
 
-    /// <summary>断言 path 位于 root 目录内（含自身）；root 为空时视为不允许。</summary>
     private static bool IsPathWithin(string path, string? root)
     {
         if (string.IsNullOrWhiteSpace(root))
@@ -1906,7 +1767,6 @@ public static class LogAnalysis
         }
     }
 
-    /// <summary>只在目录根找（hs_err_pid*.log 写在游戏根目录，不递归）。</summary>
     private static string? NewestMatchingFileInRoot(string directory, string pattern, DateTimeOffset? sinceUtc)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
@@ -1916,7 +1776,6 @@ public static class LogAnalysis
 
         try
         {
-            // EnumerateFiles 默认 TopDirectoryOnly，正好只看根目录
             return Directory.EnumerateFiles(directory, pattern)
                 .Select(path => new FileInfo(path))
                 .Where(file => sinceUtc is null || file.LastWriteTimeUtc >= sinceUtc.Value.UtcDateTime.AddSeconds(-5))
