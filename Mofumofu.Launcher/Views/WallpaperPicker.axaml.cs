@@ -16,7 +16,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>设置页里的自定义壁纸选择器：图片 / 图片轮播。</summary>
 public partial class WallpaperPicker : UserControl
 {
     private static readonly FilePickerFileType ImageType = new("图片")
@@ -27,7 +26,6 @@ public partial class WallpaperPicker : UserControl
     private readonly List<SlideThumb> _slides = [];
     private bool _loading;
 
-    /// <summary>上一次渲染的模式：只在真的变了时播动画，避免拖滑块也反复闪。</summary>
     private string? _lastMode;
 
     public WallpaperPicker()
@@ -58,10 +56,6 @@ public partial class WallpaperPicker : UserControl
 
         _ = RefreshAsync();
     }
-
-    // ------------------------------------------------------------------
-    // 刷新界面
-    // ------------------------------------------------------------------
 
     private async Task RefreshAsync()
     {
@@ -107,7 +101,6 @@ public partial class WallpaperPicker : UserControl
         PickImageButton.IsVisible = mode == WallpaperModes.Image;
         AddImagesButton.IsVisible = mode == WallpaperModes.Slideshow;
 
-        // 两个面板互斥，切换时让接替上来的那个淡入，而不是硬切
         if (modeChanged)
         {
             Control shown = mode == WallpaperModes.Image ? ImagePanel : SlideshowPanel;
@@ -143,7 +136,6 @@ public partial class WallpaperPicker : UserControl
 
         SlideshowEmptyText.IsVisible = settings.Mode == WallpaperModes.Slideshow && _slides.Count == 0;
 
-        // 增删图片后整列缩略图会重建，给一次淡入把「跳变」抹平
         if (_slides.Count != previousCount && _slides.Count > 0)
         {
             UiAnimations.FadeSlideIn(SlideshowList, 0.99, 6, 180);
@@ -162,10 +154,6 @@ public partial class WallpaperPicker : UserControl
             return (Bitmap?)null;
         }
     });
-
-    // ------------------------------------------------------------------
-    // 交互
-    // ------------------------------------------------------------------
 
     private void OnEnabledChanged(object? sender, RoutedEventArgs e)
     {

@@ -4,7 +4,6 @@ using System.IO;
 
 namespace Mofumofu.Launcher.Services.Wallpaper;
 
-/// <summary>壁纸设置的读写（{DataRoot}/Mofumofu/config/wallpaper.yaml）。</summary>
 public static class WallpaperStore
 {
     private static readonly YamlDotNet.Serialization.ISerializer Serializer =
@@ -31,13 +30,11 @@ public static class WallpaperStore
             }
             catch
             {
-                // 损坏的设置按默认值处理
             }
 
             return new WallpaperSettings();
         }
 
-        // 首次启动：使用内置默认壁纸
         var defaults = new WallpaperSettings();
         string seeded = WallpaperDefaults.EnsureSeeded();
         if (seeded.Length > 0)
@@ -64,7 +61,6 @@ public static class WallpaperStore
         }
         catch
         {
-            // 磁盘 / 权限问题不影响界面
         }
     }
 

@@ -32,7 +32,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>设置页里一行 Java 运行时（ItemsControl 的数据项）。</summary>
 public sealed class SettingsJavaRow
 {
     public string Path { get; init; } = string.Empty;
@@ -48,10 +47,6 @@ public sealed class SettingsJavaRow
     public bool CanSetDefault => !IsDefault;
 }
 
-/// <summary>
-/// 设置页：左侧条目导航（游戏 / 通用 / 界面 / 下载与网络 / 关于）+ 右侧设置内容。
-/// 设置项写真实配置：MofuCore 的 config.yaml / game.yaml、LocalSettings、DownloadSourceProvider。
-/// </summary>
 public partial class SettingsView : UserControl
 {
     private static readonly string[] CloseActions = ["tray", "exit", "ask"];
@@ -63,7 +58,6 @@ public partial class SettingsView : UserControl
     private Button[] _tabButtons = Array.Empty<Button>();
     private readonly List<Border> _accentSwatches = new();
 
-    /// <summary>上一次搜索结果的淡入时间：连续敲字时做节流，否则每一键都会闪一下。</summary>
     private DateTime _lastSearchReveal = DateTime.MinValue;
 
     public SettingsView()
@@ -73,6 +67,9 @@ public partial class SettingsView : UserControl
         _searchBox = SearchBox;
         _tabPanels = new[] { GamePanel, GeneralPanel, AppearancePanel, NetworkPanel, AboutPanel };
         _tabButtons = new[] { TabGame, TabGeneral, TabAppearance, TabNetwork, TabAbout };
+
+        LanguageGlobeControl.LanguageSelected += OnGlobeLanguageSelected;
+        AboutWordmark.Text = MofuWordmark();
 
         LoadSettings();
         _loading = false;
@@ -93,11 +90,8 @@ public partial class SettingsView : UserControl
             });
         };
 
-        // 设置不再逐项即时落盘：离开设置页时统一保存一次，退出时由主窗口兜底。
         DetachedFromVisualTree += (_, _) => LocalSettings.Save();
     }
-
-    // ==================== 初始化 ====================
 
     private void LoadSettings()
     {
@@ -127,12 +121,7 @@ public partial class SettingsView : UserControl
         CloseActionCombo.SelectedIndex = Math.Max(0, Array.IndexOf(CloseActions, settings.CloseAction));
         SingleInstanceToggle.IsChecked = settings.SingleInstance;
 
-        LanguageCards.ItemsSource = L.Languages;
-        foreach (var card in LanguageCards.Items.OfType<Button>())
-        {
-            card.Classes.Set("active",
-                string.Equals(card.Tag as string, L.CurrentLanguage, StringComparison.OrdinalIgnoreCase));
-        }
+        LanguageGlobeControl.SetLanguage(settings.Language);
 
         StartBarPlacementCombo.SelectedIndex = settings.StartBarPlacement switch
         {
@@ -173,8 +162,6 @@ public partial class SettingsView : UserControl
         RefreshAboutVersions();
     }
 
-    // ==================== 强调色 / 语言 / 主题色映射 ====================
-
     private static string AccentKey(string key) =>
         "Settings.Appearance.Accent." + (key.Length == 0 ? key : char.ToUpperInvariant(key[0]) + key[1..]);
 
@@ -196,12 +183,6 @@ public partial class SettingsView : UserControl
         return L.T(AccentKey(key), fallback);
     }
 
-    // ==================== 窗口外观钩子 ====================
-
-    /// <summary>
-    /// 外观设置改完请主窗口立刻重刷（MainWindow 公开方法 ApplyAppearanceSettings）；
-    /// 钩子还没接好时静默跳过，设置本身已经落盘。
-    /// </summary>
     private static void RequestAppearanceApply()
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
@@ -215,11 +196,8 @@ public partial class SettingsView : UserControl
         }
         catch
         {
-            // 钩子未就绪 / 反射失败时忽略
         }
     }
-
-    // ==================== 分区切换 ====================
 
     private void SelectTab(int index)
     {
@@ -232,12 +210,16 @@ public partial class SettingsView : UserControl
 
         if (_searchBox is not null && !string.IsNullOrWhiteSpace(_searchBox.Text))
         {
-            // 切换分区时清空搜索，回到正常浏览状态
             _searchBox.Text = string.Empty;
         }
         else
         {
             ApplySearch(string.Empty);
+        }
+
+        if (index == 0 && !_loading)
+        {
+            RefreshJavaList();
         }
 
         ContentScroll.Offset = new Avalonia.Vector(0, 0);
@@ -249,8 +231,6 @@ public partial class SettingsView : UserControl
     private void OnTabAppearanceClick(object? sender, RoutedEventArgs e) => SelectTab(2);
     private void OnTabNetworkClick(object? sender, RoutedEventArgs e) => SelectTab(3);
     private void OnTabAboutClick(object? sender, RoutedEventArgs e) => SelectTab(4);
-
-    // ==================== 搜索过滤 ====================
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -302,7 +282,6 @@ public partial class SettingsView : UserControl
 
             if (i < _tabButtons.Length)
             {
-                // 搜索时清掉选中态、压暗没有命中的左侧条目
                 _tabButtons[i].Classes.Set("active", !searching && i == _activeTab);
                 _tabButtons[i].Classes.Set("dim", searching && !tabVisible);
             }
@@ -330,7 +309,6 @@ public partial class SettingsView : UserControl
         ContentScroll.Offset = new Avalonia.Vector(0, 0);
     }
 
-    /// <summary>在控件自身 Tag 和其下所有 TextBlock 文本里做忽略大小写的包含匹配。</summary>
     private static bool Matches(Control control, string query)
     {
         if (control.Tag is string tag &&
@@ -352,9 +330,6 @@ public partial class SettingsView : UserControl
         return false;
     }
 
-    // ==================== 游戏：目录 ====================
-
-    /// <summary>未配置时使用的默认游戏目录：启动器目录下的 .minecraft。</summary>
     private static string DefaultGameDirectory => Path.Combine(AppContext.BaseDirectory, ".minecraft");
 
     private static string CurrentGameDirectory()
@@ -470,8 +445,6 @@ public partial class SettingsView : UserControl
         }
     }
 
-    // ==================== 游戏：Java ====================
-
     private void RefreshJavaList()
     {
         var saved = YamlRead.GetJavaPaths();
@@ -496,9 +469,50 @@ public partial class SettingsView : UserControl
         }
 
         JavaList.ItemsSource = rows;
+        JavaInstalledCountText.Text = rows.Count.ToString(CultureInfo.InvariantCulture);
+        ApplyJavaDefaultSummary(rows);
         JavaStatusText.Text = rows.Count == 0
             ? L.T("Settings.Game.Java.Empty", "未配置 Java：点「自动检索」扫描本机，或「添加」选择 java.exe")
             : L.T("Settings.Game.Java.Detected", "已保存 {0} 个 Java 运行时", rows.Count);
+    }
+
+    private void ApplyJavaDefaultSummary(IReadOnlyList<SettingsJavaRow> rows)
+    {
+        SettingsJavaRow? primary = rows.FirstOrDefault(row => row.IsDefault);
+        if (primary is null)
+        {
+            JavaDefaultNameText.Text = L.T("Download.Java.Auto", "自动选择最佳运行时");
+            JavaDefaultPathText.Text = L.T("Download.Java.AutoHint", "启动时按版本要求自动检测本机 Java");
+            JavaDefaultTag.IsVisible = false;
+            return;
+        }
+
+        string folderName = Path.GetFileName(Path.GetDirectoryName(primary.Path) ?? string.Empty);
+        JavaDefaultNameText.Text = string.IsNullOrWhiteSpace(primary.Version)
+            ? (folderName.Length > 0 ? folderName : primary.Path)
+            : $"Java {primary.Version}";
+        JavaDefaultPathText.Text = primary.Path;
+        JavaDefaultTag.IsVisible = true;
+    }
+
+    private void OnOpenJavaDirClick(object? sender, RoutedEventArgs e)
+    {
+        var directory = System.IO.Path.Combine(CurrentGameDirectory(), "runtime");
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = directory,
+                UseShellExecute = true,
+            });
+            Shell.Toast(L.T("Download.Java.OpenJavaDir", "打开 Java 运行时目录 {0}", directory));
+        }
+        catch (Exception ex)
+        {
+            Shell.Toast(L.T("Settings.Game.Directory.OpenFailed", "打开目录失败：{0}", ex.Message));
+        }
     }
 
     private static string JavaVersionText(JavaRuntime runtime)
@@ -629,8 +643,6 @@ public partial class SettingsView : UserControl
         Shell.Toast(L.T("Settings.Toast.JavaRemoved", "已移除 Java 运行时"));
     }
 
-    // ==================== 游戏：内存 ====================
-
     private void UpdateMemoryPreview()
     {
         if (MaxMemoryValue is null || MemoryPreviewText is null || AutomaticMemoryToggle is null) return;
@@ -681,8 +693,6 @@ public partial class SettingsView : UserControl
         Shell.Toast(L.T("Memory.Saved", "已保存内存设置"));
     }
 
-    // ==================== 通用：窗口 / 单实例 / S 模式 / 语言 ====================
-
     private void OnCloseActionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loading) return;
@@ -699,18 +709,15 @@ public partial class SettingsView : UserControl
         LocalSettings.Current.SingleInstance = SingleInstanceToggle.IsChecked == true;
     }
 
-    private void OnLanguageCardClick(object? sender, RoutedEventArgs e)
+    private void OnGlobeLanguageSelected(string code)
     {
         if (_loading) return;
-        if (sender is not Button { Tag: string code }) return;
+        if (string.Equals(code, LocalSettings.Current.Language, StringComparison.OrdinalIgnoreCase)) return;
 
-        // SetLanguage 在发通知之后才写 LocalSettings，先写一次，重建出来的页面选中项才正确
         LocalSettings.Current.Language = code;
         L.SetLanguage(code);
         Shell.Toast(L.T("Settings.General.Language.Changed", "已切换界面语言"));
     }
-
-    // ==================== 界面：主题 / 外观 ====================
 
     private void OnIconPaletteChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -735,8 +742,6 @@ public partial class SettingsView : UserControl
         LocalSettings.Current.Theme = theme;
         ThemeManager.Apply(theme, LocalSettings.Current.AccentColor);
     }
-
-    // ==================== 主题色色板 / 自定义颜色 ====================
 
     private void BuildAccentSwatches()
     {
@@ -1107,7 +1112,6 @@ public partial class SettingsView : UserControl
         return dot;
     }
 
-    /// <summary>把一个预设色展开成同色系的 5 档深浅（浅 → 深）。</summary>
     private static IEnumerable<Color> PaletteShades(Color baseColor)
     {
         var (hue, _, _) = ColorWheel.ToHsv(baseColor);
@@ -1128,7 +1132,6 @@ public partial class SettingsView : UserControl
         while (recent.Count > 8) recent.RemoveAt(recent.Count - 1);
     }
 
-    /// <summary>弹窗内容里的按钮：取它所在的 MofuDialogHost 关掉当前弹窗。</summary>
     private static void CloseActiveDialog(object? source)
     {
         if (source is Visual visual)
@@ -1156,7 +1159,6 @@ public partial class SettingsView : UserControl
         await ApplyAccentFromWallpaperAsync(silent: false);
     }
 
-    /// <summary>从当前壁纸预览图取平均色，映射到最接近的主题色后应用。</summary>
     public static async Task<bool> ApplyAccentFromWallpaperAsync(bool silent)
     {
         var preview = WallpaperService.Instance.Settings.Images
@@ -1308,8 +1310,6 @@ public partial class SettingsView : UserControl
 
         LocalSettings.Current.StartBarAutoHide = StartBarAutoHideToggle.IsChecked == true;
     }
-
-    // ==================== 下载与网络 ====================
 
     private static int SourceIndex(string? key) => key?.Trim().ToLowerInvariant() switch
     {
@@ -1487,8 +1487,6 @@ public partial class SettingsView : UserControl
         LocalSettings.Current.AutoInstallDependencies = AutoDependenciesToggle.IsChecked == true;
     }
 
-    // ==================== 关于 ====================
-
     private static string LauncherVersion()
     {
         var assembly = typeof(SettingsView).Assembly;
@@ -1520,13 +1518,22 @@ public partial class SettingsView : UserControl
             LauncherFileVersion());
         _loading = true;
         AutoCheckUpdateToggle.IsChecked = LocalSettings.Current.AutoCheckUpdates;
+        // 自编译版没有 CI 注入的发布 tag，自动更新不适用
+        var isSnapshot = version.Contains("Snapshot", StringComparison.OrdinalIgnoreCase);
+        AutoCheckUpdateToggle.IsEnabled = !isSnapshot;
+        AboutAutoCheckHint.IsVisible = isSnapshot;
         _loading = false;
+    }
+
+    private void OnAutoCheckUpdatesChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        LocalSettings.Current.AutoCheckUpdates = AutoCheckUpdateToggle.IsChecked == true;
     }
 
     private bool _mascotRedhead;
     private int _mascotPokes;
 
-    /// <summary>彩蛋：哭哭猫连点 5 下换成红发哭哭，再点 5 下换回来。</summary>
     private void OnAboutMascotPressed(object? sender, PointerPressedEventArgs e)
     {
         if (++_mascotPokes < 5) return;
@@ -1540,8 +1547,30 @@ public partial class SettingsView : UserControl
     private static Bitmap MascotBitmap(string file) =>
         new(Avalonia.Platform.AssetLoader.Open(new Uri($"avares://Mofumofu.Launcher/Assets/{file}")));
 
+    // 点阵在代码里拼，保证列对齐；█ 代替 # 让字身实心
+    private static string MofuWordmark()
+    {
+        var glyphs = new Dictionary<char, string[]>
+        {
+            ['M'] = new[] { "#...#", "##.##", "#.#.#", "#...#", "#...#", "#...#" },
+            ['O'] = new[] { ".###.", "#...#", "#...#", "#...#", "#...#", ".###." },
+            ['F'] = new[] { "#####", "#....", "#....", "####.", "#....", "#...." },
+            ['U'] = new[] { "#...#", "#...#", "#...#", "#...#", "#...#", ".###." },
+        };
+        var rows = new string[6];
+        for (var r = 0; r < rows.Length; r++)
+        {
+            rows[r] = string.Join(" ", "MOFUMOFU".Select(ch => glyphs[ch][r]));
+        }
+        return string.Join("\n", rows).Replace('#', '█').Replace('.', ' ');
+    }
+
     private bool _checkingUpdate;
     private GitHubUpdater.ReleaseInfo? _pendingUpdateRelease;
+
+    private void ResetAboutUpdateHint() =>
+        AboutUpdateHint.Text = L.T("Settings.About.UpdateHint", "当前版本 {0}（文件版本 {1}）",
+            LauncherVersion(), LauncherFileVersion());
 
     private async void OnCheckUpdateClick(object? sender, RoutedEventArgs e)
     {
@@ -1561,12 +1590,13 @@ public partial class SettingsView : UserControl
             }
 
             _pendingUpdateRelease = release;
+            AboutUpdateHint.Text = L.T("Settings.About.UpdateFound", "发现新版本 {0}",
+                release.Tag.TrimStart('v', 'V'));
             ShowUpdateFoundDialog(release);
         }
         catch (Exception error)
         {
-            AboutUpdateHint.Text = L.T("Settings.About.UpdateHint", "当前版本 {0}（文件版本 {1}）",
-                LauncherVersion(), LauncherFileVersion());
+            ResetAboutUpdateHint();
             Shell.Toast(L.T("Settings.About.UpdateFailed", "检查更新失败：{0}", error.Message));
         }
         finally
@@ -1599,7 +1629,12 @@ public partial class SettingsView : UserControl
             Content = new TextBlock { Text = notes, FontSize = 12.5, TextWrapping = TextWrapping.Wrap },
         });
 
-        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () =>
+        {
+            // 取消后不能让更新行一直停在「正在检查更新…」
+            ResetAboutUpdateHint();
+            MofuDialog.Close(content);
+        });
         var install = MofuDialog.Primary(
             release.AssetUrl is null
                 ? L.T("Settings.About.Update.OpenRelease", "打开发布页")
@@ -1638,8 +1673,7 @@ public partial class SettingsView : UserControl
         }
         catch (Exception error)
         {
-            AboutUpdateHint.Text = L.T("Settings.About.UpdateHint", "当前版本 {0}（文件版本 {1}）",
-                LauncherVersion(), LauncherFileVersion());
+            ResetAboutUpdateHint();
             Shell.Toast(L.T("Settings.About.UpdateFailed", "更新失败：{0}", error.Message));
         }
         finally
@@ -1661,7 +1695,7 @@ public partial class SettingsView : UserControl
             MofuDialog.Close(content);
             try
             {
-                GitHubUpdater.Apply(downloadedPath); // 内部会重启并退出当前进程
+                GitHubUpdater.Apply(downloadedPath);
             }
             catch (Exception error)
             {
@@ -1690,7 +1724,6 @@ public partial class SettingsView : UserControl
         Shell.Dialog(content, L.T("Settings.About.ResetConfirmTitle", "确认重置启动器设置？"), sender as Control);
     }
 
-    /// <summary>核弹发射按钮：按住 10 秒蓄力，松开即取消。</summary>
     private static Control CreateResetLaunchButton(Action onLaunch)
     {
         const double holdSeconds = 10;
@@ -1814,7 +1847,6 @@ public partial class SettingsView : UserControl
             timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
             timer.Tick += (_, _) =>
             {
-                // 弹窗被 Esc / 点遮罩关掉后，按住状态一并失效
                 if (TopLevel.GetTopLevel(surface) is null)
                 {
                     timer?.Stop();

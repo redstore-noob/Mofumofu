@@ -5,10 +5,6 @@ using System.Linq;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>
-/// 插件清单：统一读取开发态散目录的 plugin.yaml 与 .nekoex 解包后的 info.yaml。
-/// 字段：id / name / version / author / description / apiVersion / permissions（逗号分隔）。
-/// </summary>
 public sealed class PluginManifest
 {
     public string Id { get; init; } = string.Empty;
@@ -19,10 +15,8 @@ public sealed class PluginManifest
     public string ApiVersion { get; init; } = string.Empty;
     public List<string> Permissions { get; init; } = [];
 
-    /// <summary>插件所在目录（散目录或 .nekoex 解包目录）。</summary>
     public string Directory { get; init; } = string.Empty;
 
-    /// <summary>来源 .nekoex 文件路径（散目录插件为 null；卸载时一并删除）。</summary>
     public string? SourcePackagePath { get; set; }
 
     public string DllPath => Path.Combine(Directory, "extension.dll");
@@ -32,10 +26,6 @@ public sealed class PluginManifest
     public bool HasDll => File.Exists(DllPath);
     public bool HasIcon => File.Exists(IconPath);
 
-    /// <summary>
-    /// 插件 id 白名单：仅 [A-Za-z0-9._-]，且拒绝 "." / ".." 等目录语义值。
-    /// 所有把 id 拼进文件系统路径之前先过此校验（配合调用方的 GetFullPath 包含性断言）。
-    /// </summary>
     internal static bool IsValidPluginId(string id)
     {
         if (string.IsNullOrEmpty(id) || id is "." or "..") return false;
@@ -49,7 +39,6 @@ public sealed class PluginManifest
         return true;
     }
 
-    /// <summary>description.md 全文；不存在时为空串。</summary>
     public string ReadDescriptionMarkdown()
     {
         try
@@ -62,10 +51,6 @@ public sealed class PluginManifest
         }
     }
 
-    /// <summary>
-    /// 从插件目录读取清单：依次尝试 plugin.yaml / plugin.yml / info.yaml / info.yml。
-    /// 目录里一个清单都没有时返回 null。
-    /// </summary>
     public static PluginManifest? TryLoad(string directory)
     {
         foreach (string name in new[] { "plugin.yaml", "plugin.yml", "info.yaml", "info.yml" })
@@ -100,7 +85,6 @@ public sealed class PluginManifest
         return null;
     }
 
-    /// <summary>极简 YAML 行解析：key: value，支持 # 注释与成对引号（与清单文件的平面结构匹配）。</summary>
     public static Dictionary<string, string> ParseYamlLines(string path)
     {
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
@@ -119,7 +103,6 @@ public sealed class PluginManifest
         }
         catch
         {
-            // 清单不可读按无清单处理
         }
 
         return values;

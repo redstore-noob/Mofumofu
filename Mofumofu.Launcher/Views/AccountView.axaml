@@ -213,7 +213,7 @@
             </controls:PageHeader.Actions>
         </controls:PageHeader>
 
-<!-- ================= 左栏：账号列表 ================= -->        <Grid Grid.Row="1" ColumnDefinitions="310,*,288">
+        <Grid Grid.Row="1" ColumnDefinitions="310,*,288">
             
             <Grid Grid.Column="0" Margin="0,0,12,0">
                 <Border Classes="account-panel" VerticalAlignment="Stretch">
@@ -326,7 +326,6 @@
                             </StackPanel>
                         </Border>
                     </Grid>
-<!-- ================= 右栏：皮肤展示 + 玩家外观 ================= -->
                     
                     <Border Grid.Row="1" Margin="16,0,16,16" CornerRadius="14" ClipToBounds="True"
                             Background="{DynamicResource NekoFieldSoftBrush}"
@@ -483,7 +482,6 @@
             </ScrollViewer>
         </Grid>
 
-<!-- 皮肤编辑器：内嵌到账户页（不再单独开窗口），布局与 3D 文字生成器一致 -->        
         <Grid x:Name="SkinEditorOverlay" Grid.RowSpan="2" IsVisible="False"
               Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
             <Grid RowDefinitions="Auto,*">

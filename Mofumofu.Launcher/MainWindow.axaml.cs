@@ -23,6 +23,7 @@ using Mofumofu.Launcher.Localization;
 
 using L = Mofumofu.Launcher.Localization.Localization;
 using Mofumofu.Launcher.Services;
+using Mofumofu.Launcher.Services.Agent;
 using Mofumofu.Launcher.Services.Wallpaper;
 using Mofumofu.Launcher.Views;
 using Mofumofu.Launcher.Web;
@@ -48,13 +49,11 @@ public partial class MainWindow : Window
         ("settings", "设置", "IconSettings", "启动器选项"),
     };
 
-    /// <summary>插件注册的动态页面（pageId → 标签/图标/工厂）；由 PluginContextImpl 调用。</summary>
     private static readonly Dictionary<string, (string Label, Control Icon, Func<Control> Factory, bool IsTool)> PluginPages = new();
 
     private static MainWindow? _mainInstance;
 
     private readonly Dictionary<string, Control> _pageCache = new();
-    /// <summary>页面 id → 包了一层插件内容宿主的页面控件；页面本体仍在 _pageCache 里。</summary>
     private readonly Dictionary<string, Control> _hostCache = new();
     private readonly Dictionary<string, Button> _navButtons = new();
 
@@ -62,12 +61,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // 弹窗宿主改成自绘（Controls.MofuDialogHost），Manager 随控件一起创建，不需要外部赋值。
-        // WebView2 是独立子窗口，永远盖在 Avalonia 弹窗之上；弹窗期间整体隐藏，关闭后恢复
         DialogHost.Manager.OnDialogShown += (_, _) => WebRegionHost.SuspendAll();
         DialogHost.Manager.OnDialogDismissed += (_, _) => WebRegionHost.ResumeAll();
 
         Shell.PageRequested += Navigate;
+        Shell.AgentTaskRequested += OpenAgentTask;
         Shell.ToastRequested += ShowToast;
         Shell.DialogRequested += ShowDialog;
         Shell.ToolRequested += OpenCreatorTool;
@@ -112,15 +110,11 @@ public partial class MainWindow : Window
 
         KeyDown += OnWindowKeyDown;
 
-        // 全局文件拖入：交给 DragImportService 统一识别类型、挑实例、确认落点。
-        // handledEventsToo: true —— 即使某个子页面自己处理了 Drop，窗口层仍要拿到一次。
         AddHandler(DragDrop.DragOverEvent, OnFileDragOver, RoutingStrategies.Bubble, true);
         AddHandler(DragDrop.DropEvent, OnFileDrop, RoutingStrategies.Bubble, true);
         AddHandler(DragDrop.DragLeaveEvent, OnFileDragLeave, RoutingStrategies.Bubble, true);
         Deactivated += (_, _) => HideFileDropOverlay();
     }
-
-    // ---------------- 全局文件拖入 ----------------
 
     private string _dropPreviewKey = string.Empty;
     private IReadOnlyList<DropImportPlan> _dropPreviewPlans = Array.Empty<DropImportPlan>();
@@ -203,7 +197,6 @@ public partial class MainWindow : Window
 
     private void HideFileDropOverlay() => FileDropOverlay.IsVisible = false;
 
-    /// <summary>拖到实例列表某一行时，以那一行的实例为准，否则用当前选中的实例。</summary>
     private string? ResolveDropInstance(object? source)
         => _currentPage == "instances" ? InstancesView.ResolveDroppedInstanceId(source) : null;
 
@@ -231,7 +224,6 @@ public partial class MainWindow : Window
         return new DropImportContext(_currentPage, instanceId, instances, null);
     }
 
-    /// <summary>InformationalVersion 含 "beta" 时在标题栏显示 BETA 徽章（正式版自动消失）。</summary>
     private void UpdateBetaBadge()
     {
         var informational = typeof(MainWindow).Assembly
@@ -266,6 +258,19 @@ public partial class MainWindow : Window
 
     private string _currentPage = "home";
 
+    private bool OpenAgentTask(AgentTaskDraft task)
+    {
+        const string pageId = "mofuagent";
+        if (!_pageCache.TryGetValue(pageId, out Control? page))
+        {
+            page = CreatePage(pageId);
+            _pageCache[pageId] = page;
+        }
+        if (page is not MofuAgentView agent || !agent.TryPrepareTask(task)) return false;
+        Navigate(pageId);
+        return true;
+    }
+
     private void Navigate(string pageId)
     {
         long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -278,7 +283,6 @@ public partial class MainWindow : Window
             created = true;
         }
 
-        // 页面本体外面再包一层插件内容宿主：顶部条 / 悬浮层 / 底栏都插在这一层里
         if (!_hostCache.TryGetValue(pageId, out var host))
         {
             host = PageComposer.Current.Wrap(pageId, page);
@@ -299,7 +303,6 @@ public partial class MainWindow : Window
             // 每次都全窗口扫一遍可视树纯属浪费。
             if (created) GlassEffects.Refresh();
 
-            // 新页面像卡片从右侧滑进来；旧页面直接换掉，不做交叉淡出。
             UiAnimations.SlideInFromRight(host);
         }
 
@@ -311,7 +314,6 @@ public partial class MainWindow : Window
             button.Classes.Set("active", id == pageId);
         }
 
-        // 页面重建后重新套用「直角模式」（旧页面里的圆角记录作废）
         _lastSquareCornerPage = page;
         ApplySquareCorners(LocalSettings.Current.SquareCorners);
 
@@ -328,7 +330,6 @@ public partial class MainWindow : Window
 
     private void OnPluginContentChanged() => Dispatcher.UIThread.Post(RefreshCurrentPageHost);
 
-    /// <summary>插件注册了新内容后，重建当前页面的注入宿主，让它立刻生效。</summary>
     private void RefreshCurrentPageHost()
     {
         if (!_hostCache.ContainsKey(_currentPage)) return;
@@ -343,7 +344,6 @@ public partial class MainWindow : Window
         GlassEffects.Refresh();
     }
 
-    /// <summary>开始菜单里的页面名：先用语言包，缺失时用注册表里的中文兜底。</summary>
     private static string PageLabel(string id, string fallback)
     {
         var key = "Shell.Page." + (id.Length == 0 ? id : char.ToUpperInvariant(id[0]) + id[1..]);
@@ -352,13 +352,43 @@ public partial class MainWindow : Window
 
     private void OnLanguageChanged()
     {
-        _pageCache.Clear();
-        _hostCache.Clear();
-        PageHost.Content = null;
-        BuildStartMenu();
-        Navigate(_currentPage);
-        Title = L.T("Shell.AppTitle", "Mofumofu Launcher");
+        // 过渡遮罩负责合并连续触发（Play 内部去重），并在罩住后启动分段异步重建，
+        // 重建段间让出 UI 线程，遮罩动画才能持续画帧、不被同步卡死。
+        LanguageTransition.Play(() => _ = ReloadForLanguageAsync());
     }
+
+    private async System.Threading.Tasks.Task ReloadForLanguageAsync()
+    {
+        try
+        {
+            // The Agent page owns the active run and unsent task drafts; don't replace it on reload.
+            _pageCache.TryGetValue("mofuagent", out Control? agent);
+            _hostCache.TryGetValue("mofuagent", out Control? agentHost);
+            _pageCache.Clear();
+            if (agent is not null) _pageCache.Add("mofuagent", agent);
+            _hostCache.Clear();
+            if (agentHost is not null) _hostCache.Add("mofuagent", agentHost);
+            PageHost.Content = null;
+            await YieldFrame();
+
+            BuildStartMenu();
+            await YieldFrame();
+
+            Navigate(_currentPage);
+            await YieldFrame();
+
+            ReloadStartBarChoices();
+            Title = L.T("Shell.AppTitle", "Mofumofu Launcher");
+        }
+        finally
+        {
+            LanguageTransition.ReportDone();
+        }
+    }
+
+    // 让出一帧：Background 低于渲染/动画优先级，保证遮罩先画再干重活。
+    private static async System.Threading.Tasks.Task YieldFrame()
+        => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     private void OnThemeChanged()
     {
         BuildStartMenu();
@@ -367,10 +397,6 @@ public partial class MainWindow : Window
         WallpaperService.Instance.NotifyThemeChanged();
     }
 
-    /// <summary>
-    /// 壁纸层（独立无边框窗口）在主窗口下方，主窗口要透出它：开启时把窗口表面变透明，
-    /// 关掉时恢复成原来的不透明渐变底色。
-    /// </summary>
     private void OnWallpaperChanged() => ApplyWallpaperBackdrop();
 
     public InAppWallpaperSurface WallpaperSurface => InAppWallpaper;
@@ -399,7 +425,6 @@ public partial class MainWindow : Window
             var blurOn = LocalSettings.Current.PanelBlur;
             if (inApp)
             {
-                // 壁纸已经画在窗口内部，不需要整窗透明
                 TransparencyLevelHint = [WindowTransparencyLevel.None];
             }
             else
@@ -415,7 +440,6 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // 壁纸层不可用时保持不透明背景
             InAppWallpaper.IsVisible = false;
             BackdropLayer.IsVisible = true;
             HeroGlowLayer.IsVisible = true;
@@ -423,15 +447,10 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 开始菜单：单列列表——图标 + 文字。工具和其它页面一样是普通条目，
-    /// 点进去后在创作页左侧选具体工具。
-    /// </summary>
     private void BuildStartMenu()
     {
         StartMenuPanel.Children.Clear();
 
-        // 列表最前面：回桌面的「桌面」缩略图条目（开始按钮只开关菜单）
         AddDesktopRow();
 
         foreach (var entry in PageRegistry)
@@ -454,7 +473,6 @@ public partial class MainWindow : Window
         AddExitActionsRow();
     }
 
-    /// <summary>开始菜单最后一行：退出 / 重启两个并排按钮。</summary>
     private void AddExitActionsRow()
     {
         var quit = new Button
@@ -500,7 +518,6 @@ public partial class MainWindow : Window
                 WorkingDirectory = AppContext.BaseDirectory,
             };
 
-            // 通过 `dotnet Mofumofu.Launcher.dll` 运行时，ProcessPath 是 dotnet 本身，需要把入口程序集补回去。
             if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase))
             {
                 string? entryAssembly = Assembly.GetEntryAssembly()?.Location;
@@ -525,7 +542,6 @@ public partial class MainWindow : Window
         ExitApplication();
     }
 
-    /// <summary>开始菜单第一项：微缩的「桌面」缩略图 + 桌面二字（伪预览，不是真截图）。</summary>
     private void AddDesktopRow()
     {
         var muted = ThemeTokens.Brush("NekoMutedBrush");
@@ -610,7 +626,6 @@ public partial class MainWindow : Window
         StartMenuPanel.Children.Add(button);
     }
 
-    /// <summary>菜单行内容：16px 图标 + 13px 文字，危险操作（退出）用警示色。</summary>
     private Control BuildMenuRowContent(string label, string iconKey, bool danger = false)
     {
         return new StackPanel
@@ -639,8 +654,6 @@ public partial class MainWindow : Window
             },
         };
     }
-
-    // ==================== 可自定义任务栏 ====================
 
     private void RebuildTaskbar()
     {
@@ -705,8 +718,6 @@ public partial class MainWindow : Window
         return id;
     }
 
-    // ==================== 插件系统集成点 ====================
-
     /// <summary>
     /// 注册一个插件页面（IPageRegister 的宿主侧入口）；返回撤销句柄。
     /// 线程安全：非 UI 线程调用会自动调度。
@@ -723,14 +734,12 @@ public partial class MainWindow : Window
         return new PluginPageToken(pageId);
     }
 
-    /// <summary>插件往任务栏右侧追加图标（ITaskbarTray 的宿主侧入口）；返回撤销句柄。</summary>
     public static IDisposable AppendPluginTrayWidget(string id, Control icon, Action click)
     {
         _mainInstance?.AddTrayWidget(id, icon, click);
         return new TrayWidgetToken(id);
     }
 
-    /// <summary>插件请求跳转页面（ITaskbarTray.NavigateTo 的宿主侧入口）。</summary>
     public static void NavigateFromPlugin(string pageId) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(() => _mainInstance?.Navigate(pageId));
 
@@ -787,7 +796,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>插件接管壁纸（IWallpaperEdit 的宿主侧入口）：内置壁纸隐藏、内容铺满背景层。</summary>
     public static IDisposable TakeOverWallpaper(Control content)
     {
         _mainInstance?.ApplyPluginWallpaper(content);
@@ -808,7 +816,6 @@ public partial class MainWindow : Window
         public void Dispose() => _mainInstance?.ClearPluginWallpaper();
     }
 
-    /// <summary>插件页增删后：清掉失效缓存并重建开始菜单/任务栏。</summary>
     private void RefreshPluginPages()
     {
         if (Dispatcher.UIThread.CheckAccess() == false)
@@ -856,7 +863,6 @@ public partial class MainWindow : Window
         Services.Wallpaper.WallpaperService.Instance.Refresh();
     }
 
-    /// <summary>开始菜单里的插件页行：图标是插件给的控件（不限于 IconPark）。</summary>
     private void AddPluginMenuRow(string id, string label, Control icon)
     {
         icon.Width = 16;
@@ -897,7 +903,6 @@ public partial class MainWindow : Window
         return menu;
     }
 
-    /// <summary>开始菜单条目右键：按当前状态切换「添加到任务栏 / 从任务栏移除」。</summary>
     private void AttachTaskbarToggleMenu(Button button, string id)
     {
         if (TaskbarIconKey(id) is null) return;
@@ -1045,7 +1050,6 @@ public partial class MainWindow : Window
 
         if (!ToastStack.Children.Contains(toast)) return;
 
-        // 向左滑出
         toast.Opacity = 0;
         toast.RenderTransform = TransformOperations.Parse("translateX(-150px)");
         await System.Threading.Tasks.Task.Delay(ToastExitAnimationMs);
@@ -1070,26 +1074,27 @@ public partial class MainWindow : Window
     }
 
     private bool _suppressStartBarSelection;
-    private List<VersionChoice> _startBarVersions = [];
+    private IReadOnlyList<InstanceSnapshot> _instanceSnapshots = Array.Empty<InstanceSnapshot>();
 
-    /// <summary>重建开始栏的版本 / 账号下拉（版本优先真实扫描游戏目录 versions/，账号来自账号列表 + 皮肤档案缓存）。</summary>
     private void ReloadStartBarChoices()
     {
-        var versions = BuildVersionChoices();
-        _startBarVersions = versions;
+        _instanceSnapshots = InstanceCatalog.Scan();
+
+        var desired = FindSelectedInstance() ?? _instanceSnapshots.FirstOrDefault();
+        if (desired is not null && !string.Equals(desired.Id, GameState.SelectedVersion, StringComparison.Ordinal))
+        {
+            GameState.SetVersion(desired.Id);
+        }
+
+        UpdateInstanceChip(desired);
+
         var accounts = BuildAccountChoices();
-
-        var desiredVersion = versions.FirstOrDefault(v => v.Id == GameState.SelectedVersion)
-                             ?? versions.FirstOrDefault(v => v.DisplayName == GameState.SelectedVersion)
-                             ?? versions.FirstOrDefault();
-
         var desiredAccount = accounts.FirstOrDefault(a => a.Name == GameState.SelectedAccount)
                              ?? accounts.FirstOrDefault();
 
         _suppressStartBarSelection = true;
         try
         {
-            RebuildInstanceChips(desiredVersion?.Id);
             AccountCombo.ItemsSource = accounts;
             AccountCombo.SelectedItem = desiredAccount;
         }
@@ -1098,25 +1103,26 @@ public partial class MainWindow : Window
             _suppressStartBarSelection = false;
         }
 
-        if (desiredVersion is not null && desiredVersion.DisplayName != GameState.SelectedVersion)
-        {
-            GameState.SetVersion(desiredVersion.DisplayName);
-        }
-
         if (desiredAccount is not null && desiredAccount.Name != GameState.SelectedAccount)
         {
             GameState.SetAccount(desiredAccount.Name);
         }
     }
 
-    /// <summary>状态变化后（例如账户页登录/切换）把下拉选中项对齐回当前选择。</summary>
+    private InstanceSnapshot? FindSelectedInstance()
+    {
+        var selectedId = GameState.SelectedVersion;
+        return _instanceSnapshots.FirstOrDefault(item =>
+                   string.Equals(item.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+               ?? _instanceSnapshots.FirstOrDefault(item =>
+                   string.Equals(item.Name, selectedId, StringComparison.OrdinalIgnoreCase));
+    }
+
     private void SyncStartBarSelection()
     {
         _suppressStartBarSelection = true;
         try
         {
-            RebuildInstanceChips(GameState.SelectedVersion);
-
             if (AccountCombo.ItemsSource is IEnumerable<AccountChoice> accounts)
             {
                 var match = accounts.FirstOrDefault(a => a.Name == GameState.SelectedAccount);
@@ -1127,89 +1133,67 @@ public partial class MainWindow : Window
         {
             _suppressStartBarSelection = false;
         }
+
+        UpdateInstanceChip(FindSelectedInstance());
     }
 
-    private void RebuildInstanceChips(string? selectedId)
+    private void UpdateInstanceChip(InstanceSnapshot? instance)
     {
-        if (InstanceChipPanel is null) return;
+        if (InstanceChipName is null) return;
 
-        InstanceChipPanel.Children.Clear();
-        if (_startBarVersions.Count == 0)
-        {
-            InstanceChipPanel.Children.Add(new TextBlock
-            {
-                Text = L.T("Shell.StartBar.NoVersion", "未选择版本"),
-                FontSize = 12,
-                Foreground = ThemeTokens.Brush("NekoMutedBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            return;
-        }
+        var hasInstance = instance is not null;
+        InstanceChipName.Text = hasInstance
+            ? instance!.Name
+            : L.T("Shell.StartBar.SelectInstance", "选择实例");
+        InstanceChipMeta.Text = hasInstance ? BuildInstanceMeta(instance!) : string.Empty;
+        InstanceChipMeta.IsVisible = hasInstance;
 
-        string selected = selectedId ?? GameState.SelectedVersion;
-        foreach (VersionChoice choice in _startBarVersions)
-        {
-            bool active = string.Equals(choice.Id, selected, StringComparison.OrdinalIgnoreCase);
-            InstanceChipPanel.Children.Add(CreateInstanceChip(choice, active));
-        }
+        InstanceChipIcon.Source = instance?.Icon;
+        InstanceChipIcon.IsVisible = instance?.Icon is not null;
+        InstanceChipFallback.IsVisible = instance?.Icon is null;
+        InstanceChipRunDot.IsVisible = hasInstance && GameState.IsRunning;
+
+        InstanceChip.IsEnabled = !GameState.IsRunning;
+        ToolTip.SetTip(InstanceChip, L.T(
+            GameState.IsRunning ? "Shell.StartBar.InstanceBusy" : "Shell.StartBar.InstanceTip",
+            GameState.IsRunning ? "游戏运行中，无法切换实例" : "切换游戏实例"));
     }
 
-    private Control CreateInstanceChip(VersionChoice choice, bool active)
+    private static string BuildInstanceMeta(InstanceSnapshot instance)
     {
-        var content = new StackPanel
+        var loader = instance.Loader == "Vanilla"
+            ? L.T("Download.Minecraft.Vanilla", "原版")
+            : instance.Loader;
+        return $"{instance.Version} · {loader} · {L.T("Shell.Picker.Mods", "{0} 个模组", instance.ModCount)}";
+    }
+
+    private void OnInstanceChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (GameState.IsRunning) return;
+
+        var picker = new InstancePickerPopover(
+            _instanceSnapshots,
+            FindSelectedInstance()?.Id,
+            GameState.IsRunning ? GameState.SelectedVersion : null,
+            SelectInstance,
+            () => Shell.Go("instances"),
+            () => Shell.Go("download"));
+
+        MofuPopover.Show(InstanceChip, picker, true);
+    }
+
+    private void SelectInstance(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        if (!string.Equals(GameState.SelectedVersion, id, StringComparison.Ordinal))
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        if (choice.Icon is not null)
-        {
-            content.Children.Add(new Image { Source = choice.Icon, Width = 16, Height = 16 });
+            GameState.SetVersion(id);
         }
 
-        content.Children.Add(new TextBlock
-        {
-            Text = choice.DisplayName,
-            FontSize = 12,
-            MaxWidth = 160,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-
-        var chip = new Border
-        {
-            CornerRadius = new CornerRadius(9),
-            BorderThickness = new Thickness(1),
-            BorderBrush = ThemeTokens.Brush(active ? "NekoAccentBrush" : "NekoBorderBrush"),
-            Background = ThemeTokens.Brush(active ? "NekoAccentSoftBrush" : "NekoFieldSoftBrush"),
-            Padding = new Thickness(9, 5),
-            Cursor = new Cursor(StandardCursorType.Hand),
-            Child = content,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-
-        chip.PointerEntered += (_, _) =>
-        {
-            if (!active) chip.Background = ThemeTokens.Brush("NekoFieldHoverBrush");
-        };
-        chip.PointerExited += (_, _) =>
-        {
-            if (!active) chip.Background = ThemeTokens.Brush("NekoFieldSoftBrush");
-        };
-        chip.PointerPressed += (_, args) =>
-        {
-            if (!args.GetCurrentPoint(chip).Properties.IsLeftButtonPressed) return;
-            if (!string.Equals(GameState.SelectedVersion, choice.Id, StringComparison.Ordinal))
-            {
-                GameState.SetVersion(choice.Id);
-                LocalSettings.Current.SelectedInstanceId = choice.Id;
-                LocalSettings.Save();
-            }
-
-            RebuildInstanceChips(choice.Id);
-        };
-
-        return chip;
+        LocalSettings.Current.SelectedInstanceId = id;
+        LocalSettings.Save();
+        UpdateInstanceChip(_instanceSnapshots.FirstOrDefault(item =>
+            string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase)));
     }
 
     private void OnAccountSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -1223,31 +1207,9 @@ public partial class MainWindow : Window
 
     private static List<VersionChoice> BuildVersionChoices()
     {
-        var list = new List<VersionChoice>();
-
-        try
-        {
-            var versionsDir = Path.Combine(ResolveGameDirectory(), "versions");
-            if (Directory.Exists(versionsDir))
-            {
-                foreach (var directory in Directory.GetDirectories(versionsDir))
-                {
-                    var id = Path.GetFileName(directory);
-                    if (string.IsNullOrWhiteSpace(id)) continue;
-                    if (id.StartsWith(".mofu-update-", StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!File.Exists(Path.Combine(directory, id + ".json"))) continue;
-
-                    list.Add(new VersionChoice { Id = id, DisplayName = id, Icon = LoadInstanceIcon(id) });
-                }
-            }
-        }
-        catch
-        {
-            // 游戏目录不可读时回退到内置实例列表
-        }
-
-        list.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
-        return list;
+        return InstanceCatalog.Scan()
+            .Select(item => new VersionChoice { Id = item.Id, DisplayName = item.Name, Icon = item.Icon })
+            .ToList();
     }
 
     private List<AccountChoice> BuildAccountChoices()
@@ -1277,7 +1239,6 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // 账号保险库不可读时没有可显示的账号
         }
 
         var current = GameState.SelectedAccount;
@@ -1294,7 +1255,6 @@ public partial class MainWindow : Window
         return choices;
     }
 
-    /// <summary>异步补齐账号皮肤大头（服务内部有内存/磁盘缓存，重复调用无额外开销）。</summary>
     private static async System.Threading.Tasks.Task FillSkinHeadAsync(AccountChoice choice)
     {
         try
@@ -1306,7 +1266,6 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // 拿不到大头就保留默认图标
         }
     }
 
@@ -1315,51 +1274,6 @@ public partial class MainWindow : Window
         "Mofumofu.Launcher",
         "skins");
 
-    private static string ResolveGameDirectory()
-    {
-        try
-        {
-            var configured = MofuCore.Config.YamlRead.GameDirectory;
-            if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(configured);
-        }
-        catch
-        {
-            // 配置不可用时用工作目录下的 .minecraft
-        }
-
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".minecraft"));
-    }
-
-    private static Bitmap? LoadInstanceIcon(string versionId)
-    {
-        var key = versionId.ToLowerInvariant();
-        var file =
-            key.Contains("neoforge") ? "neoforge.png"
-            : key.Contains("forge") ? "forge.png"
-            : key.Contains("fabric") ? "fabric.png"
-            : key.Contains("lite") ? "liteloader.png"
-            : key.StartsWith("2") && key.Contains('w') ? "snapshot_version.png"
-            : key.StartsWith("1.7") || key.StartsWith("1.8") || key.StartsWith("1.12") ? "old_version.png"
-            : "vanilla.png";
-
-        return LoadAssetBitmap($"avares://Mofumofu.Launcher/Assets/instance-icons/{file}");
-    }
-
-    private static Bitmap? LoadAssetBitmap(string uri)
-    {
-        try
-        {
-            using var stream = AssetLoader.Open(new Uri(uri));
-            return new Bitmap(stream);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    // ================= 外观 / 窗口行为 / 托盘（设置页假交互的落地处） =================
-
     private TrayIcon? _trayIcon;
     private bool _forceClose;
     private bool _closePromptOpen;
@@ -1367,7 +1281,6 @@ public partial class MainWindow : Window
     private readonly Dictionary<Border, CornerRadius> _squareBorderBackup = new();
     private readonly Dictionary<TextBox, CornerRadius> _squareTextBackup = new();
 
-    /// <summary>应用外观设置：窗口/背景不透明度、面板毛玻璃、直角模式。设置页改完与启动时都会调用。</summary>
     public void ApplyAppearanceSettings()
     {
         var settings = LocalSettings.Current;
@@ -1378,7 +1291,6 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // 不透明度不可用时保持默认
         }
 
         if (BackdropLayer is not null)
@@ -1389,7 +1301,6 @@ public partial class MainWindow : Window
             }
             catch
             {
-                // 背景层不可用时忽略
             }
         }
 
@@ -1398,13 +1309,11 @@ public partial class MainWindow : Window
         ApplySquareCorners(settings.SquareCorners);
     }
 
-    /// <summary>直角模式：把当前页面里的面板/输入框圆角清零，关闭时还原。</summary>
     private void ApplySquareCorners(bool square)
     {
         if (!square) return;
         if (PageHost?.Content is not Control target) return;
 
-        // 页面是缓存的，已经扫过的页面圆角已经是 0，再扫一遍只是白白遍历几百个控件。
         if (!_squareAppliedPages.Add(target)) return;
 
         foreach (var visual in PageHost.GetVisualDescendants())
@@ -1470,19 +1379,15 @@ public partial class MainWindow : Window
 
     private bool HasTray => _trayIcon is not null;
 
-    // ==================== 插件托盘常驻（ISystemTray 宿主侧） ====================
-
     private NativeMenuItem? _trayExitItem;
     private readonly Dictionary<string, NativeMenuItem> _pluginTrayItems = new();
 
-    /// <summary>插件往托盘菜单追加项（插在「退出」之前）；返回撤销句柄。</summary>
     public static IDisposable AppendPluginTrayMenuItem(string id, string label, Action click)
     {
         _mainInstance?.AddTrayMenuItem(id, label, click);
         return new PluginTrayToken(id);
     }
 
-    /// <summary>插件发托盘气泡；平台不支持气泡时回退启动器内 Toast。</summary>
     public static void ShowPluginTrayNotification(string title, string message)
     {
         if (_mainInstance?._trayIcon is { } tray)
@@ -1574,7 +1479,6 @@ public partial class MainWindow : Window
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        // 设置页不再逐项落盘，关闭/退出时统一保存一次，避免改动丢失。
         LocalSettings.Save();
 
         if (_forceClose) return;
@@ -1717,7 +1621,6 @@ public partial class MainWindow : Window
 
     private async void OnStartMenuOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // 只有点在遮罩空白处（不是菜单卡片内部）才关闭
         if (!ReferenceEquals(e.Source, StartMenuOverlay)) return;
 
         e.Handled = true;
@@ -1732,7 +1635,6 @@ public partial class MainWindow : Window
 
     private void OnLaunchButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // 启动/停止都走「类终端启动进度」页：启动时逐阶段跑，停止时直接收尾
         if (GameState.IsRunning)
         {
             GameState.Stop();
@@ -1754,8 +1656,6 @@ public partial class MainWindow : Window
         GameState.Start();
         Navigate("launchconsole");
     }
-
-    // ---------------- 自绘标题栏 / 无边框窗口 ----------------
 
     private static bool IsButtonSource(object? source)
     {
@@ -1833,6 +1733,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         Shell.PageRequested -= Navigate;
+        Shell.AgentTaskRequested -= OpenAgentTask;
         Shell.ToastRequested -= ShowToast;
         Shell.DialogRequested -= ShowDialog;
         Shell.ToolRequested -= OpenCreatorTool;

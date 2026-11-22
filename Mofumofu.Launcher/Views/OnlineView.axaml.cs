@@ -13,10 +13,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 联机页：陶瓦联机卡 + 右侧联机设置面板。
-/// 房间码、后台服务、会话状态全部来自 MofuCore.OnlineGame.Terracotta 真实会话。
-/// </summary>
 public partial class OnlineView : UserControl
 {
     private readonly MofuCore.OnlineGame.Terracotta _terracotta = new();
@@ -40,14 +36,12 @@ public partial class OnlineView : UserControl
         AttachedToVisualTree += (_, _) => PlayEnterAnimation();
     }
 
-    /// <summary>进场：供应商卡与设置面板依次淡入上滑（QA 关动画时保持直接可见）。</summary>
     private void PlayEnterAnimation()
     {
         UiAnimations.Reset(BodyGrid);
         UiAnimations.FadeSlideIn(BodyGrid, 0.99, 10, 200);
     }
 
-    /// <summary>面板出现动画：内容先重置到可见态，再按开关播放过渡。</summary>
     private static void AnimateAppear(Control? target, double fromScale = 0.99, double offsetY = 8)
     {
         if (target is null) return;
@@ -67,8 +61,6 @@ public partial class OnlineView : UserControl
     private object? FindRes(string key) =>
         (this.TryFindResource(key, out var local) ? local : null)
         ?? (Application.Current is { } app && app.TryFindResource(key, out var global) ? global : null);
-
-    // ==================== 初始化 ====================
 
     private void LoadProviderData()
     {
@@ -133,8 +125,6 @@ public partial class OnlineView : UserControl
         ProviderCombo.SelectedIndex = _providerIndex;
     }
 
-    // ==================== 房间状态 ====================
-
     private void SetRoomState(bool ready, string code, string address, bool joined)
     {
         _roomReady = ready;
@@ -187,14 +177,11 @@ public partial class OnlineView : UserControl
             SessionHint.Text = L.T("Pages.Online.Session.None", "尚未创建或加入房间");
         }
 
-        // 提示条与房间面板出现时给一点过渡（不再依赖动画才显示内容）
         if (ready)
         {
             AnimateAppear(ProviderBadge, 1, 0);
         }
     }
-
-    // ==================== 后台服务 ====================
 
     private void ApplyServiceState()
     {
@@ -212,8 +199,6 @@ public partial class OnlineView : UserControl
             : _servicePath;
         AutoInstallButton.IsVisible = !_serviceRunning;
     }
-
-    // ==================== 事件 ====================
 
     private void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
@@ -316,7 +301,6 @@ public partial class OnlineView : UserControl
         Shell.Toast(L.T("Pages.Online.Toast.SettingsSaved", "联机设置已保存"));
     }
 
-    /// <summary>MofuCore 的陶瓦会话状态 → 联机页房间卡。</summary>
     private void ApplyTerracottaStatus(MofuCore.OnlineGame.TerracottaStatus status)
     {
         TerracottaDetail.Text = string.IsNullOrWhiteSpace(status.Phase) ? status.Tip : status.Phase;

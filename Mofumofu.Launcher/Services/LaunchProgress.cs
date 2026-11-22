@@ -19,7 +19,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>启动阶段状态。</summary>
 public enum LaunchStageState
 {
     Pending,
@@ -29,7 +28,6 @@ public enum LaunchStageState
     Skipped,
 }
 
-/// <summary>终端日志级别（只影响着色，不参与业务）。</summary>
 public enum LaunchLogLevel
 {
     Info,
@@ -39,7 +37,6 @@ public enum LaunchLogLevel
     Command,
 }
 
-/// <summary>一行终端日志：时间戳 + 级别 + 文本。</summary>
 public sealed record LaunchLogLine(DateTimeOffset Timestamp, LaunchLogLevel Level, string Text)
 {
     public string TimeDisplay => Timestamp.ToLocalTime().ToString("HH:mm:ss");
@@ -53,7 +50,6 @@ public sealed record LaunchLogLine(DateTimeOffset Timestamp, LaunchLogLevel Leve
         _ => "INFO",
     };
 
-    /// <summary>令牌名：由视图按主题取色（`ThemeTokens.Brush`）。</summary>
     public string LevelToken => Level switch
     {
         LaunchLogLevel.Success => "NekoSuccessBrush",
@@ -64,7 +60,6 @@ public sealed record LaunchLogLine(DateTimeOffset Timestamp, LaunchLogLevel Leve
     };
 }
 
-/// <summary>单个启动阶段的可观察状态（由 <see cref="LaunchProgress"/> 更新）。</summary>
 public sealed class LaunchStage
 {
     private string? _detailOverride;
@@ -87,10 +82,8 @@ public sealed class LaunchStage
 
     public string DetailKey => "Launch.Stage." + Id + ".Detail";
 
-    /// <summary>阶段名：按当前语言实时解析（切语言后页面重建即可生效）。</summary>
     public string Title => L.T(TitleKey, TitleFallback);
 
-    /// <summary>阶段说明：未覆盖时取语言包；运行时（真实启动）可写入具体文案。</summary>
     public string Detail
     {
         get => _detailOverride ?? L.T(DetailKey, DetailFallback);
@@ -100,7 +93,6 @@ public sealed class LaunchStage
     public void ResetDetail() => _detailOverride = null;
 }
 
-/// <summary>阶段状态变化事件。</summary>
 public sealed class LaunchStageChangedEventArgs : EventArgs
 {
     public required LaunchStage Stage { get; init; }
@@ -108,7 +100,6 @@ public sealed class LaunchStageChangedEventArgs : EventArgs
     public required string Activity { get; init; }
 }
 
-/// <summary>启动结束事件（成功 / 失败 / 取消 / 游戏退出）。</summary>
 public sealed class LaunchCompletedEventArgs : EventArgs
 {
     public bool Success { get; init; }
@@ -118,12 +109,6 @@ public sealed class LaunchCompletedEventArgs : EventArgs
     public TimeSpan Duration { get; init; }
 }
 
-/// <summary>
-/// 与 UI 解耦的启动进度模型：阶段时间线 + 终端日志 + 完成事件。
-/// 真实启动：<see cref="StartReal"/> / <see cref="StartAuto"/> 调用 <c>MofuCore.Launch.GameLaunch</c>，
-/// 把进程 stdout/stderr 与退出码映射到阶段与日志。
-/// 视图只订阅事件；替换数据源不需要改视图。
-/// </summary>
 public sealed class LaunchProgress
 {
     public static string DefaultInstanceName => L.T("Launch.DefaultInstance", "Minecraft 1.21.4 · Fabric");
@@ -147,7 +132,6 @@ public sealed class LaunchProgress
         "Created:", "GLFW", "Reloading ResourceManager", "Sound engine started",
     ];
 
-    /// <summary>全局共享实例：页面被重建时能接上仍在后台运行的启动。</summary>
     public static LaunchProgress Shared { get; } = new();
 
     private readonly object _sync = new();
@@ -187,7 +171,6 @@ public sealed class LaunchProgress
 
     public string VersionLabel { get; private set; } = string.Empty;
 
-    /// <summary>当前启动的版本 id（真实启动时有效）。</summary>
     public string VersionId { get; private set; } = string.Empty;
 
     public bool IsRunning
@@ -205,37 +188,29 @@ public sealed class LaunchProgress
         get { lock (_sync) return _cts?.Token ?? CancellationToken.None; }
     }
 
-    /// <summary>最后一次启动的收尾结果；尚未结束时为 null。</summary>
     public LaunchCompletedEventArgs? LastResult
     {
         get { lock (_sync) return _lastResult; }
     }
 
-    /// <summary>已产生的终端日志（页面重建时用于恢复历史）。</summary>
     public IReadOnlyList<LaunchLogLine> History
     {
         get { lock (_sync) return _history.ToArray(); }
     }
 
-    /// <summary>启动开始时触发（视图据此清空日志 / 重置阶段行 / 开始计时）。</summary>
     public event EventHandler? Started;
 
     public event EventHandler<LaunchStageChangedEventArgs>? StageChanged;
 
     public event EventHandler<LaunchLogLine>? LogAppended;
 
-    /// <summary>清屏（终端命令 `clear`）。</summary>
     public event EventHandler? LogCleared;
 
     public event EventHandler<LaunchCompletedEventArgs>? Completed;
 
-    /// <summary>取消请求（订阅方可据此终止自己的后端；内部同时 Kill 游戏进程）。</summary>
     public event Action? CancelRequested;
 
-    /// <summary>游戏进程成功启动后触发（参数 = 进程 PID）。插件系统等外部订阅方使用。</summary>
     public event Action<int>? ProcessStarted;
-
-    // ---------------------------------------------------------------- 数据源入口
 
     /// <summary>
     /// 自动启动：有可用的游戏目录 / 版本 / Java 时走真实 <c>GameLaunch</c>，
@@ -255,7 +230,6 @@ public sealed class LaunchProgress
         FailStage("verify", reason);
     }
 
-    /// <summary>用宿主给定的 <see cref="MinecraftLaunchOptions"/> 跑真实启动。</summary>
     public bool StartReal(MinecraftLaunchOptions options, string? displayName = null, string? versionLabel = null)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -271,7 +245,6 @@ public sealed class LaunchProgress
         CancellationToken token;
         lock (_sync) token = _cts?.Token ?? CancellationToken.None;
 
-        // 把 GameLaunch 的日志与进程输出接到终端；阶段按回调证据推进，不伪造百分比
         options.LogCallback = message => AppendLog(LaunchLogLevel.Info, "[launch] " + message);
         options.GameOutputCallback = HandleGameOutput;
 
@@ -287,7 +260,6 @@ public sealed class LaunchProgress
         return true;
     }
 
-    /// <summary>取消当前启动：真实启动会同时取消准备流程并终止游戏进程。</summary>
     public bool Cancel()
     {
         CancellationTokenSource? cts;
@@ -310,7 +282,6 @@ public sealed class LaunchProgress
             }
             catch (Exception)
             {
-                // 进程可能刚好自行退出
             }
         }
 
@@ -319,7 +290,6 @@ public sealed class LaunchProgress
         return true;
     }
 
-    /// <summary>结束（成功或失败收尾）；退出码为空表示流程被外部中断。</summary>
     public void Complete(int? exitCode = null, string? message = null)
     {
         if (!IsRunning) return;
@@ -333,14 +303,12 @@ public sealed class LaunchProgress
         FinishRun(true, false, exitCode, message ?? L.T("Launch.Phase.Finished", "启动已结束"), _stopwatch.Elapsed);
     }
 
-    /// <summary>失败收尾：当前运行阶段标记失败，其余等待阶段标记跳过。</summary>
     public void Fail(string message)
     {
         LaunchStage? running = _stages.FirstOrDefault(stage => stage.State == LaunchStageState.Running);
         FailStage(running?.Id ?? "verify", message);
     }
 
-    /// <summary>指定阶段失败收尾（真实启动用：把失败落到正确的步骤上）。</summary>
     public void FailStage(string stageId, string message)
     {
         if (!IsRunning) return;
@@ -357,24 +325,17 @@ public sealed class LaunchProgress
         FinishRun(false, false, null, message, _stopwatch.Elapsed);
     }
 
-    // ---------------------------------------------------------------- 后端桥接 API
-
-    /// <summary>更新阶段进度（0..1）；stageId 为 <see cref="Stages"/> 的 Id。</summary>
     public void ReportStage(string stageId, double progress, string? detail = null, LaunchStageState state = LaunchStageState.Running)
         => SetStage(stageId, Math.Clamp(progress, 0, 1), state, detail);
 
-    /// <summary>把阶段标记为成功（进度补到 100%）。</summary>
     public void MarkStage(string stageId, string? detail = null)
         => SetStage(stageId, 1, LaunchStageState.Succeeded, detail);
 
-    /// <summary>跳过阶段。</summary>
     public void SkipStage(string stageId, string? detail = null)
         => SetStage(stageId, 0, LaunchStageState.Skipped, detail ?? L.T("Launch.Detail.Skipped", "跳过"));
 
-    /// <summary>GameLaunch 的 stdout 回调：追加一行终端日志。</summary>
     public void AppendStdout(string line) => AppendLog(LaunchLogLevel.Info, line);
 
-    /// <summary>GameLaunch 的 stderr 回调：追加一行错误日志。</summary>
     public void AppendStderr(string line) => AppendLog(LaunchLogLevel.Error, line);
 
     public void AppendLog(LaunchLogLevel level, string text)
@@ -389,9 +350,6 @@ public sealed class LaunchProgress
         LogAppended?.Invoke(this, line);
     }
 
-    // ---------------------------------------------------------------- 终端命令
-
-    /// <summary>处理终端输入；返回是否已被识别（视图只负责回显）。</summary>
     public bool SubmitCommand(string? input)
     {
         string command = (input ?? string.Empty).Trim();
@@ -455,13 +413,10 @@ public sealed class LaunchProgress
         _ => L.T("Launch.Status.Pending", "等待中"),
     };
 
-    // ---------------------------------------------------------------- 真实启动流程
-
     private async Task RunRealAsync(MinecraftLaunchOptions options, CancellationToken token)
     {
         try
         {
-            // 启动前钩子：插件可注入 JVM 参数或拦截启动（ILaunchAction.LaunchingAsync）
             AppendLog(LaunchLogLevel.Info, L.T("Launch.Log.Real.CallingGameLaunch", "[launcher] 调用 MofuCore.GameLaunch 开始启动…"));
             (bool hooksProceed, string? hookReason) = await Services.Plugins.PluginManager
                 .RunLaunchHooks(options, VersionId).ConfigureAwait(false);
@@ -472,7 +427,6 @@ public sealed class LaunchProgress
                 return;
             }
 
-            // 新实例（options.txt 里还没有 lang 键）第一次启动：把游戏语言写成系统语言
             if (!string.IsNullOrWhiteSpace(options.GameDirectory))
             {
                 GameLaunch.SyncInstanceLanguage(options.GameDirectory,
@@ -487,8 +441,6 @@ public sealed class LaunchProgress
             ProcessStarted?.Invoke(result.Pid);
             lock (_sync) _launchResult = result;
 
-            // GameLaunch 内部一次完成版本解析 / 依赖库 / natives / Java 定位 / 参数装配，
-            // 这里以「进程已启动」为证据把这些阶段全部收尾（不伪造中间百分比）。
             string pidText = L.T("Launch.Log.Real.ProcessStarted", "[launcher] Java 进程已启动（PID {0}）", result.Pid);
             MarkStage("java", L.T("Launch.Detail.Java", "由 MofuCore 定位并校验 Java 运行时"));
             MarkStage("verify", L.T("Launch.Detail.Verify", "版本 JSON / 继承链 / 依赖库校验通过"));
@@ -559,10 +511,6 @@ public sealed class LaunchProgress
         AppendLog(LaunchLogLevel.Success, L.T("Launch.Log.Real.WindowReady", "[launcher] 检测到游戏渲染线程输出，窗口已就绪"));
     }
 
-    /// <summary>
-    /// 救砖准备：启动前给实例游戏目录创建还原点快照（内容与最近快照一致时沿用最近一份）。
-    /// 失败只记日志，不阻断启动。
-    /// </summary>
     private async Task PrepareRescueSnapshotAsync(MinecraftLaunchOptions options, CancellationToken token)
     {
         string gameDirectory = string.IsNullOrWhiteSpace(options.GameDirectory)
@@ -631,7 +579,6 @@ public sealed class LaunchProgress
                 startedAt = _runStartedAtUtc;
             }
 
-            // 崩溃即自动分析：日志末尾 + 本次运行新生成的 crash-reports + hs_err_pid，见 MofuCore.Log.LogAnalysis
             LogAnalysisResult analysis = LogAnalysis.Analyze(new LogAnalysisInput
             {
                 LogText = tail,
@@ -683,7 +630,6 @@ public sealed class LaunchProgress
         return message;
     }
 
-    /// <summary>游戏崩溃时直接弹分析弹窗（结论 + 证据 + 决策 + 救砖回档），而不是只把诊断写进终端。</summary>
     private void ShowCrashPopup(LogAnalysisResult analysis, CrashRescueInfo? rescue)
     {
         string instanceName = InstanceName;
@@ -697,7 +643,6 @@ public sealed class LaunchProgress
             }
             catch
             {
-                // 弹窗构建失败不影响主流程；诊断已写入终端日志
             }
         });
     }
@@ -716,8 +661,6 @@ public sealed class LaunchProgress
             _logTail.Remove(0, _logTail.Length - MaxLogTailChars);
         }
     }
-
-    // ---------------------------------------------------------------- 内部实现
 
     private void ResetForRun(string? instanceName, string? versionLabel)
     {
@@ -931,8 +874,6 @@ internal static class LaunchRequestResolver
             LaunchFullscreen = settings.LaunchFullscreen,
             JvmTuning = settings.JvmTuning,
             AllowUnsafeVersionJvmArguments = settings.AllowUnsafeVersionJvmArguments,
-            // 实例级配置优先追加在全局参数之后：同一实例里单独调 -D 或加 -Xmn 时，
-            // 后写的值在 JVM 里生效，正好符合"实例覆盖全局"的直觉。
             AdditionalJvmArguments = [.. settings.AdditionalJvmArguments, .. instanceConfig.AdditionalJvmArguments],
             AdditionalGameArguments = [.. settings.AdditionalGameArguments, .. instanceConfig.AdditionalGameArguments],
         };
@@ -943,7 +884,6 @@ internal static class LaunchRequestResolver
         return true;
     }
 
-    /// <summary>从磁盘上的 versions/ 找启动目标（实例名 = 版本目录名）。</summary>
     private static InstanceInfo? SelectedInstance()
     {
         try
@@ -955,8 +895,6 @@ internal static class LaunchRequestResolver
             if (!Directory.Exists(versionsRoot)) return null;
 
             string selectedId = LocalSettings.Current.SelectedInstanceId;
-            // 只扫一遍：没有 <id>.json 的目录（备份/半成品）不算实例；
-            // 选中项优先，其 JSON 坏掉时再依次尝试其余实例
             List<string> candidateIds = [];
             foreach (string directory in Directory.GetDirectories(versionsRoot))
             {
@@ -1015,7 +953,7 @@ internal static class LaunchRequestResolver
         }
     }
 
-    private static string ResolveJavaExecutable(string configured, string instanceJava)
+    internal static string ResolveJavaExecutable(string configured, string instanceJava)
     {
         string trimmed = (configured ?? string.Empty).Trim().Trim('"');
         if (trimmed.Length > 0 &&

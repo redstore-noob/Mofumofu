@@ -6,10 +6,10 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using MofuCore.Config;
 using MofuCore.Account;
 using MofuCore.Java;
@@ -28,7 +28,6 @@ public sealed class OobeJavaItem
     public override string ToString() => DisplayName;
 }
 
-/// <summary>首次启动引导：语言 / 主题 / 游戏目录 / Java / 离线账号。</summary>
 public partial class OobeWindow : Window
 {
     private readonly List<StackPanel> _steps;
@@ -53,8 +52,9 @@ public partial class OobeWindow : Window
         _stepItems = [StepNav0, StepNav1, StepNav2, StepNav3, StepNav4];
         _stepBadges = [StepBadge0, StepBadge1, StepBadge2, StepBadge3, StepBadge4];
 
-        // 与设置页共用同一份语言清单，并用卡片完整展示，避免下拉列表看起来缺项。
-        LanguageCards.ItemsSource = L.Languages;
+        // 与设置页共用同一个语言地球仪。
+        LanguageGlobeControl.LanguageSelected += OnGlobeLanguageSelected;
+        LanguageGlobeControl.SetLanguage(LocalSettings.Current.Language);
         ThemeCombo.SelectedIndex = LocalSettings.Current.Theme switch
         {
             "system" => 0,
@@ -64,8 +64,6 @@ public partial class OobeWindow : Window
         GameDirectoryBox.Text = YamlRead.GameDirectory;
         _initializing = false;
 
-        UpdateLanguageSelection();
-        Dispatcher.UIThread.Post(UpdateLanguageSelection, DispatcherPriority.Loaded);
         UpdateStep();
         _ = DetectJavaAsync();
 
@@ -79,25 +77,26 @@ public partial class OobeWindow : Window
         };
     }
 
-    private void OnLanguageCardClick(object? sender, RoutedEventArgs e)
+    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_initializing || sender is not Button { Tag: string code }) return;
-
-        // 保留 system 选项本身；CurrentLanguage 是解析后的语言，不能用来判断选中卡片。
-        LocalSettings.Current.Language = code;
-        L.SetLanguage(code);
-        UpdateLanguageSelection();
-        UpdateStep();
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        BeginMoveDrag(e);
     }
 
-    private void UpdateLanguageSelection()
+    private void OnMinimizeClick(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState.Minimized;
+
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnGlobeLanguageSelected(string code)
     {
-        string selectedCode = LocalSettings.Current.Language;
-        foreach (Button card in LanguageCards.GetVisualDescendants().OfType<Button>())
-        {
-            card.Classes.Set("active", string.Equals(card.Tag as string, selectedCode,
-                StringComparison.OrdinalIgnoreCase));
-        }
+        if (_initializing) return;
+        if (string.Equals(code, LocalSettings.Current.Language, StringComparison.OrdinalIgnoreCase)) return;
+
+        // 保留 system 选项本身；CurrentLanguage 是解析后的语言，不能用来判断选中项。
+        LocalSettings.Current.Language = code;
+        L.SetLanguage(code);
+        UpdateStep();
     }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
@@ -143,7 +142,7 @@ public partial class OobeWindow : Window
 
         MicrosoftLoginButton.Content = L.T("Oobe.Account.CancelLogin", "取消登录");
         MicrosoftStatusText.Text = L.T("Oobe.Account.WaitingBrowser", "请在浏览器完成 Microsoft 登录…");
-        string? openError = null;
+        LoginBrowserWindow? loginWindow = null;
         try
         {
             MicrosoftAccount account = await MinecraftTokenHandle.StartBrowserLoginAsync(
@@ -151,10 +150,14 @@ public partial class OobeWindow : Window
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (OpenLinkBrowser.TryOpen(url, out string error)) return;
+                        var window = LoginBrowserWindow.Show(url, cts.Cancel, () => OpenSystemLoginPage(url, cts));
+                        if (window is not null)
+                        {
+                            loginWindow = window;
+                            return;
+                        }
 
-                        openError = error;
-                        cts.Cancel();
+                        OpenSystemLoginPage(url, cts);
                     });
                     return Task.CompletedTask;
                 },
@@ -167,9 +170,7 @@ public partial class OobeWindow : Window
         }
         catch (OperationCanceledException)
         {
-            MicrosoftStatusText.Text = openError is { Length: > 0 }
-                ? L.T("Oobe.Account.LoginFailed", "登录失败：{0}", openError)
-                : L.T("Oobe.Account.LoginCancelled", "已取消 Microsoft 登录");
+            MicrosoftStatusText.Text = L.T("Oobe.Account.LoginCancelled", "已取消 Microsoft 登录");
         }
         catch (Exception error)
         {
@@ -177,11 +178,18 @@ public partial class OobeWindow : Window
         }
         finally
         {
+            loginWindow?.CloseSilently();
             cts.Dispose();
             _loginCts = null;
             MicrosoftLoginButton.Content = L.T("Oobe.Account.MicrosoftLogin", "登录 Microsoft");
             MicrosoftLoginButton.IsEnabled = true;
         }
+    }
+
+    private void OpenSystemLoginPage(string url, CancellationTokenSource cts)
+    {
+        if (OpenLinkBrowser.TryOpenLogin(url, out _)) return;
+        cts.Cancel();
     }
 
     private async void OnAuthlibLoginClick(object? sender, RoutedEventArgs e)
@@ -213,7 +221,6 @@ public partial class OobeWindow : Window
                 return;
             }
 
-            // 登录即时保活：确认刚签发的令牌可用；若皮肤站回换新令牌，写回存储的就是新令牌
             string accessToken = login.AccessToken;
             try
             {
@@ -226,7 +233,6 @@ public partial class OobeWindow : Window
             }
             catch (Exception)
             {
-                // 保活失败不阻断登录：保留登录时签发的令牌
                 accessToken = login.AccessToken;
             }
 

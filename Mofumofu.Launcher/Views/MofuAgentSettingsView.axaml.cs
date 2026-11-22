@@ -19,10 +19,6 @@ using Mofumofu.Launcher.Services.Agent;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// MofuAgent 的设置页：供应商 / 生成 / 上下文 / 工具 / 数据。
-/// 与对话页共享同一份 <see cref="AgentSettingsStore"/>，保存后对话页回到前台会重新读取。
-/// </summary>
 public partial class MofuAgentSettingsView : UserControl
 {
     private const int MaxHistoryNotes = 60;
@@ -43,7 +39,6 @@ public partial class MofuAgentSettingsView : UserControl
 
     private bool _creatingProvider;
 
-    /// <summary>从对话页点「+」进来时，直接落到供应商分区并高亮新建按钮。</summary>
     public static void RequestFocusProvider() => _focusProviderRequested = true;
 
     public MofuAgentSettingsView()
@@ -89,10 +84,6 @@ public partial class MofuAgentSettingsView : UserControl
         if (tab == "tools") RefreshToolToggles();
         if (tab == "provider") RefreshProviderList();
     }
-
-    // ==================================================================
-    // 载入 / 保存
-    // ==================================================================
 
     private void FillControls()
     {
@@ -155,10 +146,6 @@ public partial class MofuAgentSettingsView : UserControl
         GenTopPText.Text = GenTopPSlider.Value.ToString("0.00");
         CompactAtText.Text = (CompactAtSlider.Value * 100).ToString("0") + "%";
     }
-
-    // ==================================================================
-    // 供应商
-    // ==================================================================
 
     private AgentProviderConfig? CurrentProvider =>
         _settings.Providers.FirstOrDefault(p => p.Id == _formProviderId);
@@ -479,7 +466,6 @@ public partial class MofuAgentSettingsView : UserControl
         AddModelIds(models);
         int added = _draftModels.Count - before;
 
-        // 列表本身可能来自旧配置，拉取成功后如果一条都没有就整份换上
         if (_draftModels.Count == 0)
         {
             _draftModels.AddRange(models);
@@ -793,10 +779,6 @@ public partial class MofuAgentSettingsView : UserControl
         });
     }
 
-    // ==================================================================
-    // 生成 / 上下文 / 工具
-    // ==================================================================
-
     private void OnGenTopPChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loadingControls) return;
@@ -920,10 +902,6 @@ public partial class MofuAgentSettingsView : UserControl
         AgentSettingsStore.Save(_settings);
         Shell.Toast($"上下文窗口已设为 {TokenEstimator.Format(_settings.ContextWindow)}。");
     }
-
-    // ==================================================================
-    // 数据
-    // ==================================================================
 
     private void OnOpenDataFolder(object? sender, RoutedEventArgs e)
     {

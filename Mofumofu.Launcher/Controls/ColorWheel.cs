@@ -7,10 +7,6 @@ using Avalonia.Media;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>
-/// HSV 拾色轮：外圈色相环 + 内部饱和度圆盘 + 右侧明度滑条。
-/// 自己绘制，不依赖额外的 ColorPicker 包；颜色变化通过 <see cref="ColorChanged"/> 通知。
-/// </summary>
 public sealed class ColorWheel : Control
 {
     private const int RingSegments = 72;
@@ -21,10 +17,10 @@ public sealed class ColorWheel : Control
     private readonly List<(Geometry Geometry, IBrush Brush)> _ringSegments = new();
     private double _builtWidth = -1;
     private double _builtHeight = -1;
-    private int _dragMode; // 0 无 / 1 色相环 / 2 饱和度圆盘 / 3 明度滑条
-    private double _hue;   // 0..360
-    private double _sat;   // 0..1
-    private double _val = 1; // 0..1
+    private int _dragMode;
+    private double _hue;
+    private double _sat;
+    private double _val = 1;
 
     public ColorWheel()
     {
@@ -36,7 +32,6 @@ public sealed class ColorWheel : Control
         _val = v;
     }
 
-    /// <summary>玩家选中的颜色变化时触发（用户拖动/点击拾色轮时）。</summary>
     public event Action<Color>? ColorChanged;
 
     public Color Color
@@ -58,20 +53,16 @@ public sealed class ColorWheel : Control
         InvalidateVisual();
     }
 
-    // ==================== 绘制 ====================
-
     public override void Render(DrawingContext context)
     {
         var layout = ComputeLayout();
         EnsureRing(layout);
 
-        // 色相环
         foreach (var (geometry, brush) in _ringSegments)
         {
             context.DrawGeometry(brush, null, geometry);
         }
 
-        // 饱和度圆盘：底色为纯色相，白色径向覆盖（中心 S=0），再叠一层黑色表示明度
         var hueBrush = new SolidColorBrush(FromHsv(_hue, 1, 1));
         context.DrawEllipse(hueBrush, null, layout.Center, layout.DiscRadius, layout.DiscRadius);
 
@@ -99,7 +90,6 @@ public sealed class ColorWheel : Control
         context.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb(46, 255, 255, 255)), 1),
             layout.Center, layout.DiscRadius, layout.DiscRadius);
 
-        // 明度滑条：顶部纯色相 → 底部黑色
         var sliderBrush = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -112,7 +102,6 @@ public sealed class ColorWheel : Control
         };
         context.DrawRectangle(sliderBrush, null, layout.SliderRect, 13, 13);
 
-        // 色相环滑块
         var ringAngle = _hue * Math.PI / 180;
         var ringPos = new Point(
             layout.Center.X + Math.Sin(ringAngle) * layout.RingKnobRadius,
@@ -120,14 +109,12 @@ public sealed class ColorWheel : Control
         context.DrawEllipse(new SolidColorBrush(FromHsv(_hue, 1, 1)),
             new Pen(Brushes.White, 2.5), ringPos, 9, 9);
 
-        // 饱和度滑块
         var satPos = new Point(
             layout.Center.X + Math.Sin(ringAngle) * _sat * layout.DiscRadius,
             layout.Center.Y - Math.Cos(ringAngle) * _sat * layout.DiscRadius);
         context.DrawEllipse(new SolidColorBrush(FromHsv(_hue, _sat, _val)),
             new Pen(Brushes.White, 2.5), satPos, 7.5, 7.5);
 
-        // 明度滑块
         var sliderY = layout.SliderRect.Y + (1 - _val) * layout.SliderRect.Height;
         var sliderKnob = new Rect(
             layout.SliderRect.X - 4, sliderY - 8, layout.SliderRect.Width + 8, 16);
@@ -195,8 +182,6 @@ public sealed class ColorWheel : Control
     private readonly record struct Layout(
         Point Center, double OuterRadius, double InnerRadius, double DiscRadius,
         double RingKnobRadius, Rect SliderRect);
-
-    // ==================== 输入 ====================
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -297,9 +282,6 @@ public sealed class ColorWheel : Control
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
-    // ==================== HSV 工具 ====================
-
-    /// <summary>RGB → HSV（H:0..360 / S,V:0..1）。</summary>
     public static (double H, double S, double V) ToHsv(Color color)
     {
         var r = color.R / 255.0;
@@ -320,7 +302,6 @@ public sealed class ColorWheel : Control
         return (hue, sat, max);
     }
 
-    /// <summary>HSV → RGB。</summary>
     public static Color FromHsv(double hue, double sat, double val)
     {
         hue = ((hue % 360) + 360) % 360;

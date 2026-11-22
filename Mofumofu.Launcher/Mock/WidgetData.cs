@@ -3,13 +3,8 @@ using System.Collections.Generic;
 
 namespace Mofumofu.Launcher.Mock;
 
-/// <summary>
-/// 桌面小组件的内容素材（一言 / 问候 / 今日运气 / 看板娘台词）。
-/// 这些是「内容」而不是示例数据；所有真实状态由各卡片的 MofuCore 后端提供。
-/// </summary>
 public static class WidgetData
 {
-    /// <summary>一言卡片：内置句子（原版在没有网络时也用这套兜底）。</summary>
     public static readonly IReadOnlyList<(string Text, string From)> Hitokoto = new[]
     {
         ("把该挖的矿挖完，把该做的梦做完。", "Mofumofu"),
@@ -18,7 +13,6 @@ public static class WidgetData
         ("每一个方块，都从第一镐开始。", "Mofumofu"),
     };
 
-    /// <summary>问候卡片：按时段抽一句。</summary>
     public static readonly IReadOnlyList<string> GreetingQuotes = new[]
     {
         "别害怕苦难，那是成为强者的阶梯喵",
@@ -31,7 +25,6 @@ public static class WidgetData
         "漆黑的矿洞里，火把就是希望的光",
     };
 
-    /// <summary>今日运气：宜 / 忌 / 幸运色。</summary>
     public static readonly IReadOnlyList<string> GoodAt = new[]
     {
         "下矿挖钻石", "附魔装备", "精修农场", "与村民交易", "搭建铁路",
@@ -50,7 +43,6 @@ public static class WidgetData
         ("末地紫", "#A64EA4"), ("金苹果黄", "#F5C33B"), ("海洋蓝", "#3C44A9"),
     };
 
-    /// <summary>日历卡片的法定节假日（月, 日, 名称），按年显式列出以免农历误差。</summary>
     public static readonly IReadOnlyDictionary<int, (int Month, int Day, string Name)[]> Holidays = new Dictionary<int, (int, int, string)[]>
     {
         [2025] = new[] { (1, 1, "元旦"), (1, 29, "春节"), (4, 4, "清明节"), (5, 1, "劳动节"), (5, 31, "端午节"), (10, 1, "国庆节"), (10, 6, "中秋节") },

@@ -10,10 +10,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>
-/// 下载页通用分页器：前后箭头 + 最多五个圆形页码按钮（当前页 ±2）+ 页码输入回车跳转。
-/// 只有一页时整体隐藏。
-/// </summary>
 public sealed class MofuPager : UserControl
 {
     private const int MaxDots = 5;

@@ -28,11 +28,9 @@ public static class SkinHeadService
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Mofumofu.Launcher", "skins");
 
-    /// <summary>账号皮肤档案缓存路径（与皮肤解析服务共用同一份缓存文件）。</summary>
     internal static string ProfileCachePath(string accountName) =>
         Path.Combine(SkinRoot, "profiles", Sanitize(accountName) + ".json");
 
-    /// <summary>大头磁盘缓存路径。</summary>
     internal static string HeadCachePath(string accountName) =>
         Path.Combine(SkinRoot, "heads", Sanitize(accountName) + ".png");
 
@@ -93,7 +91,6 @@ public static class SkinHeadService
         return head;
     }
 
-    /// <summary>皮肤变化后清掉内存与磁盘大头缓存，下次调用重新合成。</summary>
     public static void Invalidate(string accountName)
     {
         if (string.IsNullOrWhiteSpace(accountName)) return;
@@ -111,11 +108,8 @@ public static class SkinHeadService
         }
         catch (Exception)
         {
-            // 删除缓存失败不影响使用
         }
     }
-
-    // ---------------- 合成 ----------------
 
     private static async Task<Bitmap?> ComposeAsync(byte[] skinPng, CancellationToken cancellationToken)
     {
@@ -159,12 +153,10 @@ public static class SkinHeadService
             var options = new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None };
             using (context.PushRenderOptions(options))
             {
-                // 基础头部
                 context.DrawImage(
                     new CroppedBitmap(skin, new PixelRect(8, 8, HeadPixels, HeadPixels)),
                     new Rect(0, 0, OutputPixels, OutputPixels));
 
-                // 帽子层（64×64 贴图才有；透明像素叠加不影响基础层）
                 if (size.Width >= 48 && size.Height >= 16)
                 {
                     context.DrawImage(
@@ -176,8 +168,6 @@ public static class SkinHeadService
 
         return target;
     }
-
-    // ---------------- 缓存 IO ----------------
 
     private static bool IsHeadFresh(string headPath, string profilePath)
     {
@@ -218,7 +208,6 @@ public static class SkinHeadService
         }
         catch (Exception)
         {
-            // 磁盘缓存失败不影响使用
         }
     }
 

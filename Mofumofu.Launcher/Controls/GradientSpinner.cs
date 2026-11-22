@@ -8,10 +8,6 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>
-/// 旋转的渐变圈：一个带渐变描边的圆环，而不是由点拼出来的 loading。
-/// 主题切换后重新取强调色。
-/// </summary>
 public sealed class GradientSpinner : UserControl
 {
     private readonly Avalonia.Controls.Shapes.Ellipse _ring;

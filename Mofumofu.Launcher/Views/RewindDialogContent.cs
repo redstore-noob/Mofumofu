@@ -21,11 +21,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// Rewind 快照横向时间轴弹窗：旧 → 新（最右为最新），节点按真实时间间隔自适应留白，
-/// 卡片上下交错挂载；每天起点有竖向虚线 + 日期标签；选中节点高亮并展开操作区。
-/// 数据来自 MofuCore 的 <see cref="RewindSystem"/>；找不到游戏目录时显示空态。
-/// </summary>
 public static class RewindDialogContent
 {
     private sealed record SnapshotEntry(
@@ -42,9 +37,7 @@ public static class RewindDialogContent
     private const double DialogWidth = 980;
     private const double CardAreaHeight = 120;
     private const double AxisRowHeight = 48;
-    /// <summary>时间轴总高 = 上卡片区 + 轴行 + 下卡片区，所有子元素共用这一高度才能对齐轴线。</summary>
     private const double TimelineHeight = CardAreaHeight * 2 + AxisRowHeight;
-    /// <summary>轴心相对时间轴顶部的偏移：节点、当日分隔线和日期标签都以它为准。</summary>
     private const double AxisCenterY = CardAreaHeight + AxisRowHeight / 2.0;
     private const double DayMarkerWidth = 78;
     private const double MinimumSlotWidth = 180;
@@ -79,7 +72,6 @@ public static class RewindDialogContent
 
     private static IBrush DotBrush(string color)
     {
-        // 支持 #RRGGBB 自定义标记色：深色主题下过深的颜色（如克莱因蓝原色）提亮一档，点才看得见
         if (color.StartsWith('#') && Color.TryParse(color, out var custom))
         {
             return new SolidColorBrush(ThemeManager.IsLight ? custom : LiftForDark(custom));
@@ -96,7 +88,6 @@ public static class RewindDialogContent
         };
     }
 
-    /// <summary>深色主题下把过暗的标记色朝白色提亮，直到亮度够用（保持色相）。</summary>
     private static Color LiftForDark(Color color)
     {
         double Luma(Color value) => value.R * 0.299 + value.G * 0.587 + value.B * 0.114;
@@ -118,13 +109,6 @@ public static class RewindDialogContent
         _ => (AccentSoftBrush, AccentBrush),
     };
 
-    /// <param name="targetName">目标名（实例 id 或世界名），用于解析与展示。</param>
-    /// <param name="onRestored">回滚完成后的回调。</param>
-    /// <param name="explicitDirectory">
-    /// 显式目标目录（如实例隔离目录下的 saves/世界）。提供时优先于按名字解析，
-    /// 因为 FindTargetDirectory 只扫全局 saves，找不到版本隔离实例的存档。
-    /// </param>
-    /// <param name="explicitKind">显式目标目录的快照类型；不传时按世界存档（Save）处理。</param>
     public static Control Build(string targetName, Action? onRestored = null, string? explicitDirectory = null, RewindKind? explicitKind = null)
     {
         targetName = string.IsNullOrWhiteSpace(targetName) ? L.T("Rewind.Target.Default", "当前实例") : targetName.Trim();
@@ -503,7 +487,6 @@ public static class RewindDialogContent
 
             flyout.Items.Add(new Separator());
 
-            // 主题色系：和启动器强调色共用一套色板，标记颜色更统一也更好看
             foreach ((string accentKey, string accentName, string hex) in ThemeManager.AccentOptions)
             {
                 flyout.Items.Add(BuildItem(hex.ToLowerInvariant(), AccentDisplayName(accentKey, accentName),
@@ -517,7 +500,6 @@ public static class RewindDialogContent
         {
             var marker = new Canvas { Width = DayMarkerWidth, Height = TimelineHeight };
 
-            // 当日分隔虚线：与时间轴同高，作为「新的一天」的起点
             var dashes = new StackPanel { Spacing = 7, Width = 1 };
             for (int index = 0; index < 24; index++)
             {
@@ -528,13 +510,11 @@ public static class RewindDialogContent
             Canvas.SetTop(dashes, 0);
             marker.Children.Add(dashes);
 
-            // 轴线：与两侧卡槽的轴线严格对齐
             var axis = new Border { Width = DayMarkerWidth, Height = 1, Background = BorderBrush };
             Canvas.SetLeft(axis, 0);
             Canvas.SetTop(axis, AxisCenterY);
             marker.Children.Add(axis);
 
-            // 轴上方：当天快照份数
             var countBadge = new Border
             {
                 Background = AccentSoftBrush,
@@ -551,7 +531,6 @@ public static class RewindDialogContent
             Canvas.SetTop(countBadge, AxisCenterY - 24);
             marker.Children.Add(countBadge);
 
-            // 轴下方：日期标签（与下方卡槽留出间距，避免互相压字）
             var dateLabel = new TextBlock
             {
                 Text = FormatDayLabel(date, DateTime.Today),
@@ -586,7 +565,6 @@ public static class RewindDialogContent
             Grid.SetRow(axis, 1);
             slot.Children.Add(axis);
 
-            // 节点到卡片的竖直短线：贯穿整个轴行，节点画在上层，卡片因此与节点连成一体
             var connector = new Border
             {
                 Width = 1,
@@ -716,7 +694,6 @@ public static class RewindDialogContent
             };
             header.Children.Add(reasonBadge);
 
-            // 「最新」单独占右列：原来挤在标题行里会被卡片宽度裁掉一半
             var headRow = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitions("*,Auto"),
@@ -1143,8 +1120,6 @@ public static class RewindDialogContent
             _ = ReloadAsync();
         }
 
-        // SukiUI 弹窗在离屏/部分主题下是半透明材质，横向时间轴留白多会透出下层页面，
-        // 这里给内容补一层不透明底板，保证时间轴区域干净可读。
         return new Border
         {
             Background = ThemeTokens.Brush("NekoDialogSolidBrush"),
@@ -1158,7 +1133,6 @@ public static class RewindDialogContent
 
     private static double SlotWidth(DateTime previous, DateTime current)
     {
-        // 间隔越宽留白越多（对数压缩），并限制上限避免稀疏
         double hours = Math.Max(0, (current - previous).TotalHours);
         double width = MinimumSlotWidth + Math.Min(MaximumSlotWidth - MinimumSlotWidth, Math.Log(1 + hours, 2) * 22);
         return Math.Clamp(width, MinimumSlotWidth, MaximumSlotWidth);
@@ -1211,7 +1185,6 @@ public static class RewindDialogContent
         }
         catch
         {
-            // 游戏目录不可读时按没有实例处理，界面显示空态
         }
 
         return null;
@@ -1234,7 +1207,6 @@ public static class RewindDialogContent
         }
         catch
         {
-            // 目录不可读时忽略
         }
     }
 
@@ -1272,10 +1244,6 @@ public static class RewindDialogContent
         _ => "primary",
     };
 
-    /// <summary>
-    /// 日期分组标签：不直接用 <see cref="RewindTimeline"/> 里的中文 Label，
-    /// 而是按当前语言重新格式化（中文 今天/昨天/X 月 X 日；英文 Today/Yesterday/MMM d）。
-    /// </summary>
     private static string FormatDayLabel(DateTime value, DateTime today)
     {
         if (value.Date == today) return L.T("Rewind.Day.Today", "今天");
@@ -1296,11 +1264,9 @@ public static class RewindDialogContent
         string value = (color ?? string.Empty).Trim().ToLowerInvariant();
         if (value is "" or "primary" or "warning" or "success" or "danger" or "secondary") return value;
 
-        // 主题色系标记色以 #RRGGBB 形式保存
         return value.Length == 7 && value[0] == '#' && value[1..].All(Uri.IsHexDigit) ? value : string.Empty;
     }
 
-    /// <summary>主题色的本地化名称（回落到 <see cref="ThemeManager"/> 里的中文名）。</summary>
     private static string AccentDisplayName(string key, string fallback)
     {
         string suffix = key.Length == 0 ? key : char.ToUpperInvariant(key[0]) + key[1..];

@@ -24,12 +24,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 桌面：可自由摆放的小组件格子板：
-/// 20 列格子、长按 1 秒拖动、落点吸附、右下角拖动改占格（双击恢复默认）、
-/// 拖到开始栏或组件盒移除、组件盒支持搜索 / 点击添加 / 拖出放置，布局写入本地设置。
-/// 组件内容由 <see cref="WidgetRegistry"/> 列出、<see cref="WidgetCards"/> 构建。
-/// </summary>
 public partial class HomeView : UserControl
 {
     private const int HintPulseDelayMs = 110;
@@ -43,10 +37,8 @@ public partial class HomeView : UserControl
     private const double HoldMilliseconds = 1000;
     private const double HoldTolerance = 10;
 
-    /// <summary>行最小高度：窗口太矮时格子缩到这么高为止，再不够就让整块板竖向滚动。</summary>
     private const double RowMinHeight = 48;
 
-    /// <summary>桌面布局版本：默认版式变化时 +1 触发一次重排。</summary>
     private const int LayoutVersion = 5;
 
     private sealed class WidgetHost
@@ -124,7 +116,6 @@ public partial class HomeView : UserControl
             RefreshDrawer();
         };
 
-        // 页面会被缓存：主题在别的页面切换时本页收不到事件，重新挂载时按版本补刷一次
         _themeVersion = ThemeManager.Version;
         AttachedToVisualTree += (_, _) =>
         {
@@ -141,11 +132,7 @@ public partial class HomeView : UserControl
         };
     }
 
-    // ==================== 右侧启动卡 ====================
-
     private int _themeVersion = -1;
-
-    // ================= 组件宿主 =================
 
     private void BuildWidgetHosts()
     {
@@ -155,7 +142,6 @@ public partial class HomeView : UserControl
         }
     }
 
-    /// <summary>为一个组件定义创建隐藏宿主并挂到组件层（内置与插件动态组件共用）。</summary>
     private void CreateWidgetHost(WidgetDefinition definition)
     {
         {
@@ -166,7 +152,6 @@ public partial class HomeView : UserControl
                 RenderTransformOrigin = RelativePoint.Center,
             };
 
-            // 默认过渡：抬起/落位/删除都靠它把「瞬时改属性」变成平滑动画
             SetWidgetTransitions(host, LiftMs, new CubicEaseOut());
 
             var card = BuildCard(definition);
@@ -212,7 +197,6 @@ public partial class HomeView : UserControl
 
         List<string> dynamicIds = WidgetRegistry.DynamicIds.ToList();
 
-        // 移除已注销的动态组件宿主
         foreach (WidgetHost stale in _widgets
                      .Where(widget => IsDynamicWidgetId(widget.Definition.Id) &&
                                       dynamicIds.Contains(widget.Definition.Id) == false)
@@ -223,7 +207,6 @@ public partial class HomeView : UserControl
             _placements.Remove(stale.Definition.Id);
         }
 
-        // 已有动态组件被编辑（标题/内容变化）→ 重建它的宿主
         foreach (WidgetHost existing in _widgets
                      .Where(widget => IsDynamicWidgetId(widget.Definition.Id))
                      .ToList())
@@ -251,7 +234,6 @@ public partial class HomeView : UserControl
             }
         }
 
-        // 新增的动态组件：创建隐藏宿主（等待玩家从组件盒添加）
         foreach (string id in dynamicIds)
         {
             if (_widgets.Any(widget => widget.Definition.Id == id)) continue;
@@ -264,7 +246,6 @@ public partial class HomeView : UserControl
         SaveLayout();
     }
 
-    /// <summary>动态组件 id 约定带点号（插件Id.组件id），内置组件 id 都不含点号。</summary>
     private static bool IsDynamicWidgetId(string id) => id.Contains('.');
 
     private Control BuildCard(WidgetDefinition definition)
@@ -280,9 +261,6 @@ public partial class HomeView : UserControl
                 border.BorderThickness = new Thickness(0);
             }
 
-            // 外层玻璃壳用 SukiUI 的 GlassCard（模糊由内部的 SukiBlurBackground 负责，
-            // 开关由 GlassEffects 统一控制）。内层 WidgetChrome.Card 已被置为透明无描边，只做内容容器。
-            // IsAnimated 关掉：主页组件会随数据刷新反复重建，入场动画纯属浪费。
             var glass = new SukiUI.Controls.GlassCard
             {
                 CornerRadius = new CornerRadius(16),
@@ -290,14 +268,11 @@ public partial class HomeView : UserControl
                 IsAnimated = false,
                 Content = inner,
             };
-            // 组件会随主题 / 数据刷新反复重建，GlassEffects.Refresh 不一定再跑；
-            // 不补这一下，模板底板会按 Suki 的 GlassOpacity（深色 0.18）画得很浅。
             glass.Loaded += (_, _) => GlassEffects.ApplyToCard(glass);
             return glass;
         }
         catch (Exception ex)
         {
-            // 记录到临时日志：QA 时可用它确认所有卡片都构建成功
             try
             {
                 System.IO.File.AppendAllText(
@@ -306,7 +281,6 @@ public partial class HomeView : UserControl
             }
             catch
             {
-                // 日志失败不影响界面
             }
 
             return WidgetChrome.Notice(L.T("Home.Widget.RenderFailed", "「{0}」渲染失败：{1}", definition.Title, ex.Message));
@@ -352,7 +326,6 @@ public partial class HomeView : UserControl
         return new ContextMenu { ItemsSource = new[] { wallpaper, arrange, library } };
     }
 
-    /// <summary>主题切换：卡片里的派生色（进度条 / 标题色）需要按新令牌重建。</summary>
     private void OnThemeChanged()
     {
         _themeVersion = ThemeManager.Version;
@@ -369,12 +342,6 @@ public partial class HomeView : UserControl
         RefreshDrawer();
     }
 
-    // ================= 动画 =================
-
-    /// <summary>
-    /// 给控件换上「本次动画要用」的过渡曲线。幂等：每次播放前按需要重设，
-    /// 避免上一次删除用的 EaseIn 残留到下一次抬起的 EaseOut 上。
-    /// </summary>
     private static void SetWidgetTransitions(Control target, int milliseconds, Easing easing)
     {
         var duration = TimeSpan.FromMilliseconds(milliseconds);
@@ -415,7 +382,6 @@ public partial class HomeView : UserControl
         }, DispatcherPriority.Render);
     }
 
-    /// <summary>解析变换字符串；解析不了就退化成「无形变」，别让装饰性动画把删除弄崩。</summary>
     private static TransformOperations ParseTransform(string value)
     {
         try
@@ -437,7 +403,6 @@ public partial class HomeView : UserControl
     /// <summary>TransformOperations 按 InvariantCulture 解析，小数点不能跟着系统语言走。</summary>
     private static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    /// <summary>落位动画：从改动前的坐标滑到吸附后的格子位置，并轻轻压实一下。</summary>
     private void PlayLandAnimation(WidgetHost widget, double fromLeft, double fromTop)
     {
         Control host = widget.Host;
@@ -457,7 +422,6 @@ public partial class HomeView : UserControl
         PlayMotion(host, from, Transform(0, 0, 1), LandMs, new CubicEaseOut(), toOpacity: 1);
     }
 
-    /// <summary>删除区中心（格子板坐标系）：优先用底部提示条的实时位置。</summary>
     private Point? DeleteZoneCenterInBoard()
     {
         if (DeleteHint.IsVisible && DeleteHint.Bounds.Width > 0
@@ -471,7 +435,6 @@ public partial class HomeView : UserControl
             new Point(BoardScroll.Bounds.Width / 2, Math.Max(0, BoardScroll.Bounds.Height - 46)), WidgetBoard);
     }
 
-    /// <summary>被删组件朝删除区吸过去的位移：让「删掉」有明确方向，而不是原地消失。</summary>
     private (double Dx, double Dy) DeleteZonePull(WidgetHost widget)
     {
         var host = widget.Host;
@@ -484,7 +447,6 @@ public partial class HomeView : UserControl
         return ((target.X - center.X) * 0.72, (target.Y - center.Y) * 0.72);
     }
 
-    /// <summary>组件落进删除区时，删除区「吞一下」。</summary>
     private async void PulseDeleteZone()
     {
         if (!UiAnimations.Enabled || !DeleteHint.IsVisible) return;
@@ -495,7 +457,6 @@ public partial class HomeView : UserControl
         PlayMotion(DeleteHint, Transform(0, 0, 1.16), Transform(0, 0, 1), 180, new CubicEaseOut());
     }
 
-    /// <summary>拖到删除区上方：提示条鼓起、幽灵卡收紧，让「要删掉了」这一瞬间有反馈。</summary>
     private void SetDeleteZoneHover(bool over)
     {
         DeleteHint.RenderTransformOrigin = RelativePoint.Center;
@@ -511,8 +472,6 @@ public partial class HomeView : UserControl
             Transform(0, 0, over ? 0.9 : 1),
             150, new CubicEaseOut());
     }
-
-    // ================= 布局 =================
 
     private void LoadLayout()
     {
@@ -592,7 +551,6 @@ public partial class HomeView : UserControl
 
     private void RebuildPageTabs()
     {
-        // 页面 tab 只负责切换；编号 = 位置（1 起始），删除中间页后自动往前补位
         WidgetPageTabs.Children.Clear();
         for (var index = 0; index < _widgetPages.Count; index++)
         {
@@ -646,7 +604,6 @@ public partial class HomeView : UserControl
         content.Children.Add(MofuDialog.Message(
             L.T("Home.Page.DeleteConfirm", "确定删除「{0}」吗？页面里的组件摆放会被移除。", index + 1)));
 
-        // content 本身就在弹窗视觉树里，拿它关闭即可，不用再拎某个按钮
         var cancel = MofuDialog.Secondary(L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
         var confirm = MofuDialog.Primary(L.T("Common.Ok", "确定"), () =>
         {
@@ -665,7 +622,6 @@ public partial class HomeView : UserControl
         _widgetPages.RemoveAt(index);
         if (_activeWidgetPage >= _widgetPages.Count) _activeWidgetPage = _widgetPages.Count - 1;
         else if (_activeWidgetPage > index) _activeWidgetPage--;
-        // 编号跟位置走：删除后把存储的名字按新顺序重排（1, 2, 3…）
         for (var i = 0; i < _widgetPages.Count; i++)
         {
             _widgetPages[i].Name = (i + 1).ToString();
@@ -693,8 +649,6 @@ public partial class HomeView : UserControl
         WidgetLayer.Width = width;
         _cellWidth = Math.Max(24, (width - (Cols - 1) * Gap) / Cols);
 
-        // 行高按可见区域等分「一屏的行数」，与上一代一致：窗口越高格子越大，
-        // 太矮时收到 RowMinHeight 并让整块板滚动
         var viewportHeight = BoardScroll.Viewport.Height;
         if (viewportHeight <= 1) viewportHeight = BoardScroll.Bounds.Height;
         if (viewportHeight > 1)
@@ -722,8 +676,6 @@ public partial class HomeView : UserControl
             widget.Host.Height = Math.Max(120, widgetHeight);
         }
 
-        // 行数 = max(一屏行数, 已用到的最底行)：内容在一屏内时板子正好铺满，不出现
-        // 无意义的滚动；放到更下面时板子跟着长高，外层 ScrollViewer 接管
         var rows = _placements.Count == 0
             ? MinRows
             : Math.Max(MinRows, _placements.Values.Max(p => p.Y + p.H));
@@ -736,7 +688,6 @@ public partial class HomeView : UserControl
         UpdateDrawerHint();
     }
 
-    /// <summary>按当前列宽/行高重建整块格子板的细线。</summary>
     private void BuildGridLines()
     {
         var width = WidgetBoard.Width;
@@ -887,7 +838,6 @@ public partial class HomeView : UserControl
             (widget.Definition.DefaultW * _cellWidth + (widget.Definition.DefaultW - 1) * Gap) / 2,
             (widget.Definition.DefaultH * _rowHeight + (widget.Definition.DefaultH - 1) * Gap) / 2);
 
-        // 指针从组件盒拖到桌面时可能离开组件盒/HomeView，捕获到页面继续收移动事件
         _pressPointer?.Capture(this);
 
         DragGhostIcon.Kind = widget.Definition.IconKey;
@@ -943,7 +893,6 @@ public partial class HomeView : UserControl
         widget.Host.Opacity = 0.35;
         SetWidgetTransitions(widget.Host, LiftMs, new CubicEaseOut());
         widget.Host.RenderTransform = ParseTransform(Transform(0, 0, 0.965));
-        // 捕获指针：拖到开始栏/组件盒（HomeView 之外）也能收到移动与松手
         _pressPointer?.Capture(widget.Host);
         DragGhostIcon.Kind = widget.Definition.IconKey;
         DragGhostText.Text = widget.Definition.Title;
@@ -984,7 +933,6 @@ public partial class HomeView : UserControl
         if (wasOverDelete != _overDelete) SetDeleteZoneHover(_overDelete);
         if (!_dragFromLibrary)
         {
-            // 悬在删除区上方时，原位那张卡进一步淡掉，暗示「这一张马上要被删掉」
             _dragHost.Host.Opacity = _overDelete ? 0.12 : 0.35;
         }
 
@@ -1052,7 +1000,6 @@ public partial class HomeView : UserControl
         var fromLibrary = _dragFromLibrary;
 
         var intoDeleteZone = wasOverDelete && !fromLibrary;
-        // 吸附方向要先量：ResetDragVisuals 会把提示条收起来，之后就量不到删除区位置了
         (double Dx, double Dy) pull = intoDeleteZone ? DeleteZonePull(widget) : default;
         if (intoDeleteZone) PulseDeleteZone();
 
@@ -1102,7 +1049,6 @@ public partial class HomeView : UserControl
 
     private bool ComputeOverDelete(Point point)
     {
-        // 拖回组件盒 = 移除（原版行为）
         if (WidgetDrawer.IsVisible
             && this.TranslatePoint(point, WidgetDrawer) is { } drawerPoint
             && drawerPoint.X >= 0 && drawerPoint.Y >= 0
@@ -1112,7 +1058,6 @@ public partial class HomeView : UserControl
             return true;
         }
 
-        // 底部开始栏区域 = 移除
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel is not null
             && this.TranslatePoint(point, topLevel) is { } topPoint
@@ -1151,7 +1096,6 @@ public partial class HomeView : UserControl
         _holdProgressTimer.Tick += (_, _) =>
         {
             HoldProgress.Value = Math.Min(1, HoldProgress.Value + 0.032);
-            // 格子线随长按进度逐渐浮现
             GridLines.Opacity = 0.6 * HoldProgress.Value;
             if (HoldProgress.Value >= 1)
             {
@@ -1212,9 +1156,6 @@ public partial class HomeView : UserControl
         return false;
     }
 
-
-    // ================= 摆放 / 移除 / 整理 =================
-
     private void PlaceWidget(string id, int x, int y)
     {
         if (!_placements.TryGetValue(id, out var placement)) return;
@@ -1237,7 +1178,6 @@ public partial class HomeView : UserControl
         placement.X = x;
         placement.Y = y;
 
-        // 落位动画的起点要趁 LayoutBoard 之前取：拖动时宿主还停在旧格子上
         var fromLeft = Canvas.GetLeft(widget.Host);
         var fromTop = Canvas.GetTop(widget.Host);
         SaveLayout();
@@ -1275,7 +1215,6 @@ public partial class HomeView : UserControl
 
             if (!_placements.Remove(id))
             {
-                // 动画期间状态被改回去了（例如切页）：把外观还原，别留一张缩小的卡
                 host.IsVisible = true;
                 SetWidgetTransitions(host, LiftMs, new CubicEaseOut());
                 host.RenderTransform = ParseTransform(Transform(0, 0, 1));
@@ -1348,7 +1287,6 @@ public partial class HomeView : UserControl
 
         SaveLayout();
         LayoutBoard();
-        // 摆放动画：从略小略低的位置弹起来，像把组件「按」到桌面上
         PlayMotion(widget.Host,
             Transform(0, 14, 0.88),
             Transform(0, 0, 1),
@@ -1360,7 +1298,6 @@ public partial class HomeView : UserControl
         Shell.Toast(L.T("Home.Toast.Added", "已添加「{0}」", widget.Definition.Title));
     }
 
-    /// <summary>整理桌面：按「先上后下、先左后右」的阅读顺序重新紧凑排一遍。</summary>
     private void ArrangeDesktop()
     {
         if (_placements.Count == 0) return;
@@ -1370,7 +1307,6 @@ public partial class HomeView : UserControl
             .ThenBy(placement => placement.X)
             .ToList();
 
-        // 记住整理前的坐标，整理后每张卡用一段滑行补过去，而不是瞬间跳位
         var before = _widgets
             .Where(widget => _placements.ContainsKey(widget.Definition.Id))
             .ToDictionary(widget => widget.Definition.Id,
@@ -1454,8 +1390,6 @@ public partial class HomeView : UserControl
         return true;
     }
 
-    // ================= 改大小 =================
-
     private void OnResizeHandlePressed(WidgetHost widget, PointerPressedEventArgs e)
     {
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
@@ -1514,8 +1448,6 @@ public partial class HomeView : UserControl
         LayoutBoard();
         RefreshDrawer();
     }
-
-    // ================= 组件盒 =================
 
     private void OnWidgetSearchChanged(object? sender, TextChangedEventArgs e)
     {
@@ -1582,7 +1514,6 @@ public partial class HomeView : UserControl
             });
             if (placed) titleRow.Children.Add(WidgetChrome.Pill(L.T("Home.Library.OnDesktop", "已在桌面"), "NekoMutedBrush", "NekoFieldBrush"));
 
-            // 列表行只显示组件名（+ 已放置徽标）；描述只用于搜索匹配，不再展示
             var text = new StackPanel
             {
                 VerticalAlignment = VerticalAlignment.Center,
@@ -1641,10 +1572,8 @@ public partial class HomeView : UserControl
         UpdateDrawerHint();
     }
 
-    /// <summary>「+」= 纯组件添加：直接展开组件盒。</summary>
     private void OnWidgetLibraryClick(object? sender, RoutedEventArgs e) => OpenWidgetDrawer();
 
-    /// <summary>页面管理：切换 / 新建 / 删除集中在这里，与组件添加分开。</summary>
     private void OnPageManageClick(object? sender, RoutedEventArgs e)
     {
         var flyout = new MenuFlyout();

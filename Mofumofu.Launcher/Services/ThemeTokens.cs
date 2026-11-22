@@ -12,7 +12,6 @@ namespace Mofumofu.Launcher.Services;
 /// </summary>
 public static class ThemeTokens
 {
-    /// <summary>取令牌资源（brush/color/其它）。找不到时返回 null。</summary>
     public static object? Find(string key)
     {
         if (Application.Current is { } app && app.TryFindResource(key, out var resource))
@@ -23,7 +22,6 @@ public static class ThemeTokens
         return null;
     }
 
-    /// <summary>取一个画刷令牌（<c>…Brush</c>）；令牌是 Color 时自动包成画刷。</summary>
     public static IBrush Brush(string key) => Find(key) switch
     {
         IBrush brush => brush,
@@ -31,7 +29,6 @@ public static class ThemeTokens
         _ => Brushes.Transparent,
     };
 
-    /// <summary>取一个颜色令牌（<c>NekoAccent</c> / <c>NekoText</c> …）；令牌是画刷时取其 Color。</summary>
     public static Color Color(string key) => Find(key) switch
     {
         ISolidColorBrush solid => solid.Color,
@@ -42,7 +39,6 @@ public static class ThemeTokens
     /// <summary>由颜色令牌新建一个独立画刷（需要各自改色时用，避免污染共享令牌）。</summary>
     public static IBrush BrushOf(string colorKey) => new SolidColorBrush(Color(colorKey));
 
-    /// <summary>颜色令牌 + 透明度。</summary>
     public static IBrush WithAlpha(string colorKey, double alpha)
     {
         var color = Color(colorKey);
@@ -50,7 +46,6 @@ public static class ThemeTokens
         return new SolidColorBrush(Avalonia.Media.Color.FromArgb(a, color.R, color.G, color.B));
     }
 
-    /// <summary>按内容数据里的颜色字符串（工具色/实例色等）造画刷。</summary>
     public static IBrush FromHex(string? hex, IBrush? fallback = null)
     {
         if (string.IsNullOrWhiteSpace(hex)) return fallback ?? Brushes.Transparent;
@@ -65,7 +60,6 @@ public static class ThemeTokens
         }
     }
 
-    /// <summary>把两个令牌色按比例混合（t=0 取 a，t=1 取 b）。</summary>
     public static Color Blend(Color a, Color b, double t)
     {
         t = Math.Clamp(t, 0, 1);

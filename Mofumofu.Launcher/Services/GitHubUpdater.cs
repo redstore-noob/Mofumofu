@@ -11,10 +11,6 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>
-/// GitHub Releases 自动更新：查询最新版本 → 下载资产 → 重启安装。
-/// 资产约定：优先挑选名字含 "win" 的 .zip（整包更新），其次任意 .zip / .exe（单文件替换）。
-/// </summary>
 public static class GitHubUpdater
 {
     private const int StreamCopyBufferSize = 81920;
@@ -36,13 +32,11 @@ public static class GitHubUpdater
         {
             Timeout = timeout,
         };
-        // GitHub API 强制要求 User-Agent
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mofumofu-Launcher-Updater");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return client;
     }
 
-    /// <summary>一次版本检查的结果。</summary>
     public sealed record ReleaseInfo(
         string Tag,
         string Name,
@@ -51,14 +45,9 @@ public static class GitHubUpdater
         string? AssetName,
         long AssetSize)
     {
-        /// <summary>release 资产绑定的 SHA256 摘要（GitHub API 的 digest 字段），无则 null。</summary>
         public string? AssetDigest { get; init; }
     }
 
-    /// <summary>
-    /// 查询最新 release；没有可下载资产时 AssetUrl 为 null（只能提示用户手动去下载）。
-    /// 网络/解析失败抛异常，由调用方展示。
-    /// </summary>
     public static async Task<ReleaseInfo> GetLatestAsync(CancellationToken cancellationToken = default)
     {
         using var response = await ApiClient.GetAsync(ApiLatest, cancellationToken).ConfigureAwait(false);
@@ -75,7 +64,6 @@ public static class GitHubUpdater
         return new ReleaseInfo(tag, name, notes, url, assetName, size) { AssetDigest = digest };
     }
 
-    /// <summary>release 的 tag 是否比当前启动器版本新（支持 v 前缀；无法解析时视为不更新）。</summary>
     public static bool IsNewer(string tag)
     {
         if (!TryParseVersion(tag, out var latest)) return false;
@@ -116,7 +104,6 @@ public static class GitHubUpdater
             if (!IsSafeAssetName(assetName)) continue;
             string? url = asset.TryGetProperty("browser_download_url", out var urlEl) ? urlEl.GetString() : null;
             long size = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
-            // GitHub Releases API 的 digest（形如 "sha256:<hex>"），与资产绑定的官方摘要
             string? digest = asset.TryGetProperty("digest", out var digestEl) ? digestEl.GetString() : null;
             if (string.IsNullOrEmpty(url)) continue;
 
@@ -125,12 +112,11 @@ public static class GitHubUpdater
             bool isWin = assetName.Contains("win", StringComparison.OrdinalIgnoreCase);
             if (!isZip && !isExe) continue;
 
-            // 优先 win + zip，其次任意 zip，再其次 exe
             int score = (isWin, isZip) switch
             {
                 (true, true) => 3,
                 (_, true) => 2,
-                (_, false) => 1, // exe 单文件替换
+                (_, false) => 1,
             };
             if (best.Url is null || score > ScoreOf(best.Name))
             {
@@ -207,9 +193,6 @@ public static class GitHubUpdater
         return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
-    /// <summary>
-    /// 下载更新包到 %LOCALAPPDATA%\Mofumofu.Launcher\update\，返回本地文件路径。
-    /// </summary>
     public static async Task<string> DownloadAsync(
         ReleaseInfo release,
         IProgress<double>? progress,
@@ -228,7 +211,6 @@ public static class GitHubUpdater
             throw new InvalidOperationException("更新包下载地址非法（非 GitHub HTTPS 源），已中止下载。");
         }
 
-        // AssetName 来自远端 JSON，先过文件名白名单再拼路径，杜绝 .. / 路径分隔符 / 绝对路径越界
         string assetName = release.AssetName ?? "update.bin";
         if (!IsSafeAssetName(assetName))
         {
@@ -301,16 +283,11 @@ public static class GitHubUpdater
             }
             catch
             {
-                // 清理失败时保留原始异常向上抛出
             }
             throw;
         }
     }
 
-    /// <summary>
-    /// 应用已下载的更新包：解压（zip）到暂存区 → 写一个等进程退出后替换文件的 cmd → 重启自身。
-    /// 本方法在确认后调用，调用后进程会退出。
-    /// </summary>
     public static void Apply(string downloadedPath)
     {
         // 所有将进入 cmd 脚本的路径先过 fail-closed 白名单校验并规范化（含去掉尾反斜杠）
@@ -355,7 +332,6 @@ public static class GitHubUpdater
                 }
             }
             ZipFile.ExtractToDirectory(safeDownloaded, staging, overwriteFiles: true);
-            // zip 若带单一顶层目录则进入它
             var entries = Directory.GetFileSystemEntries(staging);
             sourceDir = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
         }
@@ -424,7 +400,6 @@ public static class GitHubUpdater
         }
         process.Dispose(); // 脚本要等本进程退出后才替换文件，这里只校验启动成功并释放句柄
 
-        // 仅在脚本确认已启动后才退出；失败路径由调用方捕获异常保持进程存活，脚本内 errorlevel 负责回滚
         Environment.Exit(0);
     }
 

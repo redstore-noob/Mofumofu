@@ -21,10 +21,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 插件页：左侧插件列表（真实运行状态），右侧详情三标签（概览 / 权限 / 设置）。
-/// 数据源是 PluginManager 运行时；装卸/开关/权限全部即时生效。
-/// </summary>
 public partial class PluginsView : UserControl
 {
     private string _selectedId = string.Empty;
@@ -36,7 +32,6 @@ public partial class PluginsView : UserControl
         PluginManager.PluginsChanged += OnPluginsChanged;
         DetachedFromVisualTree += (_, _) => PluginManager.PluginsChanged -= OnPluginsChanged;
 
-        // 视图可能先于 PluginManager.Initialize 出现：先画一版再等事件刷新
         RenderList();
         UpdateInfoPanel();
 
@@ -47,7 +42,6 @@ public partial class PluginsView : UserControl
         };
     }
 
-    /// <summary>插件目录：{DataRoot}/Mofumofu/plugins。</summary>
     public static string PluginDirectory => PluginManager.PluginsRoot;
 
     private void OnPluginsChanged()
@@ -61,10 +55,6 @@ public partial class PluginsView : UserControl
         RenderList();
         UpdateInfoPanel();
     }
-
-    // ------------------------------------------------------------------
-    // 列表
-    // ------------------------------------------------------------------
 
     private void RenderList()
     {
@@ -101,7 +91,6 @@ public partial class PluginsView : UserControl
             rows.Add(row);
         }
 
-        // 逐行淡入（错峰），搜索 / 刷新时不会整块「啪」地换掉
         UiAnimations.Stagger(rows, step: 35, milliseconds: 190);
     }
 
@@ -158,7 +147,6 @@ public partial class PluginsView : UserControl
         return border;
     }
 
-    /// <summary>插件图标：icon.png 优先，回退内置拼图图标。</summary>
     private Control BuildPluginIcon(PluginManifest manifest, double size, double radius)
     {
         Border host = new()
@@ -207,7 +195,6 @@ public partial class PluginsView : UserControl
         }
     }
 
-    /// <summary>状态徽章：运行中绿 / 已停用灰 / 异常红 / 不兼容橙。</summary>
     private Control BuildStateBadge(PluginRuntime runtime, double fontSize)
     {
         (string key, string fallback, string brush) = runtime.State switch
@@ -245,10 +232,6 @@ public partial class PluginsView : UserControl
         UiAnimations.FadeSlideIn(PluginInfoCard, 0.995, 6, 160);
     }
 
-    // ------------------------------------------------------------------
-    // 详情
-    // ------------------------------------------------------------------
-
     private void UpdateInfoPanel()
     {
         PluginRuntime? runtime = PluginManager.ById(_selectedId);
@@ -278,7 +261,6 @@ public partial class PluginsView : UserControl
         InfoState.Text = StateText(runtime);
         InfoType.Text = runtime.Instance?.ExtensionType.ToString() ?? "—";
 
-        // 图标（icon.png 回退拼图）
         InfoIconHost.Child = manifest.HasIcon && LoadIconBitmap(manifest.IconPath) is { } bitmap
             ? new Image { Source = bitmap, Stretch = Stretch.UniformToFill }
             : new IconParkIcon
@@ -311,7 +293,6 @@ public partial class PluginsView : UserControl
         _ => L.T("Pages.Plugins.Stat.Broken", "无法加载") + (runtime.Error.Length > 0 ? "：" + runtime.Error : ""),
     };
 
-    /// <summary>待授权原因（本地化）：首次安装 / 指纹变化 / 新增权限。</summary>
     private static string ConsentReasonText(PluginRuntime runtime) =>
         PluginConsent.Evaluate(runtime.Manifest, out _) switch
         {
@@ -320,7 +301,6 @@ public partial class PluginsView : UserControl
             _ => L.T("Pages.Plugins.Consent.Reason.Pending", "这是新安装的插件，需要你同意后才会加载。"),
         };
 
-    /// <summary>极简 Markdown 转纯文本（详情页直接展示 description.md）。</summary>
     private static string StripMarkdown(string markdown) => markdown
         .Replace("```", string.Empty)
         .Replace("**", string.Empty)
@@ -364,14 +344,6 @@ public partial class PluginsView : UserControl
             ? L.T($"Pages.Plugins.Perm.{permission}", permission)
             : L.T("Pages.Plugins.Perm.Unknown", "未知权限（API 不兼容）") + $"（{permission}）";
 
-    // ------------------------------------------------------------------
-    // 安装同意（先同意、后加载）
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// 安装同意对话框：插件信息 + extension.dll SHA256 指纹 + 权限清单 + 醒目风险警告。
-    /// 同意 = 记录指纹与整包权限并加载；拒绝 = 完全不加载（保持待授权）。
-    /// </summary>
     private void ShowConsentDialog(PluginRuntime runtime)
     {
         PluginManifest manifest = runtime.Manifest;
@@ -379,7 +351,6 @@ public partial class PluginsView : UserControl
 
         var content = new StackPanel { Spacing = 12, Width = 440 };
 
-        // 风险警告：插件与启动器拥有相同系统权限
         var warningRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9 };
         warningRow.Children.Add(new IconParkIcon
         {
@@ -408,7 +379,6 @@ public partial class PluginsView : UserControl
             Child = warningRow,
         });
 
-        // 插件信息
         var nameRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         nameRow.Children.Add(new TextBlock
         {
@@ -443,7 +413,6 @@ public partial class PluginsView : UserControl
             });
         }
 
-        // extension.dll 指纹
         content.Children.Add(new TextBlock
         {
             Text = L.T("Pages.Plugins.Consent.Hash", "extension.dll 指纹（SHA256）"),
@@ -458,7 +427,6 @@ public partial class PluginsView : UserControl
             TextWrapping = TextWrapping.Wrap,
         });
 
-        // 权限清单
         content.Children.Add(new TextBlock
         {
             Text = L.T("Pages.Plugins.Consent.Permissions", "该插件声明的权限"),
@@ -507,7 +475,6 @@ public partial class PluginsView : UserControl
             TextWrapping = TextWrapping.Wrap,
         });
 
-        // 按钮：拒绝 = 完全不加载
         var decline = MofuDialog.Secondary(L.T("Pages.Plugins.Consent.Decline", "拒绝"), () =>
         {
             MofuDialog.Close(content);
@@ -525,14 +492,9 @@ public partial class PluginsView : UserControl
         Shell.Dialog(content, L.T("Pages.Plugins.Consent.Title", "插件授权确认"));
     }
 
-    /// <summary>指纹按 8 位分组，方便肉眼比对。</summary>
     private static string FormatFingerprint(string hash) => string.Join(" ",
         Enumerable.Range(0, (hash.Length + 7) / 8)
             .Select(index => hash.Substring(index * 8, Math.Min(8, hash.Length - index * 8))));
-
-    // ------------------------------------------------------------------
-    // 操作
-    // ------------------------------------------------------------------
 
     private async void OnInstallPluginClick(object? sender, RoutedEventArgs e)
     {
@@ -577,7 +539,6 @@ public partial class PluginsView : UserControl
     {
         if (PluginManager.ById(_selectedId) is not { } runtime) return;
 
-        // 待授权插件：先走同意流程，同意前不会加载
         if (runtime.State == PluginRuntimeState.PendingConsent)
         {
             ShowConsentDialog(runtime);

@@ -12,18 +12,13 @@ using MofuCore.Log;
 using MofuCore.Tools;
 using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Services;
+using Mofumofu.Launcher.Services.Agent;
 using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>救砖信息：本次启动的还原点快照与它所属的实例目录。</summary>
 public sealed record CrashRescueInfo(string TargetDirectory, RewindSnapshot Snapshot);
 
-/// <summary>
-/// 游戏崩溃分析弹窗：展示 <see cref="LogAnalysis"/> 的结论（原因 + 证据 + 决策），
-/// 支持一键复制纯文本诊断与打开崩溃报告 / hs_err 文件所在位置。
-/// 弹窗本身经 <see cref="Shell.Dialog"/> 交给主窗口的对话框宿主显示。
-/// </summary>
 public static class CrashDialogContent
 {
     private const double DialogWidth = 760;
@@ -78,7 +73,6 @@ public static class CrashDialogContent
 
         panel.Children.Add(BuildButtonsRow(result));
 
-        // 卡片错峰入场：一屏结论逐条浮上来，比整块砸出来更容易读
         UiAnimations.Stagger(panel.Children, step: 32, milliseconds: 200, offsetY: 10);
 
         return new ScrollViewer
@@ -88,7 +82,6 @@ public static class CrashDialogContent
         };
     }
 
-    /// <summary>元信息一行：实例 · 版本 · 加载器 · Java · 内存 · 退出码。</summary>
     private static Control BuildMetaLine(LogAnalysisResult result, string instanceName)
     {
         System.Collections.Generic.List<string> parts =
@@ -168,10 +161,6 @@ public static class CrashDialogContent
         };
     }
 
-    /// <summary>
-    /// 救砖卡片：崩溃时询问是否回档到启动前快照。一键回档（自动先打安全快照），
-    /// 成功后原地换成「重新启动」入口;也可以打开 Rewind 时间轴挑别的快照。
-    /// </summary>
     private static Control BuildRescueCard(CrashRescueInfo rescue, string instanceName)
     {
         StackPanel card = new() { Spacing = 8 };
@@ -377,7 +366,7 @@ public static class CrashDialogContent
 
     private static Control BuildButtonsRow(LogAnalysisResult result)
     {
-        StackPanel row = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var row = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8 };
 
         string reportPath = result.CrashReportPath;
         string hsErrPath = result.HsErrPath;
@@ -399,10 +388,20 @@ public static class CrashDialogContent
             }
             catch
             {
-                // 剪贴板不可用（远程会话等）：保持原样
             }
         };
         row.Children.Add(copyButton);
+        Button agentButton = new()
+        {
+            Content = L.T("Agent.Task.Crash.Action", "用 MofuAgent 排查"),
+            Classes = { "dialog-secondary", "dialog-action" },
+        };
+        agentButton.Click += (_, _) =>
+        {
+            if (Shell.OpenAgentTask(LauncherAgentTasks.DiagnoseCrash(result)))
+                MofuDialog.Close(agentButton);
+        };
+        row.Children.Add(agentButton);
 
         if (File.Exists(reportPath))
         {
@@ -412,16 +411,6 @@ public static class CrashDialogContent
         {
             row.Children.Add(BuildOpenButton(L.T("Crash.Action.OpenHsErr", "打开 JVM 错误日志"), hsErrPath));
         }
-
-        row.Children.Add(new TextBlock
-        {
-            Text = L.T("Crash.Hint.Close", "点击弹窗外任意位置关闭"),
-            FontSize = 11,
-            Foreground = DimBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
-        });
 
         return row;
     }
@@ -440,7 +429,6 @@ public static class CrashDialogContent
             }
             catch
             {
-                // explorer 拉不起来就静默失败，路径已在弹窗里可见
             }
         };
         return button;

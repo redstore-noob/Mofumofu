@@ -23,9 +23,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 音乐播放器：本地文件夹扫描 + 网易云搜索/登录，底部播放条走真实音频输出。
-/// </summary>
 public partial class MusicView : UserControl
 {
     private enum MusicSource
@@ -34,11 +31,11 @@ public partial class MusicView : UserControl
         Cloud,
         Favorites,
         Roam,
+        Playlists,
     }
 
     private readonly MusicService _service = MusicService.Instance;
 
-    /// <summary>播放器与网易云客户端都在全局服务上，页面只是它的一层 UI。</summary>
     private MusicPlayer Player => _service.Player;
 
     private NetEaseMusicClient _client => _service.Client;
@@ -57,6 +54,8 @@ public partial class MusicView : UserControl
     private List<MusicItem> _view = [];
     private MusicItem? _current;
     private MusicSource _source = MusicSource.Local;
+    private MusicPlaylist? _activePlaylist;
+    private bool _suppressPlaylistCombo;
     private CancellationTokenSource? _cloudCts;
     private bool _ready;
     private bool _suppressSelection;
@@ -85,14 +84,12 @@ public partial class MusicView : UserControl
             UiAnimations.Reset(TrackListCard);
             UiAnimations.FadeSlideIn(TrackListCard, 0.995, 8, 190);
 
-            // 播放状态在服务上，页面重新挂回时把 UI 同步到最新
             _service.Status += OnServiceStatus;
             _service.StateChanged += OnServiceStateChanged;
             UpdateNowPlayingUi();
         };
         DetachedFromVisualTree += (_, _) =>
         {
-            // 离开音乐页不停止播放，后台继续放，桌面小组件也能控制
             _service.Status -= OnServiceStatus;
             _service.StateChanged -= OnServiceStateChanged;
             CancelCloud();
@@ -115,8 +112,6 @@ public partial class MusicView : UserControl
         SyncSelection(_current);
     }
 
-    // ==================== 来源 / 列表 ====================
-
     private void OnSearchNavClick(object? sender, RoutedEventArgs e)
     {
         TextBox box = UseThreePane ? SearchBox : ListSearch;
@@ -132,8 +127,11 @@ public partial class MusicView : UserControl
             "cloud" => MusicSource.Cloud,
             "favorites" => MusicSource.Favorites,
             "roam" => MusicSource.Roam,
+            "playlists" => MusicSource.Playlists,
             _ => MusicSource.Local,
         };
+
+        if (_source == MusicSource.Playlists) RefreshPlaylistCombo();
 
         UpdateSourceUi();
         RefreshView();
@@ -152,7 +150,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>三段式布局只给本地「首页」用，云 / 收藏 / 漫游走传统单列列表。</summary>
     private bool UseThreePane => _source == MusicSource.Local;
 
     private void UpdateSourceUi()
@@ -161,10 +158,12 @@ public partial class MusicView : UserControl
         RailCloud.Classes.Set("active", _source == MusicSource.Cloud);
         RailFavorites.Classes.Set("active", _source == MusicSource.Favorites);
         RailRoam.Classes.Set("active", _source == MusicSource.Roam);
+        RailPlaylists.Classes.Set("active", _source == MusicSource.Playlists);
 
         NowPane.IsVisible = UseThreePane;
         QueuePane.IsVisible = UseThreePane;
         ListPane.IsVisible = !UseThreePane;
+        PlaylistBar.IsVisible = _source == MusicSource.Playlists;
 
         LoginButton.IsVisible = _source == MusicSource.Cloud || _source == MusicSource.Roam;
         LoginButtonText.Text = _client.IsLoggedIn
@@ -185,6 +184,7 @@ public partial class MusicView : UserControl
             MusicSource.Cloud => L.T("Pages.Music.Source.Cloud", "网易云音乐"),
             MusicSource.Favorites => L.T("Pages.Music.Nav.Liked", "我喜欢"),
             MusicSource.Roam => L.T("Pages.Music.Roam.Title", "私人漫游"),
+            MusicSource.Playlists => _activePlaylist?.Name ?? L.T("Pages.Music.Nav.Playlists", "歌单"),
             _ => L.T("Pages.Music.Source.Local", "本地音乐"),
         };
 
@@ -193,12 +193,23 @@ public partial class MusicView : UserControl
             MusicSource.Cloud => L.T("Pages.Music.SearchCloud", "搜索网易云歌曲 / 歌手"),
             MusicSource.Favorites => L.T("Pages.Music.SearchFavorites", "搜索收藏"),
             MusicSource.Roam => L.T("Pages.Music.SearchRoam", "搜索漫游歌曲"),
+            MusicSource.Playlists => L.T("Pages.Music.SearchPlaylists", "搜索歌单中的歌曲"),
             _ => L.T("Pages.Music.SearchLocal", "搜索本地歌曲"),
         };
         _suppressSearch = true;
         SearchBox.PlaceholderText = placeholder;
         ListSearch.PlaceholderText = placeholder;
         _suppressSearch = false;
+
+        if (_source == MusicSource.Playlists)
+        {
+            var selected = ListTracks.SelectedItem as MusicItem ?? _service.Current;
+            bool inPlaylist = _activePlaylist is not null && selected is not null &&
+                              _activePlaylist.Tracks.Any(entry => entry.Id == selected.Id);
+            PlaylistAddButton.Content = inPlaylist
+                ? L.T("Pages.Music.Playlists.Remove", "移出歌单")
+                : L.T("Pages.Music.Playlists.Add", "加入歌曲");
+        }
     }
 
     private void RefreshView()
@@ -209,6 +220,8 @@ public partial class MusicView : UserControl
             MusicSource.Cloud => _cloud,
             MusicSource.Favorites => BuildFavoritesView(),
             MusicSource.Roam => _roam,
+            MusicSource.Playlists => _activePlaylist?.Tracks.Select(entry => entry.ToItem())
+                                     ?? Enumerable.Empty<MusicItem>(),
             _ => _local,
         };
 
@@ -230,7 +243,6 @@ public partial class MusicView : UserControl
         }
 
         _view = source.ToList();
-        // 连播 / 上一首 / 下一首按当前列表走
         _service.SetQueue(_view);
         _suppressSelection = true;
         TrackList.ItemsSource = _view;
@@ -254,6 +266,9 @@ public partial class MusicView : UserControl
                 ? L.T("Pages.Music.Empty.FavoritesSyncing", "正在同步网易云「我喜欢」…")
                 : L.T("Pages.Music.Empty.Favorites", "还没有收藏的歌曲，点播放条上的爱心收藏当前歌曲。"),
             MusicSource.Roam => L.T("Pages.Music.Empty.Roam", "暂无漫游歌曲，点击侧栏「漫游」重新获取。"),
+            MusicSource.Playlists => _activePlaylist is null
+                ? L.T("Pages.Music.Playlists.Empty", "还没有歌单，输入名称后点「新建」。")
+                : L.T("Pages.Music.Playlists.EmptyTracks", "这个歌单还没有歌曲，选中歌曲后点「加入歌曲」。"),
             _ => _local.Count == 0
                 ? L.T("Pages.Music.Empty.Local", "还没有本地歌曲，点「选择文件夹」添加音乐目录。")
                 : L.T("Pages.Music.Empty.Search", "没有匹配的歌曲，换个关键词试试。"),
@@ -280,7 +295,6 @@ public partial class MusicView : UserControl
         await ApplySearchChangedAsync();
     }
 
-    /// <summary>两个搜索框内容互相同步，然后走统一的搜索逻辑。</summary>
     private void SyncSearchText(TextBox edited)
     {
         _suppressSearch = true;
@@ -313,7 +327,6 @@ public partial class MusicView : UserControl
     {
         if (!_ready || _suppressSort) return;
 
-        // 两个排序下拉互相同步
         _suppressSort = true;
         SortCombo.SelectedIndex = ListSort.SelectedIndex;
         ListSort.SelectedIndex = SortCombo.SelectedIndex;
@@ -340,7 +353,6 @@ public partial class MusicView : UserControl
         }
         catch (OperationCanceledException)
         {
-            // 新的搜索
         }
         catch (Exception exception)
         {
@@ -360,11 +372,9 @@ public partial class MusicView : UserControl
         }
         catch (ObjectDisposedException)
         {
-            // 已释放
         }
     }
 
-    /// <summary>私人漫游：基于最近播放的网易云歌曲拉取智能推荐。</summary>
     private async Task LoadRoamAsync()
     {
         if (!_client.IsLoggedIn)
@@ -389,10 +399,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>
-    /// 同步网易云云端「我喜欢的音乐」歌单；登录后进收藏页会拉一次，
-    /// 之后再进不重复拉（重进侧栏想强制刷新就等下次会话）。
-    /// </summary>
     private async Task LoadCloudLikedAsync()
     {
         if (_cloudLikedLoaded || _cloudLikedLoading || !_client.IsLoggedIn) return;
@@ -405,7 +411,7 @@ public partial class MusicView : UserControl
             _cloudLikedLoaded = true;
             foreach (MusicItem item in _cloudLiked)
             {
-                item.IsFavorite = true; // 云端歌单里就是喜欢的
+                item.IsFavorite = true;
                 item.PropertyChanged += OnCloudLikedItemChanged;
             }
             if (_source == MusicSource.Favorites) RefreshView();
@@ -421,7 +427,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>云端喜欢的歌曲爱心变化时，把喜欢/取消喜欢写回网易云。</summary>
     private void OnCloudLikedItemChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(MusicItem.IsFavorite) ||
@@ -452,7 +457,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>按收藏表标记条目上的爱心状态。</summary>
     private void MarkFavorites(IEnumerable<MusicItem> items)
     {
         foreach (MusicItem item in items.Where(item => !_cloudLiked.Contains(item)))
@@ -461,16 +465,11 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>
-    /// 「我喜欢」视图：优先用内存里现成的条目（带搜索结果 / 扫描结果），
-    /// 缺的从持久化的 FavoriteDetails 重建——云歌曲重启后搜索缓存为空也能显示。
-    /// </summary>
     private List<MusicItem> BuildFavoritesView()
     {
         List<MusicItem> items = [];
         HashSet<string> seen = new(StringComparer.Ordinal);
 
-        // 云端「我喜欢的音乐」整单都算喜欢，放最前（封面 / 元数据最全）
         foreach (MusicItem item in _cloudLiked)
         {
             if (seen.Add(item.Id)) items.Add(item);
@@ -505,8 +504,6 @@ public partial class MusicView : UserControl
     {
         _settings.FavoriteDetails.RemoveAll(detail => detail.Id == id);
     }
-
-    // ==================== 本地库 ====================
 
     private async Task LoadLocalAsync()
     {
@@ -576,8 +573,6 @@ public partial class MusicView : UserControl
             await SearchCloudAsync(SearchBox.Text ?? string.Empty);
         }
     }
-
-    // ==================== 网易云登录 ====================
 
     private void OnCloudLoginClick(object? sender, RoutedEventArgs e)
     {
@@ -668,9 +663,6 @@ public partial class MusicView : UserControl
         Shell.Dialog(content, L.T("Pages.Music.Login", "登录网易云"), sender as Control);
     }
 
-    /// <summary>
-    /// 用系统浏览器打开网易云扫码页，轮询扫码状态；确认后从响应 Cookie 自动完成登录。
-    /// </summary>
     private async Task LoginWithQrCodeAsync()
     {
         try
@@ -684,7 +676,9 @@ public partial class MusicView : UserControl
             }
 
             string pageUrl = "https://music.163.com/login?codekey=" + Uri.EscapeDataString(key);
-            if (!OpenLinkBrowser.TryOpen(pageUrl, out string error))
+            var loginWindow = LoginBrowserWindow.Show(pageUrl, null,
+                () => OpenLinkBrowser.TryOpen(pageUrl, out _));
+            if (loginWindow is null && !OpenLinkBrowser.TryOpen(pageUrl, out string error))
             {
                 Shell.Toast(L.T("Pages.Music.QrOpenFailed", "无法打开系统浏览器：{0}", error));
                 return;
@@ -764,8 +758,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    // ==================== 播放 ====================
-
     private async void OnTrackSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (!_ready || _suppressSelection) return;
@@ -774,7 +766,6 @@ public partial class MusicView : UserControl
         await PlayItemAsync(item);
     }
 
-    /// <summary>交给全局服务播放，成功后把正在播放区刷成这首歌。</summary>
     private async Task PlayItemAsync(MusicItem item)
     {
         bool played = await _service.PlayAsync(item);
@@ -789,7 +780,6 @@ public partial class MusicView : UserControl
         }
     }
 
-    /// <summary>正在播放区：标题 / 元信息 / 封面 / 播放键 / 红心，全部对着服务的当前曲目。</summary>
     private void UpdateNowPlayingUi()
     {
         MusicItem? item = _service.Current ?? _current;
@@ -846,7 +836,6 @@ public partial class MusicView : UserControl
     private void OnPrevClick(object? sender, RoutedEventArgs e) => _service.Previous();
     private void OnNextClick(object? sender, RoutedEventArgs e) => _service.Next();
 
-    /// <summary>两个列表同步高亮同一首歌，不触发播放。</summary>
     private void SyncSelection(MusicItem? item)
     {
         _suppressSelection = true;
@@ -860,8 +849,6 @@ public partial class MusicView : UserControl
 
     private void OnForward10Click(object? sender, RoutedEventArgs e) =>
         Player.Seek(Player.Position + TimeSpan.FromSeconds(10));
-
-    // ==================== 进度 / 音量 / 收藏 ====================
 
     private void OnPlayerProgress(TimeSpan position, TimeSpan duration)
     {
@@ -923,12 +910,10 @@ public partial class MusicView : UserControl
         ToggleFavorite(_current);
     }
 
-    /// <summary>列表行里的爱心点击：走 ToggleButton 双向绑定已改过 item.IsFavorite。</summary>
     private void OnItemFavoriteClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not ToggleButton { DataContext: MusicItem item }) return;
 
-        // 绑定已经翻转过 IsFavorite，这里只按最终状态落盘
         bool favorited = item.IsFavorite;
         if (favorited)
         {
@@ -978,7 +963,6 @@ public partial class MusicView : UserControl
             : L.T("Pages.Music.FavoriteToast", "已收藏「{0}」（{1} 首）", item.Title, _settings.Favorites.Count));
     }
 
-    /// <summary>正在播放面板上的红心与列表爱心保持一致。</summary>
     private void UpdateFavoriteUi()
     {
         MusicItem? item = _service.Current ?? _current;
@@ -986,6 +970,159 @@ public partial class MusicView : UserControl
         if (item is not null) item.IsFavorite = favorite;
         FavHeartIcon.Kind = favorite ? "IconFluentHeartFilled" : "IconFluentHeart";
         FavButton.Classes.Set("active", favorite);
+    }
+
+    private void RefreshPlaylistCombo()
+    {
+        _suppressPlaylistCombo = true;
+        PlaylistCombo.Items.Clear();
+        foreach (var playlist in _settings.Playlists)
+        {
+            PlaylistCombo.Items.Add(new ComboBoxItem { Content = playlist.Name, Tag = playlist.Id });
+        }
+
+        _activePlaylist ??= _settings.Playlists.FirstOrDefault();
+        PlaylistCombo.SelectedItem = _activePlaylist is null
+            ? null
+            : PlaylistCombo.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag as string, _activePlaylist.Id, StringComparison.Ordinal));
+        PlaylistNameBox.Text = _activePlaylist?.Name ?? string.Empty;
+        _suppressPlaylistCombo = false;
+    }
+
+    private void OnPlaylistComboChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_ready || _suppressPlaylistCombo) return;
+        if ((sender as ComboBox)?.SelectedItem is not ComboBoxItem item || item.Tag is not string id) return;
+
+        _activePlaylist = _settings.Playlists.FirstOrDefault(p => p.Id == id);
+        PlaylistNameBox.Text = _activePlaylist?.Name ?? string.Empty;
+        RefreshView();
+    }
+
+    private void OnPlaylistNewClick(object? sender, RoutedEventArgs e)
+    {
+        string name = (PlaylistNameBox.Text ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedName", "请先输入歌单名称"));
+            return;
+        }
+        if (_settings.Playlists.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.Duplicate", "已有同名歌单"));
+            return;
+        }
+
+        var playlist = new MusicPlaylist { Name = name };
+        _settings.Playlists.Add(playlist);
+        _activePlaylist = playlist;
+        FlushSettings();
+        RefreshPlaylistCombo();
+        RefreshView();
+        Shell.Toast(L.T("Pages.Music.Playlists.Created", "已创建歌单「{0}」", name));
+    }
+
+    private void OnPlaylistRenameClick(object? sender, RoutedEventArgs e)
+    {
+        if (_activePlaylist is null)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedSelect", "请先选择或新建歌单"));
+            return;
+        }
+        string name = (PlaylistNameBox.Text ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedName", "请先输入歌单名称"));
+            return;
+        }
+        if (_settings.Playlists.Any(p => p != _activePlaylist &&
+                                         string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.Duplicate", "已有同名歌单"));
+            return;
+        }
+
+        _activePlaylist.Name = name;
+        FlushSettings();
+        RefreshPlaylistCombo();
+        RefreshView();
+        Shell.Toast(L.T("Pages.Music.Playlists.Renamed", "已重命名为「{0}」", name));
+    }
+
+    private void OnPlaylistDeleteClick(object? sender, RoutedEventArgs e)
+    {
+        if (_activePlaylist is null)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedSelect", "请先选择或新建歌单"));
+            return;
+        }
+
+        string name = _activePlaylist.Name;
+        _settings.Playlists.Remove(_activePlaylist);
+        _activePlaylist = null;
+        FlushSettings();
+        RefreshPlaylistCombo();
+        RefreshView();
+        Shell.Toast(L.T("Pages.Music.Playlists.Deleted", "已删除歌单「{0}」", name));
+    }
+
+    private void OnPlaylistAddClick(object? sender, RoutedEventArgs e)
+    {
+        _activePlaylist ??= _settings.Playlists.FirstOrDefault();
+        if (_activePlaylist is null)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedSelect", "请先选择或新建歌单"));
+            return;
+        }
+        MusicItem? item = ListTracks.SelectedItem as MusicItem ?? _service.Current ?? _current;
+        if (item is null)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedTrack", "请先选择一首歌曲"));
+            return;
+        }
+
+        var existing = _activePlaylist.Tracks.FirstOrDefault(entry => entry.Id == item.Id);
+        if (existing is not null)
+        {
+            _activePlaylist.Tracks.Remove(existing);
+            FlushSettings();
+            RefreshView();
+            Shell.Toast(L.T("Pages.Music.Playlists.Removed", "已从歌单移除「{0}」", item.Title));
+            return;
+        }
+
+        _activePlaylist.Tracks.Add(MusicFavoriteEntry.From(item));
+        FlushSettings();
+        RefreshView();
+        Shell.Toast(L.T("Pages.Music.Playlists.Added", "已加入歌单「{0}」", item.Title));
+    }
+
+    private void OnItemAddToPlaylistClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: MusicItem item }) return;
+
+        _activePlaylist ??= _settings.Playlists.FirstOrDefault();
+        if (_activePlaylist is null)
+        {
+            Shell.Toast(L.T("Pages.Music.Playlists.NeedSelect", "请先选择或新建歌单"));
+            return;
+        }
+
+        var existing = _activePlaylist.Tracks.FirstOrDefault(entry => entry.Id == item.Id);
+        if (existing is not null)
+        {
+            _activePlaylist.Tracks.Remove(existing);
+            FlushSettings();
+            RefreshView();
+            Shell.Toast(L.T("Pages.Music.Playlists.Removed", "已从歌单移除「{0}」", item.Title));
+            return;
+        }
+
+        _activePlaylist.Tracks.Add(MusicFavoriteEntry.From(item));
+        FlushSettings();
+        RefreshView();
+        Shell.Toast(L.T("Pages.Music.Playlists.Added", "已加入歌单「{0}」", item.Title));
     }
 
     private void QueueSave()

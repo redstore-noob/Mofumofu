@@ -8,7 +8,6 @@ using YamlDotNet.Serialization;
 
 namespace Mofumofu.Launcher;
 
-/// <summary>桌面小组件在格子板上的位置与占格（8 列/行单位）。</summary>
 public sealed class DesktopWidgetPage
 {
     public string Id { get; set; } = string.Empty;
@@ -25,28 +24,19 @@ public sealed class DesktopWidgetPlacement
     public int H { get; set; }
 }
 
-/// <summary>单个插件的宿主侧状态：是否启用 + 各权限区开关 + 安装同意记录。</summary>
 public sealed class PluginStateEntry
 {
     public string Id { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
-    /// <summary>权限区名 → 是否允许；未记录的权限区按"已声明即允许"处理。</summary>
     public Dictionary<string, bool> Permissions { get; set; } = new();
 
-    /// <summary>同意授权时 extension.dll 的 SHA256（变化 = 插件已更新，需要重新同意）。</summary>
     public string ConsentDllHash { get; set; } = string.Empty;
 
-    /// <summary>首次同意时一次性授权的权限域（清单新增权限时需要重新同意）。</summary>
     public List<string> ConsentPermissions { get; set; } = new();
 
-    /// <summary>最近一次同意时间（ISO 8601）。</summary>
     public string ConsentTime { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// 本地轻量设置（原生重写阶段替代后端 ConfigAPI）：主题、实例/账户选择等。
-/// 与 MofuCore 共用配置目录，保存在 {DataRoot}/Mofumofu/config/settings.yaml。
-/// </summary>
 public sealed class LocalSettings
 {
     private static string SettingsPath => Path.Combine(YamlRead.ConfigDirectory, "settings.yaml");
@@ -68,44 +58,33 @@ public sealed class LocalSettings
     public bool StartBarAutoHide { get; set; }
     public bool PanelBlur { get; set; } = true;
 
-    /// <summary>整个窗口的不透明度（40-100）。</summary>
     public int WindowOpacity { get; set; } = 100;
     public int BackgroundOpacity { get; set; } = 80;
     public bool AccentFollowBackground { get; set; }
     public string AccentColor { get; set; } = "klein";
 
-    /// <summary>自定义主题色弹窗里「最近使用」的颜色（#RRGGBB，最多 8 个）。</summary>
     public List<string> RecentAccentColors { get; set; } = new();
 
-    /// <summary>任务栏（开始栏左侧）显示的页面 id，可在设置里右键增删。</summary>
     public List<string> TaskbarPages { get; set; } = new() { "home", "download", "instances", "settings" };
 
-    /// <summary>图标配色：theme（跟随主题）/ colorful（多彩）。</summary>
     public string IconPalette { get; set; } = "colorful";
 
-    /// <summary>关闭窗口行为：tray（最小化到托盘）/ exit（退出）/ ask（每次询问）。</summary>
     public string CloseAction { get; set; } = "exit";
 
-    /// <summary>单实例运行：关闭时允许多开（重启后生效）。</summary>
     public bool SingleInstance { get; set; } = true;
 
-    /// <summary>直角模式：窗口与面板圆角归零。</summary>
     public bool SquareCorners { get; set; }
 
-    /// <summary>下载源：bmcl（BMCLAPI 镜像）/ official（Mojang 官方）。</summary>
     public string DownloadSource { get; set; } = "bmcl";
     public string DownloadFallbackSource { get; set; } = "official";
     public string CustomDownloadSourceName { get; set; } = "自定义源";
     public string CustomDownloadSourceUrl { get; set; } = "";
 
-    /// <summary>并行下载线程数（1 - 16，实际生效前会再按 MofuCore 的限制夹取）。</summary>
     public int ParallelDownloads { get; set; } = 32;
 
-    /// <summary>CurseForge API Key（内存中为明文；落盘时由 AgentSecretProtector 字段级加密）。</summary>
     [YamlIgnore]
     public string CurseForgeApiKey { get; set; } = string.Empty;
 
-    /// <summary>settings.yaml 中 CurseForgeApiKey 的加密表示，复用 Agent 凭据加密并兼容旧明文。</summary>
     [YamlMember(Alias = "CurseForgeApiKey")]
     public string CurseForgeApiKeyProtected
     {
@@ -113,34 +92,25 @@ public sealed class LocalSettings
         set => CurseForgeApiKey = AgentSecretProtector.Unprotect(value);
     }
 
-    /// <summary>安装模组时自动补齐缺失的前置模组。</summary>
     public bool AutoInstallDependencies { get; set; } = true;
 
-    /// <summary>自动更新检查已禁用；兼容旧配置，但忽略其中保存的开启值。</summary>
-    public bool AutoCheckUpdates { get => false; set { } }
+    public bool AutoCheckUpdates { get; set; } = false;
+    public string? LastUpdateCheckAt { get; set; }
 
-    /// <summary>是否已完成首次启动引导（OOBE）。</summary>
     public bool OobeCompleted { get; set; }
 
-    /// <summary>插件状态（启用/停用 + 权限开关），按插件 Id 索引。</summary>
     public List<PluginStateEntry> PluginStates { get; set; } = new();
 
-    /// <summary>插件商店已添加的仓库地址（GitHub 仓库 URL）。</summary>
     public List<string> PluginRepos { get; set; } = new();
 
-    /// <summary>服务器小组件里收藏的外部服务器（可添加多台，点击直接进服）。</summary>
     public List<QuickServerEntry> QuickServers { get; set; } = new();
 
-    /// <summary>桌面小组件布局（自由摆放：格子坐标 + 占格）。</summary>
     public List<DesktopWidgetPlacement> DesktopWidgets { get; set; } = new();
 
-    /// <summary>桌面组件分页（每页一组组件摆放）。</summary>
     public List<DesktopWidgetPage> DesktopWidgetPages { get; set; } = new();
 
-    /// <summary>当前选中的桌面组件页索引。</summary>
     public int ActiveDesktopWidgetPage { get; set; }
 
-    /// <summary>桌面布局版本：升级默认版式时用来触发一次重排。</summary>
     public int DesktopLayoutVersion { get; set; }
 
     public static LocalSettings Current { get; private set; } = new();
@@ -184,7 +154,6 @@ public sealed class LocalSettings
             }
             catch (Exception ex)
             {
-                // 损坏时不再静默重置为默认；先备份原文件，让后续 Save 无法覆盖原始数据。
                 LogWrite.Write("ERROR", "[LocalSettings] 设置文件读取/解析失败，已改用默认设置：" + ex.Message);
                 BackupCorruptedFile();
             }
@@ -256,7 +225,6 @@ public sealed class LocalSettings
         }
         catch (Exception ex)
         {
-            // 写入失败必须记录，不再静默吞掉，避免用户误以为已保存。
             LogWrite.Write("ERROR", "[LocalSettings] 设置保存失败：" + ex.Message);
         }
         finally
@@ -267,7 +235,6 @@ public sealed class LocalSettings
             }
             catch
             {
-                // 临时文件清理失败不影响主流程
             }
         }
     }
@@ -290,7 +257,6 @@ public sealed class LocalSettings
     }
 }
 
-/// <summary>服务器小组件里的一台收藏服务器（地址支持 host / host:port）。</summary>
 public sealed class QuickServerEntry
 {
     public string Name { get; set; } = string.Empty;

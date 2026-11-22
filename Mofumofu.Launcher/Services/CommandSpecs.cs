@@ -6,22 +6,15 @@ using System.Text.RegularExpressions;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>命令生成器的字段类型。</summary>
 public enum CommandFieldKind
 {
-    /// <summary>自由文本。</summary>
     Text,
-    /// <summary>整数文本（带范围夹取）。</summary>
     Number,
-    /// <summary>可输入的下拉选择（自动补全）。</summary>
     Choice,
-    /// <summary>严格下拉选择（不可输入）。</summary>
     Pick,
-    /// <summary>开关。</summary>
     Toggle,
 }
 
-/// <summary>一个命令生成表单里的字段描述。</summary>
 public sealed record CommandField(
     string Key,
     string Label,
@@ -36,7 +29,6 @@ public sealed record CommandField(
     /// 设置后自动补全用全量注册表 + 中文名搜索，Options 仅作目录为空时的兜底。</summary>
     string? Catalog = null);
 
-/// <summary>一条命令的完整规格：表单字段 + 由字段值拼出命令行的构建函数。</summary>
 public sealed record CommandSpec(
     string Id,
     string Command,
@@ -48,13 +40,8 @@ public sealed record CommandSpec(
     CommandField[] Fields,
     Func<IReadOnlyDictionary<string, string>, IEnumerable<string>> Build);
 
-/// <summary>
-/// 命令生成器的数据目录：17 条常用命令的规格与构建逻辑，加上语法高亮用的分词器。
-/// 全部为纯字符串逻辑，不依赖 UI；页面层把控好的字段值塞进字典，这里拼出最终命令。
-/// </summary>
 public static class CommandSpecs
 {
-    // ---------------- 常用选项表 ----------------
 
     public static readonly string[] Items =
     {
@@ -125,7 +112,6 @@ public static class CommandSpecs
         "universalAnger", "playersSleepingPercentage", "spectatorsGenerateChunks",
     };
 
-    /// <summary>规则名 → 值类型提示（true/false 或整数）。</summary>
     public static string GameruleValueHint(string rule) => rule switch
     {
         "randomTickSpeed" or "spawnRadius" or "maxEntityCramming" or "playersSleepingPercentage"
@@ -133,16 +119,12 @@ public static class CommandSpecs
         _ => "bool",
     };
 
-    // ---------------- 目录本体 ----------------
-
-    /// <summary>分类顺序：玩家 / 世界 / 方块 / 实体 / 消息。</summary>
     public static readonly string[] Categories = { "player", "world", "block", "entity", "message" };
 
     public static readonly IReadOnlyList<CommandSpec> All = BuildCatalog();
 
     private static List<CommandSpec> BuildCatalog() => new()
     {
-        // ---------- 玩家 ----------
 
         new("give", "give", "给物品",
             "give <目标> <物品> [数量] [组件]",
@@ -274,8 +256,6 @@ public static class CommandSpecs
             Array.Empty<CommandField>(),
             v => One($"/kill {Target(v)}")),
 
-        // ---------- 世界 ----------
-
         new("time", "time", "时间",
             "time set <值> / time add <刻>",
             "world", false, "",
@@ -343,8 +323,6 @@ public static class CommandSpecs
             },
             v => One($"/difficulty {Raw(v, "mode", "normal")}")),
 
-        // ---------- 方块 ----------
-
         new("setblock", "setblock", "放置方块",
             "setblock <坐标> <方块> [模式]",
             "block", false, "",
@@ -371,8 +349,6 @@ public static class CommandSpecs
                     new[] { "replace", "destroy", "hollow", "keep", "outline" }),
             },
             v => One($"/fill {Raw(v, "from", "~ ~ ~")} {Raw(v, "to", "~10 ~ ~10")} {IdOf(v, "block", "minecraft:stone")} {Raw(v, "mode", "replace")}")),
-
-        // ---------- 实体 ----------
 
         new("summon", "summon", "召唤实体",
             "summon <实体> [坐标] [NBT]",
@@ -408,8 +384,6 @@ public static class CommandSpecs
                     : $"/particle {IdOf(v, "particle", "heart")} {Raw(v, "coords", "~ ~1 ~")}");
             }),
 
-        // ---------- 消息 ----------
-
         new("title", "title", "全屏标题",
             "title <目标> title <文本>",
             "message", true, "@a",
@@ -436,9 +410,6 @@ public static class CommandSpecs
             }),
     };
 
-    // ---------------- 组件 / NBT 拼接 ----------------
-
-    /// <summary>拼 1.20.5+ 物品组件参数（give 的第 5 段）。内容为空时返回空串。</summary>
     public static string BuildComponents(
         string? customName,
         IReadOnlyList<(string Enchant, int Level)> enchantments,
@@ -479,7 +450,6 @@ public static class CommandSpecs
         return parts.Count > 0 ? $"[{string.Join(",", parts)}]" : string.Empty;
     }
 
-    /// <summary>拼 summon 的 NBT（1.21.5 前字段名）。内容为空时返回空串。</summary>
     public static string BuildSummonNbt(
         string? customName,
         bool noAi,
@@ -506,11 +476,9 @@ public static class CommandSpecs
         return parts.Count > 0 ? $"{{{string.Join(",", parts)}}}" : string.Empty;
     }
 
-    /// <summary>SNBT 字符串字面量：<c>"文字"</c>（把反斜杠与引号转义掉）。</summary>
     public static string SnbtString(string text) =>
         $"\"{(text ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
 
-    /// <summary>JSON 文本组件：<c>{"text":"文字"}</c>。</summary>
     public static string JsonText(string text) =>
         "{\"text\":" + JsonSerializerEscape(text ?? string.Empty) + "}";
 
@@ -533,9 +501,6 @@ public static class CommandSpecs
         return builder.Append('"').ToString();
     }
 
-    // ---------------- 目标选择器 ----------------
-
-    /// <summary>由基础选择器（@a/@p/@s/@e/@r 或玩家名）+ 筛选条件拼出目标选择器。</summary>
     public static string BuildSelector(
         string baseSelector,
         string? limit, string? sort, string? distance,
@@ -565,7 +530,6 @@ public static class CommandSpecs
         Add(dy, "dy=");
         Add(dz, "dz=");
 
-        // level=..10 / level=5.. / level=3..10 / level=5（两端相同只写一个数）
         var min = levelMin?.Trim();
         var max = levelMax?.Trim();
         var hasMin = !string.IsNullOrEmpty(min);
@@ -578,8 +542,6 @@ public static class CommandSpecs
             ? baseSelector
             : $"{baseSelector}[{string.Join(",", conditions)}]";
     }
-
-    // ---------------- 取值小工具 ----------------
 
     private static IEnumerable<string> One(string line) => new[] { line };
 
@@ -597,21 +559,15 @@ public static class CommandSpecs
         return Math.Clamp(parsed, min, max);
     }
 
-    /// <summary>目标选择器值：表单没给时用规格里的默认目标。</summary>
     public static string Target(IReadOnlyDictionary<string, string> values) =>
         Raw(values, "target").Length > 0 ? Raw(values, "target") : "@s";
 
-    /// <summary>
-    /// 取物品/实体等 ID 字段的值并归一：补 minecraft: 前缀；
-    /// 输出卡片关掉命名空间时再去掉（值来自 "__ns" 键，由页面写入）。
-    /// </summary>
     public static string IdOf(IReadOnlyDictionary<string, string> values, string key, string fallback)
     {
         var raw = Raw(values, key, fallback);
         return ApplyNamespace(values, raw);
     }
 
-    /// <summary>对已经拼好的 ID 文本做同样的命名空间处理。</summary>
     public static string IdText(IReadOnlyDictionary<string, string> values, string raw) =>
         ApplyNamespace(values, raw);
 
@@ -624,8 +580,6 @@ public static class CommandSpecs
         return id;
     }
 
-    // ---------------- 语法高亮分词 ----------------
-
     public enum TokenType { Head, Selector, Id, Number, Nbt, Text, Plain }
 
     public readonly record struct Token(string Text, TokenType Type);
@@ -636,10 +590,6 @@ public static class CommandSpecs
     private static readonly Regex NumberPattern =
         new("^[~^]?-?\\d+(\\.\\d+)?$", RegexOptions.Compiled);
 
-    /// <summary>
-    /// 把一行命令拆成用于着色的词元：按顶层空格切分，
-    /// 引号与 [] {} 括号内的空格不会切断。
-    /// </summary>
     public static IReadOnlyList<Token> Tokenize(string line)
     {
         var tokens = new List<Token>();

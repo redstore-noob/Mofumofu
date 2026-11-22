@@ -6,10 +6,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>
-/// 一个桌面小组件的定义。
-/// 标题/描述在访问时才查语言包，这样切语言后重建页面能立刻拿到新文案。
-/// </summary>
 public sealed class WidgetDefinition
 {
     private readonly string _titleFallback;
@@ -56,24 +52,16 @@ public sealed class WidgetDefinition
     public Func<Control> Build { get; }
 }
 
-/// <summary>默认摆放在桌面上的组件（含占格大小）。</summary>
 public sealed record DefaultPlacement(string Id, int X, int Y, int W, int H);
 
-/// <summary>
-/// 小组件注册表：id / 标题 / 描述 / 图标 / 默认占格统一登记，卡片内容由 <see cref="WidgetCards"/> 构建。
-/// 标题与描述走语言包 <c>Widgets.&lt;id&gt;.Title</c> / <c>Widgets.&lt;id&gt;.Desc</c>。
-/// </summary>
 public static class WidgetRegistry
 {
     private static readonly List<WidgetDefinition> BuiltIn = Build();
 
-    /// <summary>插件动态注册的小组件（运行期可增删改）。</summary>
     private static readonly Dictionary<string, DynamicWidget> Dynamic = new(StringComparer.Ordinal);
 
-    /// <summary>动态注册表变化（增/删/改）时触发；HomeView 监听后增量重建宿主。</summary>
     public static event Action? Changed;
 
-    /// <summary>全部小组件 = 内置 + 插件动态（顺序即组件盒里的顺序）。</summary>
     public static IReadOnlyList<WidgetDefinition> All
     {
         get
@@ -88,7 +76,6 @@ public static class WidgetRegistry
         }
     }
 
-    /// <summary>当前动态注册的组件 id 列表。</summary>
     public static IReadOnlyList<string> DynamicIds => [.. Dynamic.Keys];
 
     /// <summary>
@@ -102,7 +89,6 @@ public static class WidgetRegistry
         return new DynamicWidgetToken(id);
     }
 
-    /// <summary>修改动态组件标题（立即生效并持久化到语言缓存之外的显示）。</summary>
     public static void EditDynamicTitle(string id, string newTitle)
     {
         if (Dynamic.TryGetValue(id, out DynamicWidget? widget) == false) return;
@@ -110,7 +96,6 @@ public static class WidgetRegistry
         Changed?.Invoke();
     }
 
-    /// <summary>替换动态组件的内容工厂。</summary>
     public static void EditDynamicContent(string id, Func<Control> newBuild)
     {
         if (Dynamic.TryGetValue(id, out DynamicWidget? widget) == false) return;
@@ -140,7 +125,6 @@ public static class WidgetRegistry
         public void Dispose() => UnregisterDynamic(id);
     }
 
-    /// <summary>初次进入时摆上桌面的组件（一屏之内）。</summary>
     public static IReadOnlyList<DefaultPlacement> DefaultLayout { get; } = new[]
     {
         new DefaultPlacement("greeting", 0, 0, 5, 2),

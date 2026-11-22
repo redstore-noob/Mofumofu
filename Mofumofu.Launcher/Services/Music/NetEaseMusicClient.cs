@@ -9,17 +9,11 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Music;
 
-/// <summary>
-/// 网易云音乐公开接口（搜索 / 歌曲地址 / 歌词 / 登录）。
-/// 与开源客户端一样走 music.163.com 的 /api 接口，带 os=pc 的 Cookie。
-/// </summary>
 public sealed class NetEaseMusicClient
 {
     private const string BaseUrl = "https://music.163.com";
     private const string DefaultCookie = "os=pc; appver=2.9.7";
 
-    // 共享静态 client：Cookie 每次请求自带（UseCookies=false），不放在 handler 状态里，
-    // 多个实例共用一条连接不会串号；替换实例也不再丢弃 handler / 泄漏 HttpClient。
     private static readonly HttpClient SharedHttp = CreateSharedClient();
 
     private string _cookie;
@@ -49,7 +43,6 @@ public sealed class NetEaseMusicClient
 
     public string Nickname { get; set; } = string.Empty;
 
-    /// <summary>当前登录用户的网易云 ID，漫游推荐需要它找「我喜欢的音乐」歌单。</summary>
     public long UserId { get; set; }
 
     private long? _likedPlaylistId;
@@ -82,7 +75,6 @@ public sealed class NetEaseMusicClient
         return value;
     }
 
-    /// <summary>搜索歌曲。</summary>
     public async Task<IReadOnlyList<MusicItem>> SearchAsync(
         string keyword,
         int limit = 30,
@@ -122,7 +114,6 @@ public sealed class NetEaseMusicClient
         return items;
     }
 
-    /// <summary>私人漫游：基于种子歌曲和「我喜欢的音乐」歌单做智能推荐。</summary>
     public async Task<IReadOnlyList<MusicItem>> GetRoamSongsAsync(
         long seedSongId,
         CancellationToken cancellationToken = default)
@@ -158,7 +149,6 @@ public sealed class NetEaseMusicClient
         {
             foreach (JsonElement entry in data.EnumerateArray())
             {
-                // 返回结构是 data[].songInfo（老版本是 data[].song）
                 JsonElement song = entry.ValueKind == JsonValueKind.Object
                     ? entry.TryGetProperty("songInfo", out JsonElement info) ? info
                         : entry.TryGetProperty("song", out JsonElement songElement) ? songElement
@@ -172,7 +162,6 @@ public sealed class NetEaseMusicClient
         return items;
     }
 
-    /// <summary>云端「我喜欢的音乐」歌单里的歌曲（按收藏顺序，默认前 100 首）。</summary>
     public async Task<IReadOnlyList<MusicItem>> GetLikedSongsAsync(
         int limit = 100,
         CancellationToken cancellationToken = default)
@@ -204,7 +193,6 @@ public sealed class NetEaseMusicClient
 
         List<MusicItem> items = [];
 
-        // 老结构：result.tracks 是完整歌曲对象
         if (document.RootElement.TryGetProperty("result", out JsonElement result) &&
             result.ValueKind == JsonValueKind.Object &&
             result.TryGetProperty("tracks", out JsonElement tracks) &&
@@ -218,7 +206,6 @@ public sealed class NetEaseMusicClient
             }
         }
 
-        // v6 结构：playlist.trackIds 只有 id，需要再查详情
         if (items.Count == 0 &&
             document.RootElement.TryGetProperty("playlist", out JsonElement playlist) &&
             playlist.ValueKind == JsonValueKind.Object)
@@ -244,7 +231,6 @@ public sealed class NetEaseMusicClient
         return items;
     }
 
-    /// <summary>批量拉取歌曲详情（含专辑封面）；一次最多 1000 个 id。</summary>
     public async Task<IReadOnlyList<MusicItem>> GetSongsDetailAsync(
         IReadOnlyList<long> songIds,
         CancellationToken cancellationToken = default)
@@ -268,7 +254,6 @@ public sealed class NetEaseMusicClient
         return items;
     }
 
-    /// <summary>喜欢 / 取消喜欢一首歌（写云端「我喜欢的音乐」歌单）。</summary>
     public async Task<bool> LikeSongAsync(
         long songId,
         bool like,
@@ -285,7 +270,6 @@ public sealed class NetEaseMusicClient
         return GetInt(document.RootElement, "code") == 200;
     }
 
-    /// <summary>当前用户「我喜欢的音乐」歌单 ID，带缓存。</summary>
     private async Task<long> GetLikedPlaylistIdAsync(CancellationToken cancellationToken)
     {
         if (_likedPlaylistId is long cached && cached > 0) return cached;
@@ -323,7 +307,6 @@ public sealed class NetEaseMusicClient
         return 0;
     }
 
-    /// <summary>歌单里的第一首歌 ID，作为没有播放历史时的漫游种子。</summary>
     private async Task<long> GetPlaylistFirstSongIdAsync(long playlistId, CancellationToken cancellationToken)
     {
         List<MusicItem> tracks = await GetPlaylistTracksAsync(playlistId, 1, cancellationToken)
@@ -365,7 +348,6 @@ public sealed class NetEaseMusicClient
         };
     }
 
-    /// <summary>获取歌曲播放地址；VIP / 无版权时返回 null。</summary>
     public async Task<string?> GetSongUrlAsync(long songId, CancellationToken cancellationToken = default)
     {
         foreach (int bitrate in new[] { 320000, 192000, 128000 })
@@ -391,7 +373,6 @@ public sealed class NetEaseMusicClient
         return null;
     }
 
-    /// <summary>获取歌词（LRC 文本），没有时返回 null。</summary>
     public async Task<string?> GetLyricAsync(long songId, CancellationToken cancellationToken = default)
     {
         using JsonDocument document = await SendAsync(HttpMethod.Get, "/api/song/lyric",
@@ -412,7 +393,6 @@ public sealed class NetEaseMusicClient
         return null;
     }
 
-    /// <summary>用浏览器里复制的 MUSIC_U / 整段 Cookie 登录。</summary>
     public async Task<bool> LoginWithCookieAsync(string cookie, CancellationToken cancellationToken = default)
     {
         _cookie = NormalizeCookie(cookie);
@@ -433,7 +413,6 @@ public sealed class NetEaseMusicClient
         }
         catch (Exception)
         {
-            // 无效 Cookie
         }
 
         _cookie = DefaultCookie;
@@ -441,7 +420,6 @@ public sealed class NetEaseMusicClient
         return false;
     }
 
-    /// <summary>扫码登录第一步：申请二维码 key，失败返回 null。</summary>
     public async Task<string?> CreateQrLoginKeyAsync(CancellationToken cancellationToken = default)
     {
         using JsonDocument document = await SendAsync(HttpMethod.Post, "/api/login/qrcode/unikey",
@@ -480,7 +458,6 @@ public sealed class NetEaseMusicClient
             using JsonDocument document = JsonDocument.Parse(body);
             code = GetInt(document.RootElement, "code");
 
-            // 部分版本把 Cookie 直接放进响应体
             if (code == 803 && string.IsNullOrWhiteSpace(cookie))
             {
                 cookie = GetString(document.RootElement, "cookie");
@@ -499,7 +476,6 @@ public sealed class NetEaseMusicClient
         "expires", "path", "domain", "max-age", "httponly", "secure", "samesite", "priority", "partitioned",
     };
 
-    /// <summary>把 803 响应的 Set-Cookie 拼成请求头；只保留 name=value，过滤属性。</summary>
     private static string ReadSetCookie(HttpResponseMessage response)
     {
         if (!response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values)) return string.Empty;
@@ -543,7 +519,6 @@ public sealed class NetEaseMusicClient
             request.Content = new FormUrlEncodedContent(form);
         }
 
-        // 即便 _cookie 已被净化，出站前再收一遍，确保写请求头的值不含 CRLF/控制字符。
         request.Headers.TryAddWithoutValidation("Cookie", SanitizeCookieValue(_cookie));
 
         using HttpResponseMessage response = await SharedHttp.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -607,7 +582,6 @@ public sealed class NetEaseMusicClient
         return string.Empty;
     }
 
-    /// <summary>专辑封面：不同接口用 album.picUrl / al.picUrl / img1v1Url，取第一个像 URL 的。</summary>
     private static string ReadAlbumPic(JsonElement song)
     {
         foreach (string name in new[] { "album", "al" })

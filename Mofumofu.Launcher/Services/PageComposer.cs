@@ -11,17 +11,10 @@ using Mofumofu.ExtensionAPI.Data;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>
-/// 页面注入宿主：把插件注册的内容包在内置页面外层。
-/// 页面本体占中间一行，插件内容按 Banner / Overlay / Footer 三个位置插入。
-/// 页面切换或语言切换重建页面时，宿主会重新包一次，插件拿到的永远是新建的控件。
-/// </summary>
 public sealed class PageComposer : IPageContentHost
 {
-    /// <summary>注册到全部页面时使用的 pageId。</summary>
     public const string AnyPage = "*";
 
-    /// <summary>宿主使用的单例，插件通过 IPluginContext 拿到同一个实例。</summary>
     public static PageComposer Current { get; } = new();
 
     private sealed class Entry
@@ -55,7 +48,6 @@ public sealed class PageComposer : IPageContentHost
     private readonly List<Entry> _entries = [];
     private int _sequence;
 
-    /// <summary>注册内容发生变化（新增或取消）时触发，宿主据此重建当前页面。</summary>
     public static event Action? Changed;
 
     private PageComposer()
@@ -84,9 +76,6 @@ public sealed class PageComposer : IPageContentHost
         return new Subscription(this, entry);
     }
 
-    /// <summary>
-    /// 把页面包进注入宿主。每次进入页面时调用，返回新的外层控件。
-    /// </summary>
     public Control Wrap(string pageId, Control page)
     {
         var host = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };

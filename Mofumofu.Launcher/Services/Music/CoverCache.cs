@@ -9,10 +9,6 @@ using Avalonia.Media.Imaging;
 
 namespace Mofumofu.Launcher.Services.Music;
 
-/// <summary>
-/// 封面加载：网易云用专辑图 URL 下载，本地文件从音频内嵌封面提取。
-/// 按 key 缓存解码结果，同一个封面只加载一次。
-/// </summary>
 public static class CoverCache
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
@@ -59,7 +55,6 @@ public static class CoverCache
         if (bitmap is null &&
             Cache.TryGetValue(key, out CacheEntry? current) && ReferenceEquals(current, entry))
         {
-            // 只移除仍是自己这条的缓存，避免误删后来重新加载的条目。
             Cache.TryRemove(key, out _);
         }
         return bitmap;
@@ -68,7 +63,6 @@ public static class CoverCache
     private static void TrimToLimit()
     {
         if (Cache.Count <= MaxCacheEntries) return;
-        // 按最后访问序号淘汰最旧的条目，保持缓存有界（LRU）。
         foreach (var pair in Cache
                      .OrderBy(pair => pair.Value.LastAccess)
                      .Take(Cache.Count - MaxCacheEntries))
@@ -93,7 +87,6 @@ public static class CoverCache
         }
         catch (Exception)
         {
-            // 没有封面就退回占位图标
         }
 
         return null;
@@ -101,20 +94,17 @@ public static class CoverCache
 
     private static async Task<byte[]?> DownloadAsync(string url)
     {
-        // 强制 HTTPS + 网易云 CDN 白名单；http 升级为 https，其它地址一律拒绝。
         if (!MusicUrlPolicy.TryNormalize(url, out string safeUrl))
         {
             return null;
         }
 
-        // 网易图床会按请求头拦截，带上 UA 就够了
         using var request = new HttpRequestMessage(HttpMethod.Get, safeUrl);
         request.Headers.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36");
         using HttpResponseMessage response = await Http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) return null;
-        // 格式：明确声明为文本 / HTML 等非图片类型的响应不下载。
         if (!MusicUrlPolicy.IsAllowedImageContentType(response.Content.Headers.ContentType?.MediaType)) return null;
         if (response.Content.Headers.ContentLength is long declared && declared > MaxCoverBytes) return null;
 
@@ -139,23 +129,18 @@ public static class CoverCache
     private static bool IsSupportedImage(byte[] data)
     {
         if (data.Length < 12) return false;
-        if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return true; // JPEG
-        if (data[0] == 0x89 && data[1] == (byte)'P' && data[2] == (byte)'N' && data[3] == (byte)'G') return true; // PNG
-        if (data[0] == (byte)'G' && data[1] == (byte)'I' && data[2] == (byte)'F') return true; // GIF
+        if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return true;
+        if (data[0] == 0x89 && data[1] == (byte)'P' && data[2] == (byte)'N' && data[3] == (byte)'G') return true;
+        if (data[0] == (byte)'G' && data[1] == (byte)'I' && data[2] == (byte)'F') return true;
         if (data[0] == (byte)'R' && data[1] == (byte)'I' && data[2] == (byte)'F' && data[3] == (byte)'F' &&
-            data[8] == (byte)'W' && data[9] == (byte)'E' && data[10] == (byte)'B' && data[11] == (byte)'P') return true; // WebP
-        if (data[0] == (byte)'B' && data[1] == (byte)'M') return true; // BMP
+            data[8] == (byte)'W' && data[9] == (byte)'E' && data[10] == (byte)'B' && data[11] == (byte)'P') return true;
+        if (data[0] == (byte)'B' && data[1] == (byte)'M') return true;
         return false;
     }
 }
 
-/// <summary>
-/// 本地音频内嵌封面提取：MP3 的 ID3v2 APIC 与 FLAC 的 PICTURE 块。
-/// 不依赖第三方标签库，解析失败返回 null。
-/// </summary>
 public static class LocalCoverExtractor
 {
-    /// <summary>把流读满 buffer；文件提前结束返回 false。</summary>
     private static bool ReadExact(Stream stream, Span<byte> buffer)
     {
         int total = 0;
@@ -191,8 +176,6 @@ public static class LocalCoverExtractor
         }
     }
 
-    // ---------- MP3 / ID3v2 ----------
-
     private static byte[]? ExtractId3(FileStream stream)
     {
         Span<byte> header = stackalloc byte[10];
@@ -211,7 +194,7 @@ public static class LocalCoverExtractor
         {
             stream.Position = position;
             if (!ReadExact(stream, frameHeader)) return null;
-            if (frameHeader[0] == 0) return null; // padding
+            if (frameHeader[0] == 0) return null;
 
             string id = System.Text.Encoding.Latin1.GetString(frameHeader[..4]);
             int frameSize = version >= 4
@@ -240,7 +223,7 @@ public static class LocalCoverExtractor
         if (mimeEnd < 0) return null;
 
         string mime = System.Text.Encoding.Latin1.GetString(data, offset, mimeEnd - offset);
-        offset = mimeEnd + 1; // 图片类型 1 字节
+        offset = mimeEnd + 1;
 
         byte encoding = data[0];
         if (encoding is 1 or 2)
@@ -269,11 +252,9 @@ public static class LocalCoverExtractor
     private static int SyncSafe(byte a, byte b, byte c, byte d) =>
         (a << 21) | (b << 14) | (c << 7) | d;
 
-    // ---------- FLAC ----------
-
     private static byte[]? ExtractFlac(FileStream stream)
     {
-        stream.Position = 4; // 跳过 "fLaC"
+        stream.Position = 4;
         Span<byte> blockHeader = stackalloc byte[4];
         while (ReadExact(stream, blockHeader))
         {
@@ -314,7 +295,7 @@ public static class LocalCoverExtractor
         {
             return null;
         }
-        offset += descLength + 16; // 描述 + 宽/高/色深/色数
+        offset += descLength + 16;
 
         if (!ReadInt32(data, ref offset, out int dataLength) || dataLength <= 0 ||
             (long)offset + dataLength > data.Length)
@@ -352,7 +333,6 @@ public static class LocalCoverExtractor
 /// </summary>
 internal static class MusicUrlPolicy
 {
-    // 网易云图片 / 音频 CDN 及其接口域，只放行这些域本身与子域。
     private static readonly string[] AllowedHostSuffixes =
     {
         "music.126.net",
@@ -366,7 +346,6 @@ internal static class MusicUrlPolicy
         if (string.IsNullOrWhiteSpace(url)) return false;
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return false;
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
-        // 拒绝带凭据、非默认端口以及不在白名单内的主机。
         if (!string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort || !IsAllowedHost(uri.Host)) return false;
 
         // 统一升级为 HTTPS：这些 CDN 都支持 https，避免明文 http 出站。

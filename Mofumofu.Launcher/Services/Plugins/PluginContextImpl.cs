@@ -19,6 +19,7 @@ using Mofumofu.ExtensionAPI.Tools;
 using Mofumofu.ExtensionAPI.UI;
 using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Views.Widgets;
+using MofuCore.Download.CurseForge;
 using MofuCore.Download.Minecraft;
 using MofuCore.Download.Modrinth;
 using MofuCore.Java;
@@ -26,10 +27,6 @@ using MofuCore.Launch;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>
-/// IPluginContext 的宿主实现：把契约的每个能力域转接到启动器内部服务，
-/// 全部带权限检查与 UI 线程调度；返回的撤销句柄统一登记到 PluginManager，卸载时代为回收。
-/// </summary>
 public sealed class PluginContextImpl : IPluginContext
 {
     private readonly PluginRuntime _runtime;
@@ -68,8 +65,6 @@ public sealed class PluginContextImpl : IPluginContext
         return registration;
     }
 
-    // ---- IPluginContext ----
-
     public IPopup Popup { get; }
     public IPageContentHost Pages { get; }
     public IPageRegister PageRegister { get; }
@@ -103,17 +98,10 @@ public sealed class PluginContextImpl : IPluginContext
 
     public IReadOnlyList<string> IconKinds => [.. IconParkGlyphs.ByKey.Keys.OrderBy(k => k, StringComparer.Ordinal)];
 
-    // ==================================================================
-    // 组合根补充能力：ServerStatus / LogWrite / MemoryInfo
-    // 契约层是「带默认实现的接口属性」，宿主在此给出真实实现；
-    // 未接线的组合根会走默认实现抛 NotSupportedException（二进制兼容）。
-    // ==================================================================
-
     private sealed class ServerStatusImpl(PluginContextImpl owner) : IServerStatus
     {
         public async Task<ServerStatus> GetServerStatus(string serverURL)
         {
-            // serverStatus 权限区在这里真正生效：未声明 / 未同意 / 玩家关闭都会被拒。
             owner.Demand(PluginPermissions.ServerStatus);
             if (string.IsNullOrWhiteSpace(serverURL))
             {
@@ -123,7 +111,6 @@ public sealed class PluginContextImpl : IPluginContext
             MofuCore.OnlineGame.ServerPingResult ping = await MofuCore.OnlineGame.ServerListPing
                 .PingAsync(serverURL.Trim()).ConfigureAwait(false);
 
-            // ServerPingResult 只给出版本名字符串，契约要求整数版本区间：尽力解析，无法解析时按 0（未知）处理。
             int version = int.TryParse(ping.VersionName, out int parsed) ? parsed : 0;
             Control icon = await Avalonia.Threading.Dispatcher.UIThread
                 .InvokeAsync(() => BuildIcon(ping.FaviconPng));
@@ -136,7 +123,6 @@ public sealed class PluginContextImpl : IPluginContext
                 version);
         }
 
-        /// <summary>契约要求 Icon 永不为 null；无图标 / favicon 损坏时提供占位 Control。</summary>
         private static Control BuildIcon(byte[]? favicon)
         {
             if (favicon is { Length: > 0 })
@@ -185,7 +171,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    /// <summary>解析实例的某个资源子目录（mods / shaderpacks / resourcepacks），并做路径穿越防护。</summary>
     internal static string ResolveInstanceSubDirectory(PluginContextImpl owner, string instanceId, ResourceKind kind)
     {
         string rootFull = Path.GetFullPath(Path.Combine(
@@ -215,12 +200,11 @@ public sealed class PluginContextImpl : IPluginContext
     internal static string ResolveModsDirectory(PluginContextImpl owner, string instanceId) =>
         ResolveInstanceSubDirectory(owner, instanceId, ResourceKind.Mod);
 
-    /// <summary>按启用态文件名解析实际磁盘路径；strict=false 时两个状态都试。</summary>
     private static (string Current, string Target) ResolveModPaths(
         PluginContextImpl owner, string instanceId, string fileName, bool enable)
     {
         string mods = ResolveModsDirectory(owner, instanceId);
-        string safeName = Path.GetFileName(fileName); // 防穿越
+        string safeName = Path.GetFileName(fileName);
         string enabledPath = Path.Combine(mods, safeName);
         string disabledPath = enabledPath + ".disabled";
         return enable ? (disabledPath, enabledPath) : (enabledPath, disabledPath);
@@ -242,10 +226,6 @@ public sealed class PluginContextImpl : IPluginContext
         else Dispatcher.UIThread.Post(action);
     }
 
-    // ==================================================================
-    // Popup
-    // ==================================================================
-
     private sealed class PopupImpl(PluginContextImpl owner) : IPopup
     {
         public void Dialog(Control content, string title)
@@ -261,10 +241,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    // ==================================================================
-    // Pages（页面内容注入，宿主已有 PageComposer）
-    // ==================================================================
-
     private sealed class PagesImpl(PluginContextImpl owner) : IPageContentHost
     {
         public IDisposable Add(string pageId, PageSlot slot, Func<Control> factory, int order = 0)
@@ -275,7 +251,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    /// <summary>插件回调包 try/catch：托盘点击等入口炸了只记日志。</summary>
     internal static Action WrapClick(PluginContextImpl owner, Action click) =>
         () =>
         {
@@ -310,26 +285,17 @@ public sealed class PluginContextImpl : IPluginContext
             }
         };
 
-    // ==================================================================
-    // PageRegister（新导航页）
-    // ==================================================================
-
     private sealed class PageRegisterImpl(PluginContextImpl owner) : IPageRegister
     {
         public IDisposable RegisterPage(string pageName, Func<Control> createPage, Control icon, bool isTool)
         {
             owner.Demand(PluginPermissions.Widget);
-            // isTool（注册到工具下拉栏）暂未接入宿主路由，行为与普通页面一致
             string pageId = $"ext:{owner.Runtime.Manifest.Id}:{Guid.NewGuid():N}";
             IDisposable registration = MainWindow.RegisterPluginPage(
                 pageId, pageName, icon, WrapFactory(owner, createPage), isTool);
             return owner.Track(registration);
         }
     }
-
-    // ==================================================================
-    // Widget（桌面小组件）
-    // ==================================================================
 
     private sealed class WidgetImpl(PluginContextImpl owner) : IWidgetAdd
     {
@@ -360,10 +326,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    // ==================================================================
-    // Wallpaper（背景接管）
-    // ==================================================================
-
     private sealed class WallpaperImpl(PluginContextImpl owner) : IWallpaperEdit
     {
         public IDisposable WallpaperTakeOver(Control wallpaperContent)
@@ -373,10 +335,6 @@ public sealed class PluginContextImpl : IPluginContext
             return owner.Track(registration);
         }
     }
-
-    // ==================================================================
-    // Style（运行时 axaml 样式）
-    // ==================================================================
 
     private sealed class StyleImpl(PluginContextImpl owner) : IStyleLoad
     {
@@ -408,7 +366,6 @@ public sealed class PluginContextImpl : IPluginContext
         public IDisposable StyleEdit(IStyle styles)
         {
             owner.Demand(PluginPermissions.Widget);
-            // 主题库（Material.Avalonia 等）的标准入口：直接合入现成实例
             IDisposable registration = new StyleRegistration(styles);
             RunOnUi(() => App.Current!.Styles.Add(styles));
             return owner.Track(registration);
@@ -459,12 +416,6 @@ public sealed class PluginContextImpl : IPluginContext
             "Material.Styles",
         };
 
-        /// <summary>
-        /// 把插件随包的主题库 DLL（白名单内）装进宿主默认 ALC：
-        /// DefaultAssetLoader 只认默认上下文里的程序集，装进去后 avares:// 才能解析。
-        /// 代价：这些 DLL 被钉住（无法热卸载）——主题库本来就长驻，可接受。
-        /// 白名单外的随包 DLL 不再装入宿主，避免任意代码借此进入宿主进程。
-        /// </summary>
         private static void LoadThemeDependenciesIntoHost(PluginContextImpl owner)
         {
             foreach (string dll in Directory.GetFiles(owner.Runtime.Manifest.Directory, "*.dll"))
@@ -540,10 +491,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    // ==================================================================
-    // Theme（主题读取）
-    // ==================================================================
-
     private sealed class UnsubscribeToken(Action unsubscribe) : IDisposable
     {
         public void Dispose() => unsubscribe();
@@ -581,13 +528,8 @@ public sealed class PluginContextImpl : IPluginContext
         private void OnHostThemeChanged() => RunOnUi(() => _themeChanged?.Invoke());
     }
 
-    // ==================================================================
-    // Game（实例查询 / 启动）
-    // ==================================================================
-
     private sealed class GameImpl(PluginContextImpl owner) : IGameLaunch
     {
-        // 事件源头：LaunchProgress 的进程启动/完成信号（全插件共享一份静态桥）
         private static readonly object SourceGate = new();
         private static bool _sourceHooked;
         private static event Action? SourceGameLaunched;
@@ -621,7 +563,6 @@ public sealed class PluginContextImpl : IPluginContext
             remove => _gameExited -= value;
         }
 
-        /// <summary>首个订阅者出现时把本实例桥接到静态源；桥本身登记进卸载清单，停用时整条链断开。</summary>
         private void EnsureBridged(PluginContextImpl owner)
         {
             if (_bridged) return;
@@ -676,7 +617,6 @@ public sealed class PluginContextImpl : IPluginContext
         public Task LaunchSelectedAsync(CancellationToken cancellationToken = default)
         {
             owner.Demand(PluginPermissions.Launch);
-            // 启动真实游戏进程：要求插件显式声明 launch 权限区（同意时一并授权）
             return Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (GameLaunch.Shared.IsGameRunning)
@@ -715,7 +655,6 @@ public sealed class PluginContextImpl : IPluginContext
                 foreach (string directory in Directory.GetDirectories(versions))
                 {
                     string id = Path.GetFileName(directory);
-                    // 没有版本 JSON 的目录（备份/半成品）不算实例
                     if (string.IsNullOrWhiteSpace(id) ||
                         !File.Exists(Path.Combine(directory, id + ".json")))
                     {
@@ -728,16 +667,11 @@ public sealed class PluginContextImpl : IPluginContext
             }
             catch
             {
-                // 目录不可读按空列表处理
             }
 
             return result;
         }
     }
-
-    // ==================================================================
-    // Downloads（版本清单 / 原版实例安装）
-    // ==================================================================
 
     private sealed class DownloadsImpl(PluginContextImpl owner) : IInstanceDownload
     {
@@ -773,7 +707,6 @@ public sealed class PluginContextImpl : IPluginContext
                 ?? throw new InvalidOperationException("无法确定游戏目录。");
             string displayName = request.DisplayName ?? request.VersionId;
 
-            // 带加载器：查该游戏版本的加载器列表 → 按版本号挑选（缺省取最新稳定版）→ 安装（原版依赖自动补装）
             if (request.Loader is { } loader)
             {
                 IReadOnlyList<ModLoaderVersionInfo> loaderVersions = await ModLoaderInstaller.GetVersionsAsync(
@@ -848,10 +781,6 @@ public sealed class PluginContextImpl : IPluginContext
         };
     }
 
-    // ==================================================================
-    // DownloadAction（按 4 位编号查询 / 操作下载任务 + 完成/失败通知）
-    // ==================================================================
-
     private sealed class DownloadActionImpl(PluginContextImpl owner) : IDownloadAction
     {
         public Task<DownloadTaskData?> GetTaskAsync(int taskNumber, CancellationToken cancellationToken = default)
@@ -878,12 +807,10 @@ public sealed class PluginContextImpl : IPluginContext
 
         public void DownloadCompletedHook(int taskNumber, string title)
         {
-            // 由 PluginManager 统一派发（见 HookDownloadEvents）
         }
 
         public void DownloadFailedHook(int taskNumber, string title, string reason)
         {
-            // 由 PluginManager 统一派发
         }
 
         private static string? FindId(int taskNumber) =>
@@ -906,10 +833,6 @@ public sealed class PluginContextImpl : IPluginContext
             snapshot.SizeText,
             snapshot.CanPause);
     }
-
-    // ==================================================================
-    // ResourceDownload（Modrinth 资源搜索 / 下载到实例）
-    // ==================================================================
 
     private sealed class ResourceDownloadImpl(PluginContextImpl owner) : IResourceDownload
     {
@@ -963,6 +886,22 @@ public sealed class PluginContextImpl : IPluginContext
                 result.Files.Select(file => file.FilePath).ToList());
         }
 
+        public async Task<ResourceDownloadResult> DownloadCurseForgeAsync(
+            int modId, int fileId, string instanceId,
+            IProgress<(int Completed, int Total, string Detail)>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            owner.Demand(PluginPermissions.Network);
+            string apiKey = LocalSettings.Current.CurseForgeApiKey;
+            if (string.IsNullOrWhiteSpace(apiKey))
+                throw new InvalidOperationException("CurseForge API Key 未配置，请到「设置 → 下载」填写。");
+
+            string targetDirectory = ResolveInstanceSubDirectory(owner, instanceId, ResourceKind.Mod);
+            string? file = await CurseForgeBundleInstall.DownloadModFileAsync(
+                modId, fileId, targetDirectory, apiKey, progress, cancellationToken).ConfigureAwait(false);
+            return new ResourceDownloadResult(targetDirectory, file is null ? [] : [file]);
+        }
+
         internal static string ToModrinthType(ResourceKind kind) => kind switch
         {
             ResourceKind.Mod => "mod",
@@ -974,7 +913,7 @@ public sealed class PluginContextImpl : IPluginContext
             project.ProjectId,
             project.Title,
             project.Description,
-            string.Empty, // Modrinth 搜索接口不返回作者字段
+            string.Empty,
             project.Downloads,
             string.IsNullOrWhiteSpace(project.IconUrl) ? null : project.IconUrl);
 
@@ -986,10 +925,6 @@ public sealed class PluginContextImpl : IPluginContext
                 : new ResourceFileInfo(version.Id, version.VersionNumber, file.Filename, file.Size);
         }
     }
-
-    // ==================================================================
-    // Java（Mojang 运行时安装 + 本机 Java 检测）
-    // ==================================================================
 
     private sealed class JavaImpl(PluginContextImpl owner) : IJavaDownload
     {
@@ -1047,10 +982,6 @@ public sealed class PluginContextImpl : IPluginContext
                 .ToList();
         }
     }
-
-    // ==================================================================
-    // InstanceAction（实例 mods 启停 / 删除）
-    // ==================================================================
 
     private sealed class InstanceActionImpl(PluginContextImpl owner) : IInstanceAction
     {
@@ -1114,10 +1045,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    // ==================================================================
-    // Taskbar（任务栏右侧图标，点击弹 Popup 或跳页面）
-    // ==================================================================
-
     private sealed class TaskbarImpl(PluginContextImpl owner) : ITaskbarTray
     {
         public IDisposable AddWidget(string id, Control icon, Action click)
@@ -1136,10 +1063,6 @@ public sealed class PluginContextImpl : IPluginContext
         }
     }
 
-    // ==================================================================
-    // SystemTray（托盘常驻：菜单项 + 气泡通知）
-    // ==================================================================
-
     private sealed class SystemTrayImpl(PluginContextImpl owner) : ISystemTray
     {
         public IDisposable AddMenuItem(string label, Action click)
@@ -1157,10 +1080,6 @@ public sealed class PluginContextImpl : IPluginContext
             RunOnUi(() => MainWindow.ShowPluginTrayNotification(title, message));
         }
     }
-
-    // ==================================================================
-    // Config（插件独立配置文件）
-    // ==================================================================
 
     private sealed class ConfigImpl(PluginContextImpl owner) : IConfig
     {

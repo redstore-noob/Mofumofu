@@ -50,7 +50,6 @@ public static class AgentMarkdown
             string line = lines[i];
             string trimmed = line.Trim();
 
-            // 代码围栏
             if (trimmed.StartsWith("```", StringComparison.Ordinal))
             {
                 FlushParagraph();
@@ -67,7 +66,6 @@ public static class AgentMarkdown
                 continue;
             }
 
-            // 表格
             if (trimmed.StartsWith('|') && i + 1 < lines.Length && IsTableDivider(lines[i + 1]))
             {
                 FlushParagraph();
@@ -297,7 +295,6 @@ public static class AgentMarkdown
     private static string[] SplitRow(string line) =>
         line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
 
-    /// <summary>把一行里的 **粗体** / *斜体* / `代码` / [链接](url) 拆成 Inline。</summary>
     private static void AppendInline(TextBlock target, string text, Action<string>? onLink)
     {
         if (string.IsNullOrEmpty(text)) return;
@@ -335,7 +332,6 @@ public static class AgentMarkdown
                 int close = value.IndexOf(']');
                 string label = value[1..close];
                 string url = value[(close + 2)..].TrimEnd(')');
-                // Run 不支持指针事件，链接只做视觉标记；URL 一并显示便于复制。
                 target.Inlines.Add(new Run(label)
                 {
                     Foreground = ThemeTokens.Brush("NekoAccentBrush"),

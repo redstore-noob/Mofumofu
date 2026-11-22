@@ -22,10 +22,6 @@ public enum SkinModel
     Slim
 }
 
-/// <summary>
-/// 原生 Avalonia Minecraft 皮肤查看器。仅依赖 OpenGlControlBase 与 Silk.NET，
-/// 不依赖启动器的账号、皮肤缓存或 WebView 服务。
-/// </summary>
 public partial class SkinView3D : OpenGlControlBase
 {
     public static readonly StyledProperty<SkinModel> ModelProperty =

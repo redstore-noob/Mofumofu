@@ -8,7 +8,6 @@
              Background="Transparent">
 
     <UserControl.Styles>
-<!-- 对话正文排版 -->        
         <Style Selector="TextBlock.agent-body">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource NekoTextBrush}" />
@@ -91,7 +90,6 @@
             <Setter Property="Foreground" Value="{DynamicResource NekoMutedBrush}" />
         </Style>
 
-<!-- 侧栏行 / 标签 -->        
         <Style Selector="Border.agent-row">
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="Padding" Value="9,7" />
@@ -152,7 +150,6 @@
             <Setter Property="CornerRadius" Value="8" />
         </Style>
 
-<!-- 空状态任务卡 -->        
         <Style Selector="Button.agent-suggestion">
             <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -169,7 +166,6 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-<!-- 仪表卡片 -->        
         <Style Selector="Border.meter-card">
             <Setter Property="Background" Value="{DynamicResource NekoCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -180,7 +176,6 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
-<!-- 页头：标题 + 模型工具栏 -->        
         <Grid ColumnDefinitions="Auto,*,Auto" Height="56" Margin="0,0,0,12">
             <Button Classes="round" Width="32" Height="32" VerticalAlignment="Center"
                     Click="OnBackToDesktop" ToolTip.Tip="{DynamicResource L.Agent.Chat.T01}">
@@ -227,7 +222,6 @@
 
         <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="244,*,288" ColumnSpacing="12">
 
-<!-- 左：会话栏 -->            
             <Border Classes="card" CornerRadius="11" Padding="9">
                 <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="7">
                     <Grid ColumnDefinitions="*,Auto">
@@ -271,10 +265,8 @@
                 </Grid>
             </Border>
 
-<!-- 中：对话 -->            
             <Border Grid.Column="1" Classes="card" CornerRadius="11" Padding="0" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,*,Auto">
-<!-- 对话标题条 -->                    
                     <Grid ColumnDefinitions="*,Auto" Margin="15,11,10,8">
                         <StackPanel Spacing="2" VerticalAlignment="Center">
                             <TextBlock x:Name="ConversationTitle" FontSize="13.5" FontWeight="SemiBold"
@@ -307,13 +299,11 @@
                         </StackPanel>
                     </Grid>
 
-<!-- 消息流 -->                    
                     <ScrollViewer x:Name="MessagesScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" Padding="15,0,11,0">
                         <StackPanel x:Name="MessagePanel" Spacing="16" Margin="0,4,0,12" />
                     </ScrollViewer>
 
-<!-- 空状态：左对齐的入口面板 -->                    
                     <StackPanel x:Name="EmptyState" Grid.Row="1" VerticalAlignment="Center"
                                 HorizontalAlignment="Left" Spacing="16" MaxWidth="560" Margin="26,0,20,0">
                         <StackPanel Spacing="7">
@@ -407,11 +397,30 @@
                         <TextBlock Classes="caption" Text="{DynamicResource L.Agent.Chat.L19}" />
                     </StackPanel>
 
-<!-- 输入区 -->                    
                     <Border Grid.Row="2" BorderThickness="0,1,0,0"
                             BorderBrush="{DynamicResource NekoBorderBrush}"
                             Background="{DynamicResource NekoFieldSoftBrush}" Padding="12,9">
                         <StackPanel Spacing="6">
+                            <Border x:Name="TaskCard" IsVisible="False" CornerRadius="9" BorderThickness="1"
+                                    BorderBrush="{DynamicResource NekoBorderBrush}"
+                                    Background="{DynamicResource NekoFieldBrush}" Padding="10,7">
+                                <StackPanel Spacing="5">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock x:Name="TaskCardTitle" FontSize="12" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="TaskCardHint" Classes="caption" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button x:Name="TaskReturnButton" Grid.Column="1" Classes="ghost"
+                                                FontSize="11" Margin="8,0,0,0" Click="OnTaskReturn" />
+                                    </Grid>
+                                    <Expander x:Name="TaskPreview" Header="{DynamicResource L.Agent.Task.Preview}"
+                                              HorizontalAlignment="Stretch">
+                                        <ScrollViewer MaxHeight="110" HorizontalScrollBarVisibility="Disabled">
+                                            <SelectableTextBlock x:Name="TaskPreviewText" FontSize="11.5" TextWrapping="Wrap" />
+                                        </ScrollViewer>
+                                    </Expander>
+                                </StackPanel>
+                            </Border>
                             <Border x:Name="ComposerShell" CornerRadius="9" BorderThickness="1"
                                     BorderBrush="{DynamicResource NekoBorderBrush}"
                                     Background="{DynamicResource NekoFieldBrush}" Padding="10,4,6,4">
@@ -442,22 +451,17 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Classes="caption" FontSize="10.5"
-                                           Text="{DynamicResource L.Agent.Chat.L22}" />
-                                <TextBlock x:Name="ComposerHint" Grid.Column="1" Classes="caption"
-                                           FontSize="10.5" Text="{DynamicResource L.Agent.Chat.L23}" />
-                            </Grid>
+                            <TextBlock x:Name="ComposerHint" Classes="caption"
+                                       FontSize="10.5" Text="{DynamicResource L.Agent.Chat.L23}"
+                                       HorizontalAlignment="Right" />
                         </StackPanel>
                     </Border>
                 </Grid>
             </Border>
 
-<!-- 右：上下文仪表 -->            
             <ScrollViewer x:Name="InspectorPanel" Grid.Column="2" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="10">
-<!-- 上下文 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="9">
                             <Grid ColumnDefinitions="*,Auto">
@@ -537,7 +541,6 @@
                         </StackPanel>
                     </Border>
 
-<!-- 工具 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="8">
                             <Grid ColumnDefinitions="*,Auto">
@@ -557,7 +560,6 @@
                         </StackPanel>
                     </Border>
 
-<!-- 采样参数 -->                    
                     <Border Classes="meter-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="agent-label" Text="{DynamicResource L.Agent.Chat.L36}" />

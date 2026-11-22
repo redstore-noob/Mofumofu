@@ -12,7 +12,6 @@
     <UserControl.Resources>
         <views:InstanceIconConverter x:Key="InstanceIcon" />
 
-<!-- 左栏实例行 -->        
         <DataTemplate x:Key="InstanceItemTemplate">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,5">
                 <Border Width="36" Height="36" CornerRadius="8" Background="{DynamicResource NekoFieldBrush}">
@@ -35,7 +34,6 @@
             </Grid>
         </DataTemplate>
 
-<!-- 内容标签行（模组/资源包/光影/存档共用） -->        
         <DataTemplate x:Key="ContentRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
@@ -60,7 +58,6 @@
                 </Grid>
             </Border>
         </DataTemplate>
-<!-- 世界存档行：目录没有启停概念，操作是 Rewind / 备份 / 导出 / 打开 -->        
         <DataTemplate x:Key="WorldRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
@@ -105,7 +102,6 @@
                 </Grid>
             </Border>
         </DataTemplate>
-<!-- Java 运行时行 -->        
         <DataTemplate x:Key="JavaRowTemplate">
             <Border Classes="row">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
@@ -191,7 +187,6 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,Auto,*">
-<!-- ================= 页头 ================= -->        
         <controls:PageHeader Grid.Row="0">
             <controls:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -223,7 +218,6 @@
             </controls:PageHeader.Actions>
         </controls:PageHeader>
 
-<!-- ================= 游戏目录工具栏 ================= -->        
         <Border Grid.Row="1" Classes="card" Padding="10" Margin="0,0,0,12">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
                 <ComboBox x:Name="GameDirCombo" Width="300" Height="38" SelectedIndex="0"
@@ -248,7 +242,6 @@
             </Grid>
         </Border>
 
-<!-- ================= 左栏实例列表 + 右栏详情 ================= -->        
         <Grid Grid.Row="2" ColumnDefinitions="330,*">
             <suki:GlassCard Grid.Column="0" CornerRadius="12" Padding="12" Margin="0,0,12,0"
                             HorizontalContentAlignment="Stretch"
@@ -277,7 +270,6 @@
 
             <Border x:Name="DetailPanel" Grid.Column="1" Classes="card" Padding="18">
                 <Grid RowDefinitions="Auto,Auto,*">
-<!-- 启动卡 -->                    
                     <Border Grid.Row="0" Classes="card-soft" Padding="14">
                         <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
                             <Border Width="50" Height="50" CornerRadius="10" Background="{DynamicResource NekoFieldBrush}">
@@ -300,6 +292,13 @@
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                                         VerticalAlignment="Center">
+                                <Button Classes="ghost" Height="34" Padding="10,0" Click="OnAgentInstanceCheck"
+                                        ToolTip.Tip="{DynamicResource L.Agent.Task.Instance.Title}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <controls:IconParkIcon Kind="IconRobot" Width="13" Height="13" />
+                                        <TextBlock Text="{DynamicResource L.Agent.Task.Instance.Action}" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
                                 <Button Classes="ghost" Height="34" Padding="12,0"
                                         Click="OnOpenFolderClick">
                                     <StackPanel Orientation="Horizontal" Spacing="6"
@@ -343,7 +342,6 @@
                         </Grid>
                     </Border>
 
-<!-- 子标签 -->                    
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="0,14,0,8">
                         <Button x:Name="TabOverview" Classes="pill active"
                                 Content="{DynamicResource L.Instances.Tab.Overview}"
@@ -365,12 +363,10 @@
                                 Tag="manage" Click="OnTabClick" />
                     </StackPanel>
 
-<!-- 子面板 -->                    
                     <ScrollViewer x:Name="DetailScroll" Grid.Row="2"
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
                         <Grid>
-<!-- ===== 概览 ===== -->                            
                             <StackPanel x:Name="OverviewPanel" Spacing="12" Margin="0,0,4,8">
                                 <Grid ColumnDefinitions="*,*,*,*">
                                     <Border Classes="stat-card" Margin="0,0,8,0">
@@ -464,7 +460,6 @@
                                 </Border>
                             </StackPanel>
 
-<!-- ===== 启动设置 ===== -->                            
                             <StackPanel x:Name="LaunchSettingsPanel" IsVisible="False"
                                         Spacing="12" Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">
@@ -540,7 +535,6 @@
                                 </Border>
                             </StackPanel>
 
-<!-- ===== Java 设置 ===== -->                            
                             <StackPanel x:Name="JavaPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Grid ColumnDefinitions="*,Auto">
@@ -570,7 +564,6 @@
                                 </Border>
                             </StackPanel>
 
-<!-- ===== 内容 ===== -->                            
                             <StackPanel x:Name="ContentPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <TextBlock Text="{DynamicResource L.Drop.ContentHint}" Classes="caption"
@@ -712,7 +705,6 @@
                                 </Border>
                             </StackPanel>
 
-<!-- ===== 游戏设置 ===== -->                            
                             <StackPanel x:Name="GameSettingsPanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">
@@ -802,7 +794,6 @@
                                 </Border>
                             </StackPanel>
 
-<!-- ===== 管理 ===== -->                            
                             <StackPanel x:Name="ManagePanel" IsVisible="False" Spacing="12"
                                         Margin="0,0,4,8">
                                 <Border Classes="card-soft" Padding="14">

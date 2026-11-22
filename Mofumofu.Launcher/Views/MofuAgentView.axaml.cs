@@ -21,13 +21,10 @@ using Avalonia.Threading;
 using Mofumofu.Launcher.Controls;
 using Mofumofu.Launcher.Services;
 using Mofumofu.Launcher.Services.Agent;
+using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// MofuAgent：启动器内置智能体工作台。
-/// 左栏会话、中间对话、右栏上下文仪表；设置走独立页面。
-/// </summary>
 public partial class MofuAgentView : UserControl
 {
     private readonly AgentSettings _settings;
@@ -41,6 +38,11 @@ public partial class MofuAgentView : UserControl
     private string _activeConversationId = string.Empty;
     private string _sessionFilter = string.Empty;
     private bool _initialized;
+    private bool _reloadSettingsWhenIdle;
+    private AgentTaskDraft? _taskOnLoad;
+    private readonly Dictionary<string, AgentTaskDraft> _taskDrafts = new();
+    private readonly Dictionary<string, string> _composerDrafts = new();
+    private bool IsRunActive => _generation is not null || _session?.IsBusy == true;
     private bool _loadingControls;
     private bool _dirtyStream;
     private bool _stickToBottom = true;
@@ -68,23 +70,12 @@ public partial class MofuAgentView : UserControl
         Loaded += OnViewLoaded;
     }
 
-    // ==================================================================
-    // 初始化
-    // ==================================================================
-
     private void OnViewLoaded(object? sender, RoutedEventArgs e)
     {
         if (_initialized)
         {
-            // 从设置页回来时设置可能已经变了，重新读一遍再刷新仪表
-            AgentSettings fresh = AgentSettingsStore.Load();
-            _settings.CopyFrom(fresh);
-
-            FillProviderCombos();
-            ApplyQuickSettings();
-            ApplyInspectorVisibility();
-            RefreshInspector();
-            RefreshMemoryPanel();
+            if (IsRunActive) _reloadSettingsWhenIdle = true;
+            else ReloadSettings();
             return;
         }
 
@@ -108,11 +99,95 @@ public partial class MofuAgentView : UserControl
             StartNewConversation(save: false);
         }
 
+        if (_taskOnLoad is { } task)
+        {
+            _taskOnLoad = null;
+            OpenTaskDraft(task);
+        }
+
         MessagesScroll.ScrollChanged += (_, _) =>
         {
             _stickToBottom = MessagesScroll.Offset.Y + MessagesScroll.Viewport.Height >=
                              MessagesScroll.Extent.Height - 48;
         };
+    }
+
+    private void ReloadSettings()
+    {
+        _settings.CopyFrom(AgentSettingsStore.Load());
+        FillProviderCombos();
+        ApplyQuickSettings();
+        ApplyInspectorVisibility();
+        _session.RecalculateContext();
+        RefreshInspector();
+        RefreshMemoryPanel();
+        RefreshTaskCard();
+    }
+
+    public bool TryPrepareTask(AgentTaskDraft task)
+    {
+        if (BlockWhileRunning()) return false;
+        if (!_initialized) _taskOnLoad = task;
+        else OpenTaskDraft(task);
+        return true;
+    }
+
+    private void OpenTaskDraft(AgentTaskDraft task)
+    {
+        var conversation = new AgentConversation();
+        _taskDrafts[conversation.Id] = task;
+        _composerDrafts[conversation.Id] = task.Prompt;
+        _conversations.Insert(0, conversation);
+        OpenConversation(conversation);
+        TaskPreview.IsExpanded = true;
+    }
+
+    private bool BlockWhileRunning()
+    {
+        if (!IsRunActive) return false;
+        Shell.Toast(L.T("Agent.Task.Busy", "请先结束当前 MofuAgent 任务。"));
+        return true;
+    }
+
+    private void RefreshTaskCard()
+    {
+        string id = _session.Conversation.Id;
+        _taskDrafts.TryGetValue(id, out AgentTaskDraft? draft);
+        AgentTaskAttachment? attached = _session.Conversation.Task;
+        AgentTaskKind? kind = draft?.Kind ?? attached?.Kind;
+        TaskCard.IsVisible = kind is not null;
+        EmptyState.IsVisible = kind is null && _session.Conversation.Messages.Count == 0;
+        if (kind is null) return;
+        bool isCrash = kind == AgentTaskKind.CrashDiagnosis;
+        TaskCardTitle.Text = isCrash
+            ? L.T("Agent.Task.Crash.Title", "崩溃排查 · 只读任务")
+            : L.T("Agent.Task.Instance.Title", "实例启动检查 · 只读任务");
+        TaskReturnButton.Content = isCrash
+            ? L.T("Agent.Task.Return.Launch", "打开启动控制台")
+            : L.T("Agent.Task.Return.Instances", "返回实例页");
+        TaskPreviewText.Text = draft?.Context ?? attached?.Context;
+        if (draft is not null)
+        {
+            AgentProviderConfig? provider = _settings.ActiveProvider;
+            string address = AgentProviderPresets.NormalizeBaseUrl(provider?.BaseUrl);
+            TaskCardHint.Text = provider is not null && !string.IsNullOrWhiteSpace(_settings.ActiveModel)
+                && Uri.TryCreate(address, UriKind.Absolute, out Uri? endpoint)
+                ? L.T("Agent.Task.Consent", "本地检查已完成。点击发送会将下方资料分享给 {0}（{1}）。", provider.Name, endpoint.Scheme + "://" + endpoint.Authority)
+                : L.T("Agent.Task.LocalOnly", "本地检查已完成。若需 AI 解读，请先配置供应商和模型。");
+        }
+        else if (attached is not null)
+        {
+            TaskCardHint.Text = _session.CanShareTaskWithCurrentProvider(attached)
+                ? L.T("Agent.Task.Attached", "当前任务的资料只会发送给最初确认的供应商。")
+                : L.T("Agent.Task.NotShared", "供应商已变更，当前资料不会发送。若要分享，请从原入口新建任务。");
+        }
+    }
+
+    private void OnTaskReturn(object? sender, RoutedEventArgs e)
+    {
+        _taskDrafts.TryGetValue(_session.Conversation.Id, out AgentTaskDraft? draft);
+        var kind = draft?.Kind ?? _session.Conversation.Task?.Kind;
+        if (kind is not null) Shell.Go(kind == AgentTaskKind.CrashDiagnosis ? "launchconsole" : "instances");
     }
 
     private void WireSessionEvents()
@@ -172,17 +247,20 @@ public partial class MofuAgentView : UserControl
         else Dispatcher.UIThread.Post(action);
     }
 
-    // ==================================================================
-    // 会话管理
-    // ==================================================================
-
     private void OpenConversation(AgentConversation conversation)
     {
+        if (BlockWhileRunning()) return;
+        if (_activeConversationId is { Length: > 0 } previous && _conversations.Any(item => item.Id == previous))
+            _composerDrafts[previous] = ComposerBox.Text ?? string.Empty;
+        if (!_session.TryLoad(conversation)) return;
+
+        _pendingClear = false;
         _activeConversationId = conversation.Id;
         _settings.LastConversationId = conversation.Id;
         AgentSettingsStore.Save(_settings);
-
-        _session.Load(conversation);   // 内部触发 MessagesReset，气泡会整体重建
+        ComposerBox.Text = _composerDrafts.GetValueOrDefault(conversation.Id) ?? string.Empty;
+        TaskPreview.IsExpanded = _taskDrafts.ContainsKey(conversation.Id);
+        RefreshTaskCard();
         RebuildSessionList();
         RefreshHeader();
         RefreshInspector();
@@ -211,7 +289,7 @@ public partial class MofuAgentView : UserControl
             RenderMessage(host, message);
         }
 
-        EmptyState.IsVisible = conversation.Messages.Count == 0;
+        RefreshTaskCard();
         RefreshHeader();
         RefreshInspector();
         AutoScroll();
@@ -219,9 +297,9 @@ public partial class MofuAgentView : UserControl
 
     private void StartNewConversation(bool save = true)
     {
-        // 当前会话还是空的就别再堆一条「新对话」，直接把光标放回输入框。
+        if (BlockWhileRunning()) return;
         if (_initialized && _session.Conversation.Messages.Count == 0 &&
-            _conversations.Contains(_session.Conversation))
+            !_taskDrafts.ContainsKey(_session.Conversation.Id) && _conversations.Contains(_session.Conversation))
         {
             ComposerBox.Focus();
             return;
@@ -256,8 +334,6 @@ public partial class MofuAgentView : UserControl
             ? _conversations.Count + " 条"
             : $"{filtered.Count} / {_conversations.Count} 条";
 
-        // 按时间分组：今天 / 昨天 / 最近 7 天 / 更早。分组标题用与正文不同的字距，
-        // 扫视时比一长串等权列表更容易定位。
         DateTime today = DateTime.Today;
         var buckets = new (string Label, Func<DateTime, bool> Match)[]
         {
@@ -344,7 +420,10 @@ public partial class MofuAgentView : UserControl
 
     private void DeleteConversation(AgentConversation conversation)
     {
+        if (BlockWhileRunning()) return;
         AgentStore.Delete(conversation.Id);
+        _taskDrafts.Remove(conversation.Id);
+        _composerDrafts.Remove(conversation.Id);
         _conversations.Remove(conversation);
 
         if (conversation.Id == _activeConversationId)
@@ -371,11 +450,7 @@ public partial class MofuAgentView : UserControl
 
     private void OnClearConversation(object? sender, RoutedEventArgs e)
     {
-        if (_session.IsBusy)
-        {
-            Shell.Toast("先停止当前生成。");
-            return;
-        }
+        if (BlockWhileRunning()) return;
 
         if (!_pendingClear || (DateTime.Now - _pendingClearAt).TotalSeconds > 3)
         {
@@ -386,13 +461,10 @@ public partial class MofuAgentView : UserControl
         }
 
         _pendingClear = false;
-        AgentConversation conversation = _session.Conversation;
-        conversation.Messages.Clear();
-        _session.ClearDigest();
-        AgentStore.Save(conversation);
-
-        ClearMessageHosts();
-        EmptyState.IsVisible = true;
+        if (!_session.TryClear()) return;
+        _taskDrafts.Remove(_session.Conversation.Id);
+        ComposerBox.Text = string.Empty;
+        RefreshTaskCard();
         RebuildSessionList();
         RefreshHeader();
         RefreshInspector();
@@ -431,10 +503,6 @@ public partial class MofuAgentView : UserControl
     private void OnRegenerate(object? sender, RoutedEventArgs e) => _ = RunExclusiveAsync(
         token => _session.RegenerateAsync(token), "重新生成中");
 
-    // ==================================================================
-    // 发送
-    // ==================================================================
-
     private void OnComposerKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
@@ -449,27 +517,36 @@ public partial class MofuAgentView : UserControl
     private async Task SendComposerAsync()
     {
         string text = ComposerBox.Text?.Trim() ?? string.Empty;
-        if (text.Length == 0 || _session.IsBusy) return;
-
+        if (text.Length == 0 || IsRunActive) return;
+        if (AgentProviderPresets.NormalizeBaseUrl(_settings.ActiveProvider?.BaseUrl).Length == 0 ||
+            string.IsNullOrWhiteSpace(_settings.ActiveModel))
+        {
+            Shell.Toast(L.T("Agent.Task.Configure", "请先配置有效的供应商地址并选择模型。"));
+            return;
+        }
+        string id = _session.Conversation.Id;
+        _taskDrafts.TryGetValue(id, out AgentTaskDraft? draft);
         ComposerBox.Text = string.Empty;
-        await RunExclusiveAsync(token => _session.SendAsync(text, token), "发送中");
+        await RunExclusiveAsync(token => _session.SendAsync(text, token, draft), "发送中");
+        if (draft is not null && _session.Conversation.Task is not null) _taskDrafts.Remove(id);
+        RefreshTaskCard();
     }
 
     private async Task RunExclusiveAsync(Func<CancellationToken, Task> action, string busyText)
     {
-        if (_session.IsBusy) return;
+        if (BlockWhileRunning()) return;
 
-        _generation = new CancellationTokenSource();
+        using var generation = new CancellationTokenSource();
+        _generation = generation;
         SetBusy(true, busyText);
         _streamTimer.Start();
 
         try
         {
-            await action(_generation.Token);
+            await action(generation.Token);
         }
         catch (OperationCanceledException)
         {
-            // 玩家主动停止
         }
         catch (Exception error)
         {
@@ -479,12 +556,13 @@ public partial class MofuAgentView : UserControl
         {
             FlushStream();
             _streamTimer.Stop();
-            SetBusy(false, "就绪");
-            _generation?.Dispose();
             _generation = null;
-
-            _settings.LastConversationId = _session.Conversation.Id;
-            AgentSettingsStore.Save(_settings);
+            SetBusy(false, "就绪");
+            if (_reloadSettingsWhenIdle)
+            {
+                _reloadSettingsWhenIdle = false;
+                ReloadSettings();
+            }
             RefreshHeader();
             RefreshInspector();
             RebuildSessionList();
@@ -503,12 +581,25 @@ public partial class MofuAgentView : UserControl
         SendButton.IsVisible = !busy;
         StopButton.IsVisible = busy;
         ComposerBox.IsEnabled = !busy;
-        HeaderStatusText.Text = text;
-        HeaderStatusDot.Fill = ThemeTokens.Brush(busy ? "NekoWarningBrush" : "NekoSuccessBrush");
-        if (!busy) RefreshProviderReadiness();
+        ProviderCombo.IsEnabled = !busy;
+        ModelCombo.IsEnabled = !busy;
+        NewChatButton.IsEnabled = !busy;
+        SessionList.IsEnabled = !busy;
+        AutoCompactSwitch.IsEnabled = !busy;
+        LauncherToolsSwitch.IsEnabled = !busy;
+        MaxTokensSlider.IsEnabled = !busy;
+        CompactNowButton.IsEnabled = !busy;
+        if (busy)
+        {
+            HeaderStatusText.Text = text;
+            HeaderStatusDot.Fill = ThemeTokens.Brush("NekoWarningBrush");
+        }
+        else if (_session.State != AgentSessionState.Error)
+        {
+            RefreshProviderReadiness();
+        }
     }
 
-    /// <summary>没有 Key 的远程供应商在发请求前就提醒，别等 401 才知道。</summary>
     private void RefreshProviderReadiness()
     {
         AgentProviderConfig? provider = _settings.ActiveProvider;
@@ -549,15 +640,9 @@ public partial class MofuAgentView : UserControl
         if (state == AgentSessionState.Idle)
         {
             _streamTimer.Stop();
-            // 会话加载/生成结束都会把状态改回 Idle，这里统一按供应商配置决定显示
-            // 「就绪」还是「缺少 API Key」。
             RefreshProviderReadiness();
         }
     }
-
-    // ==================================================================
-    // 消息渲染
-    // ==================================================================
 
     private void FlushStream()
     {
@@ -631,7 +716,6 @@ public partial class MofuAgentView : UserControl
     {
         var stack = new StackPanel { Spacing = 9 };
 
-        // 头像行
         var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
         header.Children.Add(new Border
         {
@@ -988,10 +1072,6 @@ public partial class MofuAgentView : UserControl
         }
     }
 
-    // ==================================================================
-    // 交互式工具：提问 / 确认
-    // ==================================================================
-
     private Task<string> AskUserAsync(
         string question, IReadOnlyList<string> options, bool freeText, CancellationToken cancellationToken)
     {
@@ -1190,10 +1270,6 @@ public partial class MofuAgentView : UserControl
         return completion.Task;
     }
 
-    // ==================================================================
-    // 头部 / 检查器
-    // ==================================================================
-
     private void RefreshHeader()
     {
         AgentConversation conversation = _session.Conversation;
@@ -1206,8 +1282,6 @@ public partial class MofuAgentView : UserControl
 
     private void RefreshInspector()
     {
-        _session.RecalculateContext();
-
         int used = _session.ContextUsed;
         int window = _session.ContextWindow;
         double ratio = _session.ContextRatio;
@@ -1223,9 +1297,8 @@ public partial class MofuAgentView : UserControl
         });
         ComposerHint.Text = "上下文 " + (ratio * 100).ToString("0") + "%";
 
-        int tools = _session.ActiveTools.Sum(tool =>
-            TokenEstimator.Estimate(tool.Name + tool.Description + tool.ParametersSchema));
-        int system = TokenEstimator.Estimate(_settings.SystemPrompt) + 260;
+        int tools = _session.ContextToolTokens;
+        int system = _session.ContextSystemTokens;
         int messages = Math.Max(0, used - tools - system);
 
         SystemTokensText.Text = TokenEstimator.Format(system);
@@ -1241,7 +1314,6 @@ public partial class MofuAgentView : UserControl
         RefreshHeader();
     }
 
-    /// <summary>三段占比条：系统提示 / 工具描述 / 消息历史。</summary>
     private void UpdateCompositionBar(int system, int tools, int messages)
     {
         int total = Math.Max(1, system + tools + messages);
@@ -1314,10 +1386,6 @@ public partial class MofuAgentView : UserControl
         }
     }
 
-    // ==================================================================
-    // 头部下拉
-    // ==================================================================
-
     private void FillProviderCombos()
     {
         _loadingControls = true;
@@ -1344,7 +1412,7 @@ public partial class MofuAgentView : UserControl
 
     private void OnProviderChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_loadingControls) return;
+        if (_loadingControls || IsRunActive) return;
 
         int index = ProviderCombo.SelectedIndex;
         if (index < 0 || index >= _settings.Providers.Count) return;
@@ -1358,13 +1426,15 @@ public partial class MofuAgentView : UserControl
 
         AgentSettingsStore.Save(_settings);
         FillProviderCombos();
+        _session.RecalculateContext();
         RefreshInspector();
+        RefreshTaskCard();
         Shell.Toast("已切换到 " + (provider?.Name ?? string.Empty));
     }
 
     private void OnModelChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_loadingControls) return;
+        if (_loadingControls || IsRunActive) return;
 
         string? model = ModelCombo.SelectedItem as string;
         if (string.IsNullOrWhiteSpace(model)) return;
@@ -1376,18 +1446,15 @@ public partial class MofuAgentView : UserControl
             ? provider.ContextWindow
             : AgentProviderPresets.GuessContextWindow(model);
         AgentSettingsStore.Save(_settings);
+        _session.RecalculateContext();
         RefreshInspector();
+        RefreshTaskCard();
     }
-
-    // ==================================================================
-    // 快捷设置（完整设置见 MofuAgentSettingsView 页面）
-    // ==================================================================
 
     private void OnOpenSettings(object? sender, RoutedEventArgs e) => Shell.Go("mofuagent-settings");
 
     private void OnShowMemory(object? sender, RoutedEventArgs e) => Shell.Go("mofuagent-settings");
 
-    /// <summary>把设置页改过的值同步回右侧仪表上的快捷控件。</summary>
     private void ApplyQuickSettings()
     {
         _loadingControls = true;
@@ -1398,33 +1465,38 @@ public partial class MofuAgentView : UserControl
         _loadingControls = false;
     }
 
-    /// <summary>左栏只显示记忆条数，记忆明细在设置页。</summary>
     private void RefreshMemoryPanel() => MemoryCountText.Text = AgentMemory.All().Count + " 条";
 
     private void OnAutoCompactToggled(object? sender, RoutedEventArgs e)
     {
-        if (_loadingControls) return;
+        if (_loadingControls || IsRunActive) return;
 
         _settings.AutoCompact = AutoCompactSwitch.IsChecked == true;
         AgentSettingsStore.Save(_settings);
+        _session.RecalculateContext();
+        RefreshInspector();
     }
 
     private void OnLauncherToolsToggled(object? sender, RoutedEventArgs e)
     {
-        if (_loadingControls) return;
+        if (_loadingControls || IsRunActive) return;
 
         _settings.Tools.LauncherControl = LauncherToolsSwitch.IsChecked == true;
         AgentSettingsStore.Save(_settings);
+        _session.RecalculateContext();
         RefreshInspector();
+        RefreshTaskCard();
     }
 
     private void OnMaxTokensChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
-        if (_loadingControls) return;
+        if (_loadingControls || IsRunActive) return;
 
         _settings.MaxOutputTokens = (int)Math.Round(MaxTokensSlider.Value / 64) * 64;
         MaxTokensText.Text = _settings.MaxOutputTokens.ToString();
         AgentSettingsStore.Save(_settings);
+        _session.RecalculateContext();
+        RefreshInspector();
     }
 
     private void OnCompactNow(object? sender, RoutedEventArgs e)
@@ -1435,7 +1507,7 @@ public partial class MofuAgentView : UserControl
             return;
         }
 
-        if (!_session.CompactIfNeeded(force: true))
+        if (!_session.CompactContext())
         {
             Shell.Toast("当前没有可压缩的历史（消息太少）。");
             return;
@@ -1444,8 +1516,6 @@ public partial class MofuAgentView : UserControl
         RebuildSessionList();
     }
 
-
-    /// <summary>页头的「+」：直接进供应商配置台，并把新建按钮闪一下。</summary>
     private void OnAddProvider(object? sender, RoutedEventArgs e)
     {
         MofuAgentSettingsView.RequestFocusProvider();
@@ -1454,6 +1524,7 @@ public partial class MofuAgentView : UserControl
 
     private void OnToggleInspector(object? sender, RoutedEventArgs e)
     {
+        if (BlockWhileRunning()) return;
         _settings.ShowInspector = !_settings.ShowInspector;
         AgentSettingsStore.Save(_settings);
         ApplyInspectorVisibility();
@@ -1466,7 +1537,6 @@ public partial class MofuAgentView : UserControl
                               (string.IsNullOrEmpty(_settings.ActiveModel) ? "无模型" : _settings.ActiveModel);
     }
 
-    /// <summary>收起右侧仪表，把宽度让给对话正文。窄窗口下很实用。</summary>
     private void ApplyInspectorVisibility()
     {
         bool show = _settings.ShowInspector;
@@ -1478,7 +1548,8 @@ public partial class MofuAgentView : UserControl
 
     private void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string text })
+        if (!IsRunActive && _session.Conversation.Task is null &&
+            !_taskDrafts.ContainsKey(_session.Conversation.Id) && sender is Button { Tag: string text })
         {
             ComposerBox.Text = text;
             ComposerBox.Focus();

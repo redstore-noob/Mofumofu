@@ -21,16 +21,13 @@
     </Window.Styles>
 
     <Panel x:Name="RootPanel" Background="{DynamicResource NekoSurfaceBrush}" ClipToBounds="True">
-<!-- 主窗口内部壁纸层：供 GlassCard 模糊背景采样 -->        
         <views:InAppWallpaperSurface x:Name="InAppWallpaper" IsVisible="False" />
-<!-- 插件接管壁纸层：IWallpaperEdit.WallpaperTakeOver 的挂载点 -->        
         <Border x:Name="PluginWallpaperLayer" IsVisible="False" />
         <Border x:Name="BackdropLayer" Background="{StaticResource NekoBackgroundBrush}" />
         <Border x:Name="HeroGlowLayer" Background="{StaticResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
         <Border x:Name="WallpaperDimLayer" Background="{DynamicResource NekoBackdropDimBrush}" IsHitTestVisible="False" IsVisible="False" />
 
         <Grid RowDefinitions="40,*">
-<!-- ================= 自绘标题栏 ================= -->    
             <Border x:Name="TitleBar"
                     Grid.Row="0"
                     Background="{DynamicResource NekoTitleBarBrush}"
@@ -68,12 +65,10 @@
                 </Grid>
             </Border>
 
-<!-- ================= 内容区 ================= -->            
             <Grid Grid.Row="1">
                 <Grid RowDefinitions="*,Auto">
                     <ContentControl x:Name="PageHost" Grid.Row="0" Margin="20,16,20,12" />
 
-<!-- 底部开始栏 -->                    
                     <Border x:Name="StartBar"
                             Grid.Row="1"
                             Height="58"
@@ -93,17 +88,42 @@
                                             Spacing="3" VerticalAlignment="Center" />
                             </StackPanel>
 
-                            <ScrollViewer Grid.Column="1" Margin="14,0" VerticalAlignment="Center"
-                                          HorizontalScrollBarVisibility="Hidden"
-                                          VerticalScrollBarVisibility="Disabled">
-                                <StackPanel x:Name="InstanceChipPanel" Orientation="Horizontal"
-                                            Spacing="6" VerticalAlignment="Center" />
-                            </ScrollViewer>
-
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                                         VerticalAlignment="Center">
                                 <StackPanel x:Name="PluginTrayPanel" Orientation="Horizontal"
                                             Spacing="3" VerticalAlignment="Center" />
+                                <Button x:Name="InstanceChip" Classes="instance-chip" Height="46"
+                                        MaxWidth="286" Click="OnInstanceChipClick"
+                                        ToolTip.Tip="{DynamicResource L.Shell.StartBar.InstanceTip}">
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" VerticalAlignment="Center">
+                                        <Border Width="28" Height="28" CornerRadius="8" BorderThickness="1"
+                                                Background="{DynamicResource NekoFieldSoftBrush}"
+                                                BorderBrush="{DynamicResource NekoBorderBrush}">
+                                            <Panel>
+                                                <controls:IconParkIcon x:Name="InstanceChipFallback" Kind="IconCube"
+                                                                       Width="16" Height="16" />
+                                                <Image x:Name="InstanceChipIcon" Width="20" Height="20"
+                                                       Stretch="Uniform" IsVisible="False" />
+                                            </Panel>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0" MaxWidth="190"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock x:Name="InstanceChipName" FontSize="12.5" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource NekoTextBrush}"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            <TextBlock x:Name="InstanceChipMeta" FontSize="11"
+                                                       Foreground="{DynamicResource NekoMutedBrush}"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                        </StackPanel>
+                                        <Border x:Name="InstanceChipRunDot" Grid.Column="2" Margin="8,0,0,0"
+                                                Width="6" Height="6" CornerRadius="3"
+                                                Background="{DynamicResource NekoAccentBrush}"
+                                                VerticalAlignment="Center" IsVisible="False" />
+                                        <controls:IconParkIcon Grid.Column="3" Margin="6,0,0,0"
+                                                               Kind="IconChevronDown" Width="12" Height="12"
+                                                               VerticalAlignment="Center" />
+                                    </Grid>
+                                </Button>
                                 <ComboBox x:Name="AccountCombo" Classes="startbar" Height="36" MinWidth="152"
                                           PlaceholderText="{DynamicResource L.Shell.StartBar.NoAccount}"
                                           SelectionChanged="OnAccountSelectionChanged"
@@ -147,7 +167,6 @@
                     </Border>
                 </Grid>
 
-<!-- ================= 开始菜单 ================= -->                
                 <Grid x:Name="StartMenuOverlay" IsVisible="False" Background="Transparent"
                       PointerPressed="OnStartMenuOverlayPointerPressed">
                     <Border x:Name="StartMenuCard"
@@ -172,7 +191,6 @@
             </Grid>
         </Grid>
 
-<!-- ================= 无边框窗口缩放热区（覆盖整窗，最后绘制） ================= -->        
         <Grid Grid.RowSpan="2">
             <Border VerticalAlignment="Top" Height="5" Background="Transparent"
                     Cursor="SizeNorthSouth" PointerPressed="OnResizeTop" />
@@ -192,7 +210,6 @@
                     Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeBottomRight" />
         </Grid>
 
-<!-- ================= 文件拖入提示层：只做视觉反馈，不拦截拖拽事件 ================= -->
         <Border x:Name="FileDropOverlay" IsVisible="False" IsHitTestVisible="False"
                 Background="{DynamicResource NekoBackdropDimBrush}">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -219,7 +236,6 @@
             </Border>
         </Border>
 
-<!-- ================= 顶层叠加层：弹窗 + Toast（永远在内容之上） ================= -->        
         <Grid>
             <controls:MofuDialogHost x:Name="DialogHost" />
             <StackPanel x:Name="ToastStack"
@@ -229,5 +245,7 @@
                         Spacing="8"
                         IsHitTestVisible="False" />
         </Grid>
+
+        <controls:LanguageTransitionOverlay x:Name="LanguageTransition" IsVisible="False" />
     </Panel>
 </Window>

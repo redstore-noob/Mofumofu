@@ -29,11 +29,11 @@ using MofuCore.Launch;
 using Mofumofu.Launcher.Mock;
 using Mofumofu.Launcher.Models;
 using Mofumofu.Launcher.Services;
+using Mofumofu.Launcher.Services.Agent;
 using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>把 MockData 里的 avares:// 图标字符串转换成 Image 可用的位图。</summary>
 public sealed class InstanceIconConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -57,7 +57,6 @@ public sealed class InstanceIconConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>「内容」标签页里的一行（真实实例目录扫描结果）。</summary>
 public sealed class ContentEntry
 {
     public string Name { get; set; } = string.Empty;
@@ -66,26 +65,21 @@ public sealed class ContentEntry
 
     public bool Enabled { get; set; } = true;
 
-    /// <summary>磁盘上的真实路径（停用/导入/图标用）。</summary>
     public string FilePath { get; set; } = string.Empty;
 
-    /// <summary>图标来源：本地文件路径（ResourceIconCache 支持）。</summary>
     public string? IconPath { get; set; }
 }
 
-/// <summary>Java 设置里的一行（来自 MofuCore.Java.JavaPathSearch 的检测结果）。</summary>
 public sealed class InstalledJavaEntry
 {
     public string DisplayName { get; init; } = string.Empty;
 
     public string JavaPath { get; init; } = string.Empty;
 
-    /// <summary>主版本号（无则版本字符串）。</summary>
     public string Version { get; init; } = string.Empty;
 
     public bool IsDefault { get; init; }
 
-    /// <summary>仅来自已保存列表、本次未扫描到的路径。</summary>
     public bool IsSavedOnly { get; init; }
 }
 
@@ -173,13 +167,8 @@ public partial class InstancesView : UserControl
         _ready = true;
     }
 
-    /// <summary>供全局拖拽用：当前详情页展示的实例 id。</summary>
     public string? CurrentInstanceId => _current?.Id;
 
-    /// <summary>
-    /// 文件被拖到实例列表的某一行上时，解析出那一行的实例 id。
-    /// 没落在列表行上就返回 null，由外层回退到当前选中的实例。
-    /// </summary>
     public static string? ResolveDroppedInstanceId(object? source)
     {
         if (source is not Visual visual) return null;
@@ -188,7 +177,6 @@ public partial class InstancesView : UserControl
         return (item.DataContext as InstanceInfo)?.Id;
     }
 
-    /// <summary>任意页面拖入文件完成导入后，刷新实例数与内容列表。</summary>
     private void OnDragImported()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -200,8 +188,6 @@ public partial class InstancesView : UserControl
         RefreshInstanceList();
         if (_current is not null) LoadContentLists(_current);
     }
-
-    // ---------------- 初始化 / 真实实例扫描 ----------------
 
     private static string EnsureGameDirectory()
     {
@@ -224,7 +210,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    /// <summary>从 versions/*.json 扫描本机实例。</summary>
     private bool ScanInstances()
     {
         _instances = [];
@@ -281,7 +266,6 @@ public partial class InstancesView : UserControl
                 }
                 catch (Exception)
                 {
-                    // 单个版本 JSON 坏掉不影响其它实例
                 }
             }
         }
@@ -394,8 +378,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    // ---------------- 内容列表（真实扫描实例目录） ----------------
-
     private void LoadContentLists(InstanceInfo info)
     {
         List<ContentEntry> mods = ScanContent(info, "mods");
@@ -442,7 +424,6 @@ public partial class InstancesView : UserControl
             }
             catch (Exception)
             {
-                // 忽略不可读文件
             }
 
             result.Add(new ContentEntry
@@ -478,7 +459,6 @@ public partial class InstancesView : UserControl
                 result.Add(new ContentEntry
                 {
                     Name = name,
-                    // 存档行的说明位放最后修改时间（level.dat 与目录取较新者），比空着有用
                     Version = File.GetLastWriteTime(Path.Combine(save, "level.dat")) is { } levelTime &&
                               File.Exists(Path.Combine(save, "level.dat"))
                         ? levelTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
@@ -499,7 +479,6 @@ public partial class InstancesView : UserControl
         if (sender is not Image { Tag: ContentEntry entry } image) return;
         if (string.IsNullOrWhiteSpace(entry.IconPath) || !File.Exists(entry.IconPath))
         {
-            // 没有可用图标：一直显示占位图标
             IconPlaceholder.SetVisible(image, true);
             return;
         }
@@ -516,7 +495,6 @@ public partial class InstancesView : UserControl
             Dispatcher.UIThread.Post(() =>
             {
                 image.Source = task.Result;
-                // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
                 IconPlaceholder.SetVisible(image, false);
             });
         }, TaskScheduler.Default);
@@ -634,7 +612,6 @@ public partial class InstancesView : UserControl
         if (sender is not Image { Tag: ModrinthUpdateCandidate candidate } image) return;
         if (string.IsNullOrWhiteSpace(candidate.ProjectIcon))
         {
-            // 没有图标地址：一直显示占位图标
             IconPlaceholder.SetVisible(image, true);
             return;
         }
@@ -651,7 +628,6 @@ public partial class InstancesView : UserControl
                 Dispatcher.UIThread.Post(() =>
                 {
                     image.Source = task.Result;
-                    // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
                     IconPlaceholder.SetVisible(image, false);
                 });
             }, TaskScheduler.Default);
@@ -766,8 +742,6 @@ public partial class InstancesView : UserControl
         LoadInstanceMemory(info);
         JavaPathBox.Text = info.JavaPath;
         GlobalLaunchSettings launchSettings = YamlRead.LoadGlobalLaunchSettings();
-        // 这个面板长在实例详情里，参数就应当来自实例自己的 java_config.yaml。
-        // 显示时逐项加引号：带空格的参数（-Dfoo=a b）不会被下一次保存拆碎。
         InstanceJavaConfig instanceJava = YamlRead.LoadInstanceJavaConfig(InstanceRoot(info.Id));
         JvmArgsBox.Text = CommandLineTokenizer.Join(instanceJava.AdditionalJvmArguments);
         FullscreenToggle.IsChecked = launchSettings.LaunchFullscreen;
@@ -782,8 +756,6 @@ public partial class InstancesView : UserControl
         LoadContentLists(info);
         LoadOptions(info);
     }
-
-    // ---------------- options.txt 真实读写 ----------------
 
     private string? OptionsPath(InstanceInfo info)
     {
@@ -810,7 +782,6 @@ public partial class InstancesView : UserControl
         }
         catch (Exception)
         {
-            // 读取失败时保持默认值
         }
 
         return values;
@@ -926,8 +897,6 @@ public partial class InstancesView : UserControl
         (this.TryFindResource(key, out var local) ? local : null)
         ?? (Application.Current is { } app && app.TryFindResource(key, out var global) ? global : null);
 
-    // ---------------- 启动状态 ----------------
-
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -956,7 +925,6 @@ public partial class InstancesView : UserControl
         }
         catch (ObjectDisposedException)
         {
-            // 已释放
         }
     }
 
@@ -970,10 +938,27 @@ public partial class InstancesView : UserControl
         DetailLaunchIcon.Kind = GameState.IsRunning ? "IconStop" : "IconPlay";
     }
 
+    private async void OnAgentInstanceCheck(object? sender, RoutedEventArgs e)
+    {
+        if (_current is not { } instance || sender is not Button button) return;
+        string minecraftDirectory = _gameDirectory;
+        string gameDirectory = InstanceRoot(instance.Id);
+        button.IsEnabled = false;
+        try
+        {
+            var draft = await Task.Run(() => LauncherAgentTasks.InspectInstance(instance, minecraftDirectory, gameDirectory));
+            if (IsLoaded && _current?.Id == instance.Id) Shell.OpenAgentTask(draft);
+        }
+        catch (Exception)
+        {
+            Shell.Toast(L.T("Agent.Task.Instance.CheckFailed", "无法读取该实例的启动资料。"));
+        }
+        finally { button.IsEnabled = true; }
+    }
+
     private void OnLaunchClick(object? sender, RoutedEventArgs e)
     {
         if (BlockInstanceMutationWhileUpdating()) return;
-        // 与主窗口开始栏同一套真实启动路径：停 → 取消后台启动；启 → 交给启动控制台跑 MofuCore
         if (GameState.IsRunning)
         {
             GameState.Stop();
@@ -990,8 +975,6 @@ public partial class InstancesView : UserControl
         GameState.Start();
         Shell.Go("launchconsole");
     }
-
-    // ---------------- 实例列表 ----------------
 
     private void OnInstanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -1057,8 +1040,6 @@ public partial class InstancesView : UserControl
         _suppressSelection = false;
     }
 
-    // ---------------- 页头 / 工具栏 ----------------
-
     private void RefreshInstanceList(string? selectId = null)
     {
         ScanInstances();
@@ -1091,7 +1072,6 @@ public partial class InstancesView : UserControl
         _ = local;
     }
 
-    /// <summary>真实账户数：Microsoft + Authlib 皮肤站凭据 + 离线账户（与账户页同一数据源）。</summary>
     private static int CountAccounts()
     {
         try
@@ -1342,7 +1322,6 @@ public partial class InstancesView : UserControl
 
                     if (loaderKind == ModLoaderKind.Vanilla)
                     {
-                        // 原版安装器按版本号落盘，实例名无法单独指定
                         name = versionId;
                     }
 
@@ -1473,8 +1452,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    // ---------------- 子标签 ----------------
-
     private void OnTabClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string tab }) return;
@@ -1504,8 +1481,6 @@ public partial class InstancesView : UserControl
         DetailScroll.Offset = default;
         AnimateTabSwitch(_tabPanels[next], direction);
     }
-
-    // ---------------- 启动设置 ----------------
 
     private void OnMemoryChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
@@ -1555,7 +1530,6 @@ public partial class InstancesView : UserControl
         InstanceMemoryPreview.Text = MemoryPresentation.Describe(memory);
     }
 
-    /// <summary>窗口尺寸下拉项：与 XAML 里的条目顺序一致。</summary>
     private static readonly (int Width, int Height)[] WindowSizes =
     [
         (854, 480), (1280, 720), (1600, 900), (1920, 1080),
@@ -1600,8 +1574,6 @@ public partial class InstancesView : UserControl
             config.MaxMemoryMB = draft.MaxMemoryMB;
             config.MinMemoryMB = 0;
 
-            // 引号/转义规则与 core 完全一致：带空格的参数不会被拆成两段裸 token
-            // （裸 token 不以 '-' 开头，会被 Java 当成主类）
             if (!CommandLineTokenizer.TrySplit(JvmArgsBox.Text, out List<string> jvmArguments, out string? jvmError))
             {
                 Shell.Toast(L.T("Instances.Toast.JvmArgsInvalid", "JVM 参数无法解析：{0}", jvmError ?? "引号不配对"));
@@ -1655,8 +1627,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    // ---------------- Java 设置 ----------------
-
     private async Task LoadJavaAsync()
     {
         CancelCts(ref _javaCts);
@@ -1683,7 +1653,6 @@ public partial class InstancesView : UserControl
                 })
                 .ToList();
 
-            // 已保存但本次未扫描到的路径也要列出来，保证「使用 / 删除」能管理已保存列表
             foreach (JavaPathItem item in YamlRead.GetJavaPaths())
             {
                 if (string.IsNullOrWhiteSpace(item.Path)
@@ -1713,7 +1682,6 @@ public partial class InstancesView : UserControl
         }
         catch (OperationCanceledException)
         {
-            // 页面卸载 / 重新检测
         }
         catch (Exception ex)
         {
@@ -1913,8 +1881,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    // ---------------- 内容 ----------------
-
     private void OnAddContentClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string group }) return;
@@ -1944,12 +1910,6 @@ public partial class InstancesView : UserControl
         }
     }
 
-    // ---------------- 存档操作（Rewind / 备份 / 导出 / 导入） ----------------
-
-    /// <summary>
-    /// 行数据统一解析：内容页行绑定 <see cref="ContentEntry"/>，概览页行绑定 <see cref="WorldInfo"/>。
-    /// 返回（世界名, 世界目录）。
-    /// </summary>
     private static (string Name, string Directory)? ResolveWorldRow(object? dataContext)
     {
         return dataContext switch
@@ -1963,7 +1923,6 @@ public partial class InstancesView : UserControl
     private void OnWorldRewindClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button || ResolveWorldRow(button.DataContext) is not { } world) return;
-        // 显式传目录：版本隔离实例的存档在 versions/<id>/saves 下，按名字解析会找不到
         Shell.Dialog(RewindDialogContent.Build(world.Name, null, world.Directory), "Rewind", sender as Control);
     }
 
@@ -2084,7 +2043,6 @@ public partial class InstancesView : UserControl
             Directory.CreateDirectory(temporary);
             ZipFile.ExtractToDirectory(zipPath, temporary, overwriteFiles: false);
 
-            // level.dat 在哪一层，世界根就在哪一层
             string worldRoot;
             string worldName;
             if (File.Exists(Path.Combine(temporary, "level.dat")))
@@ -2127,7 +2085,6 @@ public partial class InstancesView : UserControl
             }
             catch
             {
-                // 临时目录清理失败不影响导入结果
             }
         }
     }
@@ -2155,8 +2112,6 @@ public partial class InstancesView : UserControl
             name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
         return cleaned.Trim();
     }
-
-    // ---------------- 游戏设置 ----------------
 
     private void OnOptionSliderChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
@@ -2221,8 +2176,6 @@ public partial class InstancesView : UserControl
             Shell.Toast(L.T("Instances.Toast.GameSaveFailed", "保存 options.txt 失败：{0}", ex.Message));
         }
     }
-
-    // ---------------- 管理 ----------------
 
     private sealed record InstanceSnapshotEntry(string Id, string MinecraftVersion, DateTime CreatedAt);
 
@@ -2869,13 +2822,10 @@ public partial class InstancesView : UserControl
         Shell.Dialog(panel, L.T("Instances.Manage.Delete", "删除实例"), sender as Control);
     }
 
-    // ---------------- 过渡动画 ----------------
-
     private static readonly TimeSpan TabSwitchDuration = TimeSpan.FromMilliseconds(240);
     private static readonly TimeSpan DetailSwitchDuration = TimeSpan.FromMilliseconds(340);
     private static readonly TimeSpan ListRefreshDuration = TimeSpan.FromMilliseconds(160);
 
-    /// <summary>标签页横向滑入（前进从右、后退从左）。</summary>
     private void AnimateTabSwitch(Control? panel, int direction)
     {
         ResetMotion(panel);
@@ -2907,7 +2857,6 @@ public partial class InstancesView : UserControl
         }, DispatcherPriority.Render);
     }
 
-    /// <summary>切换实例时的详情面板过渡：轻微横移 + 缩放 + 淡入。</summary>
     private void AnimateDetailSwitch(int direction)
     {
         ResetMotion(DetailPanel);
@@ -2939,7 +2888,6 @@ public partial class InstancesView : UserControl
         }, DispatcherPriority.Render);
     }
 
-    /// <summary>搜索/筛选后列表淡入，避免条目瞬间跳变。</summary>
     private void AnimateListRefresh(Control? target)
     {
         ResetMotion(target);
@@ -2958,7 +2906,6 @@ public partial class InstancesView : UserControl
         Dispatcher.UIThread.Post(() => target.Opacity = 1, DispatcherPriority.Render);
     }
 
-    /// <summary>把控件恢复为静态可见状态（动画取消时避免停在透明）。</summary>
     private static void ResetMotion(Control? target)
     {
         if (target is null) return;

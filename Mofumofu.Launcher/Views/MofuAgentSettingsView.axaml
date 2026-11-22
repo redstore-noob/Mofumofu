@@ -32,7 +32,6 @@
             <Setter Property="MinHeight" Value="32" />
         </Style>
 
-<!-- 供应商主从列表 -->        
         <Style Selector="Border.provider-row">
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="Padding" Value="8,6" />
@@ -48,7 +47,6 @@
             <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
         </Style>
 
-<!-- 模型标签 -->        
         <Style Selector="Border.model-chip">
             <Setter Property="Background" Value="{DynamicResource NekoFieldBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
@@ -88,7 +86,6 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
-<!-- 页头 -->        
         <Grid ColumnDefinitions="Auto,*,Auto" Height="34" Margin="0,0,0,10">
             <Button Classes="round" Width="32" Height="32" VerticalAlignment="Center"
                     Click="OnBack" ToolTip.Tip="{DynamicResource L.Agent.Settings.T01}">
@@ -107,7 +104,6 @@
         </Grid>
 
         <Grid Grid.Row="1" ColumnDefinitions="164,*" ColumnSpacing="12">
-<!-- 分区导航 -->            
             <Border Classes="card" CornerRadius="12" Padding="10">
                 <StackPanel Spacing="2">
                     <TextBlock Classes="muted" Text="{DynamicResource L.Agent.Settings.L03}" Margin="6,2,0,8" />
@@ -131,23 +127,18 @@
                 </StackPanel>
             </Border>
 
-<!-- 内容 -->            
             <Border Grid.Column="1" Classes="card" CornerRadius="12" Padding="16,14">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Panel>
-<!-- 供应商：预设工具栏 + 主从编辑台 -->                        
                         <StackPanel x:Name="PaneProvider" Spacing="10">
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="2">
                                     <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B01}" />
-                                    <TextBlock Classes="setting-hint"
-                                               Text="{DynamicResource L.Agent.Settings.L04}" />
                                 </StackPanel>
                                 
                             </Grid>
 
                             <Grid ColumnDefinitions="222,*" ColumnSpacing="12">
-<!-- 主列表 -->                                
                                 <Border Classes="card-soft" Padding="8" VerticalAlignment="Top">
                                     <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
                                         <Grid ColumnDefinitions="*,Auto">
@@ -200,7 +191,6 @@
                                                     FontSize="11.5" Click="OnAddProvider" />
                                         </StackPanel>
                                     </Border>
-<!-- 编辑台 -->
                                     
                                     <Border x:Name="ProviderCreateCard" Classes="card-soft" Padding="18"
                                             IsVisible="False">
@@ -357,7 +347,6 @@
                                        TextWrapping="Wrap" MinHeight="16" Margin="2,0,0,0" />
                         </StackPanel>
 
-<!-- 生成 -->                        
                         <StackPanel x:Name="PaneGeneration" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
                                 <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B02}" />
@@ -404,7 +393,6 @@
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveGeneration" />
                         </StackPanel>
 
-<!-- 上下文 -->                        
                         <StackPanel x:Name="PaneContext" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
                                 <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B03}" />
@@ -448,7 +436,6 @@
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveContext" />
                         </StackPanel>
 
-<!-- 工具 -->                        
                         <StackPanel x:Name="PaneTools" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
                                 <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B04}" />
@@ -495,7 +482,6 @@
                                     FontSize="11.5" HorizontalAlignment="Left" Click="OnSaveTools" />
                         </StackPanel>
 
-<!-- 数据 -->                        
                         <StackPanel x:Name="PaneData" Spacing="12" IsVisible="False">
                             <StackPanel Spacing="2">
                                 <TextBlock Classes="setting-title" Text="{DynamicResource L.Agent.Settings.B05}" />

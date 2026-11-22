@@ -47,7 +47,6 @@ internal static class SkinGeometry
         AddBodyPart(meshes, visible, SkinBodyPart.Body,
             8, 12, 4, 16, 16, 16, 32,
             new Vector3(0, 12, 0), new Vector3(0, 6, 0));
-        // 肩关节位于 ±5，手臂中心通过局部偏移定位，抬臂时绕肩旋转。
         AddBodyPart(meshes, visible, SkinBodyPart.RightArm,
             armWidth, 12, 4, 40, 16, 40, 32,
             new Vector3(-5, 22, 0), new Vector3(1 - armWidth / 2, -4, 0));
@@ -151,37 +150,30 @@ internal static class SkinGeometry
         float d = depth + inflate * 2;
         float x = w / 2, y = h / 2, z = d / 2;
         var vertices = new List<float>(6 * 4 * FloatsPerVertex);
-        // 披风位于人物背后，-Z 是向外展示的一面，使用展开图的主图区域。
         float frontU = u + depth;
         float backU = u + depth + width + depth;
         if (swapFrontBack) (frontU, backU) = (backU, frontU);
 
-        // +Z 正面
         AddFace(vertices,
             new Vector3(-x, y, z), new Vector3(-x, -y, z),
             new Vector3(x, -y, z), new Vector3(x, y, z), new Vector3(0, 0, 1),
             frontU, v + depth, width, height, textureWidth, textureHeight);
-        // -Z 背面
         AddFace(vertices,
             new Vector3(x, y, -z), new Vector3(x, -y, -z),
             new Vector3(-x, -y, -z), new Vector3(-x, y, -z), new Vector3(0, 0, -1),
             backU, v + depth, width, height, textureWidth, textureHeight);
-        // +X 右侧
         AddFace(vertices,
             new Vector3(x, y, z), new Vector3(x, -y, z),
             new Vector3(x, -y, -z), new Vector3(x, y, -z), new Vector3(1, 0, 0),
             u + depth + width, v + depth, depth, height, textureWidth, textureHeight);
-        // -X 左侧
         AddFace(vertices,
             new Vector3(-x, y, -z), new Vector3(-x, -y, -z),
             new Vector3(-x, -y, z), new Vector3(-x, y, z), new Vector3(-1, 0, 0),
             u, v + depth, depth, height, textureWidth, textureHeight);
-        // +Y 顶部
         AddFace(vertices,
             new Vector3(-x, y, -z), new Vector3(-x, y, z),
             new Vector3(x, y, z), new Vector3(x, y, -z), new Vector3(0, 1, 0),
             u + depth, v, width, depth, textureWidth, textureHeight);
-        // -Y 底部：展开图的 V 方向与顶部相反。
         AddFace(vertices,
             new Vector3(-x, -y, z), new Vector3(-x, -y, -z),
             new Vector3(x, -y, -z), new Vector3(x, -y, z), new Vector3(0, -1, 0),

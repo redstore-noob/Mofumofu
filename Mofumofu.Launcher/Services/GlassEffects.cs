@@ -11,15 +11,6 @@ using SukiUI.Controls.GlassMorphism;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>
-/// 统一控制所有 SukiUI <see cref="GlassCard"/> 的毛玻璃状态。
-/// <para>
-/// 原来这里是遍历 Fluid 的 AcrylicSurface 去改 BlurRadius / Vibrancy / 一堆逐帧效果；
-/// 换成 Suki 之后，模糊完全由 GlassCard 模板内部的 SukiBlurBackground 负责，
-/// 外部只需要控制两件事：开不开启模糊（<see cref="GlassCard.IsOpaque"/>）、
-/// 模糊多浓 + 遮罩多实（<see cref="SukiBlurBackground.IntensityFactor"/> / <see cref="SukiBlurBackground.OverlayOpacity"/>）。
-/// </para>
-/// </summary>
 public static class GlassEffects
 {
     /// <summary>模糊强度。关掉毛玻璃时归零，避免 GPU 白算。</summary>
@@ -36,7 +27,6 @@ public static class GlassEffects
         Refresh();
     }
 
-    /// <summary>页面切换 / 新建控件后重新套用当前毛玻璃状态。</summary>
     public static void Refresh()
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
@@ -73,7 +63,6 @@ public static class GlassEffects
         // IsOpaque 是 Suki 官方语义：true = 不透明卡片，模板不渲染模糊层
         card.IsOpaque = !active;
         if (card.Classes.Contains("Control") || card.Classes.Contains("Discrete")) return;
-        // 模板的动态资源绑定优先级高于普通 Style Setter，直接修正实际绘制层。
         foreach (var surface in card.GetVisualDescendants().OfType<GlassCardBorder>()
                      .Where(border => border.TemplatedParent == card))
         {

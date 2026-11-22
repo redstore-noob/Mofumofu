@@ -21,7 +21,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>拖入文件被识别出来的种类。</summary>
 public enum DropImportKind
 {
     ModrinthModpack,
@@ -43,7 +42,6 @@ public enum DropImportKind
     Unknown,
 }
 
-/// <summary>导入目标的作用域：新建实例 / 当前实例的内容目录 / 启动器全局。</summary>
 public enum DropImportScope
 {
     NewInstance,
@@ -51,7 +49,6 @@ public enum DropImportScope
     Global,
 }
 
-/// <summary>一次拖入的单个文件的导入计划（识别结果 + 建议落点）。</summary>
 public sealed record DropImportPlan(
     string SourcePath,
     DropImportKind Kind,
@@ -64,10 +61,8 @@ public sealed record DropImportPlan(
         Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 }
 
-/// <summary>实例下拉里的一项。</summary>
 public sealed record DropInstanceChoice(string Id, string Name);
 
-/// <summary>拖放发生时的上下文：当前页面、默认实例、可选实例列表、弹窗锚点。</summary>
 public sealed record DropImportContext(
     string PageId,
     string? InstanceId,
@@ -84,7 +79,6 @@ public sealed record DropImportContext(
 /// </summary>
 public static class DragImportService
 {
-    /// <summary>导入完成后通知页面刷新（实例页会重新扫描内容列表）。</summary>
     public static event Action? Imported;
 
     private static readonly string[] ImageExtensions =
@@ -93,7 +87,6 @@ public static class DragImportService
     private static readonly string[] AudioExtensions =
         [".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"];
 
-    /// <summary>未识别类型时允许手动指定的落点（与实例相对）。</summary>
     public static readonly (string Folder, string Label)[] OverrideFolders =
     [
         ("mods", "模组 · mods/"),
@@ -102,10 +95,6 @@ public static class DragImportService
         ("saves", "存档 · saves/"),
         ("", "实例根目录"),
     ];
-
-    // ------------------------------------------------------------------
-    // 1. 从拖拽数据里取本地路径
-    // ------------------------------------------------------------------
 
     /// <summary>Avalonia 12 的强类型 DataTransfer：取所有能落到本地磁盘的文件/文件夹路径。</summary>
     public static IReadOnlyList<string> ExtractPaths(DragEventArgs e)
@@ -126,21 +115,15 @@ public static class DragImportService
                 }
                 catch
                 {
-                    // 某些平台在 DragOver 阶段还拿不到真实文件，忽略即可
                 }
             }
         }
         catch
         {
-            // 拖拽数据尚未就绪
         }
 
         return paths;
     }
-
-    // ------------------------------------------------------------------
-    // 2. 识别
-    // ------------------------------------------------------------------
 
     public static IReadOnlyList<DropImportPlan> Classify(IReadOnlyList<string> paths)
         => paths.Select(ClassifyOne).ToList();
@@ -169,7 +152,6 @@ public static class DragImportService
 
         if (ImageExtensions.Contains(extension))
         {
-            // 64×64 / 64×32 的 PNG 是标准皮肤贴图，其它图片一律当壁纸
             return SkinTextureService.TryValidateSkinFile(path, out _)
                 ? Plan(path, DropImportKind.Skin, L.T("Drop.Kind.Skin", "皮肤"), "", DropImportScope.Global)
                 : Plan(path, DropImportKind.Wallpaper, L.T("Drop.Kind.Wallpaper", "壁纸图片"), "", DropImportScope.Global);
@@ -191,7 +173,6 @@ public static class DragImportService
             return Plan(path, DropImportKind.ResourcePackDirectory, L.T("Drop.Kind.ResourcePackDirectory", "资源包文件夹"), "resourcepacks",
                 DropImportScope.InstanceContent, true);
 
-        // .minecraft / 含 versions 的目录 = 其他启动器的实例根目录
         if (name.Equals(".minecraft", StringComparison.OrdinalIgnoreCase) ||
             Directory.Exists(Path.Combine(path, "versions")) ||
             Directory.Exists(Path.Combine(path, ".minecraft", "versions")))
@@ -241,7 +222,6 @@ public static class DragImportService
         }
         catch
         {
-            // 加密/损坏的 zip 走「未识别」，让用户在弹窗里自己选落点
         }
 
         return Plan(path, DropImportKind.Unknown, L.T("Drop.Kind.UnknownZip", "未识别压缩包"), "mods", DropImportScope.InstanceContent);
@@ -251,7 +231,6 @@ public static class DragImportService
         string folder, DropImportScope scope, bool directory = false)
         => new(path, kind, label, folder, scope, directory);
 
-    /// <summary>给拖拽浮层用的一句话概览，例如「2 个模组 · 1 个资源包」。</summary>
     public static string Describe(IReadOnlyList<DropImportPlan> plans)
         => string.Join(" · ", plans
             .GroupBy(plan => plan.KindLabel)
@@ -259,16 +238,10 @@ public static class DragImportService
                 ? group.Key
                 : L.T("Drop.Count", "{0} 个{1}", group.Count(), group.Key)));
 
-    // ------------------------------------------------------------------
-    // 3. 确认弹窗
-    // ------------------------------------------------------------------
-
-    /// <summary>按识别结果弹确认框；纯整合包直接安装，不打断操作。</summary>
     public static void ConfirmAndImport(IReadOnlyList<DropImportPlan> plans, DropImportContext context)
     {
         if (plans.Count == 0) return;
 
-        // 全是整合包 / 实例目录：直接新建实例，保持原来「拖进去就装」的手感
         if (plans.All(plan => plan.Scope == DropImportScope.NewInstance))
         {
             _ = ExecuteAsync(plans, context, null, null);
@@ -340,7 +313,6 @@ public static class DragImportService
                 folderBox.Items.Add(new ComboBoxItem { Content = label, Tag = folder });
             }
 
-            // 压缩包/类 jar 文件默认当模组，其它杂项默认放实例根目录
             bool looksLikeMod = plans
                 .Where(plan => plan.Kind == DropImportKind.Unknown)
                 .Any(plan => Path.GetExtension(plan.SourcePath).ToLowerInvariant() is ".jar" or ".zip" or ".litemod");
@@ -379,10 +351,6 @@ public static class DragImportService
         Shell.Dialog(panel, L.T("Drop.Title", "导入拖入的文件"), context.Anchor);
     }
 
-    // ------------------------------------------------------------------
-    // 4. 执行
-    // ------------------------------------------------------------------
-
     private static async Task ExecuteAsync(IReadOnlyList<DropImportPlan> plans,
         DropImportContext context, string? instanceId, string? overrideFolder)
     {
@@ -409,7 +377,6 @@ public static class DragImportService
         }
         catch
         {
-            // 页面刷新失败不影响已经落盘的文件
         }
 
         if (failures.Count > 0)
@@ -455,7 +422,6 @@ public static class DragImportService
         }
     }
 
-    /// <summary>内容目录：与下载页在线安装保持同一套版本隔离规则。</summary>
     private static string ResolveContentDirectory(string gameDirectory, string? instanceId, string folder)
     {
         string root = gameDirectory;
@@ -502,7 +468,6 @@ public static class DragImportService
                     UniqueDirectory(Path.Combine(targetRoot, SafeName(plan.FileName))));
                 break;
             default:
-                // Mod / 资源包 / 光影包 / 未识别：MC 原生支持目录里的 zip 与 jar，直接复制
                 string target = UniqueFile(Path.Combine(targetRoot, SafeName(plan.FileName)));
                 File.Copy(plan.SourcePath, target, overwrite: false);
                 break;
@@ -542,7 +507,7 @@ public static class DragImportService
         }
         finally
         {
-            try { Directory.Delete(temporary, true); } catch { /* 临时目录清理失败不影响导入 */ }
+            try { Directory.Delete(temporary, true); } catch {  }
         }
     }
 
@@ -574,7 +539,6 @@ public static class DragImportService
 
         if (versionsRoot is not null)
         {
-            // 与实例页「导入 .minecraft 目录」一致：只搬带 <id>.json 的版本目录
             foreach (string directory in Directory.GetDirectories(versionsRoot))
             {
                 string id = Path.GetFileName(directory);
@@ -599,7 +563,6 @@ public static class DragImportService
             Directory.CreateDirectory(temporary);
             ZipFile.ExtractToDirectory(zipPath, temporary, overwriteFiles: true);
 
-            // Prism/MultiMC 的实例包一般把游戏文件放在 .minecraft/ 里
             string source = Directory.Exists(Path.Combine(temporary, ".minecraft"))
                 ? Path.Combine(temporary, ".minecraft")
                 : temporary;
@@ -609,7 +572,7 @@ public static class DragImportService
         }
         finally
         {
-            try { Directory.Delete(temporary, true); } catch { /* 忽略 */ }
+            try { Directory.Delete(temporary, true); } catch {  }
         }
     }
 
@@ -643,10 +606,6 @@ public static class DragImportService
             MusicStore.Save(settings);
         }
     }
-
-    // ------------------------------------------------------------------
-    // 5. 整合包安装（与下载大厅共用 MofuCore 管线）
-    // ------------------------------------------------------------------
 
     private static async Task InstallModrinthModpackAsync(string packagePath)
     {
@@ -752,10 +711,6 @@ public static class DragImportService
             Shell.Toast(L.T("Download.Resource.InstallFailed", "安装「{0}」失败：{1}", displayName, error.Message));
         }
     }
-
-    // ------------------------------------------------------------------
-    // 6. 小工具
-    // ------------------------------------------------------------------
 
     private static string SafeName(string name)
     {

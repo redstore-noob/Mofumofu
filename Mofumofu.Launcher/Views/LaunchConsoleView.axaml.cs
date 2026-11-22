@@ -27,10 +27,6 @@ public sealed class LaunchConsoleLineVm
     public IBrush TextBrush { get; init; } = Brushes.Transparent;
 }
 
-/// <summary>
-/// 类终端启动进度页：上半部分是阶段时间线，下半部分是 Java 进程的类终端输出区。
-/// 数据全部来自 <see cref="LaunchProgress"/>（MofuCore.GameLaunch 真实启动）。
-/// </summary>
 public partial class LaunchConsoleView : UserControl
 {
     private sealed class StageRow
@@ -42,7 +38,6 @@ public partial class LaunchConsoleView : UserControl
         public TextBlock PercentText { get; init; } = null!;
         public TextBlock DurationText { get; init; } = null!;
 
-        /// <summary>上一次渲染的状态：只在状态真的变了时播图标动画。</summary>
         public LaunchStageState LastState { get; set; } = LaunchStageState.Pending;
     }
 
@@ -81,7 +76,6 @@ public partial class LaunchConsoleView : UserControl
         });
     }
 
-    /// <summary>重新开始一次启动（重复调用会清空上一轮）。</summary>
     public void ReplayLaunch()
     {
         if (Dispatcher.UIThread.CheckAccess())
@@ -94,10 +88,7 @@ public partial class LaunchConsoleView : UserControl
         }
     }
 
-    /// <summary>将来接 <c>MofuCore.Launch.GameLaunch</c> 时，宿主把 stdout/stderr 回调和取消请求接到这里。</summary>
     public LaunchProgress Progress => _progress;
-
-    // ---------------------------------------------------------------- 构建
 
     private void BuildTimeline()
     {
@@ -235,14 +226,11 @@ public partial class LaunchConsoleView : UserControl
         _elapsedTimer.Tick += (_, _) => ElapsedText.Text = FormatElapsed(_progress.Elapsed);
         _elapsedTimer.Start();
 
-        // 从桌面重新进入（页面被缓存或重建）时，把后台启动的进度接回来
         AttachedToVisualTree += (_, _) =>
         {
             if (_progress.History.Count > 0) OnUi(SyncFromProgress);
         };
     }
-
-    // ---------------------------------------------------------------- 进度更新
 
     private void OnStarted()
     {
@@ -260,7 +248,6 @@ public partial class LaunchConsoleView : UserControl
         ElapsedText.Text = FormatElapsed(TimeSpan.Zero);
     }
 
-    /// <summary>页面重建 / 从桌面重新进入时，把仍在后台运行的启动状态接回来。</summary>
     private void SyncFromProgress()
     {
         _lines.Clear();
@@ -310,15 +297,12 @@ public partial class LaunchConsoleView : UserControl
             : name;
     }
 
-    /// <summary>终端标题栏的来源标识：全部来自 MofuCore 真实启动，无需徽章。</summary>
-
     private void ApplyStageChanged(LaunchStageChangedEventArgs e)
     {
         ApplyStage(e.Stage);
         OverallText.Text = L.T("Launch.Format.Percent", "{0:0}%", e.OverallProgress);
         PhaseText.Text = e.Activity;
 
-        // 游戏窗口就绪说明启动器任务已完成：直接回主界面，日志继续在后台记录
         if (!_autoExitScheduled &&
             string.Equals(e.Stage.Id, "window", StringComparison.OrdinalIgnoreCase) &&
             e.Stage.State == LaunchStageState.Succeeded)
@@ -356,7 +340,6 @@ public partial class LaunchConsoleView : UserControl
         row.IconBox.Background = iconBackground;
         row.TitleText.Foreground = titleForeground;
 
-        // 状态变化时图标弹一下：从「·」变「✓/✕」是最值得强调的一瞬间
         if (stateChanged && stage.State is LaunchStageState.Succeeded or LaunchStageState.Failed
                 or LaunchStageState.Running)
         {
@@ -391,15 +374,12 @@ public partial class LaunchConsoleView : UserControl
         PhaseText.Text = e.Message;
         ElapsedText.Text = FormatElapsed(e.Duration);
 
-        // 终态定格：状态字样弹一下，别让它悄悄变个颜色就完了
         TerminalStatusText.RenderTransformOrigin = RelativePoint.Center;
         UiAnimations.Pulse(TerminalStatusText, 1.18, 300);
         UiAnimations.FadeSlideIn(PhaseText, 0.99, 4, 200);
 
         GameState.Stop();
     }
-
-    // ---------------------------------------------------------------- 终端输出
 
     private void AppendLine(LaunchLogLine line, bool scroll = true)
     {
@@ -424,8 +404,6 @@ public partial class LaunchConsoleView : UserControl
             Dispatcher.UIThread.Post(() => LogScroll.ScrollToEnd(), DispatcherPriority.Background);
         }
     }
-
-    // ---------------------------------------------------------------- 命令行
 
     private void ExecuteCommand()
     {
@@ -469,8 +447,6 @@ public partial class LaunchConsoleView : UserControl
         }
     }
 
-    // ---------------------------------------------------------------- 顶部按钮
-
     private void OnReplayClick(object? sender, RoutedEventArgs e) => ReplayLaunch();
 
     private void OnCancelClick(object? sender, RoutedEventArgs e)
@@ -492,8 +468,6 @@ public partial class LaunchConsoleView : UserControl
         }
         Shell.BackToDesktop();
     }
-
-    // ---------------------------------------------------------------- 辅助
 
     private static void OnUi(Action action)
     {

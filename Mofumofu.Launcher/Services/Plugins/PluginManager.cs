@@ -10,32 +10,23 @@ using Mofumofu.ExtensionAPI;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>插件运行状态。</summary>
 public enum PluginRuntimeState
 {
-    /// <summary>已加载运行中。</summary>
     Loaded,
 
-    /// <summary>玩家停用（未加载）。</summary>
     Disabled,
 
-    /// <summary>Init 返回 false，插件自己拒绝了加载。</summary>
     Refused,
 
-    /// <summary>加载或初始化抛异常。</summary>
     Error,
 
-    /// <summary>清单声明的 apiVersion 高于宿主，拒绝加载。</summary>
     Incompatible,
 
-    /// <summary>清单/DLL 缺失等无法加载。</summary>
     Broken,
 
-    /// <summary>待授权：首次安装/插件更新/新增权限需玩家同意，同意前不进 ALC。</summary>
     PendingConsent,
 }
 
-/// <summary>一个已扫描插件的运行时记录（含未加载的）。</summary>
 public sealed class PluginRuntime
 {
     public PluginManifest Manifest { get; init; } = null!;
@@ -49,10 +40,6 @@ public sealed class PluginRuntime
     internal List<IDisposable> Registrations { get; } = new();
 }
 
-/// <summary>
-/// 插件生命周期管理：扫描 plugins/ 目录 → AssemblyLoadContext 隔离加载 → Init(context)。
-/// 支持热装卸（isCollectible ALC + 注册句柄回收，尽力卸载，未死透提示重启）。
-/// </summary>
 public static class PluginManager
 {
     /// <summary>宿主实现的插件 API 版本；清单声明高于它则判不兼容。</summary>
@@ -62,7 +49,6 @@ public static class PluginManager
     private static readonly List<PluginRuntime> Plugins = new();
     private static bool _initialized;
 
-    /// <summary>插件列表或状态变化（插件页监听刷新）。</summary>
     public static event Action? PluginsChanged;
 
     public static IReadOnlyList<PluginRuntime> All
@@ -76,7 +62,6 @@ public static class PluginManager
             string.Equals(p.Manifest.Id, id, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>插件目录：{DataRoot}/Mofumofu/plugins。</summary>
     public static string PluginsRoot => Path.Combine(
         MofuCore.Config.YamlRead.DataRoot,
         MofuCore.Config.YamlRead.DataDirectoryName,
@@ -105,11 +90,6 @@ public static class PluginManager
         return full;
     }
 
-    // ------------------------------------------------------------------
-    // 扫描 / 加载
-    // ------------------------------------------------------------------
-
-    /// <summary>启动时初始化：解包裸 .nekoex → 全量扫描 → 加载所有启用的插件。</summary>
     public static void Initialize()
     {
         lock (Gate)
@@ -123,11 +103,6 @@ public static class PluginManager
         Rescan();
     }
 
-    // ------------------------------------------------------------------
-    // ILaunchAction：启动钩子与会话通知
-    // ------------------------------------------------------------------
-
-    /// <summary>最近一次启动的会话信息（钩子与通知之间传递）。</summary>
     private static string _sessionInstanceId = string.Empty;
     private static string _sessionVersionId = string.Empty;
     private static DateTime? _sessionStartedAt;
@@ -169,7 +144,7 @@ public static class PluginManager
             }
             catch (PluginPermissionException)
             {
-                continue; // 未声明 launch 权限的插件收不到启动钩子
+                continue;
             }
             catch (Exception error)
             {
@@ -226,7 +201,6 @@ public static class PluginManager
         return (true, null);
     }
 
-    /// <summary>订阅进程启动/会话结束信号，派发 GameStoppedHook / GameCrashedHook。</summary>
     private static void HookLaunchSessionEvents()
     {
         if (_launchSessionHooked) return;
@@ -235,7 +209,7 @@ public static class PluginManager
         LaunchProgress.Shared.ProcessStarted += _ => _sessionStartedAt = DateTime.Now;
         LaunchProgress.Shared.Completed += (_, args) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            if (_sessionStartedAt is not { } startedAt) return; // 进程没起来（准备阶段失败/取消）不算会话
+            if (_sessionStartedAt is not { } startedAt) return;
 
             DateTime started = startedAt;
             _sessionStartedAt = null;
@@ -284,11 +258,6 @@ public static class PluginManager
         });
     }
 
-    /// <summary>
-    /// ILaunchContext 宿主实现：JvmArguments 以只读视图暴露，插件即便绕过 TryAddJvmArgument
-    /// 把返回值强转回 IList 直接 Add/Insert/索引赋值/Clear/Remove，危险参数
-    /// （代理 / 类路径 / 外部命令）与破坏性删除也会被守卫拦下。
-    /// </summary>
     private sealed class LaunchContextImpl(
         string instanceId,
         string versionId,
@@ -310,12 +279,6 @@ public static class PluginManager
         }
     }
 
-    /// <summary>
-    /// JVM 参数写入守卫：所有增改一律过 <see cref="Mofumofu.ExtensionAPI.Actions.JvmArgumentPolicy"/>
-    /// 白名单，被拒参数静默丢弃（与 TryAddJvmArgument 返回 false 且不改动列表的语义一致）；读取透传。
-    /// 同时实现 IReadOnlyList，使上下文属性只暴露只读视图；强转回 IList 也无法绕过守卫。
-    /// 仅拦截插件经上下文的写入——宿主自身在副本上追加的 authlib 注入与用户预设参数不受影响。
-    /// </summary>
     private sealed class GuardedJvmArguments(IList<string> inner) : IList<string>, IReadOnlyList<string>
     {
         public string this[int index]
@@ -358,10 +321,6 @@ public static class PluginManager
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => inner.GetEnumerator();
     }
 
-    /// <summary>
-    /// 下载任务完成/失败 → 派发给实现了 IDownloadAction 的运行中插件。
-    /// 权限不足（未声明 networkReadonly）的插件静默跳过；单个插件钩子抛异常不影响其他插件。
-    /// </summary>
     private static void HookDownloadEvents()
     {
         if (_downloadEventsHooked) return;
@@ -385,14 +344,14 @@ public static class PluginManager
                 foreach (var runtime in Plugins.Where(p => p.State == PluginRuntimeState.Loaded))
                 {
                     if (runtime.Instance is not Mofumofu.ExtensionAPI.Actions.IDownloadAction action) continue;
-                    if (runtime.Context is not { } context) continue; // Context 缺失不派发（fail-closed）
+                    if (runtime.Context is not { } context) continue;
                     try
                     {
                         context.Demand(PluginPermissions.NetworkReadonly);
                     }
                     catch (PluginPermissionException)
                     {
-                        continue; // 没声明权限的插件收不到通知
+                        continue;
                     }
                     catch (Exception error)
                     {
@@ -427,7 +386,6 @@ public static class PluginManager
 
     private static bool _downloadEventsHooked;
 
-    /// <summary>全量重载：卸载全部运行中插件 → 重新扫描目录并加载（重载按钮）。</summary>
     public static void Rescan()
     {
         lock (Gate)
@@ -465,7 +423,6 @@ public static class PluginManager
         PluginsChanged?.Invoke();
     }
 
-    /// <summary>加载单个插件（安装/启用后热加载）。已存在同名插件时先卸载旧的。</summary>
     public static PluginRuntime? LoadPlugin(string directory, string? sourcePackagePath = null)
     {
         PluginManifest? manifest = PluginManifest.TryLoad(directory);
@@ -490,7 +447,6 @@ public static class PluginManager
         return runtime;
     }
 
-    /// <summary>解析插件主 DLL：优先 extension.dll（.nekoex 约定）；开发态散目录允许任意 DLL 名。</summary>
     internal static string? ResolveDllPath(PluginManifest manifest) =>
         File.Exists(manifest.DllPath)
             ? manifest.DllPath
@@ -632,11 +588,6 @@ public static class PluginManager
         }
     }
 
-    // ------------------------------------------------------------------
-    // 卸载 / 启停
-    // ------------------------------------------------------------------
-
-    /// <summary>热卸载一个插件（不删文件，不写停用状态）。</summary>
     public static void Unload(string pluginId)
     {
         PluginRuntime? runtime = ById(pluginId);
@@ -647,7 +598,6 @@ public static class PluginManager
         PluginsChanged?.Invoke();
     }
 
-    /// <summary>启用（热加载）或停用（热卸载）插件，状态持久化。</summary>
     public static void SetEnabled(string pluginId, bool enabled)
     {
         // 插件状态的「查找 / 新增 / 修改 / 保存」整段走 LocalSettings 的 Gate，
@@ -676,7 +626,6 @@ public static class PluginManager
                          or PluginRuntimeState.Incompatible
                          or PluginRuntimeState.PendingConsent)
         {
-            // 重新激活前清掉旧运行时（可能残留失败的 ALC）
             lock (Gate)
             {
                 UnloadRuntime(runtime);
@@ -702,7 +651,6 @@ public static class PluginManager
                 string.Equals(entry.Id, pluginId, StringComparison.OrdinalIgnoreCase))?.Enabled ?? true);
     }
 
-    /// <summary>尽力卸载：回收注册句柄 → 释放 ALC → GC 轮询验证；未死透提示重启。</summary>
     private static void UnloadRuntime(PluginRuntime runtime)
     {
         foreach (IDisposable registration in runtime.Registrations.ToList())
@@ -720,7 +668,7 @@ public static class PluginManager
         runtime.Registrations.Clear();
         runtime.Instance = null;
         runtime.Context = null;
-        runtime.Assembly = null;   // 不清掉会强引用插件程序集，ALC 永远卸不干净，DLL 文件被锁
+        runtime.Assembly = null;
 
         if (runtime.Alc is { } alc)
         {
@@ -753,17 +701,14 @@ public static class PluginManager
         }
     }
 
-    /// <summary>插件通过 context 拿到的所有可撤销注册都记录在案，卸载时代为回收。</summary>
     public static void Track(PluginRuntime runtime, IDisposable registration)
     {
         lock (Gate) runtime.Registrations.Add(registration);
     }
 
-    /// <summary>权限检查入口（context 实现调用）。</summary>
     public static void DemandPermission(PluginRuntime runtime, string zone) =>
         PluginPermissions.Demand(runtime, zone);
 
-    /// <summary>扫描到 plugins/ 根下的裸 .nekoex：解包到同名目录（目录已存在则跳过）。</summary>
     private static void ExtractLoosePackages()
     {
         try
@@ -807,7 +752,6 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
         Resolving += FallbackToHost;
     }
 
-    /// <summary>宿主/框架程序集名：这些程序集不得从插件目录加载同名副本，以免类型被劫持或拆分。</summary>
     private static bool IsHostOwnedAssembly(string? name)
     {
         if (string.IsNullOrEmpty(name)) return false;
@@ -819,7 +763,6 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
                || name is "netstandard" or "mscorlib";
     }
 
-    /// <summary>允许与插件共享（保持类型同一性）的宿主程序集白名单：仅契约层与框架/UI 程序集。</summary>
     private static bool IsShareableAssembly(string? name)
     {
         if (string.IsNullOrEmpty(name)) return false;
@@ -836,7 +779,6 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
         // Mofumofu.ExtensionAPI.dll / MofuCore.dll 等劫持类型解析），统一交给 Resolving 兜底到宿主同一份。
         if (IsHostOwnedAssembly(assemblyName.Name)) return null;
 
-        // 插件自带依赖 DLL（与 extension.dll 同目录）优先
         string local = Path.Combine(_pluginDirectory, assemblyName.Name + ".dll");
         if (File.Exists(local))
         {

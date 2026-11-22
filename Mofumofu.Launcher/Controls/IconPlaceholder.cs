@@ -8,10 +8,6 @@ namespace Mofumofu.Launcher.Controls;
 /// </summary>
 internal static class IconPlaceholder
 {
-    /// <summary>
-    /// 显示或隐藏与 <paramref name="image"/> 同层的占位图标。
-    /// 找不到占位图标时什么都不做。
-    /// </summary>
     public static void SetVisible(Image image, bool visible)
     {
         if (image.Parent is not Panel panel) return;

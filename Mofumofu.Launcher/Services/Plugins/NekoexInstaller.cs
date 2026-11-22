@@ -8,10 +8,6 @@ using System.Threading.Tasks;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>
-/// .nekoex 安装器：zip 包（info.yaml / description.md / extension.dll / icon.png）
-/// 解包到 plugins/{id}/ 并热加载；卸载 = 热卸载 + 删目录（连同源 .nekoex）。
-/// </summary>
 public static class NekoexInstaller
 {
     /// <summary>.nekoex 解压上限：条目数 / 单条目 / 总解压字节（防 zip 炸弹，口径对齐 MofuCore.Config.SizeLimits）。</summary>
@@ -19,7 +15,6 @@ public static class NekoexInstaller
     private const long MaxSingleEntryBytes = MofuCore.Config.SizeLimits.PackageEntryMaximumBytes;
     private const long MaxTotalExtractedBytes = MofuCore.Config.SizeLimits.PackageExtractedMaximumBytes;
 
-    /// <summary>包内允许的文件扩展名（可执行文件 / 脚本一律不放行）。</summary>
     private static readonly HashSet<string> AllowedEntryExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".dll", ".axaml", ".xaml", ".png", ".jpg", ".jpeg", ".gif", ".svg",
@@ -27,11 +22,6 @@ public static class NekoexInstaller
         ".ttf", ".otf", ".woff", ".woff2",
     };
 
-    /// <summary>
-    /// 从 .nekoex 文件安装（或更新）插件：读包内 info.yaml 取 id → 解包 → 热加载。
-    /// 包会被复制到 plugins/{id}.nekoex 作为安装源（卸载时一并删除）。
-    /// </summary>
-    /// <returns>安装后的插件 id</returns>
     public static async Task<string> InstallAsync(string packagePath, CancellationToken cancellationToken = default)
     {
         string source = Path.GetFullPath(packagePath);
@@ -50,7 +40,6 @@ public static class NekoexInstaller
         string canonical = PluginManager.ResolvePluginPath(id, ".nekoex");
         string target = PluginManager.ResolvePluginPath(id);
 
-        // 安装源统一收进 plugins 根（同目录则原位使用）
         if (!string.Equals(source, canonical, StringComparison.OrdinalIgnoreCase))
         {
             File.Copy(source, canonical, overwrite: true);
@@ -71,7 +60,6 @@ public static class NekoexInstaller
         return id;
     }
 
-    /// <summary>卸载：热卸载运行时 + 删除插件目录与源 .nekoex。返回是否成功。</summary>
     public static bool Uninstall(string pluginId)
     {
         try
@@ -118,7 +106,7 @@ public static class NekoexInstaller
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
             string normalized = entry.FullName.Replace('\\', '/');
-            if (normalized.Length == 0 || normalized.EndsWith('/')) continue; // 目录条目不写盘
+            if (normalized.Length == 0 || normalized.EndsWith('/')) continue;
 
             if (TryResolveSafeEntry(rootFull, rootPrefix, normalized, out string destination) == false)
             {
@@ -138,7 +126,6 @@ public static class NekoexInstaller
             string? directory = Path.GetDirectoryName(destination);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-            // 逐块写入并再次核对实际解压量（声明长度可能被伪造）。
             using Stream source = entry.Open();
             using FileStream output = new(destination, FileMode.Create, FileAccess.Write, FileShare.None);
             long written = 0;

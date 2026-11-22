@@ -10,7 +10,6 @@ using YamlDotNet.Serialization;
 
 namespace Mofumofu.Launcher.Services.Music;
 
-/// <summary>音乐页设置：本地文件夹、音量、网易云登录 Cookie、收藏。</summary>
 public sealed class MusicSettings
 {
     public List<string> Folders { get; set; } = new();
@@ -21,11 +20,9 @@ public sealed class MusicSettings
 
     public bool Loop { get; set; }
 
-    /// <summary>网易云 MUSIC_U Cookie（内存中为明文；落盘时由 AgentSecretProtector 字段级加密）。</summary>
     [YamlIgnore]
     public string NetEaseCookie { get; set; } = string.Empty;
 
-    /// <summary>music.yaml 中 NetEaseCookie 的加密表示，复用 Agent 凭据加密并兼容旧明文。</summary>
     [YamlMember(Alias = "NetEaseCookie")]
     public string NetEaseCookieProtected
     {
@@ -35,14 +32,22 @@ public sealed class MusicSettings
 
     public string NetEaseNickname { get; set; } = string.Empty;
 
-    /// <summary>最近一次播放的网易云歌曲 ID，作为私人漫游的种子。</summary>
     public long LastNetEaseSongId { get; set; }
 
-    /// <summary>收藏歌曲的完整信息；云歌曲重启后搜索缓存为空，靠它重建「我喜欢」列表。</summary>
     public List<MusicFavoriteEntry> FavoriteDetails { get; set; } = new();
+
+    public List<MusicPlaylist> Playlists { get; set; } = new();
 }
 
-/// <summary>一条收藏记录的最小元数据。</summary>
+public sealed class MusicPlaylist
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    public string Name { get; set; } = string.Empty;
+
+    public List<MusicFavoriteEntry> Tracks { get; set; } = new();
+}
+
 public sealed class MusicFavoriteEntry
 {
     public string Id { get; set; } = string.Empty;
@@ -53,13 +58,10 @@ public sealed class MusicFavoriteEntry
 
     public string Album { get; set; } = string.Empty;
 
-    /// <summary>local / netease。</summary>
     public string Source { get; set; } = "netease";
 
-    /// <summary>本地文件路径（云歌曲为空）。</summary>
     public string LocalPath { get; set; } = string.Empty;
 
-    /// <summary>专辑封面地址（云歌曲）。</summary>
     public string CoverUrl { get; set; } = string.Empty;
 
     public double DurationMs { get; set; }
@@ -103,7 +105,6 @@ public static class MusicStore
     private static readonly YamlDotNet.Serialization.IDeserializer Deserializer =
         new YamlDotNet.Serialization.DeserializerBuilder().IgnoreUnmatchedProperties().Build();
 
-    /// <summary>最近一次读 / 写失败的说明（供界面或诊断查看，不阻断播放）。</summary>
     public static string? LastError { get; private set; }
 
     private static void LogFailure(string message)
@@ -112,7 +113,6 @@ public static class MusicStore
         System.Diagnostics.Debug.WriteLine("[music] " + message);
     }
 
-    /// <summary>音乐设置：{DataRoot}/Mofumofu/config/music.yaml（与主设置同目录）。</summary>
     public static string SettingsPath => Path.Combine(
         MofuCore.Config.YamlRead.ConfigDirectory,
         "music.yaml");
@@ -132,6 +132,11 @@ public static class MusicStore
                     parsed.Folders ??= new();
                     parsed.Favorites ??= new();
                     parsed.FavoriteDetails ??= new();
+                    parsed.Playlists ??= new();
+                    foreach (var playlist in parsed.Playlists)
+                    {
+                        playlist.Tracks ??= new();
+                    }
                     if (parsed.Volume <= 0) parsed.Volume = 72;
 
                     // Unprotect 解密失败时会原样返回密文，绝不能把它当作 Cookie 使用或回写。
@@ -171,13 +176,11 @@ public static class MusicStore
         }
         catch (Exception exception)
         {
-            // 写失败不影响播放，但要留下可诊断的记录。
             LogFailure("保存音乐设置失败：" + exception.Message);
         }
     }
 }
 
-/// <summary>本地音乐扫描：只看扩展名，不依赖第三方标签库。</summary>
 public static class LocalMusicLibrary
 {
     private static readonly string[] SupportedExtensions =

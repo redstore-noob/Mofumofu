@@ -19,15 +19,9 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>
-/// 桌面小组件的具体卡片（启动 / 存档 / 进服 / 服务器 / 日志 / 收藏 / 快照 / 下载）。
-/// 每张卡片统一的结构：大号数值 + 状态胶囊 + 可操作列表。
-/// </summary>
 internal static partial class WidgetCards
 {
     private static string SelectedInstanceName => GameState.SelectedVersion;
-
-    // ================= 最近存档（真实：扫描所有实例的 saves/*，点击直接进存档） =================
 
     public static Control RecentWorlds()
     {
@@ -59,7 +53,6 @@ internal static partial class WidgetCards
 
                 foreach (var item in worlds.Take(5))
                 {
-                    // 隔离实例的存档显示归属实例；共享目录的存档跟随当前选中实例启动
                     var subtitle = item.InstanceId is { } instanceId
                         ? L.T("Home.Worlds.SubtitleInstance", "{0} · {1} · {2}",
                             instanceId, item.World.LastWrite.ToString("MM-dd HH:mm"), WidgetBackend.FormatSize(item.World.SizeBytes))
@@ -96,7 +89,6 @@ internal static partial class WidgetCards
         return card;
     }
 
-    /// <summary>打开本机游戏目录（真实文件管理器）。</summary>
     private static void OpenGameFolder()
     {
         try
@@ -116,8 +108,6 @@ internal static partial class WidgetCards
             Shell.Toast(L.T("Home.Worlds.OpenFolderFailed", "打开游戏目录失败"));
         }
     }
-
-    // ================= 托管服务器（真实：MofuCore.Server.ServerManage） =================
 
     public static Control HostedServer()
     {
@@ -176,7 +166,6 @@ internal static partial class WidgetCards
         return card;
     }
 
-    /// <summary>一台真实托管服务器：名字/版本/端口/在线数来自 ServerManage.ListServerInfos()。</summary>
     private static Control BuildHostedServerRow(ServerInfo server, Action refresh)
     {
         var running = server.Status == ServerManage.StatusRunning;
@@ -244,8 +233,6 @@ internal static partial class WidgetCards
         refresh();
     }
 
-    // ================= 运行日志 =================
-
     public static Control LaunchLog()
     {
         var rowsHost = new StackPanel { Spacing = 2 };
@@ -311,7 +298,6 @@ internal static partial class WidgetCards
 
         body.Children.Add(WidgetChrome.LinkButton(L.T("Home.Log.Export", "导出日志"), () => _ = ExportLogAsync(), "IconFluentDocument"));
 
-        // 每次回到桌面页、以及游戏状态变化时刷新一次日志
         WidgetChrome.OnBecameVisible(card, Refresh);
         GameState.Changed += Refresh;
         WidgetChrome.OnDetach(card, () => GameState.Changed -= Refresh);
@@ -367,7 +353,6 @@ internal static partial class WidgetCards
         return row;
     }
 
-    /// <summary>解析 <c>[time][TYPE]message</c> 格式的日志行。</summary>
     private static (string Time, string Type, string Message) ParseLogLine(string line)
     {
         if (!line.StartsWith("[", StringComparison.Ordinal)) return (string.Empty, string.Empty, line);
@@ -407,8 +392,6 @@ internal static partial class WidgetCards
             Shell.Toast(L.T("Home.Log.ExportFailed", "日志导出失败"));
         }
     }
-
-    // ================= 常用实例（真实：扫描 versions/*） =================
 
     public static Control Favorites()
     {
@@ -496,9 +479,6 @@ internal static partial class WidgetCards
         return card;
     }
 
-    // ================= 时光回溯（横向迷你时间轴） =================
-
-    /// <summary>时间轴上的一个节点：时间为空表示只知道"有快照"（无法定位到具体目录）。</summary>
     private sealed record RewindPoint(DateTimeOffset? Time, string Color, bool IsLatest);
 
     public static Control Rewind()
@@ -538,32 +518,27 @@ internal static partial class WidgetCards
             else Dispatcher.UIThread.Post(Update);
         }
 
-        // 不预填假快照：真实数据回来前显示空态，读不到就一直是空态
         Apply(Array.Empty<RewindPoint>(), 0, 0, L.T("Home.Rewind.EmptyHint", "在实例页的 Rewind 弹窗里新建快照"));
         _ = LoadRewindAsync(Apply);
 
         return card;
     }
 
-    /// <summary>横向迷你时间轴：一条主轴 + 从左（旧）到右（新）的圆点，最新一个带光环与「最新」。</summary>
     private static Control BuildRewindTimeline(IReadOnlyList<RewindPoint> points)
     {
         if (points.Count == 0) return WidgetChrome.Empty(L.T("Home.Rewind.Empty", "还没有快照"));
 
-        // 只画最近 12 个（数据已按从旧到新排序）
         var visible = points.Count > 12 ? points.Skip(points.Count - 12).ToList() : points;
         var columns = visible.Count;
 
         var grid = new Grid
         {
-            // 左右各留一点边距：最边上的圆点/时间标签不会被卡片边缘裁掉
             Margin = new Thickness(14, 0, 14, 0),
             RowDefinitions = new RowDefinitions("Auto,28,Auto"),
             ColumnDefinitions = new ColumnDefinitions(string.Join(",", Enumerable.Repeat("*", columns))),
             ClipToBounds = false,
         };
 
-        // 主轴：一条细线横穿全部节点
         var axis = new Border
         {
             Height = 1,
@@ -581,7 +556,6 @@ internal static partial class WidgetCards
         for (var index = 0; index < columns; index++)
         {
             var point = visible[index];
-            // 越久远的点越小；最新一个稍大
             var size = point.IsLatest ? 11 : Math.Clamp(4.5 + index * 0.7, 4.5, 9);
 
             if (point.IsLatest)
@@ -669,7 +643,6 @@ internal static partial class WidgetCards
         return grid;
     }
 
-    /// <summary>快照的标记色键 → 主题令牌画刷（内容色只做语义映射，不写死色值）。</summary>
     private static IBrush RewindColorBrush(string? color) => color switch
     {
         "primary" => ThemeTokens.Brush("NekoAccentBrush"),
@@ -727,14 +700,12 @@ internal static partial class WidgetCards
         }
         catch
         {
-            // 读取失败保持空态，不影响桌面其它组件
         }
 
         apply(Array.Empty<RewindPoint>(), 0, 0,
             L.T("Home.Rewind.EmptyHint", "在实例页的 Rewind 弹窗里新建快照"));
     }
 
-    /// <summary>按当前选中实例找 Rewind 目标目录（实例目录优先，其次存档目录）。</summary>
     private static string? FindRewindTarget()
     {
         try
@@ -752,7 +723,6 @@ internal static partial class WidgetCards
         }
         catch
         {
-            // 游戏目录不可读时按没有处理
         }
 
         return null;
@@ -765,8 +735,6 @@ internal static partial class WidgetCards
         if (bytes >= 1024) return $"{bytes / 1024d:0} KB";
         return $"{bytes} B";
     }
-
-    // ================= 下载任务（真实：DownloadTaskService 全局任务中心） =================
 
     public static Control Download()
     {
@@ -795,7 +763,6 @@ internal static partial class WidgetCards
                 return;
             }
 
-            // 进行中的排前面，其余按原顺序收尾；最多显示 4 条
             foreach (DownloadTaskSnapshot task in tasks
                          .OrderBy(item => item.State is DownloadTaskState.Downloading or DownloadTaskState.Paused ? 0 : 1)
                          .Take(4))

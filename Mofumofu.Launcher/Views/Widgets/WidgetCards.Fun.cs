@@ -16,7 +16,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>内容 / 趣味类小组件卡片：音乐 / RSS / 运势 / 一言 / 问候 / 倒计时 / 时钟 / 日历 / 番茄钟 / 每日种子。</summary>
 internal static partial class WidgetCards
 {
     private static readonly string[] WeekdayKeys =
@@ -29,8 +28,6 @@ internal static partial class WidgetCards
 
     private static string WeekdayName(DayOfWeek day) =>
         L.T(WeekdayKeys[(int)day], WeekdayFallbacks[(int)day]);
-
-    // ================= 音乐控制（真实播放状态，走全局 MusicService） =================
 
     public static Control Music()
     {
@@ -46,7 +43,6 @@ internal static partial class WidgetCards
         metaText.TextTrimming = TextTrimming.CharacterEllipsis;
         metaText.MaxLines = 1;
 
-        // 播放/暂停按钮要换图标，不用 IconButton 的封装，自己持有图标引用
         var playIcon = WidgetChrome.Icon("IconPlay", 13, "NekoTextBrush");
         playIcon.HorizontalAlignment = HorizontalAlignment.Center;
         playIcon.VerticalAlignment = VerticalAlignment.Center;
@@ -112,16 +108,12 @@ internal static partial class WidgetCards
             root);
     }
 
-    // ================= RSS 订阅（未接入 → 空态） =================
-
     public static Control RssFeed() =>
         WidgetChrome.EmptyStateCard(
             "IconFluentRss",
             L.T("Home.Rss.EmptyHint", "RSS 订阅还没有接入真实后端；接入后会在这里显示订阅条目"),
             L.T("Home.Rss.Manage", "管理订阅"),
             () => Shell.Go("plugins"));
-
-    // ================= 今日运气 =================
 
     private static int _luckRefresh;
 
@@ -132,7 +124,6 @@ internal static partial class WidgetCards
         var luck = ComputeFortune(day);
 
         var body = new StackPanel { Spacing = 8 };
-        // 运势是每天固定的小装饰，不是统计值：不显示分数
         body.Children.Add(new TextBlock
         {
             Text = $"{day} {WeekdayName(now.DayOfWeek)}",
@@ -166,7 +157,6 @@ internal static partial class WidgetCards
         return WidgetChrome.Card(LuckLevelName(luck.Level), null, body);
     }
 
-    /// <summary>运势档位中文（数据层）→ 语言包里的显示名。</summary>
     private static string LuckLevelName(string level) => level switch
     {
         "大吉" => L.T("Home.Luck.Level.Great", "大吉"),
@@ -180,7 +170,6 @@ internal static partial class WidgetCards
 
     private sealed record Fortune(string Level, int Score, string Good, string Bad, string ColorName, string ColorHex, int Number);
 
-    /// <summary>日期 + 固定设备码决定当日运势（同一台机器同一天结果恒定）。</summary>
     private static Fortune ComputeFortune(string day)
     {
         var seed = day.Aggregate(2166136261u, (current, ch) => (current ^ ch) * 16777619u) ^ (uint)_luckRefresh;
@@ -224,8 +213,6 @@ internal static partial class WidgetCards
         }
     }
 
-    // ================= 一言 =================
-
     private static int _hitokotoIndex;
 
     public static Control Hitokoto()
@@ -234,7 +221,6 @@ internal static partial class WidgetCards
         var quoteText = WidgetChrome.Text(L.T("Home.Hitokoto.Quote", "「{0}」", quote.Text), WidgetChrome.BodySize + 1, "NekoTextBrush");
         quoteText.TextWrapping = TextWrapping.Wrap;
 
-        // 内置句子属于装饰内容，不再挂「来源」字样（避免看起来像真实统计数据）
         var body = new StackPanel { Spacing = 6, Children = { quoteText } };
 
         return WidgetChrome.Card(L.T("Home.Hitokoto.Title", "一言"),
@@ -245,8 +231,6 @@ internal static partial class WidgetCards
             }),
             body);
     }
-
-    // ================= 问候 =================
 
     public static Control Greeting()
     {
@@ -262,8 +246,6 @@ internal static partial class WidgetCards
 
         return WidgetChrome.Card($"{emoji} {greeting}", null, body);
     }
-
-    // ================= 假期倒计时 =================
 
     public static Control Countdown()
     {
@@ -348,8 +330,6 @@ internal static partial class WidgetCards
         _ => L.T("Home.Countdown.InDays", "{0} 天后", days),
     };
 
-    // ================= 时钟 =================
-
     public static Control Clock()
     {
         var timeText = WidgetChrome.Text(DateTime.Now.ToString("HH:mm:ss"), 26, "NekoTextBrush", FontWeight.Bold);
@@ -370,8 +350,6 @@ internal static partial class WidgetCards
         WidgetChrome.OnDetach(card, () => timer.Stop());
         return card;
     }
-
-    // ================= 日历 =================
 
     public static Control Calendar()
     {
@@ -477,8 +455,6 @@ internal static partial class WidgetCards
 
     private static readonly string[] CalendarWeekdayFallbacks = { "日", "一", "二", "三", "四", "五", "六" };
 
-    // ================= 截图墙（无截图扫描后端 → 空态） =================
-
     public static Control Screenshots()
     {
         var shots = new List<WidgetBackend.ScreenshotInfo>();
@@ -566,16 +542,12 @@ internal static partial class WidgetCards
         return card;
     }
 
-    // ================= 成就目标（无游玩时长统计 → 空态） =================
-
     public static Control Goal() =>
         WidgetChrome.EmptyStateCard(
             "IconFluentTarget",
             L.T("Home.Goal.EmptyHint", "游玩时长统计还没有接入真实数据，暂时无法计算目标进度"),
             L.T("Home.Goal.Open", "前往实例页"),
             () => Shell.Go("instances"));
-
-    // ================= 番茄钟（25 分钟专注 / 5 分钟休息） =================
 
     public static Control Pomodoro()
     {
@@ -704,7 +676,6 @@ internal static partial class WidgetCards
         controls.Children.Add(WidgetChrome.IconButton("IconMediaNext",
             L.T("Home.Pomodoro.SkipTip", "跳到下一阶段"), () => AdvancePhase(false)));
 
-        // 以目标时间计算剩余量，UI 卡顿或定时器延迟不会累积成计时误差。
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         timer.Tick += (_, _) =>
         {
@@ -719,8 +690,6 @@ internal static partial class WidgetCards
         Render();
         return card;
     }
-
-    // ================= 每日种子（本地日期决定，同一天固定） =================
 
     public static Control DailySeed()
     {
@@ -774,7 +743,6 @@ internal static partial class WidgetCards
         valueText.FontFamily = new FontFamily("Consolas, Microsoft YaHei");
         valueText.FontSize = 18;
 
-        // 跨午夜后自动换一颗；回到桌面时也会立即校对日期。
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         timer.Tick += (_, _) =>
         {
@@ -788,7 +756,6 @@ internal static partial class WidgetCards
         return card;
     }
 
-    /// <summary>以固定前缀和本地日期做 64 位 FNV-1a，结果直接映射到 MC 的有符号种子空间。</summary>
     private static long ComputeDailySeed(DateTime date)
     {
         var key = "Mofumofu:" + date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

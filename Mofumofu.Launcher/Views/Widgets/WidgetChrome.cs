@@ -13,17 +13,12 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>
-/// 小组件通用外观：统一卡片外壳（大号数值 + 右上角操作 + 可滚动内容区）
-/// 与一组排版小工具。所有颜色都取主题令牌（PLAN.md 第 3 节），不写死色值。
-/// </summary>
 internal static class WidgetChrome
 {
     public const double CaptionSize = 10.5;
     public const double BodySize = 11.5;
     public const double ValueSize = 20;
 
-    /// <summary>卡片外壳：主题令牌描边 + 半透明底，内容区可滚动。</summary>
     public static Border Card(Control content, bool live = false) =>
         new()
         {
@@ -35,11 +30,9 @@ internal static class WidgetChrome
             Child = content,
         };
 
-    /// <summary>标准卡片：顶部大号数值行（可带操作按钮），下面接内容。</summary>
     public static Border Card(string value, Control? action, Control? body, bool live = false) =>
         CardWithValue(value, action, body, live).Card;
 
-    /// <summary>标准卡片，同时把大号数值的 TextBlock 交给调用方更新（开关类卡片用）。</summary>
     public static (Border Card, TextBlock ValueText) CardWithValue(
         string value, Control? action, Control? body, bool live = false)
     {
@@ -75,7 +68,6 @@ internal static class WidgetChrome
         return (Card(grid, live), valueText);
     }
 
-    /// <summary>内容区：外层卡片高度固定时超出部分滚动（滚动条隐藏，只留滚轮）。</summary>
     public static ScrollViewer Body(Control content) =>
         new()
         {
@@ -128,7 +120,6 @@ internal static class WidgetChrome
         };
     }
 
-    /// <summary>从 avares 资源加载位图；失败时回落到图标磁贴。</summary>
     public static Control AssetImage(string assetUri, double size, string fallbackIcon = "IconFluentCube")
     {
         try
@@ -147,13 +138,11 @@ internal static class WidgetChrome
         }
     }
 
-    /// <summary>透明图标按钮（卡片右上角的刷新 / 关闭之类）。</summary>
     public static Button IconButton(string iconKey, string tip, Action onClick, double size = 26)
     {
         return IconButton(iconKey, tip, _ => onClick(), size);
     }
 
-    /// <summary>同上，但回调能拿到按钮本身——往弹窗传触发控件（anchor）时用这个。</summary>
     public static Button IconButton(string iconKey, string tip, Action<Button> onClick, double size = 26)
     {
         var icon = Icon(iconKey, 12, "NekoMutedBrush");
@@ -177,7 +166,6 @@ internal static class WidgetChrome
         return button;
     }
 
-    /// <summary>文字胶囊（状态 / 计数 / 标签）。</summary>
     public static Border Pill(string text, string foregroundToken = "NekoAccentBrush", string backgroundToken = "NekoAccentSoftBrush")
     {
         return new Border
@@ -196,7 +184,6 @@ internal static class WidgetChrome
         };
     }
 
-    /// <summary>进度条（自绘，避免平台 ProgressBar 的固定高度与主题色）。</summary>
     public static Grid Bar(double percent, string brushKey = "NekoAccentBrush", double height = 5)
     {
         var clamped = Math.Clamp(percent, 0, 100);
@@ -253,7 +240,6 @@ internal static class WidgetChrome
         return stack;
     }
 
-    /// <summary>「左文本 + 右附件」的一行：用 Grid 保证右侧贴边。</summary>
     public static Grid Line(Control left, Control? right = null, double spacing = 8)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
@@ -271,7 +257,6 @@ internal static class WidgetChrome
         return grid;
     }
 
-    /// <summary>「图标 + 两行文本 + 右侧附件」列表条目（卡片主体列表的通用行）。</summary>
     public static Grid ListItem(string iconKey, string title, string subtitle, Control? trailing = null, double iconSize = 26)
     {
         var texts = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
@@ -303,7 +288,6 @@ internal static class WidgetChrome
         return grid;
     }
 
-    /// <summary>小号文字按钮（胶囊样式，常用于「前往某页」「管理」这类入口）。</summary>
     public static Button LinkButton(string text, Action onClick, string iconKey = "")
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, VerticalAlignment = VerticalAlignment.Center };
@@ -329,7 +313,6 @@ internal static class WidgetChrome
         return button;
     }
 
-    /// <summary>可选中的胶囊切片（快速设置 / 快捷入口用）。</summary>
     public static Button ChipButton(string text, string iconKey, Action onClick)
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, VerticalAlignment = VerticalAlignment.Center };
@@ -349,7 +332,6 @@ internal static class WidgetChrome
         return button;
     }
 
-    /// <summary>空态占位块（「暂无记录」之类）。</summary>
     public static Border Empty(string text) => new()
     {
         Background = ThemeTokens.Brush("NekoFieldSoftBrush"),
@@ -366,9 +348,6 @@ internal static class WidgetChrome
         },
     };
 
-    /// <summary>
-    /// 诚实的空态卡片：没有真实数据时显示「暂无数据 + 说明 + 跳转按钮」，不编造列表/数字。
-    /// </summary>
     public static Border EmptyStateCard(string iconKey, string hint, string actionText, Action action)
     {
         var tile = IconTile(iconKey, 32);
@@ -395,7 +374,6 @@ internal static class WidgetChrome
         return Card(L.T("Home.Empty.NoData", "暂无数据"), null, body);
     }
 
-    /// <summary>带图标 + 文本的提示行（错误 / 提醒）。</summary>
     public static Border Notice(string text, string foregroundToken = "NekoDangerBrush", string backgroundToken = "NekoDangerSoftBrush") =>
         new()
         {
@@ -412,7 +390,6 @@ internal static class WidgetChrome
             }),
         };
 
-    /// <summary>把控件包一层「小图标 + 文本」的行内块。</summary>
     public static StackPanel InlineIcon(string iconKey, string text, string brushKey = "NekoDimBrush", double iconSize = 11) =>
         Row(5, Icon(iconKey, iconSize, brushKey), new TextBlock
         {
@@ -422,14 +399,9 @@ internal static class WidgetChrome
             VerticalAlignment = VerticalAlignment.Center,
         });
 
-    /// <summary>卡片从可视树摘下时执行清理（主题切换重建卡片时解除旧事件订阅）。</summary>
     public static void OnDetach(Control control, Action cleanup) =>
         control.DetachedFromVisualTree += (_, _) => cleanup();
 
-    /// <summary>
-    /// 卡片挂回可视树时执行一次（切回桌面页 / 主题切换重建卡片时刷新数据用）。
-    /// 主页缓存复用同一个 HomeView，所以离开再回来会重新触发 AttachedToVisualTree。
-    /// </summary>
     public static void OnBecameVisible(Control control, Action action) =>
         control.AttachedToVisualTree += (_, _) => action();
 }

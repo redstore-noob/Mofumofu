@@ -31,18 +31,14 @@
         </controls:PageHeader>
 
         <Grid Grid.Row="1" ColumnDefinitions="236,*" Margin="0,2,0,0">
-<!-- ============ 左侧：8 个工具 ============ -->
             <suki:GlassCard Grid.Column="0" CornerRadius="18" Padding="12,14"
                             Margin="0,0,16,0" VerticalAlignment="Stretch">
                 <StackPanel x:Name="ToolNavPanel" Spacing="4" />
             </suki:GlassCard>
 
-<!-- ============ 右侧：当前工具 ============ -->
             <Grid Grid.Column="1">
-<!-- 普通工具页（代码里按工具 id 构建并缓存） -->
                     <ContentControl x:Name="ToolBody" />
 
-<!-- 3D 文字生成器：左侧 Avalonia 参数面板（跟随主题），右侧内嵌 WebView2 预览 -->
                     <Grid x:Name="CubeTextPanel" IsVisible="False"
                           ColumnDefinitions="330,*">
                         <ScrollViewer Grid.Column="0"
@@ -51,7 +47,6 @@
                                       Padding="0,0,10,0">
                             <StackPanel Margin="0,0,0,14">
 
-<!-- ===== 文字与字体 ===== -->
                                 <Border Classes="setting-group">
                                     <StackPanel>
                                         <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
@@ -87,7 +82,6 @@
                                     </StackPanel>
                                 </Border>
 
-<!-- ===== 几何参数 ===== -->
                                 <Border Classes="setting-group">
                                     <StackPanel>
                                         <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
@@ -143,7 +137,6 @@
                                     </StackPanel>
                                 </Border>
 
-<!-- ===== 颜色与材质 ===== -->
                                 <Border Classes="setting-group">
                                     <StackPanel>
                                         <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
@@ -215,7 +208,6 @@
                                     </StackPanel>
                                 </Border>
 
-<!-- ===== 预览选项 ===== -->
                                 <Border Classes="setting-group">
                                     <StackPanel>
                                         <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">

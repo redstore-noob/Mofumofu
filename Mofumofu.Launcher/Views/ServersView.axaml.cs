@@ -23,6 +23,7 @@ using System.Xml;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Highlighting.Xshd;
+using AvaloniaEdit.Search;
 using Avalonia.VisualTree;
 using SukiUI.Controls;
 using MofuCore.Tools;
@@ -38,25 +39,17 @@ using Mofumofu.Launcher.Services;
 using L = Mofumofu.Launcher.Localization.Localization;
 using CoreBackup = MofuCore.Server.ServerBackup;
 using CoreBackupInfo = MofuCore.Server.ServerBackupInfo;
-using CoreCreateOptions = MofuCore.Server.CreateOptions;
-using CoreInstallOptions = MofuCore.Server.ServerDownload.InstallOptions;
-using CoreInstallProgress = MofuCore.Server.ServerDownload.InstallProgress;
 using CoreOpEntry = MofuCore.Server.OpEntry;
 using CorePlayers = MofuCore.Server.ServerPlayers;
 using CoreProperties = MofuCore.Server.ServerProperties;
 using CoreProperty = MofuCore.Server.ServerProperty;
 using CoreServer = MofuCore.Server.ServerManage;
-using CoreServerDownload = MofuCore.Server.ServerDownload;
 using CoreServerInfo = MofuCore.Server.ServerInfo;
 using CoreServerPackage = MofuCore.Server.ServerPackage;
 using CoreWhitelistEntry = MofuCore.Server.WhitelistEntry;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 服务器页：顶部统计 chips + 左栏服务器列表 + 右栏详情（启停、玩家、白名单/OP、控制台、备份）。
-/// 列表全部来自 MofuCore 的本机服务器实例，没有示例数据。
-/// </summary>
 public partial class ServersView : UserControl
 {
 
@@ -75,6 +68,8 @@ public partial class ServersView : UserControl
     private string _fileRelativePath = string.Empty;
     private string? _openFileRelativePath;
     private bool _editorDirty;
+    private double _editorFontSize = 13;
+    private SearchPanel? _searchPanel;
     private static bool _customHighlightingReady;
     private readonly Dictionary<string, Func<string>> _propertyGetters = new(StringComparer.OrdinalIgnoreCase);
 
@@ -84,6 +79,7 @@ public partial class ServersView : UserControl
 
         ConsoleList.ItemsSource = _consoleRows;
         FileEditor.TextArea.Caret.PositionChanged += (_, _) => UpdateEditorCaret();
+        ConfigureEditor();
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _refreshTimer.Tick += OnRefreshTick;
@@ -100,9 +96,11 @@ public partial class ServersView : UserControl
         {
             LoadDetail(selected);
         }
+        else
+        {
+            ShowEmptyDetail();
+        }
     }
-
-    // ---------------- 数据源：本机真实服务器 / Mock 回退 ----------------
 
     private bool LoadServers()
     {
@@ -144,13 +142,10 @@ public partial class ServersView : UserControl
         }
         catch (Exception)
         {
-            // server.properties 尚未生成时忽略
         }
 
         return "—";
     }
-
-    // ---------------- 列表 / 统计 ----------------
 
     private void RefreshServerList()
     {
@@ -170,6 +165,13 @@ public partial class ServersView : UserControl
 
         ServerList.ItemsSource = _visibleServers;
         CountText.Text = $"{filtered.Count} / {_allServers.Count}";
+        ListEmptyHint.IsVisible = filtered.Count == 0;
+        ListEmptyTitle.Text = _allServers.Count == 0
+            ? L.T("Servers.Empty.Title", "还没有服务器")
+            : L.T("Servers.List.Empty", "没有找到匹配的服务器");
+        ListEmptyText.Text = _allServers.Count == 0
+            ? L.T("Servers.Empty.Hint", "新建一台服务器，和好友一起开玩吧。")
+            : L.T("Servers.List.NoMatchHint", "换个关键词试试吧");
 
         var index = selectedId is not null
             ? filtered.FindIndex(s => s.ServerId == selectedId)
@@ -177,6 +179,12 @@ public partial class ServersView : UserControl
         if (index >= 0)
         {
             ServerList.SelectedIndex = index;
+        }
+        else if (filtered.Count == 0)
+        {
+            ServerList.SelectedIndex = -1;
+            _selectedServerId = null;
+            ShowEmptyDetail();
         }
     }
 
@@ -193,27 +201,38 @@ public partial class ServersView : UserControl
         var stopped = _allServers.Count - running;
         var players = _allServers.Where(s => s.Online).Sum(s => s.Players);
 
-        RunningChipText.Text = L.T("Servers.Chip.Running", "运行中 {0}", running);
-        TotalChipText.Text = L.T("Servers.Chip.Total", "共 {0} 台服务器", _allServers.Count);
-        StoppedChipText.Text = L.T("Servers.Chip.Stopped", "已停止 {0}", stopped);
-        PlayersChipText.Text = L.T("Servers.Chip.Players", "在线玩家 {0}", players);
+        RunningChipText.Text = running.ToString();
+        TotalChipText.Text = _allServers.Count.ToString();
+        StoppedChipText.Text = stopped.ToString();
+        PlayersChipText.Text = players.ToString();
+    }
+
+    private void ShowEmptyDetail()
+    {
+        DetailContent.IsVisible = false;
+        DetailEmpty.IsVisible = true;
+    }
+
+    private void ShowDetailContent()
+    {
+        DetailEmpty.IsVisible = false;
+        DetailContent.IsVisible = true;
     }
 
     private void OnServerSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (!_ready) return;
         if (ServerList.SelectedItem is ServerRow row) LoadDetail(row);
+        else ShowEmptyDetail();
     }
-
-    // ---------------- 详情 ----------------
 
     private void LoadDetail(ServerRow row)
     {
         _selectedServerId = row.ServerId;
+        ShowDetailContent();
 
         DetailName.Text = row.Name;
         DetailAddress.Text = row.Address;
-        DetailAddress2.Text = row.Address;
         DetailVersion.Text = row.Version;
         DetailMotd.Text = row.Motd;
         DetailPlayers.Text = L.T("Servers.Detail.PlayersCount", "{0} / {1} 名玩家", row.Players, row.MaxPlayers);
@@ -235,7 +254,6 @@ public partial class ServersView : UserControl
 
         ScrollConsoleToEnd();
 
-        // 详情切换：内容轻微上滑淡入（QA 关动画时内容直接可见）
         UiAnimations.Reset(DetailBody);
         UiAnimations.FadeSlideIn(DetailBody, 0.995, 6, 170);
     }
@@ -258,14 +276,11 @@ public partial class ServersView : UserControl
         ToggleButton.Classes.Set("ghost", online);
     }
 
-    // ---------------- 控制台 ----------------
-
     private void ClearConsole()
     {
         _consoleRows.Clear();
     }
 
-    /// <summary>首次进入时用 Poll 的环形缓冲回填历史日志，之后实时行走 ConsoleLine 事件。</summary>
     private void LoadConsoleHistory(string serverId)
     {
         try
@@ -354,8 +369,6 @@ public partial class ServersView : UserControl
             AppendSystemLine(e.Message);
         }
     }
-
-    // ---------------- 玩家 / 白名单 / OP ----------------
 
     private void RebuildUnavailablePlayers(ServerRow row)
     {
@@ -447,7 +460,6 @@ public partial class ServersView : UserControl
             }
             catch (Exception)
             {
-                // 服务器未运行或 RCON 不可达时保持空列表
             }
 
             Dispatcher.UIThread.Post(() =>
@@ -570,8 +582,6 @@ public partial class ServersView : UserControl
         }
     }
 
-    // ---------------- 备份 ----------------
-
     private void RefreshBackups(ServerRow row)
     {
         BackupPanel.Children.Clear();
@@ -649,7 +659,6 @@ public partial class ServersView : UserControl
             BackupPanel.Children.Add(grid);
         }
 
-        // 备份列表刷新（用户点「刷新」或刚做完备份）时逐行淡入
         UiAnimations.Stagger(BackupPanel.Children, step: 45, milliseconds: 180);
     }
 
@@ -696,8 +705,6 @@ public partial class ServersView : UserControl
         _ => $"{bytes} B",
     };
 
-    // ---------------- 定时刷新（状态 / 在线数 / 日志尾部） ----------------
-
     private void OnRefreshTick(object? sender, EventArgs e)
     {
         if (!_ready) return;
@@ -730,8 +737,6 @@ public partial class ServersView : UserControl
             RefreshOnlinePlayers(row);
         }
     }
-
-    // ---------------- 操作 ----------------
 
     private async void OnToggleServerClick(object? sender, RoutedEventArgs e)
     {
@@ -815,7 +820,6 @@ public partial class ServersView : UserControl
         }
         catch (Exception)
         {
-            // 剪贴板不可用时退回提示
         }
 
         Shell.Toast(L.T("Servers.Toast.Address", "服务器地址：{0}", row.Address));
@@ -828,6 +832,7 @@ public partial class ServersView : UserControl
         ServerList.SelectedIndex = _visibleServers.Count > 0 ? 0 : -1;
         UpdateChips();
         if (ServerList.SelectedItem is ServerRow row) LoadDetail(row);
+        else ShowEmptyDetail();
 
         Shell.Toast(_localMode
             ? L.T("Servers.Toast.Refreshed", "已刷新，共 {0} 台本机服务器", _allServers.Count)
@@ -892,207 +897,22 @@ public partial class ServersView : UserControl
         return -1;
     }
 
-    private async void OnCreateServerClick(object? sender, RoutedEventArgs e)
+    private void OnCreateServerClick(object? sender, RoutedEventArgs e)
     {
-        try
+        var dialog = new ServerCreateDialog();
+        dialog.ServerCreated += serverId =>
         {
-            Shell.Toast(L.T("Servers.Create.Loading", "正在获取可用的 Minecraft 版本…"));
-            IReadOnlyList<string> versions = await CoreServerDownload.ListMinecraftVersionsAsync(
-                CoreServerDownload.CoreKind.Vanilla);
-            if (versions.Count == 0)
-            {
-                Shell.Toast(L.T("Servers.Create.NoVersions", "没有获取到可用的 Minecraft 版本"));
-                return;
-            }
-
-            var nameBox = new TextBox
-            {
-                Height = 38,
-                Text = L.T("Servers.Create.DefaultName", "Mofu Server"),
-            };
-            var coreCombo = new ComboBox
-            {
-                ItemsSource = new List<string>
-                {
-                    L.T("Servers.Core.Vanilla", "Vanilla（原版）"),
-                    "Paper",
-                    "Fabric",
-                    "NeoForge",
-                },
-                SelectedIndex = 0,
-                Height = 38,
-            };
-            var versionCombo = new ComboBox
-            {
-                ItemsSource = versions.Take(100).ToList(),
-                SelectedIndex = 0,
-                Height = 38,
-            };
-            var portBox = new TextBox { Height = 38, Text = "25565" };
-            nameBox.Classes.Add("field");
-            portBox.Classes.Add("field");
-            var eulaCheck = new CheckBox
-            {
-                Content = L.T("Servers.Create.Eula", "我已阅读并同意 Minecraft EULA"),
-                FontSize = 12,
-            };
-            var statusText = new TextBlock
-            {
-                FontSize = 11.5,
-                Foreground = ThemeTokens.Brush("NekoMutedBrush"),
-                TextWrapping = TextWrapping.Wrap,
-            };
-            var progressBar = new ProgressBar
-            {
-                Height = 6,
-                Minimum = 0,
-                Maximum = 100,
-                IsVisible = false,
-            };
-            var createButton = new Button
-            {
-                Content = L.T("Servers.Create.Create", "创建服务器"),
-                Classes = { "primary", "dialog-action" },
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
-
-            var panel = new StackPanel { Spacing = 7, Width = 400 };
-            void AddLabel(string text) => panel.Children.Add(new TextBlock
-            {
-                Text = text,
-                Classes = { "field-label" },
-            });
-
-            AddLabel(L.T("Servers.Create.Name", "服务器名称"));
-            panel.Children.Add(nameBox);
-            AddLabel(L.T("Servers.Create.Core", "服务端核心"));
-            panel.Children.Add(coreCombo);
-            AddLabel(L.T("Servers.Create.Version", "Minecraft 版本"));
-            panel.Children.Add(versionCombo);
-            AddLabel(L.T("Servers.Create.Port", "端口"));
-            panel.Children.Add(portBox);
-            panel.Children.Add(eulaCheck);
-            panel.Children.Add(createButton);
-            panel.Children.Add(progressBar);
-            panel.Children.Add(statusText);
-
-            createButton.Click += async (_, _) =>
-            {
-                if (createButton.IsEnabled is false) return;
-                if (eulaCheck.IsChecked != true)
-                {
-                    statusText.Text = L.T("Servers.Create.EulaRequired",
-                        "需要先勾选同意 Minecraft EULA 才能创建服务器");
-                    return;
-                }
-
-                createButton.IsEnabled = false;
-                progressBar.IsVisible = true;
-                try
-                {
-                    string name = (nameBox.Text ?? string.Empty).Trim();
-                    if (name.Length == 0) name = L.T("Servers.Create.DefaultName", "Mofu Server");
-                    string minecraftVersion = versionCombo.SelectedItem as string ?? versions[0];
-                    int coreIndex = Math.Max(0, coreCombo.SelectedIndex);
-                    (string coreId, CoreServerDownload.CoreKind kind) = coreIndex switch
-                    {
-                        1 => (CoreServer.CorePaper, CoreServerDownload.CoreKind.Paper),
-                        2 => (CoreServer.CoreFabric, CoreServerDownload.CoreKind.Fabric),
-                        3 => (CoreServer.CoreNeoForge, CoreServerDownload.CoreKind.NeoForge),
-                        _ => (CoreServer.CoreVanilla, CoreServerDownload.CoreKind.Vanilla),
-                    };
-                    if (!int.TryParse((portBox.Text ?? string.Empty).Trim(), out int port)
-                        || port <= 0 || port > 65535)
-                    {
-                        port = 25565;
-                    }
-
-                    string serverId = await CoreServer.CreateServerAsync(
-                        new CoreCreateOptions
-                        {
-                            Name = name,
-                            Core = coreId,
-                            McVersion = minecraftVersion,
-                            Port = port,
-                            MaxPlayers = 20,
-                            AcceptEula = true,
-                        },
-                        async (directory, config, token) =>
-                        {
-                            var task = DownloadTaskService.Start(
-                                L.T("Servers.Create.TaskTitle", "服务器核心 · {0}", name),
-                                L.T("Servers.Create.Preparing", "正在准备服务端…"), canPause: true);
-                            using CancellationTokenSource linked =
-                                CancellationTokenSource.CreateLinkedTokenSource(token, task.Token);
-                            var progress = new Progress<CoreInstallProgress>(value =>
-                            {
-                                task.Report(value.Percentage, value.Detail);
-                                Dispatcher.UIThread.Post(() =>
-                                {
-                                    progressBar.Value = value.Percentage;
-                                    if (!string.IsNullOrWhiteSpace(value.Detail))
-                                    {
-                                        statusText.Text = value.Detail;
-                                    }
-                                });
-                            });
-                            try
-                            {
-                                await CoreServerDownload.InstallAsync(
-                                    new CoreInstallOptions
-                                    {
-                                        Core = kind,
-                                        MinecraftVersion = minecraftVersion,
-                                        CoreVersion = string.Empty,
-                                        ServerDirectory = directory,
-                                        AcceptEula = true,
-                                        Port = config.Port,
-                                        MaxPlayers = config.MaxPlayers,
-                                        Motd = config.Name,
-                                    },
-                                    progress,
-                                    linked.Token);
-                                task.Complete();
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                task.MarkCancelled();
-                                throw;
-                            }
-                            catch (Exception ex)
-                            {
-                                task.Fail(ex.Message);
-                                throw;
-                            }
-                        },
-                        CancellationToken.None);
-
-                    statusText.Text = L.T("Servers.Create.Done", "服务器创建完成");
-                    LoadServers();
-                    RefreshServerList();
-                    int index = IndexOfVisibleServer(serverId);
-                    ServerList.SelectedIndex = index >= 0 ? index : (_visibleServers.Count > 0 ? 0 : -1);
-                    UpdateChips();
-                    if (ServerList.SelectedItem is ServerRow created) LoadDetail(created);
-                    Shell.Toast(L.T("Servers.Create.Done", "服务器创建完成"));
-                }
-                catch (Exception ex)
-                {
-                    statusText.Text = L.T("Servers.Create.Failed", "创建服务器失败：{0}", ex.Message);
-                }
-                finally
-                {
-                    createButton.IsEnabled = true;
-                    progressBar.IsVisible = false;
-                }
-            };
-
-            Shell.Dialog(panel, L.T("Servers.Create.Title", "新建服务器"), sender as Control);
-        }
-        catch (Exception ex)
-        {
-            Shell.Toast(L.T("Servers.Create.Failed", "创建服务器失败：{0}", ex.Message));
-        }
+            LoadServers();
+            RefreshServerList();
+            int index = IndexOfVisibleServer(serverId);
+            ServerList.SelectedIndex = index >= 0
+                ? index
+                : (_visibleServers.Count > 0 ? 0 : -1);
+            UpdateChips();
+            if (ServerList.SelectedItem is ServerRow created) LoadDetail(created);
+            Shell.Toast(L.T("Servers.Create.Done", "服务器创建完成"));
+        };
+        Shell.Dialog(dialog, L.T("Servers.Create.Title", "新建服务器"), sender as Control);
     }
 
     private async void OnBackupClick(object? sender, RoutedEventArgs e)
@@ -1153,8 +973,6 @@ public partial class ServersView : UserControl
         }
     }
 
-    // ---------------- 生命周期：事件订阅 / 定时器 ----------------
-
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -1168,7 +986,6 @@ public partial class ServersView : UserControl
         _refreshTimer.Stop();
         base.OnDetachedFromVisualTree(e);
     }
-    // ================= 详情标签页 =================
 
     private void OnDetailTabClick(object? sender, RoutedEventArgs e)
     {
@@ -1209,11 +1026,8 @@ public partial class ServersView : UserControl
 
     private static void SetTabActive(Button button, bool active)
     {
-        button.Classes.Set("primary", active);
-        button.Classes.Set("ghost", !active);
+        button.Classes.Set("active", active);
     }
-
-    // ================= 文件管理器 + 文本编辑器 =================
 
     private sealed record FileEntryRow(string Name, bool IsDir, long Size, string Relative)
     {
@@ -1229,11 +1043,15 @@ public partial class ServersView : UserControl
 
     private void RefreshFiles()
     {
+        // 有未保存的修改时不刷新面板，避免直接丢弃编辑器里的内容
+        if (_editorDirty) return;
+
         FileList.ItemsSource = null;
         _openFileRelativePath = null;
         FileEditor.Text = string.Empty;
         FileEditorTitle.Text = string.Empty;
         FileEditorStatus.Text = string.Empty;
+        FileEditorDirty.IsVisible = false;
         FileEditorOverlay.IsVisible = false;
 
         if (!_localMode || _selectedServerId is not { } id)
@@ -1296,12 +1114,15 @@ public partial class ServersView : UserControl
             FileEditor.Text = CoreServerFiles.ReadText(id, entry.Relative);
             _openFileRelativePath = entry.Relative;
             _editorDirty = false;
+            FileEditorDirty.IsVisible = false;
             FileEditorTitle.Text = entry.Relative;
             ApplySyntaxHighlighting(entry.Relative);
             UpdateEditorCaret();
+            UpdateEditorZoom();
             FileEditorStatus.Text = L.T("Servers.Files.Opened", "已打开 {0}", entry.Relative);
             FileEditorOverlay.IsVisible = true;
             FileEditor.Focus();
+            FileEditor.ScrollToHome();
         }
         catch (Exception error)
         {
@@ -1309,42 +1130,179 @@ public partial class ServersView : UserControl
         }
     }
 
+    private void ConfigureEditor()
+    {
+        FileEditor.Options.ConvertTabsToSpaces = true;
+        FileEditor.Options.IndentationSize = 4;
+        FileEditor.Options.EnableHyperlinks = false;
+        FileEditor.Options.EnableEmailHyperlinks = false;
+        FileEditor.Options.EnableRectangularSelection = true;
+        FileEditor.Options.EnableTextDragDrop = true;
+        FileEditor.Options.AllowScrollBelowDocument = true;
+        _editorFontSize = FileEditor.FontSize;
+        UpdateEditorZoom();
+
+        try
+        {
+            _searchPanel = SearchPanel.Install(FileEditor);
+        }
+        catch (Exception error)
+        {
+            Debug.WriteLine($"[servers] SearchPanel install failed: {error.Message}");
+        }
+    }
+
     private void OnFileSaveClick(object? sender, RoutedEventArgs e) => SaveCurrentFile();
 
-    private void SaveCurrentFile()
+    private bool SaveCurrentFile()
     {
         if (_selectedServerId is not { } id || _openFileRelativePath is null)
         {
             FileEditorStatus.Text = L.T("Servers.Files.NoFile", "先双击打开一个文本文件");
-            return;
+            return false;
         }
 
         try
         {
             CoreServerFiles.WriteText(id, _openFileRelativePath, FileEditor.Text ?? string.Empty);
             _editorDirty = false;
+            FileEditorDirty.IsVisible = false;
             FileEditorStatus.Text = L.T("Servers.Files.Saved", "已保存 {0}", _openFileRelativePath);
             Shell.Toast(L.T("Servers.Files.SavedToast", "已保存 {0}", _openFileRelativePath));
+            return true;
         }
         catch (Exception error)
         {
             FileEditorStatus.Text = L.T("Servers.Files.SaveFailed", "保存失败：{0}", error.Message);
+            return false;
         }
     }
 
-    private void OnFileEditorCloseClick(object? sender, RoutedEventArgs e) => CloseFileEditor();
+    private void OnFileFindClick(object? sender, RoutedEventArgs e) => OpenSearchPanel();
+
+    private void OpenSearchPanel()
+    {
+        try
+        {
+            _searchPanel ??= SearchPanel.Install(FileEditor);
+            _searchPanel.Open();
+
+            string selected = FileEditor.SelectedText;
+            if (!string.IsNullOrWhiteSpace(selected) && !selected.Contains('\n'))
+            {
+                _searchPanel.SearchPattern = selected;
+            }
+        }
+        catch (Exception error)
+        {
+            Debug.WriteLine($"[servers] SearchPanel open failed: {error.Message}");
+        }
+    }
+
+    private void OnFileReloadClick(object? sender, RoutedEventArgs e) => RequestReloadFile();
+
+    private void RequestReloadFile()
+    {
+        if (_openFileRelativePath is null) return;
+
+        if (_editorDirty)
+        {
+            ShowConfirmDialog(
+                L.T("Servers.Files.Reload", "重新载入"),
+                L.T("Servers.Files.ReloadConfirm", "放弃未保存的更改并重新从磁盘载入吗？"),
+                ReloadCurrentFile);
+            return;
+        }
+
+        ReloadCurrentFile();
+    }
+
+    private void ReloadCurrentFile()
+    {
+        if (_selectedServerId is not { } id || _openFileRelativePath is null) return;
+
+        try
+        {
+            FileEditor.Text = CoreServerFiles.ReadText(id, _openFileRelativePath);
+            _editorDirty = false;
+            FileEditorDirty.IsVisible = false;
+            UpdateEditorCaret();
+            FileEditorStatus.Text = L.T("Servers.Files.Reloaded", "已重新载入 {0}", _openFileRelativePath);
+        }
+        catch (Exception error)
+        {
+            FileEditorStatus.Text = L.T("Servers.Files.ReloadFailed", "重新载入失败：{0}", error.Message);
+        }
+    }
+
+    private void OnFileZoomInClick(object? sender, RoutedEventArgs e) => SetEditorFontSize(_editorFontSize + 1);
+
+    private void OnFileZoomOutClick(object? sender, RoutedEventArgs e) => SetEditorFontSize(_editorFontSize - 1);
+
+    private void OnFileEditorPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        e.Handled = true;
+        SetEditorFontSize(_editorFontSize + (e.Delta.Y > 0 ? 1 : -1));
+    }
+
+    private void SetEditorFontSize(double size)
+    {
+        _editorFontSize = Math.Clamp(size, 10, 24);
+        FileEditor.FontSize = _editorFontSize;
+        UpdateEditorZoom();
+    }
+
+    private void UpdateEditorZoom()
+    {
+        FileEditorZoom.Text = L.T("Servers.Files.Zoom", "字号 {0}", (int)_editorFontSize);
+    }
+
+    private void OnFileEditorCloseClick(object? sender, RoutedEventArgs e) => RequestCloseFileEditor();
 
     private void OnFileEditorOverlayKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape) return;
         e.Handled = true;
-        CloseFileEditor();
+        RequestCloseFileEditor();
     }
 
     private void OnFileEditorOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, FileEditorOverlay)) return;
-        CloseFileEditor();
+        RequestCloseFileEditor();
+    }
+
+    private void RequestCloseFileEditor()
+    {
+        if (!_editorDirty)
+        {
+            CloseFileEditor();
+            return;
+        }
+
+        string name = _openFileRelativePath ?? FileEditorTitle.Text ?? string.Empty;
+        var content = MofuDialog.Stack(width: 420);
+        content.Children.Add(MofuDialog.Message(
+            L.T("Servers.Files.UnsavedMessage", "「{0}」还有未保存的更改，关闭后会丢失。", name)));
+
+        var cancel = MofuDialog.Secondary(
+            L.T("Common.Cancel", "取消"), () => MofuDialog.Close(content));
+        var discard = MofuDialog.Secondary(
+            L.T("Servers.Files.Discard", "不保存"), () =>
+            {
+                MofuDialog.Close(content);
+                CloseFileEditor();
+            });
+        var save = MofuDialog.Primary(
+            L.T("Servers.Files.SaveAndClose", "保存并关闭"), () =>
+            {
+                MofuDialog.Close(content);
+                if (SaveCurrentFile()) CloseFileEditor();
+            });
+
+        content.Children.Add(MofuDialog.Footer(cancel, discard, save));
+        Shell.Dialog(content, L.T("Servers.Files.UnsavedTitle", "未保存的更改"));
     }
 
     private void CloseFileEditor()
@@ -1352,10 +1310,10 @@ public partial class ServersView : UserControl
         FileEditorOverlay.IsVisible = false;
         FileEditorStatus.Text = string.Empty;
         FileEditorCaret.Text = string.Empty;
+        FileEditorZoom.Text = string.Empty;
+        FileEditorDirty.IsVisible = false;
         _editorDirty = false;
     }
-
-    // ================= 编辑器高亮与布局 =================
 
     private static readonly Dictionary<string, string> HighlightNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -1448,6 +1406,7 @@ public partial class ServersView : UserControl
         if (!FileEditorOverlay.IsVisible) return;
 
         _editorDirty = true;
+        FileEditorDirty.IsVisible = true;
         FileEditorStatus.Text = L.T("Servers.Files.Unsaved", "● 未保存（Ctrl+S 保存）");
         UpdateEditorCaret();
     }
@@ -1471,18 +1430,36 @@ public partial class ServersView : UserControl
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            CloseFileEditor();
+            RequestCloseFileEditor();
             return;
         }
 
-        if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        bool control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (!control) return;
+
+        if (e.Key == Key.S)
         {
             e.Handled = true;
             SaveCurrentFile();
         }
+        else if (e.Key is Key.OemPlus or Key.Add)
+        {
+            e.Handled = true;
+            SetEditorFontSize(_editorFontSize + 1);
+        }
+        else if (e.Key is Key.OemMinus or Key.Subtract)
+        {
+            e.Handled = true;
+            SetEditorFontSize(_editorFontSize - 1);
+        }
+        else if (e.Key is Key.D0 or Key.NumPad0)
+        {
+            e.Handled = true;
+            _editorFontSize = 13;
+            FileEditor.FontSize = _editorFontSize;
+            UpdateEditorZoom();
+        }
     }
-
-    // ================= 文件右键操作 =================
 
     private void OnFileListContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -1669,8 +1646,6 @@ public partial class ServersView : UserControl
         Shell.Dialog(content, title);
     }
 
-    // ================= Rewind 世界备份 =================
-
     private void OnRewindRefreshClick(object? sender, RoutedEventArgs e) => RefreshRewindBackups();
 
     private void RefreshRewindBackups()
@@ -1833,8 +1808,6 @@ public partial class ServersView : UserControl
             Shell.Toast(L.T("Servers.Rewind.DeleteFailed", "删除快照失败：{0}", error.Message));
         }
     }
-
-    // ================= server.properties 图形化 =================
 
     private sealed record PropertySpec(
         string Key,
@@ -2037,8 +2010,6 @@ public partial class ServersView : UserControl
         if (ServerList.SelectedItem is ServerRow row) LoadDetail(row);
     }
 
-    // ================= 导出 / 删除 =================
-
     private async void OnExportServerClick(object? sender, RoutedEventArgs e)
     {
         if (_selectedServerId is not { } id || !_localMode) return;
@@ -2108,6 +2079,8 @@ public partial class ServersView : UserControl
                 RefreshServerList();
                 UpdateChips();
                 ServerList.SelectedIndex = _visibleServers.Count > 0 ? 0 : -1;
+                if (ServerList.SelectedItem is ServerRow remaining) LoadDetail(remaining);
+                else ShowEmptyDetail();
                 Shell.Toast(L.T("Servers.Delete.Done", "已删除服务器「{0}」", name));
             }
             catch (Exception error)
@@ -2126,7 +2099,6 @@ public partial class ServersView : UserControl
 
 }
 
-/// <summary>服务器列表行：核心状态/在线数变化时刷新徽标、副标题与配色。</summary>
 public sealed class ServerRow : INotifyPropertyChanged
 {
     private string _status = CoreServer.StatusStopped;
@@ -2244,7 +2216,6 @@ public sealed class ServerRow : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 }
 
-/// <summary>控制台日志行（等级决定颜色）。支持解析 Minecraft 服务端原始日志行。</summary>
 public sealed class ConsoleRow
 {
     private static readonly Regex LogLinePattern = new(
@@ -2301,7 +2272,6 @@ public sealed class ConsoleRow
 
     public string Text { get; }
 
-    /// <summary>等级名来自语言包（内容仍是服务端原始日志文本，不翻译）。</summary>
     public string Level => _levelKey switch
     {
         "WARN" => L.T("Servers.Console.Level.Warn", "WARN"),

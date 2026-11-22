@@ -10,7 +10,6 @@ using MofuCore.Download;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>插件仓库托管平台：决定 Release API 与下载地址的拼法。</summary>
 public enum PluginRepoHost
 {
     GitHub,
@@ -18,10 +17,8 @@ public enum PluginRepoHost
     GitCode,
 }
 
-/// <summary>解析后的仓库引用：平台 + owner/repo，附带各平台的 API 与下载直链拼法。</summary>
 public sealed record PluginRepoRef(PluginRepoHost Host, string Owner, string Repo)
 {
-    /// <summary>owner/repo 形式的仓库标识。</summary>
     public string Slug => $"{Owner}/{Repo}";
 
     public string HostName => Host switch
@@ -31,7 +28,6 @@ public sealed record PluginRepoRef(PluginRepoHost Host, string Owner, string Rep
         _ => "GitHub",
     };
 
-    /// <summary>仓库主页；配置里保存的规范地址也是它（读旧配置时裸 owner/repo 仍按 GitHub 识别）。</summary>
     public string HomeUrl => Host switch
     {
         PluginRepoHost.Gitee => $"https://gitee.com/{Slug}",
@@ -39,7 +35,6 @@ public sealed record PluginRepoRef(PluginRepoHost Host, string Owner, string Rep
         _ => $"https://github.com/{Slug}",
     };
 
-    /// <summary>最新 Release 的 API 地址：GitHub 用 api.github.com，Gitee/GitCode 用各自的 v5 接口。</summary>
     public string LatestReleaseApiUrl => Host switch
     {
         PluginRepoHost.Gitee => $"https://gitee.com/api/v5/repos/{Slug}/releases/latest",
@@ -47,7 +42,6 @@ public sealed record PluginRepoRef(PluginRepoHost Host, string Owner, string Rep
         _ => $"https://api.github.com/repos/{Slug}/releases/latest",
     };
 
-    /// <summary>API 没给 browser_download_url 时按各平台约定拼附件下载直链。</summary>
     public string AssetDownloadUrl(string tag, string fileName) => Host switch
     {
         PluginRepoHost.Gitee => $"https://gitee.com/{Slug}/releases/download/{tag}/{Uri.EscapeDataString(fileName)}",
@@ -56,26 +50,20 @@ public sealed record PluginRepoRef(PluginRepoHost Host, string Owner, string Rep
     };
 }
 
-/// <summary>插件商店的一个可安装条目（来自某仓库的最新 Release）。</summary>
 public sealed record PluginStoreEntry(
-    string RepoUrl,        // 仓库地址（用户添加的原始链接）
-    string RepoName,       // owner/repo
-    string Name,           // 展示名（仓库名）
-    string Version,        // release tag（去掉 v 前缀）
-    string Notes,          // release 说明
-    string? AssetUrl,      // .nekoex 资产下载地址；null = 该 release 没有可安装资产
+    string RepoUrl,
+    string RepoName,
+    string Name,
+    string Version,
+    string Notes,
+    string? AssetUrl,
     string? AssetName,
     long AssetSize,
     string HostName = "GitHub")
 {
-    /// <summary>release 资产绑定的 SHA256 摘要（GitHub API 的 digest 字段），无则 null。</summary>
     public string? AssetDigest { get; init; }
 }
 
-/// <summary>
-/// 基于 Release 托管的插件仓库镜像（docs/Extension_Guide/5.基于Github仓库的镜像.md）：
-/// 支持 GitHub / Gitee / GitCode 三种源，流程一致：添加仓库 → 读最新 Release → 找 .nekoex 资产 → 下载安装。
-/// </summary>
 public static class PluginStore
 {
     private static readonly HttpClient Client = CreateClient();
@@ -114,7 +102,6 @@ public static class PluginStore
             if (at < 0) continue;
 
             string rest = trimmed[(at + marker.Length)..];
-            // api.github.com/repos/owner/repo 这类地址去掉中段再取 owner/repo
             if (rest.StartsWith("repos/", StringComparison.OrdinalIgnoreCase))
             {
                 rest = rest["repos/".Length..];
@@ -126,7 +113,6 @@ public static class PluginStore
                 : null;
         }
 
-        // 裸 owner/repo 形式：旧约定按 GitHub
         if (trimmed.Count(c => c == '/') == 1 &&
             trimmed.Contains(' ') == false &&
             trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase) == false)
@@ -138,10 +124,8 @@ public static class PluginStore
         return null;
     }
 
-    /// <summary>把仓库链接归一化为 owner/repo；无法识别时返回 null。</summary>
     public static string? NormalizeRepo(string url) => ParseRepo(url)?.Slug;
 
-    /// <summary>读取仓库最新 Release 的 .nekoex 条目；仓库无 Release 或无资产时 AssetUrl 为 null。</summary>
     public static async Task<PluginStoreEntry> FetchLatestAsync(string repoUrl, CancellationToken cancellationToken = default)
     {
         PluginRepoRef reference = ParseRepo(repoUrl)
@@ -180,7 +164,6 @@ public static class PluginStore
                 }
                 if (IsTrustedAssetUrl(listed) == false) continue;
 
-                // GitHub Releases API 的 digest（形如 "sha256:<hex>"），与资产绑定的官方摘要。
                 assetDigest = asset.TryGetProperty("digest", out var digestEl) ? digestEl.GetString() : null;
                 assetUrl = listed;
                 assetName = current;
@@ -202,7 +185,6 @@ public static class PluginStore
         };
     }
 
-    /// <summary>下载 .nekoex 到临时目录并安装（进度回报字节数）。</summary>
     public static async Task<string> InstallAsync(
         PluginStoreEntry entry,
         IProgress<long>? progress = null,
@@ -235,7 +217,7 @@ public static class PluginStore
         }
         finally
         {
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { /* 清理失败无所谓 */ }
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch {  }
         }
     }
 
@@ -250,7 +232,6 @@ public static class PluginStore
         if (uri.Scheme != Uri.UriSchemeHttps) return false;
 
         string host = uri.Host;
-        // GitHub 域白名单（与 GitHubUpdater 的口径一致）。
         if (host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
             || host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase)
             || host.Equals("githubusercontent.com", StringComparison.OrdinalIgnoreCase)
@@ -264,7 +245,6 @@ public static class PluginStore
                || host.EndsWith(".gitcode.com", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>把 GitHub API 的 digest（"sha256:&lt;hex&gt;"）规范化为 64 位十六进制；非法返回 null。</summary>
     private static string? NormalizeSha256(string? digest)
     {
         if (string.IsNullOrWhiteSpace(digest)) return null;
@@ -279,7 +259,6 @@ public static class PluginStore
         return value;
     }
 
-    /// <summary>落盘校验：size 与 release 声明一致，且（绑定了 digest 时）SHA256 匹配。</summary>
     private static void VerifyDownloadedAsset(string path, PluginStoreEntry entry)
     {
         var info = new FileInfo(path);
@@ -306,7 +285,6 @@ public static class PluginStore
         }
     }
 
-    /// <summary>已安装版本高于等于商店版本时无需更新。</summary>
     public static bool IsUpToDate(PluginStoreEntry entry)
     {
         PluginRuntime? installed = PluginManager.ById(RepoId(entry));
@@ -317,6 +295,5 @@ public static class PluginStore
         return current >= latest;
     }
 
-    /// <summary>用插件 id 关联商店条目：约定 manifest id = 仓库名（owner/repo 的 repo 段，小写不敏感）。</summary>
     public static string RepoId(PluginStoreEntry entry) => entry.RepoName.Split('/')[1];
 }

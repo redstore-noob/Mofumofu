@@ -27,7 +27,6 @@ public static class ScreenshotLibrary
 
     private static readonly object Gate = new();
 
-    /// <summary>清空代际：Clear 之后仍在进行的旧加载任务不再写回缓存，也不误删新的去重项。</summary>
     private static int _generation;
 
     private static readonly Dictionary<string, LinkedListNode<CacheEntry>> Memory = new(StringComparer.Ordinal);
@@ -254,7 +253,6 @@ public static class ScreenshotLibrary
     {
         lock (Gate)
         {
-            // Clear() 之后返回的旧请求丢弃结果，不再写回缓存；此时位图尚无外部持有者，及时释放
             if (generation != _generation)
             {
                 bitmap.Dispose();
@@ -268,7 +266,6 @@ public static class ScreenshotLibrary
             {
                 Lru.RemoveLast();
                 Memory.Remove(last.Value.Key);
-                // 缓存位图可能仍被外部调用方持有，淘汰/清空时不在此 Dispose（见需架构决策）
             }
             return true;
         }

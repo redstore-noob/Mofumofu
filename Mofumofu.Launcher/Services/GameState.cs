@@ -4,7 +4,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>游戏运行状态与当前选择（版本 / 账号），供开始栏、桌面启动卡与启动进度页共享。</summary>
 public static class GameState
 {
     private static readonly object _sync = new();
@@ -16,7 +15,6 @@ public static class GameState
 
     public static bool IsRunning { get { lock (_sync) return _isRunning; } }
 
-    /// <summary>当前选中的版本 id（开始栏下拉里选的，默认取本地设置/Mock）。</summary>
     public static string SelectedVersion
     {
         get
@@ -30,7 +28,6 @@ public static class GameState
         }
     }
 
-    /// <summary>当前选中的账号名。</summary>
     public static string SelectedAccount
     {
         get
@@ -48,7 +45,6 @@ public static class GameState
 
     public static string AccountName => SelectedAccount;
 
-    /// <summary>是否真的选了一个版本（默认占位文案不算）。</summary>
     public static bool HasSelectedVersion
     {
         get
@@ -62,7 +58,6 @@ public static class GameState
 
     public static event Action? Changed;
 
-    /// <summary>标记为运行中（启动进度页接管启动流程时用，不重复弹提示）。</summary>
     public static void Start()
     {
         lock (_sync)
@@ -83,7 +78,6 @@ public static class GameState
         RaiseChanged();
     }
 
-    /// <summary>开始栏切换版本。</summary>
     public static void SetVersion(string version)
     {
         lock (_sync)
@@ -95,7 +89,6 @@ public static class GameState
         RaiseChanged();
     }
 
-    /// <summary>开始栏切换账号。</summary>
     public static void SetAccount(string account)
     {
         lock (_sync)

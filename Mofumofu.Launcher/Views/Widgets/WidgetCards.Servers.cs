@@ -21,7 +21,6 @@ using Mofumofu.Launcher.Controls;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>桌面小组件卡片：收藏的外部服务器（多台，Server List Ping 实时状态）。</summary>
 internal static partial class WidgetCards
 {
     public static Control QuickServers()
@@ -45,7 +44,6 @@ internal static partial class WidgetCards
                 L.T("Home.Servers.Joining", "正在启动并进入 {0}", server.Name));
         }
 
-        // 点启动后：窗口级遮罩 + 贴着启动按钮弹出的版本选择面板（打开时从按钮位置蹦出来）
         async void ShowVersionPicker(QuickServerEntry server, Control anchor)
         {
             IReadOnlyList<WidgetBackend.InstanceInfo> instances;
@@ -98,8 +96,6 @@ internal static partial class WidgetCards
             Grid.SetRow(cancel, 3);
             body.Children.Add(cancel);
 
-            // 面板高度跟版本数量走（最多 MaxHeight），不再用固定高度留一大片空白；
-            // 卡片外观统一走 MofuCard.Popover，别手搓 Border（圆角/投影会和弹窗跑偏）
             var panel = MofuCard.Popover(body, new Thickness(12, 10, 12, 10));
             panel.Width = 300;
             panel.MaxHeight = 340;
@@ -205,13 +201,11 @@ internal static partial class WidgetCards
         return card;
     }
 
-    /// <summary>添加服务器弹窗：名字 + 地址（host / host:port），保存到本地设置。从触发的 + 按钮蹦出来。</summary>
     private static void ShowAddServerDialog(Control anchor)
     {
         var nameBox = MofuDialog.Input(hint: L.T("Home.Servers.NameHint", "显示名字（可留空，用地址）"));
         var addressBox = MofuDialog.Input(hint: L.T("Home.Servers.AddressHint", "例如：mc.hypixel.net 或 127.0.0.1:25565"));
 
-        // 标题、内边距由卡片骨架给；表单只负责字段顺序和间距
         var form = MofuDialog.Stack();
 
         void Submit()
@@ -244,7 +238,6 @@ internal static partial class WidgetCards
         Shell.Dialog(form, L.T("Home.Servers.AddTitle", "添加服务器"), anchor);
     }
 
-    /// <summary>弹窗内容里的按钮：取它所在的 MofuDialogHost 关掉当前弹窗。</summary>
     private static void CloseActiveDialog(object? source)    {
         if (source is Visual visual)
         {
@@ -253,7 +246,6 @@ internal static partial class WidgetCards
         }
     }
 
-    /// <summary>一行服务器：图标（favicon）/ 名字 / 彩色 MOTD / 在线人数 / 版本信息 / 一键进服 / 删除。</summary>
     private sealed class ServerRowPanel : Border
     {
         private static readonly Regex ServerVersionRegex = new(
@@ -352,7 +344,6 @@ internal static partial class WidgetCards
             texts.Children.Add(_nameText);
             texts.Children.Add(_motdHost);
 
-            // 浮层要以这个按钮为弹出原点，所以把按钮自己传出去
             Button? joinButton = null;
             var join = WidgetChrome.IconButton("IconPlay",
                 L.T("Home.Servers.JoinTip", "启动游戏并进入 {0}", server.Name),
@@ -396,7 +387,6 @@ internal static partial class WidgetCards
             Child = row;
         }
 
-        /// <summary>后台 ping 并把结果刷回 UI；onOnline 在服务器在线时回调一次。</summary>
         internal async Task PingAsync(Action onOnline)
         {
             var result = await ServerListPing.PingAsync(_server.Address).ConfigureAwait(true);
@@ -411,7 +401,6 @@ internal static partial class WidgetCards
                 ? L.T("Home.Servers.ToolTip", "{0} · {1}", _server.Address, version)
                 : _server.Address;
 
-            // 人数下面显示服务端加载器与 Minecraft 版本（离线时隐藏）
             var (loader, mcVersion) = ParseServerVersion(result.Online ? result.VersionName : null);
             _loaderText.Text = loader ?? string.Empty;
             _mcText.Text = mcVersion ?? string.Empty;
@@ -434,11 +423,9 @@ internal static partial class WidgetCards
                 }
                 catch
                 {
-                    // 图标解码失败时保留默认图标
                 }
             }
 
-            // MOTD 超过一行时不再省略，整行高度随内容变高
             var multiLine = CountMotdLines(result.Motd) > 1;
             _motdHost.MaxLines = multiLine ? 0 : 1;
             _motdHost.TextTrimming = multiLine ? TextTrimming.None : TextTrimming.CharacterEllipsis;
@@ -473,7 +460,6 @@ internal static partial class WidgetCards
             return (host, text);
         }
 
-        /// <summary>MOTD 的显式行数（§ 码已剥离，只数换行符）。</summary>
         private static int CountMotdLines(string? motd)
         {
             var text = MotdRenderer.Strip(motd);
@@ -488,7 +474,6 @@ internal static partial class WidgetCards
             return lines;
         }
 
-        /// <summary>从服务端返回的 version.name 里拆出加载器与 Minecraft 版本。</summary>
         private static (string? Loader, string? McVersion) ParseServerVersion(string? versionName)
         {
             var name = (versionName ?? string.Empty).Trim();

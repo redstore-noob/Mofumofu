@@ -21,10 +21,8 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>系统类小组件卡片：内存 / 性能 / Java / 磁盘 / 网络 / 皮肤。</summary>
 internal static partial class WidgetCards
 {
-    // ================= 内存监控 =================
 
     public static Control Memory()
     {
@@ -68,7 +66,6 @@ internal static partial class WidgetCards
             }
             catch
             {
-                // 采集失败保留上一次数值
             }
             finally
             {
@@ -107,7 +104,6 @@ internal static partial class WidgetCards
         return (row, value, bar);
     }
 
-    /// <summary>更新自绘进度条的比例（Bar 用两段星列当宽度，改列定义即改比例）。</summary>
     private static void SetBar(Grid bar, double percent)
     {
         var clamped = Math.Clamp(percent, 0, 100);
@@ -118,8 +114,6 @@ internal static partial class WidgetCards
 
     private static string FormatMemory(double megabytes) =>
         megabytes >= 1024 ? $"{megabytes / 1024:0.00} GB" : $"{megabytes:0} MB";
-
-    // ================= 性能监控 =================
 
     public static Control Performance()
     {
@@ -132,7 +126,6 @@ internal static partial class WidgetCards
         legend.Children.Add(BuildLegend(L.T("Home.Performance.Cpu", "CPU"), cpuValue, "NekoInfoBrush"));
         legend.Children.Add(BuildLegend(L.T("Home.Performance.Memory", "内存"), memoryValue, "NekoAccentBrush"));
 
-        // 折线图：CPU 与物理内存占用共用一个 0~100 的归一化坐标系
         var chart = new Grid { Height = 92, ClipToBounds = true };
         for (var tick = 0; tick <= 4; tick++)
         {
@@ -180,7 +173,6 @@ internal static partial class WidgetCards
             }
             catch
             {
-                // 采样失败保留上一条曲线
             }
             finally
             {
@@ -224,7 +216,6 @@ internal static partial class WidgetCards
         if (samples.Count > window) samples.RemoveAt(0);
     }
 
-    /// <summary>把一条 0~100 的序列画成折线（Stretch=Fill 自适应卡片宽度）。</summary>
     private static Path CreateSeriesPath(string brushKey) => new()
     {
         Stroke = ThemeTokens.Brush(brushKey),
@@ -253,8 +244,6 @@ internal static partial class WidgetCards
 
         return geometry;
     }
-
-    // ================= Java 环境 =================
 
     public static Control Java()
     {
@@ -333,21 +322,17 @@ internal static partial class WidgetCards
                 Shell.Toast(L.T("Home.Java.Refreshed", "Java 列表已刷新"));
             }));
 
-        // Java 探测开销大：进入桌面（每次可见）时跑一次，其余靠手动刷新
         WidgetChrome.OnBecameVisible(card, Refresh);
         Refresh();
         return card;
     }
 
-    /// <summary>路径尾部两段（避免长路径撑爆卡片）。</summary>
     private static string PathTail(string path)
     {
         var segments = path.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length == 0) return path;
         return segments.Length <= 2 ? string.Join('\\', segments) : string.Join('\\', segments[^2..]);
     }
-
-    // ================= 磁盘空间 =================
 
     public static Control Disk()
     {
@@ -389,7 +374,6 @@ internal static partial class WidgetCards
             busy = true;
             try
             {
-                // 每次采样都重新解析游戏目录：设置里改过目录后不用重建卡片
                 var usage = await MemoryRead.GetDiskUsageAsync(ResolveGameDirectory());
                 var total = usage.TotalBytes;
                 var free = Math.Max(0, usage.FreeBytes);
@@ -416,7 +400,6 @@ internal static partial class WidgetCards
             }
             catch
             {
-                // 读取失败保留上一次数值
             }
             finally
             {
@@ -424,7 +407,6 @@ internal static partial class WidgetCards
             }
         }
 
-        // 磁盘占用变化慢：30 秒采样一次即可；不可见时跳过
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         timer.Tick += (_, _) =>
         {
@@ -446,7 +428,6 @@ internal static partial class WidgetCards
         }
         catch
         {
-            // 配置不可读时用程序目录
         }
 
         return AppContext.BaseDirectory;
@@ -465,16 +446,12 @@ internal static partial class WidgetCards
         }
     }
 
-    // ================= 网络状态（无真实测速后端 → 空态） =================
-
     public static Control Network() =>
         WidgetChrome.EmptyStateCard(
             "IconFluentGlobe",
             L.T("Home.Network.EmptyHint", "下载源测速还没有接入真实后端；接入后会在这里显示各源延迟"),
             L.T("Home.Network.Open", "前往下载设置"),
             () => Shell.Go("settings"));
-
-    // ================= 皮肤展示（真实：SkinHeadService 本地皮肤缓存） =================
 
     public static Control Skin()
     {
@@ -536,7 +513,6 @@ internal static partial class WidgetCards
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            // 32×32 像素头像放大：关掉插值保持像素感
             RenderOptions.SetBitmapInterpolationMode(image, BitmapInterpolationMode.None);
             headHost.Child = image;
             hintText.Text = L.T("Home.Skin.SourceLocal", "来自本地皮肤缓存");

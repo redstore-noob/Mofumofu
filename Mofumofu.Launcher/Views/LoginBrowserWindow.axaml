@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+                 x:Class="Mofumofu.Launcher.Views.LoginBrowserWindow"
+                 Title="Mofumofu Launcher"
+                 Width="480" Height="760"
+                 CanResize="False"
+                 ExtendClientAreaToDecorationsHint="True"
+                 ExtendClientAreaTitleBarHeightHint="-1"
+                 Background="{DynamicResource NekoSurfaceBrush}"
+                 WindowStartupLocation="CenterScreen">
+
+    <Window.Styles>
+        <Style Selector="Button.icon:disabled">
+            <Setter Property="Opacity" Value="0.32" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="40,*,48">
+        <!-- 标题栏与主窗口保持一致（不可缩放，因此没有最大化按钮） -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource NekoTitleBarBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPressed">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0,8,0">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Image Source="avares://Mofumofu.Launcher/Assets/favicon.ico" Width="18" Height="18" />
+                    <TextBlock Text="Mofumofu Launcher" FontSize="13.5" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Foreground="{DynamicResource NekoTextBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                            VerticalAlignment="Center">
+                    <Button Classes="icon" Width="34" Height="30"
+                            ToolTip.Tip="{DynamicResource L.Shell.TitleBar.Minimize}"
+                            Click="OnMinimizeClick">
+                        <controls:IconParkIcon Kind="IconMinimize" Width="12" Height="12" />
+                    </Button>
+                    <Button Classes="icon" Width="34" Height="30"
+                            ToolTip.Tip="{DynamicResource L.Shell.TitleBar.Close}"
+                            Click="OnCloseClick">
+                        <controls:IconParkIcon Kind="IconClose" Width="12" Height="12" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- WebView2 以子窗口形式嵌到这块区域，位置由代码按实际布局更新 -->
+        <Border Grid.Row="1" x:Name="WebHost"
+                Background="{DynamicResource NekoSurfaceBrush}" />
+
+        <Border Grid.Row="2"
+                Background="{DynamicResource NekoStartBarBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="10,0">
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button x:Name="BackButton" Classes="icon" IsEnabled="False"
+                        ToolTip.Tip="{DynamicResource L.Common.Back}"
+                        Click="OnBackClick">
+                    <controls:IconParkIcon Kind="IconArrowLeft" Width="14" Height="14" />
+                </Button>
+                <Button x:Name="ForwardButton" Classes="icon" IsEnabled="False"
+                        ToolTip.Tip="{DynamicResource L.Common.Forward}"
+                        Click="OnForwardClick">
+                    <controls:IconParkIcon Kind="IconArrowRight" Width="14" Height="14" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

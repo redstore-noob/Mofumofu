@@ -12,10 +12,8 @@ using MofuCore.Config;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>桌面小组件用的真实本机数据：扫描游戏目录下的实例（versions）与世界（saves）。</summary>
 internal static class WidgetBackend
 {
-    /// <summary>本机已安装实例（来自 &lt;gameDir&gt;/versions/id/id.json）。</summary>
     internal sealed record InstanceInfo(
         string Id,
         string DisplayVersion,
@@ -24,7 +22,6 @@ internal static class WidgetBackend
         DateTime LastWrite,
         string Directory);
 
-    /// <summary>本机存档（来自 &lt;gameDir&gt;/saves/*）。</summary>
     internal sealed record WorldInfo(string Name, DateTime LastWrite, long SizeBytes, string Directory);
 
     internal sealed record ScreenshotInfo(
@@ -41,10 +38,8 @@ internal static class WidgetBackend
         public double AspectRatio => Width > 0 && Height > 0 ? Width / (double)Height : 16 / 9d;
     }
 
-    /// <summary>带所属实例的存档：隔离实例的存档归属该实例，共享目录的存档 InstanceId 为空（跟随当前选择）。</summary>
     internal sealed record InstanceWorldInfo(WorldInfo World, string? InstanceId);
 
-    /// <summary>游戏目录：没配置时退回当前工作目录下的 .minecraft（不创建、不写配置）。</summary>
     internal static string GameDirectory
     {
         get
@@ -56,7 +51,6 @@ internal static class WidgetBackend
             }
             catch
             {
-                // 配置读不到时回落
             }
 
             try
@@ -70,7 +64,6 @@ internal static class WidgetBackend
         }
     }
 
-    /// <summary>扫描本机已安装版本；IO 在后台线程完成，失败返回空表。</summary>
     internal static Task<IReadOnlyList<InstanceInfo>> LoadInstancesAsync(CancellationToken cancellationToken = default) =>
         Task.Run<IReadOnlyList<InstanceInfo>>(() =>
         {
@@ -112,7 +105,6 @@ internal static class WidgetBackend
                     }
                     catch
                     {
-                        // 单个版本 JSON 坏掉不影响其它实例
                     }
                 }
 
@@ -120,14 +112,12 @@ internal static class WidgetBackend
             }
             catch
             {
-                // 游戏目录不可读时按空表处理
             }
 
             Log($"instances={result.Count} gameDir={GameDirectory}");
             return result;
         }, cancellationToken);
 
-    /// <summary>扫描本机存档：名字=文件夹名，时间=level.dat 修改时间，大小=目录体积。</summary>
     internal static Task<IReadOnlyList<WorldInfo>> LoadWorldsAsync(CancellationToken cancellationToken = default) =>
         Task.Run<IReadOnlyList<WorldInfo>>(() =>
         {
@@ -160,7 +150,6 @@ internal static class WidgetBackend
                     }
                     catch
                     {
-                        // 单个存档不可读时跳过
                     }
                 }
 
@@ -168,14 +157,12 @@ internal static class WidgetBackend
             }
             catch
             {
-                // 存档目录不可读时按空表处理
             }
 
             Log($"worlds={result.Count} savesExists=true savesRoot={Path.Combine(GameDirectory, "saves")}");
             return result;
         }, cancellationToken);
 
-    /// <summary>扫描所有实例的存档：共享 saves/ + 每个隔离实例 versions/&lt;id&gt;/saves/，按时间倒序。</summary>
     internal static async Task<IReadOnlyList<InstanceWorldInfo>> LoadAllWorldsAsync(CancellationToken cancellationToken = default)
     {
         var result = new List<InstanceWorldInfo>();
@@ -216,24 +203,20 @@ internal static class WidgetBackend
                         }
                         catch
                         {
-                            // 单个存档不可读时跳过
                         }
                     }
                 }
                 catch
                 {
-                    // 单个实例目录不可读时跳过
                 }
             }
         }
         catch
         {
-            // 实例扫描失败时至少保留共享目录的存档
         }
 
         result.Sort((left, right) => right.World.LastWrite.CompareTo(left.World.LastWrite));
 
-        // 同一目录可能被共享扫描与实例扫描各收一次（如未开隔离时）：去重，且优先保留带实例归属的一条
         var byDirectory = new Dictionary<string, InstanceWorldInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in result)
         {
@@ -432,13 +415,11 @@ internal static class WidgetBackend
                 }
                 catch
                 {
-                    // 单个文件读不到时忽略
                 }
             }
         }
         catch
         {
-            // 目录枚举失败时按 0 处理
         }
 
         return total;
@@ -472,7 +453,6 @@ internal static class WidgetBackend
         return "avares://Mofumofu.Launcher/Assets/instance-icons/" + file;
     }
 
-    /// <summary>把扫描结果写进临时日志，便于 QA 报告贴数据来源证据。</summary>
     private static void Log(string message)
     {
         try
@@ -483,7 +463,6 @@ internal static class WidgetBackend
         }
         catch
         {
-            // 日志失败不影响小组件
         }
     }
 }

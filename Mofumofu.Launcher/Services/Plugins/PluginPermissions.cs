@@ -5,10 +5,6 @@ using Mofumofu.ExtensionAPI;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>
-/// 权限区定义与检查。权限区在插件清单 permissions 里声明，玩家可在插件页开关；
-/// 每次插件 API 调用前 Demand 一次，未声明或已关闭 → PluginPermissionException。
-/// </summary>
 public static class PluginPermissions
 {
     public const string Notify = "notify";
@@ -21,7 +17,6 @@ public static class PluginPermissions
     public const string InstanceWrite = "instanceWrite";
     public const string Launch = "launch";
 
-    /// <summary>全部已知权限区。</summary>
     public static readonly string[] All =
     {
         Notify, Widget, Network, NetworkReadonly, Storage, Readonly, ServerStatus, InstanceWrite, Launch,
@@ -40,8 +35,6 @@ public static class PluginPermissions
                 $"插件 {runtime.Manifest.Name} 未在清单中声明权限 {zone}，调用被拒绝。");
         }
 
-        // 同意阶段授予的权限集必须参与运行时鉴权：未经本次同意授权的权限域一律拒绝（fail-closed）。
-        // PluginStates 的读取走 LocalSettings 的 Gate，与 SaveCore 序列化互斥，避免并发枚举异常。
         bool consented = LocalSettings.WithPluginStates(states =>
         {
             var consent = states.FirstOrDefault(entry =>
@@ -62,7 +55,6 @@ public static class PluginPermissions
         }
     }
 
-    /// <summary>玩家开关状态（LocalSettings 持久化）；未记录 = 默认允许。</summary>
     public static bool IsAllowedByUser(string pluginId, string zone)
     {
         return LocalSettings.WithPluginStates(states =>

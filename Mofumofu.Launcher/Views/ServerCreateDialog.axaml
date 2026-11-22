@@ -1,0 +1,222 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Mofumofu.Launcher.Controls"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="520"
+             x:Class="Mofumofu.Launcher.Views.ServerCreateDialog">
+
+    <UserControl.Styles>
+        <Style Selector="Button.core-card">
+            <Setter Property="Background" Value="{DynamicResource NekoFieldSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.core-card:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.core-card.active">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Button.core-card.active /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="ListBoxItem:selected Border.version-dot">
+            <Setter Property="Background" Value="{DynamicResource NekoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.version-dot">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Height" Value="7" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{DynamicResource NekoDimBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.link">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14" Width="720">
+        <TextBlock Grid.Row="0"
+                   Text="{DynamicResource L.Servers.Create.Subtitle}"
+                   Classes="muted" TextWrapping="Wrap" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="16">
+            <StackPanel Grid.Column="0" Spacing="12">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{DynamicResource L.Servers.Create.Name}" Classes="field-label" />
+                    <TextBox x:Name="NameBox" Height="38" Classes="field"
+                             PlaceholderText="{DynamicResource L.Servers.Create.NamePlaceholder}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{DynamicResource L.Servers.Create.Port}" Classes="field-label" />
+                    <TextBox x:Name="PortBox" Height="38" Classes="field" Text="25565"
+                             PlaceholderText="{DynamicResource L.Servers.Create.PortPlaceholder}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{DynamicResource L.Servers.Create.Core}" Classes="field-label" />
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*"
+                          RowSpacing="8" ColumnSpacing="8">
+                        <Button x:Name="CoreVanillaButton" Classes="core-card" Tag="Vanilla"
+                                Click="OnCoreClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Width="30" Height="30" CornerRadius="8"
+                                        Background="{DynamicResource NekoFieldBrush}">
+                                    <controls:IconParkIcon Kind="IconServer" Width="15" Height="15"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="1"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Vanilla" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{DynamicResource L.Servers.Core.Vanilla.Desc}"
+                                               Classes="caption" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="CorePaperButton" Grid.Column="1" Classes="core-card" Tag="Paper"
+                                Click="OnCoreClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Width="30" Height="30" CornerRadius="8"
+                                        Background="{DynamicResource NekoFieldBrush}">
+                                    <controls:IconParkIcon Kind="IconFluentFlash" Width="15" Height="15"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="1"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Paper" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{DynamicResource L.Servers.Core.Paper.Desc}"
+                                               Classes="caption" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="CoreFabricButton" Grid.Row="1" Classes="core-card" Tag="Fabric"
+                                Click="OnCoreClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Width="30" Height="30" CornerRadius="8"
+                                        Background="{DynamicResource NekoFieldBrush}">
+                                    <controls:IconParkIcon Kind="IconFluentPuzzle" Width="15" Height="15"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="1"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Fabric" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{DynamicResource L.Servers.Core.Fabric.Desc}"
+                                               Classes="caption" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="CoreNeoForgeButton" Grid.Row="1" Grid.Column="1"
+                                Classes="core-card" Tag="NeoForge" Click="OnCoreClick">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Width="30" Height="30" CornerRadius="8"
+                                        Background="{DynamicResource NekoFieldBrush}">
+                                    <controls:IconParkIcon Kind="IconFluentWrench" Width="15" Height="15"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="1"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="NeoForge" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{DynamicResource L.Servers.Core.NeoForge.Desc}"
+                                               Classes="caption" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </Grid>
+                    <TextBlock Text="{DynamicResource L.Servers.Create.CoreHint}"
+                               Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <CheckBox x:Name="EulaCheck" VerticalAlignment="Center"
+                              Content="{DynamicResource L.Servers.Create.Eula}" FontSize="12" />
+                    <Button Classes="link" Padding="0" FontSize="11.5" Click="OnEulaClick"
+                            Content="{DynamicResource L.Servers.Create.EulaView}" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border Grid.Column="1" Classes="card-soft" Padding="12">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{DynamicResource L.Servers.Create.Version}"
+                                   Classes="field-label" VerticalAlignment="Center" />
+                        <TextBlock x:Name="VersionCountText" Grid.Column="1"
+                                   Text="—" Classes="caption" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBox x:Name="VersionSearch" Grid.Row="1" Height="34" Classes="search"
+                             PlaceholderText="{DynamicResource L.Servers.Create.VersionSearch}"
+                             TextChanged="OnVersionSearchChanged" />
+                    <Grid Grid.Row="2">
+                        <ListBox x:Name="VersionList" Background="Transparent" BorderThickness="0"
+                                 Padding="0" MaxHeight="260"
+                                 SelectionChanged="OnVersionSelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="2,1">
+                                        <Border Classes="version-dot" Margin="2,0,10,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                   FontSize="12.5" VerticalAlignment="Center" />
+                                        <Border Grid.Column="2" CornerRadius="6" Padding="6,1"
+                                                Background="{DynamicResource NekoAccentSoftBrush}"
+                                                VerticalAlignment="Center"
+                                                IsVisible="{Binding IsLatest}">
+                                            <TextBlock Text="{DynamicResource L.Servers.Create.Latest}"
+                                                       FontSize="9.5"
+                                                       Foreground="{DynamicResource NekoAccentBrush}" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock x:Name="VersionEmptyText"
+                                   Text="{DynamicResource L.Servers.Create.LoadingVersions}"
+                                   Classes="caption" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" IsVisible="False" />
+                    </Grid>
+                    <TextBlock x:Name="VersionHint" Grid.Row="3" Classes="caption"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="6" VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource NekoMutedBrush}" />
+                <ProgressBar x:Name="CreateProgress" Height="5" MinWidth="320"
+                             HorizontalAlignment="Left" IsVisible="False"
+                             Minimum="0" Maximum="100" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center">
+                <Button x:Name="CancelButton" Classes="ghost" Height="36" Padding="16,0"
+                        Content="{DynamicResource L.Common.Cancel}" Click="OnCancelClick" />
+                <Button x:Name="CreateButton" Classes="primary" Height="36" Padding="18,0"
+                        Content="{DynamicResource L.Servers.Create.Create}" Click="OnCreateClick" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

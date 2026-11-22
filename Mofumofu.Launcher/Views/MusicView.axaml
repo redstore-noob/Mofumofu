@@ -7,9 +7,8 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.MusicView">
     <UserControl.Resources>
-<!-- 歌曲行模板：两个列表共用，行尾带收藏爱心 -->        
         <DataTemplate x:Key="TrackTemplate">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="56">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="56">
                 <Border Width="40" Height="40" CornerRadius="10"
                         Background="{DynamicResource NekoAccentSoftBrush}"
                         ClipToBounds="True"
@@ -40,14 +39,18 @@
                         <controls:IconParkIcon Classes="heart-on" Kind="IconFluentHeartFilled" Width="15" Height="15" />
                     </Panel>
                 </ToggleButton>
-                <TextBlock Grid.Column="3" Text="{Binding DurationDisplay}"
+                <Button Grid.Column="3" Classes="player" Width="30" Height="30" Margin="4,0,0,0"
+                        Click="OnItemAddToPlaylistClick"
+                        ToolTip.Tip="{DynamicResource L.Pages.Music.Playlists.Add}">
+                    <controls:IconParkIcon Kind="IconFluentMusic" Width="14" Height="14" />
+                </Button>
+                <TextBlock Grid.Column="4" Text="{Binding DurationDisplay}"
                            Classes="caption" VerticalAlignment="Center"
                            Margin="10,0,10,0" />
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
     <UserControl.Styles>
-<!-- 播放控制 -->        
         <Style Selector="Button.player">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -66,7 +69,6 @@
             <Setter Property="Foreground" Value="{DynamicResource NekoAccentBrush}" />
         </Style>
 
-<!-- 图标按钮 -->        
         <Style Selector="Button.icon-soft">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -85,7 +87,6 @@
             <Setter Property="CornerRadius" Value="9" />
         </Style>
 
-<!-- 右栏标签 -->        
         <Style Selector="Button.music-tab">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -99,7 +100,6 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
-<!-- 列表内收藏爱心 -->        
         <Style Selector="ToggleButton.fav">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -125,7 +125,6 @@
             <Setter Property="IsVisible" Value="False" />
         </Style>
 
-<!-- 歌曲列表 -->        
         <Style Selector="ListBox#TrackList, ListBox#ListTracks">
             <Setter Property="Padding" Value="0" />
         </Style>
@@ -134,7 +133,6 @@
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-<!-- 曲目入场：切换到歌单 / 新加曲目时，每一行轻微上浮淡入 -->            
             <Style.Animations>
                 <Animation Duration="0:0:0.22" Easing="CubicEaseOut">
                     <KeyFrame Cue="0%">
@@ -154,7 +152,6 @@
         <controls:PageHeader />
 
         <Grid Grid.Row="1" ColumnDefinitions="236,*,332" Margin="0,2,0,0">
-<!-- ==================== 左：Music 侧栏 ==================== -->
         <suki:GlassCard Grid.Column="0" CornerRadius="18" Padding="12,14"
                         Margin="0,0,16,0" VerticalAlignment="Stretch">
             <Grid RowDefinitions="Auto,*,Auto">
@@ -219,7 +216,8 @@
                                        VerticalAlignment="Center" />
                         </Grid>
                     </Button>
-                    <Button Classes="side-nav dim" IsEnabled="False">
+                    <Button x:Name="RailPlaylists" Classes="side-nav" Tag="playlists" Click="OnRailClick"
+                            ToolTip.Tip="{DynamicResource L.Pages.Music.Nav.Playlists}">
                         <Grid ColumnDefinitions="Auto,*">
                             <Border Classes="side-nav-icon">
                                 <controls:IconParkIcon Kind="IconFluentMusic" Width="15" Height="15"
@@ -243,7 +241,6 @@
             </Grid>
         </suki:GlassCard>
 
-<!-- ==================== 中：正在播放（仅首页三段式使用） ==================== -->        
         <suki:GlassCard x:Name="NowPane" Grid.Column="1" CornerRadius="24">
             <Grid>
                 <Border Background="{DynamicResource NekoHeroGlowBrush}" IsHitTestVisible="False" />
@@ -251,7 +248,6 @@
                         IsHitTestVisible="False" />
 
                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="30,22,30,22">
-<!-- 顶栏 -->
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button x:Name="FavButton" Classes="player"
@@ -270,7 +266,6 @@
                         </StackPanel>
                     </Grid>
 
-<!-- 封面 -->                    
                     <Border Grid.Row="1" Width="300" Height="300" CornerRadius="24"
                             Margin="0,10,0,18" HorizontalAlignment="Center"
                             BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="1"
@@ -288,7 +283,6 @@
                         </Panel>
                     </Border>
 
-<!-- 标题 / 艺术家 / 标签 -->                    
                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="2">
                             <TextBlock x:Name="NowTitle" Text="—" FontSize="26" FontWeight="Bold"
@@ -307,7 +301,6 @@
                         </Border>
                     </Grid>
 
-<!-- 进度 -->                    
                     <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,18,0,0">
                         <TextBlock x:Name="ElapsedText" Text="0:00" Width="42" Classes="caption"
                                    VerticalAlignment="Center" />
@@ -318,7 +311,6 @@
                                    HorizontalAlignment="Right" TextAlignment="Right" />
                     </Grid>
 
-<!-- 控制区 -->                    
                     <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
                         <StackPanel Orientation="Horizontal" Spacing="18" VerticalAlignment="Center">
                             <Button Classes="player" Click="OnPrevClick"
@@ -352,7 +344,6 @@
                         </Button>
                     </Grid>
 
-<!-- 音量 -->                    
                     <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0"
                           VerticalAlignment="Bottom">
                         <controls:IconParkIcon Kind="IconFluentSpeaker" Width="16" Height="16" VerticalAlignment="Center" />
@@ -365,7 +356,6 @@
             </Grid>
         </suki:GlassCard>
 
-<!-- ==================== 右：队列（仅首页三段式使用） ==================== -->        
         <suki:GlassCard x:Name="QueuePane" Grid.Column="2" CornerRadius="22" Padding="16,18" Margin="12,0,0,0">
             <Grid RowDefinitions="Auto,Auto,Auto,*">
                 <Grid ColumnDefinitions="*,Auto">
@@ -416,10 +406,9 @@
             </Grid>
         </suki:GlassCard>
 
-<!-- ==================== 传统列表（云 / 收藏 / 漫游） ==================== -->        
         <suki:GlassCard x:Name="ListPane" Grid.Column="1" Grid.ColumnSpan="2"
                                 CornerRadius="22" Padding="20,18" IsVisible="False">
-            <Grid RowDefinitions="Auto,Auto,*">
+            <Grid RowDefinitions="Auto,Auto,Auto,*">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <controls:IconParkIcon x:Name="ListIcon" Kind="IconFluentSparkle"
@@ -441,7 +430,23 @@
                     </ComboBox>
                 </Grid>
 
-                <Grid Grid.Row="2">
+                <Grid x:Name="PlaylistBar" Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
+                      Margin="0,0,0,8" IsVisible="False">
+                    <ComboBox x:Name="PlaylistCombo" Height="32" FontSize="12" HorizontalAlignment="Stretch"
+                              SelectionChanged="OnPlaylistComboChanged" />
+                    <TextBox x:Name="PlaylistNameBox" Grid.Column="1" Width="130" Height="32" FontSize="12"
+                             Margin="6,0,0,0" ToolTip.Tip="{DynamicResource L.Pages.Music.Playlists.NameHint}" />
+                    <Button Grid.Column="2" Classes="ghost" Height="32" Margin="6,0,0,0"
+                            Content="{DynamicResource L.Pages.Music.Playlists.New}" Click="OnPlaylistNewClick" />
+                    <Button Grid.Column="3" Classes="ghost" Height="32" Margin="6,0,0,0"
+                            Content="{DynamicResource L.Pages.Music.Playlists.Rename}" Click="OnPlaylistRenameClick" />
+                    <Button Grid.Column="4" Classes="ghost" Height="32" Margin="6,0,0,0"
+                            Content="{DynamicResource L.Pages.Music.Playlists.Delete}" Click="OnPlaylistDeleteClick" />
+                    <Button x:Name="PlaylistAddButton" Grid.Column="5" Classes="ghost" Height="32" Margin="6,0,0,0"
+                            Content="{DynamicResource L.Pages.Music.Playlists.Add}" Click="OnPlaylistAddClick" />
+                </Grid>
+
+                <Grid Grid.Row="3">
                     <ListBox x:Name="ListTracks" Background="Transparent"
                              ItemTemplate="{StaticResource TrackTemplate}"
                              SelectionChanged="OnTrackSelected" />

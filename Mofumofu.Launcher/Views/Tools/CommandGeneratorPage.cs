@@ -24,12 +24,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 命令生成器（创作中心 · command 工具页）。
-/// 与设置页统一的面板式布局，自上而下：选择命令（搜索 + 分类）→ 参数表单
-/// （目标选择器 + 动态字段 + 物品组件 / 实体 NBT 高级面板）→ 实时输出
-/// （语法高亮、一键复制）→ 历史与收藏。输出随表单实时刷新，不需要「生成」按钮。
-/// </summary>
 public sealed class CommandGeneratorPage : UserControl
 {
     private const string MonoFont = "Consolas, Cascadia Mono, Microsoft YaHei";
@@ -37,26 +31,20 @@ public sealed class CommandGeneratorPage : UserControl
     private const int ChatLimit = 256;
     private const int HistoryLimit = 50;
 
-    // ---------------- 状态 ----------------
-
     private readonly Dictionary<string, string> _values = new();
     private CommandSpec _spec = CommandSpecs.All[0];
     private string _category = "all";
     private readonly HashSet<string> _searchTerms = new(StringComparer.OrdinalIgnoreCase);
 
-    // 目标选择器
     private string _selectorBase = "@a";
     private readonly Dictionary<string, string> _selectorFilters = new();
 
-    // give 组件 / summon NBT
     private readonly List<EnchantRow> _enchants = new();
     private bool _componentsEnabled;
     private bool _nbtEnabled;
 
     private readonly List<string> _outputLines = new();
     private bool _historyTabFavorites;
-
-    // ---------------- 控件 ----------------
 
     private readonly TextBox _searchBox = new();
     private readonly StackPanel _categoryHost = new() { Orientation = Orientation.Horizontal };
@@ -87,11 +75,8 @@ public sealed class CommandGeneratorPage : UserControl
         SelectSpec(CommandSpecs.All[0], animate: false);
     }
 
-    // ================= 布局 =================
-
     private void BuildLayout()
     {
-        // ---- 左栏：搜索 + 分类 + 命令列表 ----
         _searchBox.PlaceholderText = L.T("Creator.Command.Search", "搜索命令…");
         _searchBox.FontSize = 12.5;
         _searchBox.Height = 32;
@@ -125,16 +110,13 @@ public sealed class CommandGeneratorPage : UserControl
         listPanel.Children.Add(_listScroll);
         _listCard.Child = listPanel;
 
-        // ---- 参数面板 ----
         _formCard.Classes.Add("setting-group");
         var formPanel = new StackPanel();
         formPanel.Children.Add(ToolUi.Header("IconFluentSettings",
-            L.T("Creator.Command.Form.Title", "参数"),
-            L.T("Creator.Command.Form.Hint", "改动任意参数，下方命令实时更新。")));
+            L.T("Creator.Command.Form.Title", "参数"), null));
         formPanel.Children.Add(_formHost);
         _formCard.Child = formPanel;
 
-        // ---- 输出 + 历史：整页自上而下滚动 ----
         var outputCard = BuildOutputCard();
 
         var page = new StackPanel
@@ -155,7 +137,6 @@ public sealed class CommandGeneratorPage : UserControl
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
 
-        // Ctrl+Enter 快速复制
         this.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -259,8 +240,6 @@ public sealed class CommandGeneratorPage : UserControl
             Child = panel,
         };
     }
-
-    // ================= 左栏：命令列表 =================
 
     private static string CategoryLabel(string cat) => cat switch
     {
@@ -423,8 +402,6 @@ public sealed class CommandGeneratorPage : UserControl
         return row;
     }
 
-    // ================= 中栏：表单 =================
-
     private void SelectSpec(CommandSpec spec, bool animate)
     {
         _spec = spec;
@@ -489,8 +466,6 @@ public sealed class CommandGeneratorPage : UserControl
 
         ApplyVisibility();
     }
-
-    // ---------------- 目标选择器 ----------------
 
     private Control BuildTargetSection()
     {
@@ -583,7 +558,6 @@ public sealed class CommandGeneratorPage : UserControl
             UpdateSelector();
         };
 
-        // 高级筛选（可折叠）
         var filtersPanel = new WrapPanel { Orientation = Orientation.Horizontal };
         var filtersCard = new Border
         {
@@ -690,8 +664,6 @@ public sealed class CommandGeneratorPage : UserControl
             Child = panel,
         };
     }
-
-    // ---------------- 普通字段 ----------------
 
     private Control BuildFieldPanel(CommandField field)
     {
@@ -822,7 +794,6 @@ public sealed class CommandGeneratorPage : UserControl
             Placement = PlacementMode.Bottom,
         };
 
-        // 目录表头：显示数据来源版本，让用户知道译名覆盖到哪个游戏版本
         if (field.Catalog is not null && ItemCatalog.Count(field.Catalog) > 0)
         {
             var popupContent = new StackPanel { Spacing = 2 };
@@ -934,8 +905,6 @@ public sealed class CommandGeneratorPage : UserControl
         return row;
     }
 
-    // ---------------- 字段联动可见性 ----------------
-
     private void ApplyVisibility()
     {
         foreach (var (key, panel) in _fieldPanels)
@@ -956,8 +925,6 @@ public sealed class CommandGeneratorPage : UserControl
             => _values.TryGetValue("useTimes", out var useTimes) && useTimes == bool.TrueString,
         _ => true,
     };
-
-    // ---------------- give 组件面板 ----------------
 
     private sealed class EnchantRow
     {
@@ -1111,8 +1078,6 @@ public sealed class CommandGeneratorPage : UserControl
         };
     }
 
-    // ---------------- summon NBT 面板 ----------------
-
     private Control BuildNbtSection()
     {
         var nameBox = new TextBox { PlaceholderText = "Mofu", FontSize = 12.5, Height = 32 };
@@ -1190,8 +1155,6 @@ public sealed class CommandGeneratorPage : UserControl
         };
     }
 
-    // ================= 右栏：输出渲染 =================
-
     private string CurrentCommandText() => string.Join(LineBreak, _outputLines);
 
     private void RefreshOutput()
@@ -1253,8 +1216,6 @@ public sealed class CommandGeneratorPage : UserControl
         _ => ThemeTokens.Brush("NekoTextBrush"),
     };
 
-    // ================= 历史 / 收藏 =================
-
     private sealed class CommandEntry
     {
         [JsonPropertyName("command")] public string Command { get; set; } = string.Empty;
@@ -1298,7 +1259,6 @@ public sealed class CommandGeneratorPage : UserControl
         }
         catch
         {
-            // 历史写失败不影响使用
         }
     }
 
@@ -1513,7 +1473,6 @@ public sealed class CommandGeneratorPage : UserControl
             _historyHost.Children.Add(row);
         }
 
-        // 切换「收藏 / 最近使用」或删掉一条时，整列错峰入场
         UiAnimations.Stagger(_historyHost.Children, step: 30, milliseconds: 170, offsetY: 6);
     }
 
@@ -1564,8 +1523,6 @@ public sealed class CommandGeneratorPage : UserControl
         RenderHistory();
     }
 
-    // ================= 复制 =================
-
     private async void CopyCurrent()
     {
         var text = CurrentCommandText();
@@ -1587,8 +1544,6 @@ public sealed class CommandGeneratorPage : UserControl
         Shell.Toast(L.T("Creator.Command.Toast.Copied", "命令已复制到剪贴板"));
     }
 
-    // ================= 通用小部件 =================
-
     private static StackPanel Labeled(string label, Control control) => new()
     {
         Spacing = 4,
@@ -1599,7 +1554,6 @@ public sealed class CommandGeneratorPage : UserControl
         },
     };
 
-    /// <summary>自动补全选项行：中文名（主）+ ID（等宽弱化）；无译名时只显示 ID。</summary>
     private static Control BuildOptionRow(ItemOption option)
     {
         var row = new StackPanel
@@ -1631,7 +1585,6 @@ public sealed class CommandGeneratorPage : UserControl
         return row;
     }
 
-    /// <summary>控件是否已挂在本页可见分支上（建表单期间的 TextChanged 不弹建议层）。</summary>
     private bool IsAttachedToPage(Control control)
     {
         for (var current = (Visual?)control; current is not null; current = current.GetVisualParent())

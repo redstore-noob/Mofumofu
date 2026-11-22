@@ -18,7 +18,6 @@ internal sealed record IconParkShape(
     bool HasStroke,
     IconParkPaint StrokePaint);
 
-/// <summary>IconPark 图标路径（由 @icon-park/svg 1.4.2 生成，Apache-2.0）。</summary>
 internal static class IconParkGlyphs
 {
     public static readonly IReadOnlyDictionary<string, IconParkShape[]> ByKey =

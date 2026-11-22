@@ -7,11 +7,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services.Music;
 
-/// <summary>
-/// 音乐播放的全局状态：播放器、网易云客户端、设置与当前队列。
-/// 挂在单例上，音乐页销毁 / 重建、桌面小组件都共用同一份播放状态，
-/// 离开音乐页播放不会中断。
-/// </summary>
 public sealed class MusicService
 {
     public static MusicService Instance { get; } = new();
@@ -37,17 +32,14 @@ public sealed class MusicService
 
     public MusicItem? Current { get; private set; }
 
-    /// <summary>播放队列：音乐页切换列表时同步进来，连播/切歌按它走。</summary>
     public IReadOnlyList<MusicItem> Queue { get; set; } = [];
 
     public bool IsPlaying => Player.IsPlaying;
 
     public bool HasTrack => Player.HasTrack;
 
-    /// <summary>当前曲目或播放状态变化（切歌 / 播放暂停 / 队列连播）。</summary>
     public event Action? StateChanged;
 
-    /// <summary>需要弹提示的消息（解析地址失败之类），只有音乐页订阅。</summary>
     public event Action<string>? Status;
 
     public event Action<TimeSpan, TimeSpan>? PositionChanged
@@ -58,8 +50,6 @@ public sealed class MusicService
 
     public void SetClient(NetEaseMusicClient client)
     {
-        // NetEaseMusicClient 现在复用共享静态 HttpClient，旧实例不再持有需释放的 handler，
-        // 直接替换即可，不会有连接资源泄漏。
         Client = client;
         StateChanged?.Invoke();
     }
@@ -68,7 +58,6 @@ public sealed class MusicService
 
     public void Save() => MusicStore.Save(Settings);
 
-    /// <summary>播放一首歌；网易云歌曲会先解析直链（带缓存下载）。</summary>
     public async Task<bool> PlayAsync(MusicItem item)
     {
         await _playGate.WaitAsync();

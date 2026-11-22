@@ -79,7 +79,6 @@
             </controls:PageHeader.Actions>
         </controls:PageHeader>
 
-<!-- ============ 状态行 ============ -->        
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
             <Border x:Name="StatusChip" Classes="chip" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
@@ -112,13 +111,11 @@
                        Classes="caption" VerticalAlignment="Center" />
         </Grid>
 
-<!-- ============ 主体：供应商卡 + 联机设置 ============ -->        
         <Grid Grid.Row="2" x:Name="BodyGrid" ColumnDefinitions="*,Auto">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                           Margin="0,0,12,0">
                 <StackPanel Spacing="12">
 
-<!-- ====== 陶瓦联机 ====== -->                    
                     <suki:GlassCard CornerRadius="12" Padding="20">
                         <StackPanel Spacing="12">
                             <Grid ColumnDefinitions="Auto,*,Auto">
@@ -220,12 +217,10 @@
                                                    Classes="caption" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
-                                <TextBlock Text="{DynamicResource L.Pages.Online.Room.HintTerracotta}" Classes="caption" />
                             </StackPanel>
                         </StackPanel>
                     </suki:GlassCard>
 
-<!-- ====== 加入房间 ====== -->                    
                     <suki:GlassCard CornerRadius="12" Padding="20">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="*,Auto">
@@ -249,7 +244,6 @@
                 </StackPanel>
             </ScrollViewer>
 
-<!-- ====== 右侧：联机设置面板 ====== -->            
             <ScrollViewer Grid.Column="1" x:Name="SettingsPanel" Width="318"
                           HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <suki:GlassCard CornerRadius="12" Padding="18">

@@ -35,15 +35,12 @@ public static class ResourceIconCache
     private static readonly HttpClient Http = CreateHttpClient();
     private static readonly object Gate = new();
 
-    /// <summary>key → 内存缓存节点（LRU 链表里同时保存值，方便 O(1) 移动）。</summary>
     private static readonly Dictionary<string, LinkedListNode<CacheEntry>> Memory = new(StringComparer.Ordinal);
 
     private static readonly LinkedList<CacheEntry> Lru = new();
 
-    /// <summary>同 key 正在进行的加载任务，用于并发去重。</summary>
     private static readonly Dictionary<string, Task<Bitmap?>> InFlight = new(StringComparer.Ordinal);
 
-    /// <summary>清空代际：Clear 之后旧请求即使完成也不再写回缓存。</summary>
     private static int _generation;
 
     private sealed record CacheEntry(string Key, Bitmap Bitmap);
@@ -85,7 +82,6 @@ public static class ResourceIconCache
 
         try
         {
-            // 这里只取消「等待」，不取消共享的下载任务：同 key 的其它调用还能拿到结果
             return await shared.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -98,7 +94,6 @@ public static class ResourceIconCache
         }
     }
 
-    /// <summary>清空内存缓存并删除磁盘图标缓存目录（失败忽略）。</summary>
     public static void Clear()
     {
         lock (Gate)
@@ -121,18 +116,14 @@ public static class ResourceIconCache
                     }
                     catch
                     {
-                        // 单个文件被占用时跳过
                     }
                 }
             }
         }
         catch
         {
-            // 缓存目录不可写时忽略
         }
     }
-
-    // ---- 加载 ----
 
     private static async Task<Bitmap?> LoadSharedAsync(string? source, string cacheKey, int generation)
     {
@@ -140,7 +131,6 @@ public static class ResourceIconCache
         {
             var diskPath = Path.Combine(CacheDirectory, Sha1(cacheKey) + ".png");
 
-            // 1. 磁盘缓存
             if (File.Exists(diskPath))
             {
                 var cached = await DecodeAsync(diskPath).ConfigureAwait(false);
@@ -151,14 +141,12 @@ public static class ResourceIconCache
                 }
             }
 
-            // 2. 下载 / 读本地文件
             var bytes = await FetchAsync(source).ConfigureAwait(false);
             if (bytes is null || bytes.Length == 0) return null;
 
             var bitmap = Decode(bytes);
             if (bitmap is null) return null;
 
-            // 3. 原子写回磁盘缓存
             TryStore(diskPath, bytes);
 
             AddMemory(cacheKey, bitmap, generation);
@@ -183,7 +171,6 @@ public static class ResourceIconCache
 
         var trimmed = source.Trim();
 
-        // 本地文件路径（含 file:// URI）
         if (TryResolveLocalPath(trimmed) is { } localPath)
         {
             try
@@ -198,7 +185,6 @@ public static class ResourceIconCache
             }
         }
 
-        // 网络地址：只认 http/https
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)) return null;
         if (uri.Scheme is not ("http" or "https")) return null;
 
@@ -292,11 +278,8 @@ public static class ResourceIconCache
         }
         catch
         {
-            // 磁盘缓存失败不影响本次显示
         }
     }
-
-    // ---- 内存 LRU ----
 
     private static LinkedListNode<CacheEntry>? TryTakeNode(string key)
     {
@@ -311,7 +294,6 @@ public static class ResourceIconCache
     {
         lock (Gate)
         {
-            // Clear() 之后返回的旧请求不再写回缓存
             if (generation != _generation) return;
 
             if (Memory.TryGetValue(key, out var existing))
@@ -331,8 +313,6 @@ public static class ResourceIconCache
             }
         }
     }
-
-    // ---- 工具 ----
 
     private static string? NormalizeKey(string? source, string key)
     {
@@ -358,7 +338,6 @@ public static class ResourceIconCache
         }
         catch
         {
-            // 头部设置失败不影响使用
         }
 
         return client;

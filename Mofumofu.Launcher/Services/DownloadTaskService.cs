@@ -10,7 +10,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>下载任务的统一状态。</summary>
 public enum DownloadTaskState
 {
     Downloading,
@@ -20,7 +19,6 @@ public enum DownloadTaskState
     Failed,
 }
 
-/// <summary>下载任务的一次快照（事件参数 / 列表读取）。</summary>
 public sealed record DownloadTaskSnapshot(
     string Id,
     string ShortId,
@@ -32,10 +30,6 @@ public sealed record DownloadTaskSnapshot(
     DownloadTaskState State,
     bool CanPause);
 
-/// <summary>
-/// 一个下载任务的句柄：由下载发起方（任何页面）持有，用来汇报进度与收尾。
-/// 任务会自动出现在下载页的「下载任务」列表里，无论发起自哪个页面。
-/// </summary>
 public sealed class DownloadTaskHandle
 {
     private readonly DownloadTaskCore _owner;
@@ -50,14 +44,10 @@ public sealed class DownloadTaskHandle
 
     public string Id { get; }
 
-    /// <summary>4 位数字任务编号（会话内唯一，如 7 → "0007"），展示用。</summary>
     public int ShortId { get; }
 
-    /// <summary>任务取消令牌：下载方观察它来响应下载页的「取消」按钮。</summary>
     public CancellationToken Token { get; }
 
-    /// <summary>汇报进度（0..100）；detail/speed/size 传 null 表示保持不变。
-    /// detail 变化会作为一行写入任务日志（下载页点卡片可看）。</summary>
     public void Report(double percent, string? detail = null, string? speed = null, string? size = null)
         => _owner.Report(Id, percent, detail, speed, size);
 
@@ -68,60 +58,39 @@ public sealed class DownloadTaskHandle
     /// <summary>下载流程观察到取消令牌后调用；若用户先点了取消，这里是幂等的。</summary>
     public void MarkCancelled() => _owner.Finish(Id, DownloadTaskState.Cancelled, null);
 
-    /// <summary>往任务日志写一行（时间戳自动加，下载页点开任务卡片即可查看）。</summary>
     public void Log(string message) => _owner.AppendLog(Id, message);
 
-    /// <summary>
-    /// 登记取消时需要清理的路径：文件直接删，目录递归删。
-    /// 只应登记本次任务新生成的目标（登记前用 File.Exists / Directory.Exists 过滤已有文件，
-    /// 避免取消时误删用户原有的安装）。
-    /// </summary>
     public void RegisterCleanup(params string[] paths) => _owner.RegisterCleanup(Id, paths);
 }
 
-/// <summary>
-/// 全局下载任务中心：启动器里所有下载（Minecraft/实例、Modrinth 资源、Java、
-/// 服务端核心、联机组件、整合包导入……）都从这里登记，下载页统一渲染。
-/// 每个任务带环形日志（点任务卡查看）；取消时按登记清理已下载的文件。
-/// </summary>
 public static class DownloadTaskService
 {
     private static readonly DownloadTaskCore Core = new();
 
-    /// <summary>新任务出现（按发起顺序排在列表末尾）。</summary>
     public static Action<DownloadTaskSnapshot>? Added;
 
-    /// <summary>任务进度 / 状态变化。</summary>
     public static Action<DownloadTaskSnapshot>? Changed;
 
-    /// <summary>下载页用它感知「清理已完成」（其它订阅方忽略）。</summary>
     public static Action? FinishedCleared;
 
-    /// <summary>开始一个下载任务并登记到列表。</summary>
     public static DownloadTaskHandle Start(string title, string detail, bool canPause = false)
         => Core.Start(title, detail, canPause);
 
-    /// <summary>用户请求取消（下载页「取消」按钮）。返回是否存在该任务。</summary>
     public static bool TryCancel(string id) => Core.TryCancel(id);
 
-    /// <summary>用户暂停 / 继续某个任务。有任意任务处于暂停时全局下载闸门合上，
-    /// 全部恢复后重新打开（MofuCore 的下载流程统一走全局闸门）。</summary>
     public static bool TrySetPaused(string id, bool paused) => Core.TrySetPaused(id, paused);
 
-    /// <summary>移除全部已完成任务。</summary>
     public static void RemoveFinished()
     {
         Core.RemoveFinished();
         FinishedCleared?.Invoke();
     }
 
-    /// <summary>取一个任务的日志快照（时间戳 + 事件行）；任务不存在时返回空表。</summary>
     public static IReadOnlyList<string> GetLog(string id) => Core.GetLog(id);
 
     public static IReadOnlyList<DownloadTaskSnapshot> Snapshots => Core.Snapshots();
 }
 
-/// <summary>任务中心的内部实现（事件统一在 UI 线程上触发）。</summary>
 internal sealed class DownloadTaskCore
 {
     private const int LogCapacity = 400;
@@ -181,7 +150,6 @@ internal sealed class DownloadTaskCore
         return new DownloadTaskHandle(this, entry.Id, entry.ShortId, entry.Cancellation?.Token ?? CancellationToken.None);
     }
 
-    /// <summary>分配 4 位数字任务编号（0001~9999）：跳过在用号码；绕满一圈后复用已结束任务的号码。须持有 _sync。</summary>
     private int AllocateShortId()
     {
         var used = _tasks.Select(item => item.ShortId).ToHashSet();
@@ -192,7 +160,7 @@ internal sealed class DownloadTaskCore
             if (used.Add(candidate)) return candidate;
         }
 
-        return _nextShortId; // 理论不可达：同时存活任务超过 9999 个才可能
+        return _nextShortId;
     }
 
     public void Report(string id, double percent, string? detail, string? speed, string? size)
@@ -211,7 +179,6 @@ internal sealed class DownloadTaskCore
             if (speed is not null) entry.SpeedText = speed;
             if (size is not null) entry.SizeText = size;
 
-            // 阶段 / 文件名变化记一行日志（速度与字节数变化太频繁，不入日志）
             if (detail is not null && detail != entry.LastDetail)
             {
                 entry.LastDetail = detail;
@@ -297,7 +264,6 @@ internal sealed class DownloadTaskCore
             }
             catch (ObjectDisposedException)
             {
-                // 任务已结束
             }
         }
 
@@ -395,7 +361,6 @@ internal sealed class DownloadTaskCore
         }
     }
 
-    /// <summary>取消后在后台线程删除登记的文件 / 目录，结果写进任务日志。</summary>
     private void RunCleanup(Entry entry)
     {
         string[] paths;
@@ -450,7 +415,6 @@ internal sealed class DownloadTaskCore
         }).ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
     }
 
-    /// <summary>任一可暂停任务处于暂停 → 合上全局下载闸门；全部恢复 → 打开。</summary>
     private void SyncPauseGate()
     {
         bool anyPaused;

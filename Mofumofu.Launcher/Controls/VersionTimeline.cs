@@ -12,7 +12,6 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>时间轴上的一个版本节点。</summary>
 public sealed class VersionTimelineNode
 {
     public string Title { get; init; } = string.Empty;
@@ -32,7 +31,6 @@ public sealed class VersionTimelineNode
     public object? Tag { get; init; }
 }
 
-/// <summary>Rewind 风格的竖向版本时间轴：左侧轴线与圆点，右侧版本卡片，只负责展示与选中。</summary>
 public sealed class VersionTimeline : UserControl
 {
     private readonly StackPanel _rows = new();

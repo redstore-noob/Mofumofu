@@ -8,12 +8,11 @@ namespace Mofumofu.Launcher.Services;
 
 internal static class SoloInstallation
 {
-    /// <summary>在加载本地设置前将安装包绑定到随包游戏目录，移动安装目录后仍可使用。</summary>
     public static string? Initialize(string? directory = null)
     {
         string root = directory ?? AppContext.BaseDirectory;
         string config = Path.Combine(root, "solo.json");
-        if (!File.Exists(config)) return null; // 非 Solo 安装，正常返回
+        if (!File.Exists(config)) return null;
         try
         {
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(config));
@@ -35,7 +34,6 @@ internal static class SoloInstallation
         }
         catch (Exception ex)
         {
-            // 不再仅 Debug 输出；记录正式日志，且此前未写入任何全局配置，避免状态不一致。
             LogWrite.Write("ERROR", "[SoloInstallation] solo.json 解析/绑定失败，未应用任何全局配置：" + ex.Message);
             return null;
         }

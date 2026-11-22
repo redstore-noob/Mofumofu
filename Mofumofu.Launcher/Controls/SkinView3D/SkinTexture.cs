@@ -67,7 +67,6 @@ internal static class SkinTextureLoader
     {
         if (skin.Width != 64 || skin.Height != 64) return false;
 
-        // slim 手臂比 classic 窄一格，这些 UV 区域在标准 slim 皮肤中保持透明。
         return IsTransparent(skin, 50, 16, 2, 4) &&
                IsTransparent(skin, 54, 20, 2, 12) &&
                IsTransparent(skin, 42, 48, 2, 4) &&
@@ -138,7 +137,6 @@ internal static class SkinTextureLoader
         Array.Copy(legacy.Rgba, 0, rgba, 0, 64 * 32 * 4);
         var modern = new SkinTextureData { Width = 64, Height = 64, Rgba = rgba };
 
-        // 旧格式没有左手/左腿，将右侧六个面水平镜像到新版对应 UV。
         MirrorBox(legacy, modern, 0, 16, 4, 12, 4, 16, 48);
         MirrorBox(legacy, modern, 40, 16, 4, 12, 4, 32, 48);
         return modern;

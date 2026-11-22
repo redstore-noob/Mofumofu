@@ -38,7 +38,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>把 MockData 里的 avares:// 版本图标转换成 Image 可用的位图。</summary>
 public sealed class DownloadIconConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -62,7 +61,6 @@ public sealed class DownloadIconConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>版本类型徽章配色：正式版绿、快照红、远古黑白反转。Parameter 传 bg 取底色，否则取字色。</summary>
 public sealed class VersionBadgeBrushConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -84,7 +82,6 @@ public partial class DownloadView : UserControl
 {
     private const int TaskListExitDelayMs = 160;
 
-    /// <summary>「下载任务」列表里的一行视觉卡片（数据来自 DownloadTaskService）。</summary>
     private sealed class TaskCard
     {
         public string TaskId { get; init; } = string.Empty;
@@ -102,7 +99,6 @@ public partial class DownloadView : UserControl
         public Button Toggle { get; init; } = null!;
         public Button Cancel { get; init; } = null!;
 
-        // 日志面板：点击卡片头部展开 / 收起
         public bool LogOpen;
         public TextBlock LogHint { get; init; } = null!;
         public Border LogPanel { get; init; } = null!;
@@ -124,11 +120,8 @@ public partial class DownloadView : UserControl
     private readonly List<Button> _tabButtons = new();
     private readonly List<Control> _tabPanels = new();
 
-    // ==================== 跨页面入口：其他页面请求打开“插件”标签 ====================
-
     private static event Action? ExtensionTabRequested;
 
-    /// <summary>外部页面（如插件页）请求打开下载页的“插件”标签。</summary>
     public static void OpenExtensionTab() => ExtensionTabRequested?.Invoke();
 
     private void OnExtensionTabRequested()
@@ -146,7 +139,6 @@ public partial class DownloadView : UserControl
     private const int ResourcePageSize = 20;
 
     private List<GameVersion> _allVersions = [];
-    private List<JavaRuntimeRow> _javaRows = [];
     private VendorJavaKind _javaVendorKind = VendorJavaKind.Zulu;
     private IReadOnlyList<VendorJavaCandidate> _javaCandidates = [];
     private List<ModrinthVersion> _detailVersions = [];
@@ -171,7 +163,6 @@ public partial class DownloadView : UserControl
     private CancellationTokenSource? _modpackCts;
     private CancellationTokenSource? _shaderCts;
     private CancellationTokenSource? _resourcePackCts;
-    private CancellationTokenSource? _javaCts;
     private CancellationTokenSource? _detailCts;
 
     private static string CacheDirectory => Path.Combine(
@@ -186,10 +177,7 @@ public partial class DownloadView : UserControl
         InitializeComponent();
 
         _gameDirectory = EnsureGameDirectory();
-        // 版本缓存要等页面真正显示出来再读：构造函数是在"点底栏那一刻"同步跑的，
-        // 在这里读文件 + 解析 JSON 会直接变成点一下卡一下。
         VersionLoadingOverlay.IsVisible = true;
-
 
         _tabButtons.AddRange(new[]
         {
@@ -200,10 +188,6 @@ public partial class DownloadView : UserControl
             MinecraftPanel, ModPanel, ModpackPanel, ShaderPanel,
             ResourcePackPanel, JavaPanel, ExtensionPanel, TasksPanel,
         });
-
-        // 任务列表的数据源是全局 DownloadTaskService：任何页面发起的下载都在这里出现
-        // 文件拖入统一由 MainWindow 全局接管（DragImportService），这里不再重复注册，
-        // 避免一次落下触发两遍安装。
 
         ExtensionTabRequested += OnExtensionTabRequested;
         DetachedFromVisualTree += (_, _) => ExtensionTabRequested -= OnExtensionTabRequested;
@@ -220,8 +204,6 @@ public partial class DownloadView : UserControl
         ModpackList.ItemsSource = Array.Empty<ResourceItem>();
         ShaderList.ItemsSource = Array.Empty<ResourceItem>();
         ResourcePackList.ItemsSource = Array.Empty<ResourceItem>();
-        JavaRuntimeList.ItemsSource = _javaRows;
-        JavaEmptyHint.IsVisible = true;
 
         VersionPager.PageChanged += page =>
         {
@@ -274,7 +256,6 @@ public partial class DownloadView : UserControl
             VersionCacheFile cache = new()
             {
                 SavedAt = DateTimeOffset.UtcNow,
-                // 全量缓存（约 900 条），首屏直接显示「共 N 个版本」，不必等后台刷新。
                 Versions = versions.Select(version => new VersionCacheEntry
                 {
                     Id = version.Id,
@@ -291,7 +272,6 @@ public partial class DownloadView : UserControl
         }
         catch (Exception)
         {
-            // 缓存写入失败不影响使用
         }
     }
 
@@ -330,7 +310,6 @@ public partial class DownloadView : UserControl
         ThemeManager.ThemeChanged += OnThemeChanged;
         OnThemeChanged();
 
-        // 从其它页面返回时回到版本列表，不保留上次打开的安装/详情页面
         MinecraftInstallPanel.IsVisible = false;
         ResourceDetailPanel.IsVisible = false;
         TabHost.IsVisible = true;
@@ -345,16 +324,10 @@ public partial class DownloadView : UserControl
         }
     }
 
-    /// <summary>
-    /// 页面首次显示后的初始化。顺序是刻意的：先读本地版本缓存（快、且能立刻出内容），
-    /// 再依次拉版本列表和四类资源，最后是 Java 运行时。
-    /// 之前这六件事在挂载时一次性并发发出去，几条 JSON 解析撞在 UI 线程同一帧里，就是换页卡顿的来源。
-    /// </summary>
     private async Task LoadInitialDataAsync()
     {
         try
         {
-            // 缓存读完后立刻出列表，用户点进来就能看到内容，不用等网络。
             TryLoadVersionCache(out _);
             if (_allVersions.Count > 0)
             {
@@ -373,8 +346,6 @@ public partial class DownloadView : UserControl
                 if (!IsEffectivelyVisible) return;
                 await LoadResourcesAsync(type);
             }
-
-            await LoadJavaRuntimesAsync();
         }
         catch (Exception exception)
         {
@@ -391,7 +362,6 @@ public partial class DownloadView : UserControl
         CancelCts(ref _modpackCts);
         CancelCts(ref _shaderCts);
         CancelCts(ref _resourcePackCts);
-        CancelCts(ref _javaCts);
         CancelCts(ref _detailCts);
         base.OnDetachedFromVisualTree(e);
     }
@@ -407,11 +377,9 @@ public partial class DownloadView : UserControl
         }
         catch (ObjectDisposedException)
         {
-            // 已释放
         }
     }
 
-    /// <summary>主题切换后重算任务卡的状态色（构造时写入控件属性的画刷需要跟着换）。</summary>
     private void OnThemeChanged()
     {
         foreach (var card in _taskCards.Values)
@@ -419,8 +387,6 @@ public partial class DownloadView : UserControl
             ApplyTaskStatus(card);
         }
     }
-
-    // ---------------- 下载任务（数据源：全局 DownloadTaskService） ----------------
 
     private void OnTaskAdded(DownloadTaskSnapshot snapshot)
     {
@@ -435,7 +401,6 @@ public partial class DownloadView : UserControl
         if (_taskCards.TryGetValue(snapshot.Id, out TaskCard? card))
         {
             ApplySnapshot(card, snapshot);
-            // 日志面板开着时跟随刷新（新行 + 自动滚底）
             if (card.LogOpen) RefreshTaskLog(card);
         }
     }
@@ -577,7 +542,6 @@ public partial class DownloadView : UserControl
         Grid.SetColumn(actions, 1);
         bottom.Children.Add(actions);
 
-        // 日志面板：默认收起，点击卡片头部展开
         var logText = new SelectableTextBlock
         {
             FontFamily = new FontFamily("Consolas, Cascadia Mono, Microsoft YaHei"),
@@ -642,7 +606,6 @@ public partial class DownloadView : UserControl
         toggle.Click += OnTaskToggleClick;
         cancel.Click += OnTaskCancelClick;
 
-        // 点击卡片头部（非按钮区）切换日志面板
         header.Cursor = new Cursor(StandardCursorType.Hand);
         header.PointerPressed += (_, e) =>
         {
@@ -657,7 +620,6 @@ public partial class DownloadView : UserControl
         return card;
     }
 
-    /// <summary>展开 / 收起任务日志；展开时拉一次最新日志并滚到底部。</summary>
     private void ToggleTaskLog(TaskCard card)
     {
         card.LogOpen = !card.LogOpen;
@@ -765,8 +727,6 @@ public partial class DownloadView : UserControl
             : L.T("Download.Task.Cleared", "已清理 {0} 个已完成任务", finishedCount));
     }
 
-    // ---------------- 页头 / 标签 ----------------
-
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
         Shell.Toast(L.T("Download.Toast.Refreshing", "正在刷新下载源与版本列表…"));
@@ -777,7 +737,6 @@ public partial class DownloadView : UserControl
     {
         if (sender is not Button { Tag: string tab }) return;
 
-        // 从 Minecraft 安装/资源详情界面直接点顶部标签时，先退回到标签页
         if (MinecraftInstallPanel.IsVisible || ResourceDetailPanel.IsVisible)
         {
             CancelCts(ref _minecraftLoaderCts);
@@ -807,7 +766,6 @@ public partial class DownloadView : UserControl
             _tabPanels[i].IsVisible = active;
         }
 
-        // 标签内容各自滚动，切回来时从顶部开始
         if (_tabPanels[next] is ScrollViewer scroll)
         {
             scroll.Offset = default;
@@ -816,8 +774,8 @@ public partial class DownloadView : UserControl
 
         if (string.Equals(tab, "java", StringComparison.Ordinal))
         {
+            JavaCandidateScroll.Offset = default;
             _ = LoadJavaCandidatesAsync();
-            _ = LoadJavaRuntimesAsync();
         }
 
         if (string.Equals(tab, "extension", StringComparison.Ordinal))
@@ -825,8 +783,6 @@ public partial class DownloadView : UserControl
             _ = RefreshExtensionEntriesAsync();
         }
     }
-
-    // ---------------- Minecraft 本体 ----------------
 
     private async Task LoadVersionsAsync()
     {
@@ -877,7 +833,6 @@ public partial class DownloadView : UserControl
         }
         catch (OperationCanceledException)
         {
-            // 页面卸载 / 重新加载
         }
         catch (Exception ex)
         {
@@ -905,7 +860,6 @@ public partial class DownloadView : UserControl
             version.Type);
     }
 
-    /// <summary>缓存里可能存的是旧格式（只有本地化名称），尽量还原成原始类型 key。</summary>
     private static string VersionTypeKey(string value) => value switch
     {
         "release" or "snapshot" or "old_beta" or "old_alpha" => value,
@@ -1107,7 +1061,6 @@ public partial class DownloadView : UserControl
         }
         catch (OperationCanceledException)
         {
-            // 切换加载器/离开页面
         }
         catch (Exception ex)
         {
@@ -1210,7 +1163,6 @@ public partial class DownloadView : UserControl
         {
             string gameDirectory = EnsureGameDirectory();
 
-            // 取消清理目标：本次安装要新建的版本目录（已存在说明是重装，取消时不删，避免误伤旧安装）
             string installDirectory = Path.Combine(
                 gameDirectory, "versions", kind == ModLoaderKind.Vanilla ? versionId : instanceName);
             if (!Directory.Exists(installDirectory)) task.RegisterCleanup(installDirectory);
@@ -1273,8 +1225,6 @@ public partial class DownloadView : UserControl
             Shell.Toast(L.T("Download.Version.Failed", "下载 Minecraft {0} 失败：{1}", versionId, ex.Message));
         }
     }
-
-    // ---------------- Mod / 整合包 / 光影 / 材质 ----------------
 
     private void OnResourceSearchChanged(object? sender, TextChangedEventArgs e)
     {
@@ -1369,8 +1319,6 @@ public partial class DownloadView : UserControl
             // 输入法连续输入时合并请求
             if (debounce) await Task.Delay(350, timeout.Token);
 
-            // 首屏默认「不限版本 / 不限加载器」：下载页没有版本/加载器选择器，
-            // 用已装实例推断会把列表收窄（例如整合包只剩 ~4k），只影响真实安装时的版本匹配。
             int offset = Math.Max(0, page) * ResourcePageSize;
             ModrinthSearchResult result;
             if (string.IsNullOrWhiteSpace(query))
@@ -1380,7 +1328,6 @@ public partial class DownloadView : UserControl
             }
             else
             {
-                // 中文关键词（如「钠」「机械动力」）先换成 Modrinth 认得的英文名
                 string keyword = ChineseResourceName.ToSearchKeyword(query);
                 result = await ModrinthResourceSearch.SearchPageAsync(
                     keyword, type, null, null, ResourcePageSize, offset, "relevance", timeout.Token);
@@ -1396,7 +1343,6 @@ public partial class DownloadView : UserControl
         }
         catch (OperationCanceledException)
         {
-            // 新的搜索 / 页面卸载
         }
         catch (Exception ex)
         {
@@ -1462,7 +1408,6 @@ public partial class DownloadView : UserControl
     private static readonly string[] LoaderOrder =
         ["fabric", "neoforge", "forge", "quilt", "liteloader", "rift"];
 
-    /// <summary>资源行徽章：最多两枚内容分类；Mod / 整合包再补每个支持的加载器一枚。</summary>
     private static IReadOnlyList<string> ResourceBadges(ModrinthProject project, string type)
     {
         const int categoryLimit = 2;
@@ -1563,14 +1508,11 @@ public partial class DownloadView : UserControl
         return text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
-    // ---------------- 资源安装 ----------------
-
     private async void OnResourceIconLoaded(object? sender, RoutedEventArgs e)
     {
         if (sender is not Image { Tag: ResourceItem item } image) return;
         if (!_resourceProjects.TryGetValue(item, out ModrinthProject? project)) return;
 
-        // 没有图标地址：一直显示占位图标
         if (string.IsNullOrWhiteSpace(project.IconUrl))
         {
             IconPlaceholder.SetVisible(image, true);
@@ -1582,18 +1524,15 @@ public partial class DownloadView : UserControl
             Bitmap? bitmap = await ResourceIconCache.LoadAsync(project.IconUrl, $"modrinth:{project.ProjectId}");
             if (bitmap is null)
             {
-                // 图标加载失败保留占位图标
                 IconPlaceholder.SetVisible(image, true);
                 return;
             }
 
             image.Source = bitmap;
-            // 真图标铺满后收起下面的占位图标，背景透明的图标才不会漏出占位字形
             IconPlaceholder.SetVisible(image, false);
         }
         catch (Exception)
         {
-            // 图标加载失败保留占位图标
             IconPlaceholder.SetVisible(image, true);
         }
     }
@@ -1628,7 +1567,6 @@ public partial class DownloadView : UserControl
             }
             else
             {
-                // 选了具体实例且开启版本隔离时，装进实例自己的目录
                 string contentRoot = gameDirectory;
                 if (!string.IsNullOrWhiteSpace(targetInstanceId) && YamlRead.DefaultVersionIsolation)
                 {
@@ -1643,7 +1581,6 @@ public partial class DownloadView : UserControl
                 });
                 Directory.CreateDirectory(targetDirectory);
 
-                // 取消清理：登记本次要下载的资源文件（已存在的同名文件不登记，更新场景不误删）
                 foreach (ModrinthVersionFile file in version.Files)
                 {
                     string targetPath = Path.Combine(targetDirectory, file.Filename);
@@ -1675,7 +1612,6 @@ public partial class DownloadView : UserControl
         }
     }
 
-    /// <summary>整合包安装：下载 .mrpack → 交给 MofuCore 解压 overrides、下载依赖并安装加载器。</summary>
     private static async Task InstallModpackAsync(
         ModrinthVersion version,
         string gameDirectory,
@@ -1690,7 +1626,6 @@ public partial class DownloadView : UserControl
         string temporary = Path.Combine(gameDirectory, "downloads");
         Directory.CreateDirectory(temporary);
 
-        // 取消清理：整合包主文件 + 本次新建的实例目录（实例目录已存在则不动）
         string mrpackPath = Path.Combine(temporary, primary.Filename);
         if (!File.Exists(mrpackPath)) task.RegisterCleanup(mrpackPath);
 
@@ -1718,7 +1653,6 @@ public partial class DownloadView : UserControl
             installProgress,
             cancellationToken);
 
-        // 把整合包含的加载器版本目录同步到游戏根目录，实例页/启动器才能在 versions 里看到它。
         string instanceVersions = Path.Combine(instanceDirectory, "versions");
         if (Directory.Exists(instanceVersions))
         {
@@ -1779,7 +1713,6 @@ public partial class DownloadView : UserControl
         }
     }
 
-    /// <summary>已安装版本里选一个作为过滤/安装目标。</summary>
     private static string? SelectedGameVersion()
     {
         try
@@ -1826,8 +1759,6 @@ public partial class DownloadView : UserControl
         if (lower.Contains("forge")) return "forge";
         return "vanilla";
     }
-
-    // ---------------- 资源详情（弹层转界面） ----------------
 
     private sealed class DetailVersionRow
     {
@@ -1891,7 +1822,6 @@ public partial class DownloadView : UserControl
         }
         catch (Exception)
         {
-            // 图标失败保留空白
         }
     }
 
@@ -1907,7 +1837,6 @@ public partial class DownloadView : UserControl
         DetailIcon.Source = null;
     }
 
-    /// <summary>安装目标：本机已安装实例。</summary>
     private void LoadTargetInstances()
     {
         List<TargetInstance> targets = [];
@@ -1933,7 +1862,6 @@ public partial class DownloadView : UserControl
             }
             catch (Exception)
             {
-                // 忽略扫描失败
             }
         }
 
@@ -2021,7 +1949,6 @@ public partial class DownloadView : UserControl
         RefreshDetailVersions();
     }
 
-    /// <summary>Mojang 正式版：纯数字点分（1.21.11 / 26.3），snapshot / rc / pre 不算。</summary>
     private static bool IsReleaseVersion(string version)
     {
         if (version.Length == 0) return false;
@@ -2167,137 +2094,13 @@ public partial class DownloadView : UserControl
         return "vanilla";
     }
 
-
-    // ---------------- Java ----------------
-
-    private async Task LoadJavaRuntimesAsync()
-    {
-        var cts = new CancellationTokenSource();
-        CancelCts(ref _javaCts);
-        _javaCts = cts;
-        string gameDirectory = EnsureGameDirectory();
-
-        List<JavaRuntimeRow> rows = [];
-        try
-        {
-            IReadOnlyList<InstalledJavaRuntime> managed =
-                await JavaDownload.GetInstalledRuntimesAsync(gameDirectory, cts.Token);
-            foreach (InstalledJavaRuntime runtime in managed)
-            {
-                rows.Add(new JavaRuntimeRow
-                {
-                    DisplayName = $"Mojang {runtime.Component} {runtime.VersionName}".Trim(),
-                    JavaPath = runtime.JavaExecutablePath,
-                    DirectoryPath = runtime.DirectoryPath,
-                    Managed = true,
-                });
-            }
-
-            foreach (VendorJavaRuntime runtime in VendorJavaInstaller.GetInstalledRuntimes(gameDirectory))
-            {
-                if (rows.Any(row => string.Equals(row.JavaPath, runtime.JavaExecutablePath,
-                        StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                rows.Add(new JavaRuntimeRow
-                {
-                    DisplayName = runtime.DisplayName,
-                    JavaPath = runtime.JavaExecutablePath,
-                    DirectoryPath = runtime.DirectoryPath,
-                    Managed = true,
-                });
-            }
-
-            IReadOnlyList<JavaRuntime> detected =
-                await JavaPathSearch.FindAllJavaAsync(Path.Combine(gameDirectory, "runtime"), cts.Token);
-            foreach (JavaRuntime runtime in detected)
-            {
-                if (rows.Any(row => string.Equals(row.JavaPath, runtime.JavaPath, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                string version = runtime.MajorVersion?.ToString(CultureInfo.InvariantCulture)
-                                 ?? runtime.VersionString;
-                rows.Add(new JavaRuntimeRow
-                {
-                    DisplayName = $"{runtime.Vendor} {version}".Trim(),
-                    JavaPath = runtime.JavaPath,
-                    Managed = false,
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch (Exception)
-        {
-            // 探测失败时保留已加载列表
-        }
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            _javaRows = rows;
-            JavaRuntimeList.ItemsSource = null;
-            JavaRuntimeList.ItemsSource = _javaRows;
-            JavaEmptyHint.IsVisible = rows.Count == 0;
-            ApplyGlobalJava();
-        });
-    }
-
-    private void ApplyGlobalJava()
-    {
-        string configured = (YamlRead.JavaExecutable ?? string.Empty).Trim();
-        JavaRuntimeRow? row = _javaRows.FirstOrDefault(candidate =>
-            string.Equals(candidate.JavaPath, configured, StringComparison.OrdinalIgnoreCase));
-
-        if (row is not null)
-        {
-            GlobalJavaName.Text = row.DisplayName;
-            GlobalJavaPath.Text = row.JavaPath;
-            return;
-        }
-
-        if (configured.Length > 0)
-        {
-            GlobalJavaName.Text = Path.GetFileName(configured);
-            GlobalJavaPath.Text = configured;
-            return;
-        }
-
-        GlobalJavaName.Text = L.T("Download.Java.Auto", "自动选择最佳运行时");
-        GlobalJavaPath.Text = L.T("Download.Java.AutoHint", "启动时按版本要求自动检测本机 Java");
-    }
-
-    private async void OnDetectJavaClick(object? sender, RoutedEventArgs e)
-    {
-        await LoadJavaRuntimesAsync();
-        Shell.Toast(L.T("Download.Java.Detected", "已重新检测 Java 运行时：{0} 个可用", _javaRows.Count));
-    }
-
-    private void OnOpenJavaDirClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string directory = Path.Combine(EnsureGameDirectory(), "runtime");
-            Directory.CreateDirectory(directory);
-            Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
-            Shell.Toast(L.T("Download.Java.OpenJavaDir", "打开 Java 运行时目录 {0}", directory));
-        }
-        catch (Exception ex)
-        {
-            Shell.Toast(L.T("Download.Java.OpenDirFailed", "打开 Java 目录失败：{0}", ex.Message));
-        }
-    }
-
     private async Task LoadJavaCandidatesAsync()
     {
         JavaPlatformText.Text = VendorJavaInstaller.GetPlatformDisplayName();
         JavaCandidateStatus.Text = L.T("Download.Java.CandidatesLoading", "正在查询可用 Java 版本…");
         JavaCandidateList.ItemsSource = null;
+        JavaEmptyOverlay.IsVisible = false;
+        JavaLoadingOverlay.IsVisible = true;
 
         try
         {
@@ -2305,11 +2108,11 @@ public partial class DownloadView : UserControl
                 await VendorJavaInstaller.QueryAvailableVersionsAsync(_javaVendorKind);
             _javaCandidates = candidates;
             JavaCandidateList.ItemsSource = candidates;
-            JavaCandidateList.SelectedIndex = candidates.Count > 0 ? 0 : -1;
+            JavaEmptyOverlay.IsVisible = candidates.Count == 0;
             UiAnimations.Reset(JavaCandidateList);
             UiAnimations.FadeSlideIn(JavaCandidateList, 0.995, 4, 140);
             JavaCandidateStatus.Text = candidates.Count == 0
-                ? L.T("Download.Java.CandidatesEmpty", "当前供应商没有适配此平台的版本")
+                ? string.Empty
                 : L.T("Download.Java.CandidatesCount", "{0} 个可用版本 · 将自动选择当前平台安装包",
                     candidates.Count);
         }
@@ -2318,26 +2121,46 @@ public partial class DownloadView : UserControl
             JavaCandidateStatus.Text = L.T("Download.Java.CandidatesFailed",
                 "查询 Java 版本失败：{0}", error.Message);
         }
+        finally
+        {
+            JavaLoadingOverlay.IsVisible = false;
+        }
     }
 
     private void OnRefreshJavaCandidatesClick(object? sender, RoutedEventArgs e) =>
         _ = LoadJavaCandidatesAsync();
 
-    private async void OnJavaVendorChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnJavaVendorPillClick(object? sender, RoutedEventArgs e)
     {
-        if (!_ready) return;
-        if (JavaVendorCombo.SelectedItem is ComboBoxItem { Tag: string tag } &&
-            Enum.TryParse(tag, out VendorJavaKind kind))
+        if (sender is not Button { Tag: string tag } || !Enum.TryParse(tag, out VendorJavaKind kind))
         {
-            _javaVendorKind = kind;
+            return;
         }
 
-        await LoadJavaCandidatesAsync();
+        if (_javaVendorKind == kind && _javaCandidates.Count > 0)
+        {
+            return;
+        }
+
+        _javaVendorKind = kind;
+        ApplyJavaVendorSelection();
+        if (_ready)
+        {
+            _ = LoadJavaCandidatesAsync();
+        }
+    }
+
+    private void ApplyJavaVendorSelection()
+    {
+        JavaVendorZuluPill.Classes.Set("active", _javaVendorKind == VendorJavaKind.Zulu);
+        JavaVendorTemurinPill.Classes.Set("active", _javaVendorKind == VendorJavaKind.Temurin);
+        JavaVendorOraclePill.Classes.Set("active", _javaVendorKind == VendorJavaKind.Oracle);
     }
 
     private async void OnDownloadJavaCandidateClick(object? sender, RoutedEventArgs e)
     {
-        if (JavaCandidateList.SelectedItem is not VendorJavaCandidate candidate)
+        VendorJavaCandidate? candidate = (sender as Button)?.Tag as VendorJavaCandidate;
+        if (candidate is null)
         {
             Shell.Toast(L.T("Download.Java.SelectVersion", "请先选择一个 Java 版本"));
             return;
@@ -2380,7 +2203,6 @@ public partial class DownloadView : UserControl
             task.Complete(L.T("Download.Java.InstallDone", "已安装并启用 {0}", runtime.DisplayName));
             JavaDownloadProgress.Value = 100;
             JavaDownloadStatus.Text = L.T("Download.Java.InstallDone", "已安装并启用 {0}", runtime.DisplayName);
-            await LoadJavaRuntimesAsync();
             Shell.Toast(L.T("Download.Java.InstallDone", "已安装并启用 {0}", runtime.DisplayName));
         }
         catch (Exception error)
@@ -2391,83 +2213,6 @@ public partial class DownloadView : UserControl
             Shell.Toast(JavaDownloadStatus.Text);
         }
     }
-
-    private async void OnJavaVendorClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string tag } || !int.TryParse(tag, out int majorVersion))
-        {
-            return;
-        }
-
-        string gameDirectory = EnsureGameDirectory();
-        var task = DownloadTaskService.Start(
-            $"{L.T("Download.Java.Runtime", "Java 运行时")} {majorVersion}",
-            L.T("Download.Java.Preparing", "正在准备下载…"));
-
-        try
-        {
-            var progress = new Progress<JavaRuntimeInstallProgress>(value => task.Report(
-                value.Percent, value.Phase));
-
-            InstalledJavaRuntime? runtime = await JavaDownload.InstallForMajorVersionAsync(
-                majorVersion, gameDirectory, progress, task.Token);
-            if (runtime is null)
-            {
-                throw new InvalidOperationException(
-                    L.T("Download.Java.NotFound", "Mojang 没有提供 Java {0} 的运行时", majorVersion));
-            }
-
-            YamlRead.SaveJava(runtime.JavaExecutablePath, runtime.VersionName);
-            task.Complete();
-            await LoadJavaRuntimesAsync();
-            Shell.Toast(L.T("Download.Java.InstallDone", "已安装并启用 {0}", runtime.VersionName));
-        }
-        catch (OperationCanceledException)
-        {
-            task.MarkCancelled();
-        }
-        catch (Exception ex)
-        {
-            task.Fail(ex.Message);
-            Shell.Toast(L.T("Download.Java.InstallFailed", "Java 运行时安装失败：{0}", ex.Message));
-        }
-    }
-
-    private void OnUseInstalledJavaClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: JavaRuntimeRow row }) return;
-        if (!YamlRead.SaveJava(row.JavaPath, row.DisplayName))
-        {
-            Shell.Toast(L.T("Download.Java.SaveFailed", "保存默认 Java 失败"));
-            return;
-        }
-
-        ApplyGlobalJava();
-        Shell.Toast(L.T("Download.Java.SetDefault", "已将 {0} 设为全局默认 Java", row.DisplayName));
-    }
-
-    private void OnDeleteInstalledJavaClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: JavaRuntimeRow row }) return;
-
-        try
-        {
-            if (row.Managed && Directory.Exists(row.DirectoryPath))
-            {
-                Directory.Delete(row.DirectoryPath, true);
-            }
-
-            YamlRead.RemoveJava(row.JavaPath);
-            _ = LoadJavaRuntimesAsync();
-            Shell.Toast(L.T("Download.Java.Removed", "已移除 Java 运行时 {0}", row.DisplayName));
-        }
-        catch (Exception ex)
-        {
-            Shell.Toast(L.T("Download.Java.RemoveFailed", "移除 Java 运行时失败：{0}", ex.Message));
-        }
-    }
-
-    // ---------------- 工具 ----------------
 
     private static string SafeGameDirectory()
     {
@@ -2482,12 +2227,9 @@ public partial class DownloadView : UserControl
         }
     }
 
-    // ---------------- 过渡动画 ----------------
-
     private static readonly TimeSpan TabSwitchDuration = TimeSpan.FromMilliseconds(240);
     private static readonly TimeSpan ListRefreshDuration = TimeSpan.FromMilliseconds(180);
 
-    /// <summary>标签页横向滑入（前进从右、后退从左）。</summary>
     private void AnimateTabSwitch(Control? panel, int direction)
     {
         ResetMotion(panel);
@@ -2519,7 +2261,6 @@ public partial class DownloadView : UserControl
         }, DispatcherPriority.Render);
     }
 
-    /// <summary>搜索/筛选/刷新后列表淡入并轻微上浮，避免条目瞬间跳变。</summary>
     private void AnimateListRefresh(Control? target)
     {
         ResetMotion(target);
@@ -2550,15 +2291,12 @@ public partial class DownloadView : UserControl
         }, DispatcherPriority.Render);
     }
 
-    /// <summary>把控件恢复为静态可见状态（动画取消时避免停在透明）。</summary>
     private static void ResetMotion(Control? target)
     {
         if (target is null) return;
         target.Opacity = 1;
         target.RenderTransform = TransformOperations.Parse("translateX(0px) scale(1)");
     }
-
-    // ==================== 插件商店（GitHub / Gitee / GitCode 仓库镜像） ====================
 
     private void RenderExtensionRepos()
     {
@@ -2570,7 +2308,6 @@ public partial class DownloadView : UserControl
 
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto") };
 
-            // 平台徽章（GitHub / Gitee / GitCode），颜色随平台
             if (reference is not null)
             {
                 var badge = new Border
@@ -2636,7 +2373,6 @@ public partial class DownloadView : UserControl
             return;
         }
 
-        // 同平台同仓库才视为重复（同名仓库可以在不同平台各加一份）
         if (LocalSettings.Current.PluginRepos.Any(existing =>
                 PluginStore.ParseRepo(existing)?.HomeUrl.Equals(reference.HomeUrl, StringComparison.OrdinalIgnoreCase) == true))
         {
@@ -2699,7 +2435,6 @@ public partial class DownloadView : UserControl
         }
     }
 
-    /// <summary>来源平台徽章的主题色（标题/背景一对）。</summary>
     private static (string Brush, string SoftBrush) HostBrushes(string hostName) => hostName switch
     {
         "Gitee" => ("NekoDangerBrush", "NekoDangerSoftBrush"),
@@ -2734,7 +2469,6 @@ public partial class DownloadView : UserControl
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         var info = new StackPanel { Spacing = 3 };
 
-        // 标题行：插件名 + 版本 + 来源平台徽章
         var titleRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -2826,29 +2560,14 @@ public partial class DownloadView : UserControl
 
     private void Control_OnLoaded(object? sender, RoutedEventArgs e)
     {
-        //通过时区检测用户的位置，当位于UTC+8时显示警告消息
-        TimeZoneInfo ChinaUTC = TimeZoneInfo.Local;// 当你看到这个变量名就应该知道这是怎么回事了
+        TimeZoneInfo ChinaUTC = TimeZoneInfo.Local;
         if (ChinaUTC.Id != "China Standard Time" && ChinaUTC.Id != "Asia/Shanghai")
         {
-            ChineseMainlandInfoBar.IsVisible = false;//隐藏条
+            ChineseMainlandInfoBar.IsVisible = false;
         }
     }
 }
 
-/// <summary>Java 运行时列表行（下载页 Java 标签）。</summary>
-public sealed class JavaRuntimeRow
-{
-    public string DisplayName { get; init; } = string.Empty;
-
-    public string JavaPath { get; init; } = string.Empty;
-
-    public string DirectoryPath { get; init; } = string.Empty;
-
-    /// <summary>是否由启动器安装、可安全删除目录。</summary>
-    public bool Managed { get; init; }
-}
-
-/// <summary>版本清单本地缓存（%LOCALAPPDATA%\Mofumofu.Launcher\cache\versions.json）。</summary>
 public sealed class VersionCacheFile
 {
     public DateTimeOffset SavedAt { get; set; }

@@ -12,10 +12,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Services.Wallpaper;
 
-/// <summary>
-/// 自定义壁纸层（单例）：图片 / 图片轮播，画在主窗口内部的壁纸表面上。
-/// 不再依赖 Wallpaper Engine 与 WebView 网页壁纸。
-/// </summary>
 public sealed class WallpaperService
 {
     private static readonly System.Diagnostics.Stopwatch StartupClock = System.Diagnostics.Stopwatch.StartNew();
@@ -42,7 +38,6 @@ public sealed class WallpaperService
     private WallpaperService()
     {
         Settings = WallpaperStore.Load();
-        // 规范化一次并落盘（修正越界值、清理失效路径）
         WallpaperStore.Save(Settings);
         EnsurePreload();
     }
@@ -51,10 +46,8 @@ public sealed class WallpaperService
 
     public WallpaperSettings Settings { get; }
 
-    /// <summary>设置 / 当前壁纸变化通知。</summary>
     public event Action? Changed;
 
-    /// <summary>最近一次应用壁纸时的错误（图片不存在等）。</summary>
     public string LastError { get; private set; } = string.Empty;
 
     public static string SettingsPath => WallpaperStore.SettingsPath;
@@ -62,7 +55,6 @@ public sealed class WallpaperService
     public static bool IsImageFile(string path) =>
         File.Exists(path) && ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
 
-    /// <summary>当前设置是否有可显示的内容（文件仍存在）。</summary>
     public bool HasValidContent => Settings.Mode switch
     {
         WallpaperModes.Image => ValidImages().Count > 0,
@@ -70,7 +62,6 @@ public sealed class WallpaperService
         _ => false,
     };
 
-    /// <summary>壁纸层是否生效（主窗口据此决定是否透明露出壁纸）。</summary>
     public bool IsEnabled => Settings.Enabled && HasValidContent;
 
     /// <summary>图片 / 轮播画在主窗口内部，方便面板毛玻璃采样；视频仍走独立窗口。</summary>
@@ -78,10 +69,6 @@ public sealed class WallpaperService
         Settings.Mode is WallpaperModes.Image or WallpaperModes.Slideshow;
 
     public static void AttachToMainWindow(Window main) => Instance.Attach(main);
-
-    // ------------------------------------------------------------------
-    // 主窗口接线
-    // ------------------------------------------------------------------
 
     public void Attach(Window main)
     {
@@ -120,10 +107,6 @@ public sealed class WallpaperService
 
         _main = null;
     }
-
-    // ------------------------------------------------------------------
-    // 设置入口（供设置页调用）
-    // ------------------------------------------------------------------
 
     public void SetEnabled(bool enabled) => Update(settings => settings.Enabled = enabled);
 
@@ -165,14 +148,9 @@ public sealed class WallpaperService
 
     public void Refresh() => Apply();
 
-    /// <summary>兼容旧调用：主题变化时不需要重绘（图片壁纸与主题无关）。</summary>
     public void NotifyThemeChanged()
     {
     }
-
-    // ------------------------------------------------------------------
-    // 应用壁纸
-    // ------------------------------------------------------------------
 
     private void Update(Action<WallpaperSettings> mutate)
     {

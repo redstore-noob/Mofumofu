@@ -12,10 +12,6 @@ using Microsoft.Web.WebView2.Core;
 
 namespace Mofumofu.Launcher.Web;
 
-/// <summary>
-/// 局部 WebView2 宿主：在主窗口里为某个 Avalonia 控件区域创建子 HWND，
-/// 再让 WebView2 挂到子 HWND 上。用于账户页的 3D 皮肤预览等局部场景。
-/// </summary>
 public sealed class WebRegionHost : IDisposable
 {
     private const int WsChild = 0x40000000;
@@ -62,7 +58,6 @@ public sealed class WebRegionHost : IDisposable
         }
     }
 
-    /// <summary>临时隐藏所有 WebView2 区域（例如打开弹窗时）。</summary>
     public static void SuspendAll()
     {
         List<WebRegionHost> hosts;
@@ -78,7 +73,6 @@ public sealed class WebRegionHost : IDisposable
         }
     }
 
-    /// <summary>弹窗关闭后恢复之前隐藏的 WebView2 区域。</summary>
     public static void ResumeAll()
     {
         List<WebRegionHost> hosts;
@@ -111,7 +105,6 @@ public sealed class WebRegionHost : IDisposable
         }
     }
 
-    /// <summary>页面通过 window.chrome.webview.postMessage 发回的字符串消息。</summary>
     public event Action<string>? MessageReceived;
 
     public async System.Threading.Tasks.Task AttachAsync()
@@ -184,7 +177,6 @@ public sealed class WebRegionHost : IDisposable
                 }
                 catch
                 {
-                    // 消息不是字符串（例如 JSON 对象）时忽略
                 }
             };
 
@@ -241,7 +233,6 @@ public sealed class WebRegionHost : IDisposable
         }
     }
 
-    /// <summary>把账号皮肤信息推给页面（页面提供 window.__applySkin）。</summary>
     public void ApplySkin(string name, string variant, bool slim, bool cape)
     {
         var json = JsonSerializer.Serialize(new
@@ -255,12 +246,10 @@ public sealed class WebRegionHost : IDisposable
         Execute($"window.__applySkin && window.__applySkin({json});");
     }
 
-    /// <summary>页面是否已加载完成，可以安全执行脚本。</summary>
     public bool IsReady => _ready && _core is not null;
 
     public string PageUrl => BuildPageUrl();
 
-    /// <summary>在页面里执行一段脚本；页面未就绪时按顺序排队，就绪后串行补执行。</summary>
     public void Execute(string script)
     {
         if (string.IsNullOrWhiteSpace(script)) return;
@@ -273,13 +262,11 @@ public sealed class WebRegionHost : IDisposable
         DrainScripts();
     }
 
-    /// <summary>把队列里的脚本串行送进 WebView2；前一个没跑完不会并发发起下一个。</summary>
     private void DrainScripts()
     {
         if (!IsReady) return;
         lock (_scriptLock)
         {
-            // 链接到上一条任务之后，保证串行；任务由字段持有，异常内部消化，可观察。
             _scriptTail = RunScriptsAsync(_scriptTail);
         }
     }
@@ -292,7 +279,6 @@ public sealed class WebRegionHost : IDisposable
         }
         catch
         {
-            // 上一条泵异常不应阻断本次排空
         }
 
         while (IsReady)
@@ -312,12 +298,10 @@ public sealed class WebRegionHost : IDisposable
             }
             catch
             {
-                // 单条脚本执行失败不影响后续脚本，也不产生未观察的异常
             }
         }
     }
 
-    /// <summary>按通道推一条 JSON 消息：页面侧对应 window.__mofuPush(channel, payload)。</summary>
     public void Post(string channel, object payload)
     {
         var payloadJson = JsonSerializer.Serialize(payload);
@@ -325,7 +309,6 @@ public sealed class WebRegionHost : IDisposable
         Execute($"window.__mofuPush && window.__mofuPush({channelJson}, {payloadJson});");
     }
 
-    /// <summary>页面底色（WebView2 是独立 HWND，透明像素会直接透出桌面）。</summary>
     public void SetBackground(System.Drawing.Color color)
     {
         if (_controller is not null)
@@ -462,7 +445,6 @@ public sealed class WebRegionHost : IDisposable
         }
         catch
         {
-            // 日志失败不影响运行
         }
     }
 }

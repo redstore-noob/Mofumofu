@@ -3,7 +3,6 @@ using System.IO;
 
 namespace Mofumofu.Launcher.Services.Plugins;
 
-/// <summary>插件系统日志：{DataRoot}/Mofumofu/logs/plugins.log，宿主与插件共用。</summary>
 public static class PluginLog
 {
     private static readonly object Gate = new();
@@ -27,7 +26,6 @@ public static class PluginLog
         }
         catch
         {
-            // 日志写失败不影响任何功能
         }
     }
 

@@ -3,7 +3,6 @@ using MofuCore.Download.Minecraft;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>下载源设置：主源 / 回退源 / 自定义源统一应用。</summary>
 public static class DownloadSourceSettings
 {
     public const string Bmcl = "bmcl";

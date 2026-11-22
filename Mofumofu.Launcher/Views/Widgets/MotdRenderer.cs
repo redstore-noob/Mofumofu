@@ -12,7 +12,6 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>一段样式相同的 MOTD 文本（解析结果的最小单位）。</summary>
 public readonly record struct MotdSegment(
     string Text,
     Color? Color,
@@ -25,14 +24,12 @@ public readonly record struct MotdSegment(
     public bool HasStyle => Color is not null || Bold || Italic || Underlined || Strikethrough || Obfuscated;
 }
 
-/// <summary>MOTD 渲染参数。</summary>
 public sealed class MotdOptions
 {
     public double FontSize { get; init; } = 11.5;
 
     public FontFamily? FontFamily { get; init; }
 
-    /// <summary>最多显示几行（0 = 不限制）。</summary>
     public int MaxLines { get; init; }
 
     public TextWrapping Wrapping { get; init; } = TextWrapping.Wrap;
@@ -48,7 +45,6 @@ public sealed class MotdOptions
 /// </summary>
 public static class MotdRenderer
 {
-    /// <summary>Minecraft Java 版 16 色码 → 官方默认色板。</summary>
     private static readonly Dictionary<char, Color> LegacyColors = new()
     {
         ['0'] = Color.Parse("#000000"),
@@ -69,7 +65,6 @@ public static class MotdRenderer
         ['f'] = Color.Parse("#FFFFFF"),
     };
 
-    /// <summary>JSON 文本组件的具名颜色（与原版一致）。</summary>
     private static readonly Dictionary<string, Color> NamedColors = new(StringComparer.OrdinalIgnoreCase)
     {
         ["black"] = Color.Parse("#000000"),
@@ -92,7 +87,6 @@ public static class MotdRenderer
         ["white"] = Color.Parse("#FFFFFF"),
     };
 
-    /// <summary>去掉 § 样式码与 JSON 组件结构，只留可读文本（工具提示、Toast 用）。</summary>
     public static string Strip(string? motd)
     {
         if (string.IsNullOrEmpty(motd)) return string.Empty;
@@ -106,7 +100,6 @@ public static class MotdRenderer
         return builder.ToString().Trim();
     }
 
-    /// <summary>解析 MOTD：先是 JSON 文本组件，失败后按 § 样式码流转译。</summary>
     public static IReadOnlyList<MotdSegment> Parse(string? motd)
     {
         var segments = new List<MotdSegment>();
@@ -123,7 +116,6 @@ public static class MotdRenderer
         return segments;
     }
 
-    /// <summary>渲染成 TextBlock（多行自动换行，换行符转成硬换行）。</summary>
     public static TextBlock Render(string? motd, MotdOptions? options = null)
     {
         var settings = options ?? new MotdOptions();
@@ -142,7 +134,6 @@ public static class MotdRenderer
         return block;
     }
 
-    /// <summary>把 MOTD 写进已有 TextBlock（替换 Inlines）。</summary>
     public static void Apply(TextBlock target, string? motd, MotdOptions? options = null)
     {
         var settings = options ?? new MotdOptions();
@@ -194,12 +185,10 @@ public static class MotdRenderer
             }
             if (decorations is not null) run.TextDecorations = decorations;
 
-            // §k 在原版是随机抖动的乱码；静态卡片里保留原文，保证信息可读
             target.Inlines!.Add(run);
         }
     }
 
-    /// <summary>浅色主题用：把过亮的颜色往黑色方向压 35%，保留原有色相。</summary>
     private static Color Darken(Color color)
     {
         var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255d;
@@ -212,8 +201,6 @@ public static class MotdRenderer
             (byte)Math.Round(color.G * ratio),
             (byte)Math.Round(color.B * ratio));
     }
-
-    // ================= § 样式码 =================
 
     private static void ParseLegacy(string source, List<MotdSegment> segments)
     {
@@ -243,7 +230,6 @@ public static class MotdRenderer
 
             if (code == 'x')
             {
-                // Bungee/Spigot 的 hex 色序列：§x§r§r§g§g§b§b
                 if (TryReadHexColor(source, index, out var hex, out var consumed))
                 {
                     next = new StyleState { Color = hex };
@@ -256,7 +242,6 @@ public static class MotdRenderer
             }
             else if (LegacyColors.TryGetValue(code, out var legacyColor))
             {
-                // 颜色码按原版语义清空装饰样式
                 next = new StyleState { Color = legacyColor };
             }
             else
@@ -311,8 +296,6 @@ public static class MotdRenderer
         consumed = cursor - start;
         return true;
     }
-
-    // ================= JSON 文本组件 =================
 
     private static bool TryParseJsonComponent(string source, out List<MotdSegment> segments)
     {
@@ -398,7 +381,6 @@ public static class MotdRenderer
         return null;
     }
 
-    /// <summary>MOTD 样式状态（解析过程中的可变状态，按值比较）。</summary>
     private sealed class StyleState : IEquatable<StyleState>
     {
         public StyleState()

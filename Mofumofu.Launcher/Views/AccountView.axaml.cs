@@ -52,6 +52,7 @@ public partial class AccountView : UserControl
     private AccountRow? _skinEditorRow;
     private int _skinEditorTicks;
     private bool _skinEditorClosing;
+    private LoginBrowserWindow? _loginWindow;
 
     private CancellationTokenSource? _skinCts;
     private CancellationTokenSource? _loginCts;
@@ -475,16 +476,29 @@ public partial class AccountView : UserControl
         }
         finally
         {
+            _loginWindow?.CloseSilently();
+            _loginWindow = null;
             _loginBrowserError = null;
             _loginCts = null;
             cts.Dispose();
         }
     }
 
-    /// <summary>用系统原生浏览器打开 Microsoft 授权页；打不开就取消本次登录并给出原因。</summary>
     private void OpenLoginPage(string url, CancellationTokenSource cts)
     {
-        if (OpenLinkBrowser.TryOpen(url, out string error)) return;
+        var window = LoginBrowserWindow.Show(url, cts.Cancel, () => OpenSystemLoginPage(url, cts));
+        if (window is not null)
+        {
+            _loginWindow = window;
+            return;
+        }
+
+        OpenSystemLoginPage(url, cts);
+    }
+
+    private void OpenSystemLoginPage(string url, CancellationTokenSource cts)
+    {
+        if (OpenLinkBrowser.TryOpenLogin(url, out string error)) return;
 
         SkinLog("open login browser failed", new InvalidOperationException(error));
         _loginBrowserError = L.T("Account.Login.WindowError", "无法打开系统浏览器：{0}", error);

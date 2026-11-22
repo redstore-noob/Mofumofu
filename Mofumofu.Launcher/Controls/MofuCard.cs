@@ -5,15 +5,6 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>
-/// 遮罩层内层卡片（居中弹窗底板 / 贴控件浮层面板）的统一 Border 工厂。
-/// <para>
-/// 以前 DialogBuilder 和各浮层调用点各自手搓 Border——圆角 16 的、12 的，
-/// 投影有 24/64 的、14/36 的，描边深浅也不一。这里收敛成同一套外观令牌：
-/// 主题实心底板 + 1px 描边 + 双层投影，只按「居中弹窗 / 贴控件浮层」两种语义
-/// 分圆角和投影权重。新弹层一律从这里取卡片，别再手搓。
-/// </para>
-/// </summary>
 public static class MofuCard
 {
     /// <summary>
@@ -30,8 +21,6 @@ public static class MofuCard
             CornerRadius = new CornerRadius(16),
             MaxWidth = 880,
             MaxHeight = 760,
-            // 双层投影：一层大而散撑场面，一层小而紧把卡片"钉"在遮罩上
-            // （BoxShadows 构造是 (first, rest[])：第一个单放，其余进数组）
             BoxShadow = new BoxShadows(
                 new BoxShadow
                 {
@@ -52,10 +41,6 @@ public static class MofuCard
         };
     }
 
-    /// <summary>
-    /// 贴触发控件的浮层面板：小一号的圆角和投影，避免跟居中弹窗抢视觉重量。
-    /// 宽高由调用点按内容设定（工厂不管），内边距走 <paramref name="padding"/>。
-    /// </summary>
     public static Border Popover(Control body, Thickness padding)
     {
         return new Border

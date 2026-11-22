@@ -10,14 +10,8 @@ using SukiUI.Models;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>
-/// 主题的唯一数据源：深/浅色表面 + 强调色都在这里算，视图只认令牌名。
-/// 换主题时直接改进程内共享 brush 的 Color，所以 <c>{StaticResource …}</c> 与
-/// <c>{DynamicResource …}</c> 都能立刻反映。
-/// </summary>
 public static class ThemeManager
 {
-    /// <summary>主题切换完成后触发，供 code-behind 里自绘的颜色跟着重刷。</summary>
     public static event Action? ThemeChanged;
 
     public static bool IsLight { get; private set; }
@@ -29,10 +23,6 @@ public static class ThemeManager
     /// <summary>每次应用主题自增；缓存的页面重新挂到可视树时据此判断要不要补刷颜色。</summary>
     public static int Version { get; private set; }
 
-    /// <summary>
-    /// 强调色定义：<paramref name="DarkPrimary"/> 等为空时深色主题沿用主色；
-    /// 像克莱因蓝这种本身很深、直接放到深色底上会糊掉的颜色，需要一组提亮变体。
-    /// </summary>
     private sealed record AccentSpec(
         string Name,
         string Primary,
@@ -42,7 +32,6 @@ public static class ThemeManager
         string? DarkHover = null,
         string? DarkPressed = null);
 
-    /// <summary>强调色候选：Key → 颜色定义（含深色主题变体）。</summary>
     private static readonly Dictionary<string, AccentSpec> Accents = new()
     {
         ["klein"] = new("克莱因蓝", "#002FA7", "#1B4FCC", "#00247D", "#3B6EF6", "#5C8AFB", "#2A57D8"),
@@ -54,7 +43,6 @@ public static class ThemeManager
         ["purple"] = new("紫藤", "#A78BFA", "#BCA5FF", "#8F6EF0"),
     };
 
-    /// <summary>预设强调色（Key / 显示名 / 主色），供设置页画色板。</summary>
     public static IReadOnlyList<(string Key, string Name, string Hex)> AccentOptions { get; } =
     [
         ("klein", "克莱因蓝", "#002FA7"),
@@ -89,7 +77,6 @@ public static class ThemeManager
         }
         catch
         {
-            // 主题服务未就绪时忽略
         }
 
         IsLight = theme == "light";
@@ -108,11 +95,9 @@ public static class ThemeManager
         ThemeChanged?.Invoke();
     }
 
-    /// <summary>是不是 #RRGGBB 形式的自定义主题色。</summary>
     public static bool IsCustomAccent(string? key) =>
         !string.IsNullOrWhiteSpace(key) && key.TrimStart().StartsWith('#');
 
-    /// <summary>某个主题色键（预设 key 或 #RRGGBB）对应的颜色。</summary>
     public static Color AccentColor(string? key)
     {
         var normalized = NormalizeAccentKey(key);
@@ -120,7 +105,6 @@ public static class ThemeManager
         return Color.TryParse(normalized, out var custom) ? custom : Color.Parse(Accents["klein"].Primary);
     }
 
-    /// <summary>把设置里保存的值规范成预设 key 或 #RRGGBB；无法识别时退回默认克莱因蓝。</summary>
     public static string NormalizeAccentKey(string? raw)
     {
         var text = raw?.Trim() ?? string.Empty;
@@ -135,7 +119,6 @@ public static class ThemeManager
         return "klein";
     }
 
-    /// <summary>预设色直接查表（深色主题优先用可读变体）；自定义色由主色推导悬停/按下色。</summary>
     private static (string Name, string Primary, string Hover, string Pressed) ResolveAccent(string key, bool light)
     {
         if (Accents.TryGetValue(key, out var preset))
@@ -172,17 +155,14 @@ public static class ThemeManager
         }
         catch
         {
-            // 主题服务未就绪时忽略
         }
     }
 
-    /// <summary>把强调色与当前底色的关系算成完整令牌表。</summary>
     private static Dictionary<string, string[]> BuildPalette(bool light, string accent, string accentHover,
         string accentPressed)
     {
         var accentColor = Color.Parse(accent);
         var surfaceBase = Color.Parse(light ? "#F2F5F8" : "#0A0E15");
-        // 强调色上的文字一律按亮度取深/浅：深色强调色（如克莱因蓝）配深字会直接糊掉
         var onAccent = accentColor.R * 0.299 + accentColor.G * 0.587 + accentColor.B * 0.114 > 140
             ? "#06121A"
             : "#FFFFFF";
@@ -191,7 +171,6 @@ public static class ThemeManager
 
         var palette = new Dictionary<string, string[]>
         {
-            // 强调色族
             ["NekoAccentBrush"] = [accent],
             ["NekoAccentHoverBrush"] = [accentHover],
             ["NekoAccentPressedBrush"] = [accentPressed],
@@ -275,7 +254,6 @@ public static class ThemeManager
 
         foreach (var (k, v) in shape) palette[k] = v;
 
-        // 语义色本身不随强调色变
         palette["NekoDangerBrush"] = [light ? "#C93B41" : "#E5484D"];
         palette["NekoSuccessBrush"] = [light ? "#1F9D63" : "#4CC38A"];
         palette["NekoWarningBrush"] = [light ? "#B9791A" : "#F2AE49"];
@@ -300,7 +278,6 @@ public static class ThemeManager
         return $"#{a:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
-    /// <summary>#RRGGBB（不带 alpha），用于保存自定义主题色。</summary>
     private static string HexRgb(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
     private static void ApplyPalette(IReadOnlyDictionary<string, string[]> palette)

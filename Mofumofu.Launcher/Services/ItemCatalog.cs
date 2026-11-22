@@ -6,10 +6,8 @@ using Avalonia.Platform;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>自动补全下拉里的一个选项：注册 ID + 官方中文名 + 英文名。</summary>
 public sealed record ItemOption(string Id, string Zh, string En)
 {
-    /// <summary>由纯 ID 构造（无译名，用于规格里硬编码的预设选项）。</summary>
     public static ItemOption OfId(string id) => new(id, string.Empty, string.Empty);
 }
 
@@ -23,11 +21,8 @@ public static class ItemCatalog
 {
     private static readonly Dictionary<string, List<ItemOption>> Categories = new();
 
-    /// <summary>目录数据对应的原版版本。</summary>
     public static string Version { get; private set; } = string.Empty;
 
-    /// <summary>/give 可用全集 = 物品 ∪ 方块（方块几乎都有物品形态，按 id 去重）。
-    /// 在静态构造函数里填充（字段初始化会先于静态构造函数体执行，彼时 Categories 还是空的）。</summary>
     private static readonly List<ItemOption> GiveItems = new();
 
     static ItemCatalog()
@@ -76,7 +71,6 @@ public static class ItemCatalog
         }
     }
 
-    /// <summary>分类条目数（"item" 指物品 ∪ 方块的 give 全集）。</summary>
     public static int Count(string category) => Resolve(category).Count;
 
     private static List<ItemOption> Resolve(string category) => category switch
@@ -85,11 +79,6 @@ public static class ItemCatalog
         _ => Categories.GetValueOrDefault(category, new List<ItemOption>()),
     };
 
-    /// <summary>
-    /// 按关键词搜索一个分类：ID / 中文名 / 英文名混合匹配。
-    /// 评分：完全相等 → ID 前缀 → 中文前缀 → ID 包含 → 中文包含 → 英文包含；
-    /// 同分按 ID 长度短的在前。空关键词返回按 ID 排序的前 limit 条。
-    /// </summary>
     public static IReadOnlyList<ItemOption> Search(string category, string? query, int limit = 12)
     {
         var source = Resolve(category);

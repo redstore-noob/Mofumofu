@@ -6,7 +6,6 @@
              mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
              x:Class="Mofumofu.Launcher.Views.HomeView">
     <UserControl.Styles>
-        <!-- 右下角分页页签：干净的胶囊高亮，选中=整块强调色圆胶囊，而非细蓝条 -->
         <Style Selector="Button.page-tab">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -48,14 +47,12 @@
         </Style>
     </UserControl.Styles>
     <Grid>
-<!-- ============ 自由摆放的格子板：小组件由 WidgetRegistry 在 code-behind 里建 ============ -->        
         <ScrollViewer x:Name="BoardScroll"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <Canvas x:Name="WidgetBoard" Height="1000" Margin="0,0,0,24">
                 <Canvas x:Name="WidgetLayer" />
 
-<!-- 长按时逐渐浮现的格子线 -->                
                 <Path x:Name="GridLines" IsVisible="False" Opacity="0" IsHitTestVisible="False"
                       Stroke="{DynamicResource NekoAccentLineBrush}" StrokeThickness="1">
                     <Path.Transitions>
@@ -65,7 +62,6 @@
                     </Path.Transitions>
                 </Path>
 
-<!-- 拖动落点预览 -->                
                 <Border x:Name="DropPreview" IsVisible="False" IsHitTestVisible="False"
                         Opacity="0"
                         Background="{DynamicResource NekoAccentSoftBrush}"
@@ -80,7 +76,6 @@
             </Canvas>
         </ScrollViewer>
 
-<!-- 空桌面提示 -->        
         <Border x:Name="EmptyBoardHint" IsVisible="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
                 Padding="26,18" CornerRadius="12"
@@ -95,7 +90,6 @@
             </StackPanel>
         </Border>
 
-<!-- 右下角：上面是页面胶囊（分页 + 页面管理/新建），下面是圆形加号（添加组件） -->        
         <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
                     Margin="0,0,10,10" Spacing="6">
             <Border x:Name="WidgetPageCapsule"
@@ -131,7 +125,6 @@
             </Button>
         </StackPanel>
 
-<!-- 组件盒（拖到桌面放置 / 点击添加） -->        
         <Border x:Name="WidgetDrawer"
                 IsVisible="False"
                 Width="352"
@@ -157,8 +150,7 @@
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
                         <TextBlock Text="{DynamicResource L.Home.Library.Title}" Classes="section-title" />
-                        <TextBlock x:Name="WidgetDrawerHint" Text="{DynamicResource L.Home.Library.Hint}"
-                                   Classes="caption" />
+                        <TextBlock x:Name="WidgetDrawerHint" Classes="caption" />
                     </StackPanel>
                     <Button Grid.Column="1" Classes="icon" Click="OnCloseWidgetDrawerClick">
                         <controls:IconParkIcon Kind="IconClose" Width="14" Height="14" />
@@ -183,7 +175,6 @@
             </Grid>
         </Border>
 
-<!-- 拖动浮层：幽灵卡 -->        
         <Canvas x:Name="DragOverlay" IsVisible="False" IsHitTestVisible="False">
             <Border x:Name="DragGhost" CornerRadius="10" Padding="10,8"
                     Opacity="0"
@@ -221,7 +212,6 @@
                        Foreground="{DynamicResource NekoDangerBrush}" />
         </Border>
 
-<!-- 长按进度条：按住磁贴 1 秒进入拖动 -->        
         <Canvas x:Name="HoldOverlay" IsHitTestVisible="False">
             <Border x:Name="HoldBar" IsVisible="False" Height="4" Width="160"
                     CornerRadius="2" Background="{DynamicResource NekoOverlayBrush}"

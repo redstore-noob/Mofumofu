@@ -8,17 +8,11 @@ using Mofumofu.Launcher.Services;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>
-/// IconPark 图标控件：按原图标 key（如 IconHome）绘制多色矢量图标。
-/// 采用 IconPark 的 48px 视图盒与 4px 圆头描边。
-/// 支持两种配色：主题色（跟随主题）与多彩（每个图标从固定调色板取色）。
-/// </summary>
 public sealed class IconParkIcon : Control
 {
     public static readonly StyledProperty<string?> KindProperty =
         AvaloniaProperty.Register<IconParkIcon, string?>(nameof(Kind));
 
-    // 多彩模式调色板（IconPark 风格的高饱和色）
     private static readonly Color[] Palette =
     [
         Color.Parse("#2F88FF"),
@@ -41,7 +35,6 @@ public sealed class IconParkIcon : Control
         Height = 16;
     }
 
-    /// <summary>多色模式开关；切换后调用 <see cref="NotifyPaletteChanged"/> 立刻重绘。</summary>
     public static bool UseColorfulPalette
     {
         get => _useColorfulPalette;
@@ -52,7 +45,6 @@ public sealed class IconParkIcon : Control
         }
     }
 
-    /// <summary>原图标资源 key（例如 IconHome、IconFluentMusic）。</summary>
     public string? Kind
     {
         get => GetValue(KindProperty);
@@ -159,7 +151,6 @@ public sealed class IconParkIcon : Control
             if (ColorfulBrushes.TryGetValue(key, out var cached)) return cached;
         }
 
-        // 用 key 的哈希稳定选出两个颜色，保证同一图标每次颜色一致
         var hash = 17;
         foreach (var ch in key)
         {

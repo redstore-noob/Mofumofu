@@ -238,7 +238,6 @@ public partial class SkinView3D
 
     protected override void OnOpenGlLost()
     {
-        // 上下文已经没了，VAO/VBO 名字也随之失效，只需要丢掉引用等 OnOpenGlInit 重建。
         _gpuMeshes.Clear();
         _nameTagMesh = null;
         _skinTexture = _capeTexture = _nameTagTexture = _program = 0;
@@ -267,7 +266,6 @@ public partial class SkinView3D
 
         if (mesh.Part is not (SkinBodyPart.LeftLeg or SkinBodyPart.RightLeg))
         {
-            // 头、手臂和披风都挂在躯干节点上，弯腰时不会再各动各的。
             var bodyPivot = new Vector3(0, 12, 0);
             matrix *=
                 Matrix4x4.CreateTranslation(-bodyPivot) *
@@ -275,7 +273,6 @@ public partial class SkinView3D
                 Matrix4x4.CreateTranslation(bodyPivot);
         }
 
-        // 整体朝向（飞行/游泳会让人物平躺）绕模型中心转，绕脚底转会把整条人甩出画面。
         var spinPivot = new Vector3(0, 16, 0);
         return matrix *
                Matrix4x4.CreateTranslation(-spinPivot) *

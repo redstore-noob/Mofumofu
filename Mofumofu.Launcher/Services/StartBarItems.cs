@@ -3,7 +3,6 @@ using Avalonia.Media.Imaging;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>开始栏「版本」下拉里的一项。</summary>
 public sealed class VersionChoice
 {
     public string Id { get; init; } = string.Empty;
@@ -13,7 +12,6 @@ public sealed class VersionChoice
     public Bitmap? Icon { get; init; }
 }
 
-/// <summary>开始栏「账号」下拉里的一项（Head 为皮肤大头，异步补齐）。</summary>
 public sealed class AccountChoice : INotifyPropertyChanged
 {
     private Bitmap? _head;

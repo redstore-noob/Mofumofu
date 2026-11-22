@@ -11,15 +11,10 @@ using Microsoft.Web.WebView2.Core;
 
 namespace Mofumofu.Launcher.Web;
 
-/// <summary>
-/// 局部 WebView2 页面（皮肤预览 / 3D 文字）共用的环境与本地资源服务。
-/// 复用之前整窗 WebView 方案：本地虚拟域 + WebResourceRequested 回包，不依赖网络。
-/// </summary>
 public static class WebViewAssets
 {
     public const string VirtualHost = "mofumofu.local";
 
-    /// <summary>开发期的磁盘 WebAssets 目录；存在时优先走磁盘（改网页即时生效），发布环境自动落到嵌入资源。</summary>
     public static string? Root =>
         Directory.Exists(Path.Combine(AppContext.BaseDirectory, "WebAssets"))
             ? Path.Combine(AppContext.BaseDirectory, "WebAssets")
@@ -28,7 +23,6 @@ public static class WebViewAssets
     public static string Url(string relativePath) =>
         $"https://{VirtualHost}/{relativePath.TrimStart('/')}";
 
-    /// <summary>创建 WebView2 环境（独立用户数据目录，可选调试端口）。</summary>
     public static async Task<CoreWebView2Environment> CreateEnvironmentAsync()
     {
         var userDataFolder = Path.Combine(
@@ -65,7 +59,6 @@ public static class WebViewAssets
         return await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
     }
 
-    /// <summary>挂上本地资源服务、通用设置与可选的验收截图捕获。</summary>
     public static void ConfigureCore(CoreWebView2 core, string previewName)
     {
         var settings = core.Settings;
@@ -138,7 +131,6 @@ public static class WebViewAssets
         if (string.IsNullOrEmpty(relative)) relative = "index.html";
         var relativePath = relative.Replace('/', Path.DirectorySeparatorChar);
 
-        // 1) 开发期磁盘文件优先（WebAssets 文件夹存在且含该文件）
         var root = Root;
         if (root is not null)
         {
@@ -155,7 +147,6 @@ public static class WebViewAssets
             }
         }
 
-        // 2) 嵌入资源（avares://，发布环境）：磁盘目录不存在时从这里取
         var avaresUri = new Uri($"avares://Mofumofu.Launcher/WebAssets/{relative}");
         try
         {
@@ -190,7 +181,6 @@ public static class WebViewAssets
             _ => "application/octet-stream",
         };
 
-    // 每个 core 一份预览截图状态：可取消、可观察，宿主 Dispose 时统一收敛。
     private sealed class PreviewState
     {
         public readonly CancellationTokenSource Cancellation = new();
@@ -199,7 +189,6 @@ public static class WebViewAssets
 
     private static readonly ConditionalWeakTable<CoreWebView2, PreviewState> PreviewStates = new();
 
-    /// <summary>宿主关闭 WebView2 前调用：取消仍在写截图文件的后台任务。</summary>
     internal static void StopPreviewCapture(CoreWebView2? core)
     {
         if (core is null || !PreviewStates.TryGetValue(core, out PreviewState? state) || state is null) return;
@@ -209,7 +198,6 @@ public static class WebViewAssets
         }
         catch (Exception)
         {
-            // 释放路径不因取消回调异常而中断
         }
     }
 
@@ -227,7 +215,7 @@ public static class WebViewAssets
             if (!args.IsSuccess) return;
             lock (state)
             {
-                if (state.Capture is { IsCompleted: false }) return; // 单槽：不叠加后台任务
+                if (state.Capture is { IsCompleted: false }) return;
                 state.Capture = CapturePreviewAsync(core, previewName, previewDir!, state.Cancellation.Token);
             }
         };
@@ -260,11 +248,9 @@ public static class WebViewAssets
         }
         catch (OperationCanceledException)
         {
-            // 宿主关闭，停止截图
         }
         catch
         {
-            // 验收截图失败不影响功能
         }
     }
 
@@ -285,7 +271,6 @@ public static class WebViewAssets
             }
             catch
             {
-                // 页面还没就绪，继续等
             }
 
             if (ready)

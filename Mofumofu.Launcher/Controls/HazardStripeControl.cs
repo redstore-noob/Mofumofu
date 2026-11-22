@@ -5,7 +5,6 @@ using Avalonia.Media;
 
 namespace Mofumofu.Launcher.Controls;
 
-/// <summary>黄黑斜纹（危险警告带）底纹，用于核弹发射按钮。</summary>
 public sealed class HazardStripeControl : Control
 {
     public static readonly StyledProperty<IBrush?> BaseBrushProperty =

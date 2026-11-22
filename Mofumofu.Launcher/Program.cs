@@ -11,7 +11,6 @@ class Program
 {
     private const string SingleInstanceMutexName = "Mofumofu.Launcher.SingleInstance";
 
-    /// <summary>本次启动的命令行参数（不含程序路径），「重启启动器」时原样传给新实例。</summary>
     public static string[] LaunchArguments { get; private set; } = [];
 
     // Initialization code. Don't use any Avalonia, third-party APIs or any
@@ -77,7 +76,6 @@ class Program
         }
     }
 
-    /// <summary>把未处理异常写到 %TEMP%\mofu-crash.log（WinExe 没有控制台）。</summary>
     private static void LogCrash(string source, Exception? exception)
     {
         try
@@ -88,7 +86,6 @@ class Program
         }
         catch
         {
-            // 日志失败不影响进程退出
         }
     }
 

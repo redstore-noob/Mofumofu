@@ -4,7 +4,6 @@ using Avalonia.Platform;
 
 namespace Mofumofu.Launcher.Services.Wallpaper;
 
-/// <summary>内置默认壁纸：首次启动时释放到用户壁纸目录。</summary>
 public static class WallpaperDefaults
 {
     private const string AssetUri = "avares://Mofumofu.Launcher/Assets/default-wallpaper.png";
@@ -16,7 +15,6 @@ public static class WallpaperDefaults
 
     public static string DefaultPath => Path.Combine(WallpaperDirectory, "default-mofu.png");
 
-    /// <summary>确保默认壁纸已释放到用户目录，返回文件路径；失败时返回空串。</summary>
     public static string EnsureSeeded()
     {
         try

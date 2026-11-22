@@ -10,10 +10,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 主窗口内的登录处理过程面板：6 个阶段（登录页授权 → Microsoft 令牌 → Xbox Live → XSTS →
-/// Minecraft 令牌 → 获取档案）逐项打勾；结束显示账号名 + 皮肤大头，失败显示原因并可重试。
-/// </summary>
 public sealed class LoginProgressPanel : UserControl
 {
     private static readonly (LoginStep Step, string Key, string Fallback)[] Steps =
@@ -162,16 +158,12 @@ public sealed class LoginProgressPanel : UserControl
         SetActive(0);
     }
 
-    /// <summary>失败/取消后点「重试」。</summary>
     public event Action? RetryRequested;
 
-    /// <summary>运行中点「取消登录」：宿主应取消登录任务。</summary>
     public event Action? CancelRequested;
 
-    /// <summary>非运行状态下点关闭：宿主应关闭对话框。</summary>
     public event Action? CloseRequested;
 
-    /// <summary>阶段推进：该阶段及之前的行打勾，下一行置为「进行中」。</summary>
     public void Advance(LoginStep step)
     {
         var index = IndexOf(step);
@@ -190,7 +182,6 @@ public sealed class LoginProgressPanel : UserControl
         }
     }
 
-    /// <summary>登录成功：全部打勾，显示账号名与皮肤大头。</summary>
     public void ShowSuccess(string accountName, Bitmap? head)
     {
         _running = false;
@@ -215,7 +206,6 @@ public sealed class LoginProgressPanel : UserControl
         _retryButton.IsVisible = false;
     }
 
-    /// <summary>登录失败：当前阶段标红，显示原因并允许重试。</summary>
     public void ShowFailure(string reason)
     {
         _running = false;
@@ -234,7 +224,6 @@ public sealed class LoginProgressPanel : UserControl
         _retryButton.IsVisible = true;
     }
 
-    /// <summary>登录被取消。</summary>
     public void ShowCancelled()
     {
         _running = false;

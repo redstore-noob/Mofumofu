@@ -6,6 +6,8 @@
                  Width="980" Height="680"
                  MinWidth="900" MinHeight="600"
                  CanResize="False"
+                 ExtendClientAreaToDecorationsHint="True"
+                 ExtendClientAreaTitleBarHeightHint="-1"
                  Background="{DynamicResource NekoSurfaceBrush}"
                  WindowStartupLocation="CenterScreen">
     <Window.Styles>
@@ -57,8 +59,36 @@
         </Style>
     </Window.Styles>
 
-    <Grid ColumnDefinitions="282,*">
-<!-- 左侧：品牌与配置进度 -->        
+    <Grid RowDefinitions="40,*">
+        <Border Grid.Row="0"
+                Background="{DynamicResource NekoTitleBarBrush}"
+                BorderBrush="{DynamicResource NekoBorderBrush}"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPressed">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0,8,0">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Image Source="avares://Mofumofu.Launcher/Assets/favicon.ico" Width="18" Height="18" />
+                    <TextBlock Text="Mofumofu Launcher" FontSize="13.5" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Foreground="{DynamicResource NekoTextBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                            VerticalAlignment="Center">
+                    <Button Classes="icon" Width="34" Height="30"
+                            ToolTip.Tip="{DynamicResource L.Shell.TitleBar.Minimize}"
+                            Click="OnMinimizeClick">
+                        <controls:IconParkIcon Kind="IconMinimize" Width="12" Height="12" />
+                    </Button>
+                    <Button Classes="icon" Width="34" Height="30"
+                            ToolTip.Tip="{DynamicResource L.Shell.TitleBar.Close}"
+                            Click="OnCloseClick">
+                        <controls:IconParkIcon Kind="IconClose" Width="12" Height="12" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="282,*">
         <Border Grid.Column="0" Padding="26,28,22,24"
                 Background="{DynamicResource NekoCardBrush}"
                 BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="0,0,1,0">
@@ -69,8 +99,6 @@
                     <StackPanel Grid.Column="1" Margin="13,0,0,0" Spacing="3" VerticalAlignment="Center">
                         <TextBlock Text="{DynamicResource L.Oobe.Title}" FontSize="18" FontWeight="Bold"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="{DynamicResource L.Oobe.Subtitle}" Classes="caption"
-                                   FontSize="11" TextWrapping="Wrap" MaxWidth="164" />
                     </StackPanel>
                 </Grid>
 
@@ -143,18 +171,14 @@
             </Grid>
         </Border>
 
-<!-- 右侧：当前步骤配置 -->        
         <Grid Grid.Column="1" RowDefinitions="*,Auto">
             <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <Grid Margin="34,30,34,22">
-<!-- 1. 语言与主题：完整语言卡片，不再收进下拉列表 -->                    
                     <StackPanel x:Name="WelcomePanel" MaxWidth="680" HorizontalAlignment="Center" Spacing="18">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{DynamicResource L.Oobe.WelcomeTitle}" FontSize="25" FontWeight="Bold"
                                        TextWrapping="Wrap" />
-                            <TextBlock Text="{DynamicResource L.Oobe.WelcomeBody}" Classes="caption"
-                                       FontSize="13" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <Border Classes="card-soft" Padding="20,18">
@@ -170,28 +194,13 @@
                                                    Margin="10,0,0,0" FontSize="14" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" />
                                     </Grid>
-                                    <ItemsControl x:Name="LanguageCards">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Button Classes="language-card oobe-language" Click="OnLanguageCardClick"
-                                                        Tag="{Binding Code}" ToolTip.Tip="{Binding Name}">
-                                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                        <Border Width="24" Height="16" CornerRadius="2" ClipToBounds="True"
-                                                                BorderBrush="{DynamicResource NekoBorderBrush}" BorderThickness="0.5"
-                                                                VerticalAlignment="Center">
-                                                            <Image Source="{Binding FlagImage}" Width="24" Height="16" />
-                                                        </Border>
-                                                        <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                        <controls:LanguageGlobe x:Name="LanguageGlobeControl"
+                                                                HorizontalAlignment="Center" />
+                                        <TextBlock Text="{DynamicResource L.Settings.General.Language.GlobeHint}"
+                                                   Classes="caption" FontSize="11" Opacity="0.6"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <Border Height="1" Background="{DynamicResource NekoBorderBrush}" />
@@ -210,7 +219,6 @@
                         </Border>
                     </StackPanel>
 
-<!-- 2. 游戏目录 -->                    
                     <StackPanel x:Name="DirectoryPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -230,7 +238,6 @@
                         </Border>
                     </StackPanel>
 
-<!-- 3. Java -->                    
                     <StackPanel x:Name="JavaPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -254,7 +261,6 @@
                         </Border>
                     </StackPanel>
 
-<!-- 4. 账号 -->                    
                     <StackPanel x:Name="AccountPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
@@ -313,13 +319,10 @@
                         </Border>
                     </StackPanel>
 
-<!-- 5. 完成 -->                    
                     <StackPanel x:Name="FinishPanel" MaxWidth="680" HorizontalAlignment="Center"
                                 Spacing="18" IsVisible="False">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{DynamicResource L.Oobe.FinishTitle}" FontSize="25" FontWeight="Bold" />
-                            <TextBlock Text="{DynamicResource L.Oobe.FinishBody}" Classes="caption"
-                                       FontSize="13" TextWrapping="Wrap" />
                         </StackPanel>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
                             <Border Classes="oobe-summary">
@@ -353,7 +356,6 @@
                 </Grid>
             </ScrollViewer>
 
-<!-- 右侧底部导航 -->            
             <Border Grid.Row="1" Padding="30,16,32,22"
                     BorderThickness="0,1,0,0" BorderBrush="{DynamicResource NekoBorderBrush}">
                 <Grid ColumnDefinitions="Auto,*,Auto">
@@ -363,6 +365,7 @@
                             MinWidth="104" Content="{DynamicResource L.Oobe.Next}" Click="OnNextClick" />
                 </Grid>
             </Border>
+        </Grid>
         </Grid>
     </Grid>
 </Window>

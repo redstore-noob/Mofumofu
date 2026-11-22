@@ -10,10 +10,6 @@ using NAudio.Wave;
 
 namespace Mofumofu.Launcher.Services.Music;
 
-/// <summary>
-/// 音频播放：本地文件与网易云直链都先落到本地缓存，再用 Media Foundation 解码。
-/// 状态（进度/结束/失败）通过事件回给音乐页，播放器本身不碰 UI 控件。
-/// </summary>
 public sealed class MusicPlayer : IDisposable
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(45) };
@@ -60,7 +56,6 @@ public sealed class MusicPlayer : IDisposable
 
     public string? CurrentPath { get; private set; }
 
-    /// <summary>播放本地文件或在线地址；在线地址会缓存到本地。</summary>
     public async Task<bool> PlayAsync(string source, bool remote, CancellationToken cancellationToken = default)
     {
         try
@@ -94,7 +89,6 @@ public sealed class MusicPlayer : IDisposable
         }
     }
 
-    /// <summary>只在 UI 线程调用：写入播放器字段并启动播放。</summary>
     private bool StartPlayback(string path)
     {
         WaveStream reader;
@@ -104,7 +98,6 @@ public sealed class MusicPlayer : IDisposable
         }
         catch (Exception)
         {
-            // Media Foundation 不支持时退回 NAudio 的 mp3/wav 解码器
             reader = new AudioFileReader(path);
         }
 
@@ -170,7 +163,6 @@ public sealed class MusicPlayer : IDisposable
         }
         catch (Exception)
         {
-            // 已停止
         }
         finally
         {
@@ -183,7 +175,6 @@ public sealed class MusicPlayer : IDisposable
         }
         catch (Exception)
         {
-            // 已释放
         }
     }
 
@@ -210,10 +201,8 @@ public sealed class MusicPlayer : IDisposable
         PositionChanged?.Invoke(_reader.CurrentTime, _reader.TotalTime);
     }
 
-    /// <summary>在线音频缓存：同一 URL 只下载一次。</summary>
     private static async Task<string> CacheRemoteAsync(string url, CancellationToken cancellationToken)
     {
-        // 出站前强制 HTTPS + 网易云 CDN 白名单（http 升级为 https），拒绝任意外站 / 内网地址。
         if (!MusicUrlPolicy.TryNormalize(url, out string safeUrl))
         {
             throw new InvalidOperationException("音频地址不在允许的网易云 CDN 域内");
@@ -238,7 +227,6 @@ public sealed class MusicPlayer : IDisposable
         using HttpResponseMessage response = await Http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        // 格式：明确声明为 HTML / 文本 / JSON 错误页的响应不当作音频写盘。
         if (!MusicUrlPolicy.IsAllowedAudioContentType(response.Content.Headers.ContentType?.MediaType))
             throw new InvalidOperationException("音频地址返回了非音频内容");
         if (response.Content.Headers.ContentLength is long declared && declared > MaxAudioBytes)
@@ -274,14 +262,13 @@ public sealed class MusicPlayer : IDisposable
         return path;
     }
 
-    /// <summary>前若干字节全是可打印文本时视为错误页 / 非音频内容。</summary>
     private static bool LooksLikeText(byte[] data)
     {
         int probe = Math.Min(data.Length, 64);
         for (int i = 0; i < probe; i++)
         {
             byte b = data[i];
-            if (b == 0) return false; // 含 NUL，几乎必然是二进制
+            if (b == 0) return false;
             if (b < 0x20 && b != (byte)'\r' && b != (byte)'\n' && b != (byte)'\t') return false;
         }
         return true;

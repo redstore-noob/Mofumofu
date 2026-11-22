@@ -5,10 +5,6 @@ using L = Mofumofu.Launcher.Localization.Localization;
 
 namespace Mofumofu.Launcher.Views.Widgets;
 
-/// <summary>
-/// 小组件的快速启动入口：按（可选的）实例解析启动配置，
-/// 附加额外的游戏参数（直接进服 / 快速进存档）后走真实启动。
-/// </summary>
 internal static class WidgetQuickLaunch
 {
     /// <summary>

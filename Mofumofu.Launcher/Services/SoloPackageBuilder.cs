@@ -9,7 +9,6 @@ using MofuCore.Log;
 
 namespace Mofumofu.Launcher.Services;
 
-/// <summary>生成安装器可直接读取的完整 Windows 载荷，不包含账户和启动器用户配置。</summary>
 internal static class SoloPackageBuilder
 {
     public static (int Files, long Size) Build(string outputPath, string launcherPath, string gameDirectory,
@@ -46,7 +45,6 @@ internal static class SoloPackageBuilder
 
         Add(launcherPath, "files/Mofumofu.Launcher.exe");
         string appDirectory = Path.GetDirectoryName(launcherPath)!;
-        // 单文件发布只需 exe；常规发布还需程序集、运行时及资源程序集。
         foreach (string file in Directory.EnumerateFiles(appDirectory))
         {
             string name = Path.GetFileName(file);
@@ -87,7 +85,6 @@ internal static class SoloPackageBuilder
         AddVersion(versionId, true);
         AddTree(Path.Combine(gameDirectory, "libraries"), "minecraft/libraries/");
         AddTree(Path.Combine(gameDirectory, "assets"), "minecraft/assets/");
-        // 非隔离实例的共享内容也应保留在游戏根目录。
         foreach (string folder in new[] { "mods", "config", "defaultconfigs", "resourcepacks", "shaderpacks", "saves", "kubejs", "scripts" })
             AddTree(Path.Combine(gameDirectory, folder), "minecraft/" + folder + "/");
         foreach (string name in new[] { "options.txt", "servers.dat" })

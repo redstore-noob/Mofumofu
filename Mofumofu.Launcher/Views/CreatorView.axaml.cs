@@ -35,18 +35,12 @@ using SukiUI.Controls;
 
 namespace Mofumofu.Launcher.Views;
 
-/// <summary>
-/// 创作中心：工具列表页 + 每个工具自己的页面（页面内导航，不再是弹窗/独立窗口）。
-/// 3D 文字生成器在本页内嵌 WebView2 只负责渲染预览，参数面板是 Avalonia 控件，因此跟随主题。
-/// </summary>
 public partial class CreatorView : UserControl
 {
     private const int MaxErrorMessages = 3;
 
     private const int PreviewDebounceMs = 250;
     private const int MaxPreviewMods = 12;
-
-    // ---------------- 3D 文字：参数选项 ----------------
 
     private static readonly (string Value, string Label)[] ColorModes =
     {
@@ -76,7 +70,6 @@ public partial class CreatorView : UserControl
         LoadSystemFonts();
         InitCubeControls();
 
-        // 默认选中第一个工具，进来就是可用的工作区
         SelectTool(CreatorToolCatalog.Tools[0], animate: false);
 
         AttachedToVisualTree += OnAttached;
@@ -116,8 +109,6 @@ public partial class CreatorView : UserControl
     {
         Dispatcher.UIThread.Post(PushCubeState);
     }
-
-    // ================= 工具导航（左栏） =================
 
     private void BuildToolNav()
     {
@@ -163,7 +154,6 @@ public partial class CreatorView : UserControl
         }
     }
 
-    /// <summary>开始菜单里的工具入口：直接选中对应工具。</summary>
     public void OpenToolById(string toolId)
     {
         var tool = CreatorToolCatalog.Tools.FirstOrDefault(item => item.Id == toolId)
@@ -209,8 +199,6 @@ public partial class CreatorView : UserControl
         }
     }
 
-    // ================= 3D 文字生成器（内嵌 WebView2） =================
-
     private async Task AttachCubeHostAsync()
     {
         _cubeHost = new WebRegionHost(CubeTextHost, "cubetext/index.html", "cubetext");
@@ -218,7 +206,6 @@ public partial class CreatorView : UserControl
 
         await _cubeHost.AttachAsync();
 
-        // 页面导航完成前 Post 会排队；这里再持续推几秒，覆盖「导航晚于首推」的情况
         for (var attempt = 0; attempt < 14; attempt++)
         {
             PushCubeState();
@@ -451,11 +438,8 @@ public partial class CreatorView : UserControl
         }
     }
 
-    // ================= 工具子页 =================
-
     private Control BuildToolPage(CreatorTool tool)
     {
-        // 命令生成器：独立页面，自带面板式布局与滚动
         if (tool.Id == "command")
             return new CommandGeneratorPage();
 
@@ -468,6 +452,8 @@ public partial class CreatorView : UserControl
 
         switch (tool.Id)
         {
+            case "catalog":
+                return BuildToolCatalogPage();
             case "resourcepack":
                 BuildResourcePackPage(content);
                 break;
@@ -485,10 +471,7 @@ public partial class CreatorView : UserControl
                 BuildPluginPage(content);
                 break;
             default:
-                content.Children.Add(ToolUi.Group("IconFluentWrench",
-                    L.T("Creator.Tool.PlaceholderTitle", "这个工具正在迁移中"),
-                    L.T("Creator.Tool.PlaceholderDesc", "工具页壳已就位，能力会随后续版本接入。")));
-                break;
+                return BuildToolCatalogPage();
         }
 
         return new ScrollViewer
@@ -499,7 +482,63 @@ public partial class CreatorView : UserControl
         };
     }
 
-    // ---------------- 资源包编辑器 ----------------
+    private Control BuildToolCatalogPage()
+    {
+        var buttons = new List<Control>();
+        foreach (var tool in CreatorToolCatalog.Tools.Where(item => item.Id != "catalog"))
+        {
+            var label = new TextBlock
+            {
+                Text = L.T($"Creator.Tool.{tool.Id}.Title", tool.Title),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            Grid.SetColumn(label, 1);
+
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+            row.Children.Add(new Border
+            {
+                Classes = { "side-nav-icon" },
+                Child = new IconParkIcon
+                {
+                    Kind = tool.IconKey,
+                    Width = 15,
+                    Height = 15,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            });
+            row.Children.Add(label);
+
+            var button = new Button
+            {
+                Classes = { "side-nav" },
+                Content = row,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            ToolTip.SetTip(button, L.T($"Creator.Tool.{tool.Id}.Desc", tool.Description));
+            button.Click += (_, _) => SelectTool(tool);
+            buttons.Add(button);
+        }
+
+        var content = new StackPanel
+        {
+            Margin = new Thickness(2, 13, 10, 24),
+            MaxWidth = 1000,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        content.Children.Add(ToolUi.Group("IconFluentGrid",
+            L.T("Creator.Tool.Catalog.Section", "全部工具"),
+            L.T("Creator.Tool.Catalog.Hint", "选择一个工具开始创作。"),
+            buttons.ToArray()));
+
+        return new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+    }
 
     private static readonly (string Version, int Format)[] PackFormats =
     {
@@ -562,7 +601,7 @@ public partial class CreatorView : UserControl
         }
 
         var metaCard = ToolUi.Group("IconFluentDocument", "pack.mcmeta",
-            L.T("Creator.ResourcePack.MetaCard.Hint", "随上方信息实时更新"),
+            null,
             ToolUi.SoftBlock(metaCode));
 
         var filesCard = ToolUi.Group("IconFolder",
@@ -589,7 +628,6 @@ public partial class CreatorView : UserControl
 
         ResourcePackProject? importedProject = null;
 
-        // 表单改动后不再使用导入的工程，导出时按当前表单重建
         nameBox.TextChanged += (_, _) => importedProject = null;
         descBox.TextChanged += (_, _) => importedProject = null;
         version.SelectionChanged += (_, _) => importedProject = null;
@@ -774,9 +812,6 @@ public partial class CreatorView : UserControl
         content.Children.Add(actionGroup);
     }
 
-    // ---------------- 创作中心本地文件操作（真实落盘） ----------------
-
-    /// <summary>创作中心的工作目录（资源包草稿 / 插件骨架 / 整合包输出），随程序目录便携存放。</summary>
     private static string CreatorDataRoot => Path.Combine(
         MofuCore.Config.YamlRead.DataRoot,
         MofuCore.Config.YamlRead.DataDirectoryName,
@@ -786,7 +821,6 @@ public partial class CreatorView : UserControl
     private static string ModpackOutputRoot => Path.Combine(CreatorDataRoot, "modpacks");
     private static string SoloOutputRoot => Path.Combine(CreatorDataRoot, "solo");
 
-    /// <summary>在资源管理器里打开目录（不存在则先创建）；失败给可读提示。</summary>
     private void OpenFolder(string path)
     {
         try
@@ -840,7 +874,6 @@ public partial class CreatorView : UserControl
         return stream.ToArray();
     }
 
-    /// <summary>按当前表单组装资源包工程（MofuCore.Tools.ResourcePackMake）。</summary>
     private static ResourcePackProject BuildResourcePackProject(
         string name, string description, int packFormat, int textureSize, Color accent)
     {
@@ -883,7 +916,6 @@ public partial class CreatorView : UserControl
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    /// <summary>生成 64×64 资源包图标（强调色渐变 + 边框 + 中心菱形）。</summary>
     private static WriteableBitmap CreatePackIconBitmap(Color accent, int size)
     {
         var bitmap = new WriteableBitmap(new PixelSize(size, size), new Vector(96, 96));
@@ -917,7 +949,6 @@ public partial class CreatorView : UserControl
         return bitmap;
     }
 
-    /// <summary>生成棋盘格示例贴图（尺寸 = 表单里的分辨率）。</summary>
     private static WriteableBitmap CreateCheckerTexture(Color accent, int size)
     {
         var bitmap = new WriteableBitmap(new PixelSize(size, size), new Vector(96, 96));
@@ -944,8 +975,6 @@ public partial class CreatorView : UserControl
 
         return bitmap;
     }
-
-    // ---------------- 渐变文字 ----------------
 
     private void BuildGradientPage(StackPanel content)
     {
@@ -1138,8 +1167,6 @@ public partial class CreatorView : UserControl
         Refresh();
     }
 
-    // ---------------- 皮肤编辑器 ----------------
-
     private const int SkinSize = 64;
     private const int SkinScale = 4;
 
@@ -1160,13 +1187,11 @@ public partial class CreatorView : UserControl
     private bool _skinPainting;
     private TextBlock? _skinStatus;
 
-    /// <summary>皮肤库目录：与账户页（ui-account）读取的目录保持一致。</summary>
     private static string SkinLibraryDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Mofumofu.Launcher",
         "skins");
 
-    /// <summary>自定义皮肤目录：账户页读取 <c>custom/&lt;账号&gt;.png</c>。</summary>
     private static string CustomSkinRoot => Path.Combine(SkinLibraryDirectory, "custom");
 
     private void BuildSkinPage(StackPanel content)
@@ -1231,7 +1256,6 @@ public partial class CreatorView : UserControl
             e.Pointer.Capture(null);
         };
 
-        // 调色板
         var paletteGrid = new WrapPanel { Orientation = Orientation.Horizontal };
         var paletteButtons = new List<Border>();
 
@@ -1330,14 +1354,14 @@ public partial class CreatorView : UserControl
 
         var accountGroup = ToolUi.Group("IconFluentPerson",
             L.T("Creator.Skin.Card.Title", "账号与模型"),
-            L.T("Creator.Skin.Card.Hint", "选择皮肤归属与体型"),
+            null,
             ToolUi.Row(L.T("Creator.Skin.Account", "账号"), accounts),
             ToolUi.Row(L.T("Creator.Skin.Model", "皮肤模型"), model),
             ToolUi.Row(L.T("Creator.Skin.Cape", "显示披风"), cape));
 
         var canvasGroup = ToolUi.Group("IconFluentImage",
             L.T("Creator.Skin.Canvas.Title", "64 × 64 像素画布"),
-            L.T("Creator.Skin.Canvas.Hint", "左键绘制 · 下方调色板取色"),
+            null,
             canvasBorder,
             paletteGrid,
             ToolUi.Row(L.T("Creator.Skin.Tools", "绘图工具"), brushRow),
@@ -1433,7 +1457,6 @@ public partial class CreatorView : UserControl
 
         if (_skinPreview is not null)
         {
-            // WriteableBitmap 改像素后需要重新挂一次才会重画
             var source = _skinPreview.Source;
             _skinPreview.Source = null;
             _skinPreview.Source = source;
@@ -1636,7 +1659,6 @@ public partial class CreatorView : UserControl
         };
         TextBlock status = Caption(solo ? L.T("Creator.Solo.Status.Init", "把启动器、Java 与整合包打进单个 exe，仅支持 Windows。") : L.T("Creator.Modpack.Status.Init", "导出后可分享给朋友或上传到整合包平台。"));
         SelectableTextBlock manifest = Code(string.Empty);
-        // 清单预览放进内部滚动容器：再长也不会把整页撑出窗口
         ScrollViewer manifestScroll = new()
         {
             Content = manifest,
@@ -1948,11 +1970,7 @@ public partial class CreatorView : UserControl
 
         progress.Margin = new Thickness(0, 6, 0, 0);
         var actionChildren = new List<Control> { progress, status };
-        if (solo)
-        {
-            actionChildren.Add(Caption(L.T("Creator.Solo.OutputHint", "点「开始打包」后选择 .zip 保存位置。")));
-        }
-        else
+        if (!solo)
         {
             actionChildren.Add(Caption(L.T("Creator.Modpack.Install.Hint", "安装 .mrpack：选择本地整合包，把其中的 overrides 解压进上面所选的实例目录。")));
         }
@@ -2801,8 +2819,6 @@ public partial class CreatorView : UserControl
         }
     }
 
-    // ================= 渐变文字纯逻辑 =================
-
     private static string NormalizeHex(string value)
     {
         var raw = value.Trim().TrimStart('#');
@@ -2952,8 +2968,6 @@ public partial class CreatorView : UserControl
         return brush;
     }
 
-    // ================= 小工具 =================
-
     private static string Value(Control control) => control switch
     {
         TextBox box => (box.Text ?? string.Empty).Trim(),
@@ -3071,8 +3085,6 @@ public partial class CreatorView : UserControl
 
         return row;
     }
-
-    // ================= 列表页脚操作 =================
 
     private void OnOpenWorkspaceClick(object? sender, RoutedEventArgs e) => OpenFolder(CreatorDataRoot);
 
