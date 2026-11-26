@@ -205,6 +205,14 @@ func NewTokenRotateResponse() TokenRotateResponse {
 	return newDTO(TokenRotateResponse{TokenInfo: NewTokenInfo()})
 }
 
+func NewProbeEventRequest() ProbeEventRequest {
+	return newDTO(ProbeEventRequest{})
+}
+
+func NewAgentAcknowledgementResponse() AgentAcknowledgementResponse {
+	return newDTO(AgentAcknowledgementResponse{})
+}
+
 func NewConsoleFrame() ConsoleFrame {
 	return newDTO(ConsoleFrame{})
 }

@@ -1,7 +1,7 @@
 // Copyright 2026 Mofumofu
 // SPDX-License-Identifier: Apache-2.0
 
-// Package events contains state monitoring and, in Phase 5, the durable journal.
+// Package events contains state monitoring and the durable cursor journal.
 package events
 
 import (

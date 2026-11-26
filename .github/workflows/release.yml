@@ -393,6 +393,20 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: agent-go/go.mod
+          cache-dependency-path: agent-go/go.sum
+
+      - name: Test Go Agent
+        working-directory: agent-go
+        run: |
+          test -z "$(gofmt -l .)"
+          go test ./...
+          go vet ./...
+          CGO_ENABLED=1 go test -race ./...
+
       - name: Test remote protocol
         run: dotnet test tests/Mofumofu.RemoteProtocol.Tests/Mofumofu.RemoteProtocol.Tests.csproj -c Release
 
@@ -426,6 +440,26 @@ jobs:
           -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
           -o publish/agent-linux-arm64
 
+      - name: Build Go Agent linux-amd64
+        working-directory: agent-go
+        run: |
+          VERSION="${MOFU_BUILD_TAG#v}"
+          VERSION="${VERSION:-dev}"
+          mkdir -p ../publish/agent-go-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+            -o ../publish/agent-go-amd64/mofumofu-agent ./cmd/mofumofu-agent
+
+      - name: Build Go Agent linux-arm64
+        working-directory: agent-go
+        run: |
+          VERSION="${MOFU_BUILD_TAG#v}"
+          VERSION="${VERSION:-dev}"
+          mkdir -p ../publish/agent-go-arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+            -o ../publish/agent-go-arm64/mofumofu-agent ./cmd/mofumofu-agent
+
       - name: Check deployment script
         run: |
           sudo apt-get update
@@ -438,10 +472,12 @@ jobs:
           mkdir -p dist
           cp publish/agent-linux-x64/Mofumofu.ServerAgent dist/Mofumofu.ServerAgent-linux-x64
           cp publish/agent-linux-arm64/Mofumofu.ServerAgent dist/Mofumofu.ServerAgent-linux-arm64
+          cp publish/agent-go-amd64/mofumofu-agent dist/mofumofu-agent-linux-amd64
+          cp publish/agent-go-arm64/mofumofu-agent dist/mofumofu-agent-linux-arm64
           cp Mofumofu.NekoProbe/build/libs/NekoProbe.jar dist/NekoProbe.jar
           cp deploy/install.sh dist/install.sh
           cd dist
-          for artifact in NekoProbe.jar install.sh Mofumofu.ServerAgent-linux-x64 Mofumofu.ServerAgent-linux-arm64; do
+          for artifact in NekoProbe.jar install.sh Mofumofu.ServerAgent-linux-x64 Mofumofu.ServerAgent-linux-arm64 mofumofu-agent-linux-amd64 mofumofu-agent-linux-arm64; do
             sha256sum "$artifact" > "$artifact.sha256"
           done
 

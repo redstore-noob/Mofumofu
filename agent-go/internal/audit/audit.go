@@ -7,18 +7,20 @@ package audit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/redstore-noob/Mofumofu/agent-go/internal/protocol"
 )
 
 // Actor identifies the authenticated caller. The local TUI uses a dedicated
 // non-network identity but still passes through this package.
 type Actor struct {
-	TokenID string
+	TokenID       string
+	Authorization string
 }
 
 // Parameter is one ordered audit parameter. C#'s Dictionary preserves insertion
@@ -41,11 +43,11 @@ func (p Parameters) MarshalJSON() ([]byte, error) {
 		if i > 0 {
 			out = append(out, ',')
 		}
-		key, err := json.Marshal(item.Key)
+		key, err := protocol.Marshal(item.Key)
 		if err != nil {
 			return nil, err
 		}
-		value, err := json.Marshal(item.Value)
+		value, err := protocol.Marshal(item.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +112,7 @@ func (s *Sink) Write(actor Actor, action string, parameters Parameters, result s
 		Parameters: parameters,
 		Result:     result,
 	}
-	payload, err := json.Marshal(record)
+	payload, err := protocol.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("encode audit entry: %w", err)
 	}

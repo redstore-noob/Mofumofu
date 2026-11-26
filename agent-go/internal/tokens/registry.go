@@ -44,6 +44,26 @@ type TokenRegistryToken struct {
 	Root      bool       `json:"root"`
 }
 
+func (s *RegistrySnapshot) UnmarshalJSON(data []byte) error {
+	type alias RegistrySnapshot
+	decoded := alias{Tokens: []TokenRegistryToken{}}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*s = RegistrySnapshot(decoded)
+	return nil
+}
+
+func (t *TokenRegistryToken) UnmarshalJSON(data []byte) error {
+	type alias TokenRegistryToken
+	decoded := alias{Scopes: []string{}}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*t = TokenRegistryToken(decoded)
+	return nil
+}
+
 // AuthContext is the authenticated identity attached to a request.
 type AuthContext struct {
 	TokenID            string

@@ -1,0 +1,40 @@
+survival ● running  up 01:01:01  cpu 12.5%  mem 1.0 GiB/2.0 GiB                                                   v-test
+┌───────────────────────────────────────────────────────────────────────────────────────┐┌────────────────────────────┐
+│Console  follow                                                                        ││Players (2/20)              │
+│[Console] Players Operations Backups Files Properties                                  ││  Alice                     │
+│12:30:00 INFO Starting Mofumofu server                                                 ││  Bob                       │
+│12:30:00 WARN Watchdog: slow tick                                                      ││                            │
+│12:30:00 ERROR Backup failed                                                           ││Operations (1)              │
+│12:30:00 CHAT <Alice> hello                                                            ││  op_1234567890… running    │
+│12:30:00 INFO Players joined: Alice, Bob                                               ││                            │
+│                                                                                       ││Backups (1)                 │
+│                                                                                       ││  nightly 1.5 MiB           │
+│                                                                                       ││                            │
+│                                                                                       ││Agent                       │
+│                                                                                       ││  instance  survival        │
+│                                                                                       ││  bind      127.0.0.1:17870 │
+│                                                                                       ││  mode      managed         │
+│                                                                                       ││  probe     yes             │
+│                                                                                       ││  tokens    2               │
+│                                                                                       ││  caps                      │
+│                                                                                       ││    read, players, files,   │
+│                                                                                       ││    backup, control,        │
+│                                                                                       ││    command, console,       │
+│                                                                                       ││    events, properties,     │
+│                                                                                       ││    tokens                  │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+│                                                                                       ││                            │
+└───────────────────────────────────────────────────────────────────────────────────────┘└────────────────────────────┘
+console follow · space follow/pause · tab pane · / filter · : cmd · q quit

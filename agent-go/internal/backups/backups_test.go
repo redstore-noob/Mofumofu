@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/redstore-noob/Mofumofu/agent-go/internal/protocol"
 )
 
 type fakeCore struct {
@@ -55,14 +57,14 @@ func TestColdCreateMetadataAndRestore(t *testing.T) {
 	if strings.Join(entries, ",") != strings.Join(want, ",") {
 		t.Fatalf("entries=%v want=%v", entries, want)
 	}
-	if err := manager.SetDescription(info.Path, "Before update", "manual"); err != nil {
+	if err := manager.SetDescription(info.Path, "Before update", protocol.Ptr("manual")); err != nil {
 		t.Fatal(err)
 	}
 	metadata, err := manager.Metadata(info.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metadata.Label != "Before update" || metadata.Description != "manual" || len(metadata.SHA256) != 64 || metadata.MinecraftVersion != "1.21.4" {
+	if metadata.Label != "Before update" || metadata.Description == nil || *metadata.Description != "manual" || len(metadata.SHA256) != 64 || metadata.MinecraftVersion != "1.21.4" {
 		t.Fatalf("metadata=%+v", metadata)
 	}
 	mustWrite(t, filepath.Join(instance, "world", "level.dat"), "modified")

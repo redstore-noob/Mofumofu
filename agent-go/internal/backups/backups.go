@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf16"
+
+	"github.com/redstore-noob/Mofumofu/agent-go/internal/protocol"
 )
 
 const MaxTotalBytes int64 = 8 << 30
@@ -74,7 +76,7 @@ type Info struct {
 type Metadata struct {
 	ID               string
 	Label            string
-	Description      string
+	Description      *string
 	CreatedAt        time.Time
 	SizeBytes        int64
 	SHA256           string
@@ -274,21 +276,17 @@ func (m *Manager) Metadata(id string) (Metadata, error) {
 	if desc.Label != "" {
 		label = desc.Label
 	}
-	descriptionText := ""
-	if desc.Description != nil {
-		descriptionText = *desc.Description
-	}
 	return Metadata{
-		ID: id, Label: label, Description: descriptionText,
+		ID: id, Label: label, Description: desc.Description,
 		CreatedAt: time.Unix(selected.CreatedAt, 0).UTC(), SizeBytes: selected.SizeBytes,
 		SHA256: hash, MinecraftVersion: m.mcVersion,
 	}, nil
 }
 
-func (m *Manager) SetDescription(backupPath, label, descriptionText string) error {
+func (m *Manager) SetDescription(backupPath, label string, descriptionText *string) error {
 	path := backupPath + ".agent.json"
 	temporary := path + "." + randomID() + ".tmp"
-	payload, err := json.Marshal(description{Label: label, Description: stringPointerIfNotEmpty(descriptionText)})
+	payload, err := protocol.Marshal(description{Label: label, Description: descriptionText})
 	if err != nil {
 		return err
 	}
@@ -619,13 +617,6 @@ func randomID() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(buffer[:])
-}
-
-func stringPointerIfNotEmpty(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
 }
 
 func utf16Length(value string) int { return len(utf16.Encode([]rune(value))) }

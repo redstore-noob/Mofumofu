@@ -1,8 +1,8 @@
 // Copyright 2026 Mofumofu
 // SPDX-License-Identifier: Apache-2.0
 
-// Package server contains instance metadata and, in later phases, the process
-// supervisor. Metadata intentionally mirrors MofuCore.Server.ServerConfig.
+// Package server contains instance metadata, Java resolution, the managed
+// supervisor, and the read-only attach backend. Metadata mirrors ServerConfig.
 package server
 
 import (

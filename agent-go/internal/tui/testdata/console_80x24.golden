@@ -1,0 +1,24 @@
+survival ● running  up 01:01:01  cpu 12.5%  mem 1.0 GiB/2.0 GiB           v-test
+┌──────────────────────────────────────────────────────────────────────────────┐
+│Console  follow                                                               │
+│[Console] Players Operations Backups Files Properties                         │
+│12:30:00 INFO Starting Mofumofu server                                        │
+│12:30:00 WARN Watchdog: slow tick                                             │
+│12:30:00 ERROR Backup failed                                                  │
+│12:30:00 CHAT <Alice> hello                                                   │
+│12:30:00 INFO Players joined: Alice, Bob                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+console follow · space follow/pause · tab pane · / filter · : cmd · q quit

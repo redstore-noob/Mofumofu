@@ -1,0 +1,28 @@
+[Unit]
+Description=Mofumofu Go ServerAgent (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mofumofu
+Group=mofumofu
+WorkingDirectory=/srv/mofumofu/servers/%i
+Environment=MOFU_NEKO_INSTANCE_ID=%i
+Environment=MOFU_NEKO_STATE_DIR=/var/lib/mofumofu/nekoprobe/%i
+Environment=MOFU_NEKO_PUBLIC_URL=https://mc.example.com
+Environment=MOFU_NEKO_PORT=28765
+Environment=MOFU_NEKO_AGENT_CALLBACK=http://127.0.0.1:28766/internal/probe/events
+ExecStart=/opt/mofumofu-agent/mofumofu-agent --no-tui --config /etc/mofumofu/%i.json --urls http://127.0.0.1:28766
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/mofumofu/servers /var/lib/mofumofu/nekoprobe/%i
+
+[Install]
+WantedBy=multi-user.target

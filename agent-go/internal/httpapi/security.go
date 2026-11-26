@@ -35,7 +35,7 @@ func (s *Security) Wrap(scope string, category tokens.RateCategory, root bool, n
 				return
 			}
 		}
-		authentication, err := s.Registry.Authenticate(r.Header.Get("Authorization"), s.InstanceID)
+		authentication, err := s.Registry.Authenticate(strings.Join(r.Header.Values("Authorization"), ","), s.InstanceID)
 		if err != nil {
 			WriteError(w, r, Unauthorized())
 			return

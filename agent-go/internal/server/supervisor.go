@@ -144,6 +144,9 @@ func NewSupervisor(metadata *Metadata, options Options) *Supervisor {
 	}
 }
 
+func (s *Supervisor) SupportsControl() bool { return true }
+func (s *Supervisor) SupportsCommand() bool { return true }
+
 func (s *Supervisor) Close() {
 	s.Shutdown(context.Background(), 20*time.Second)
 	s.cancel()
@@ -251,8 +254,8 @@ func (s *Supervisor) start(ctx context.Context, fromAutoRestart bool) error {
 		s.readProcessLines(stderr)
 	}()
 	go func() {
-		waitErr := command.Wait()
 		readers.Wait()
+		waitErr := command.Wait()
 		code := -1
 		if waitErr == nil {
 			code = 0
@@ -433,6 +436,17 @@ func ParsePlayerListNames(response string) []string {
 		}
 	}
 	return result
+}
+
+func (s *Supervisor) OnlineNamesDetailed(ctx context.Context) ([]string, error) {
+	response, err := s.RCONCommand(ctx, "list")
+	if err != nil {
+		return nil, err
+	}
+	if !playerCountPattern.MatchString(response) {
+		return nil, errors.New("invalid player list response")
+	}
+	return ParsePlayerListNames(response), nil
 }
 
 func (s *Supervisor) IsRunning() bool {

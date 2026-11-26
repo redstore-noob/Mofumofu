@@ -1,6 +1,6 @@
 # Mofumofu ServerAgent → Go 迁移文档
 
-> 状态：**Phase 2 / Supervisor 完成；Phase 3–4 基础包进行中**
+> 状态：**Phase 8 本地验收完成；Linux/真实 Launcher/SSH 验收待 CI 或 VPS**
 > 行为基准：当前仓库 C# `Mofumofu.ServerAgent` + `MofuCore.Server`，而不是假设中的 Minecraft 通用行为。  
 > 目标平台：`linux-amd64`、`linux-arm64`，CGO 关闭，单静态二进制。  
 > 本文档中的“计划偏差”只有在实现完成并通过测试后才会标记为已交付。
@@ -341,6 +341,13 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | Java 扫描 | Linux 不迁 Windows 注册表；Yaml/runtime 无法定位时优先环境/PATH/系统 JVM，并记录差异 |
 | PID orphan | C# 仅凭 PID kill；Go 记录相同 PID 复用风险，不假装具备进程身份验证 |
 | Linux CPU | Go 读取 `/proc/<pid>/stat`，按 Linux 常规 100 ticks/秒换算；无法读取时省略 CPU，不伪造 |
+| Probe timeout | Go 的 5 秒 HTTP timeout 覆盖响应体读取；.NET `ResponseHeadersRead` 只约束到响应头，Go 对慢响应体更严格 |
+| 备份 symlink | C# Core 未显式跳过 symlink；Go 备份跳过 symlink，恢复拒绝 symlink 目标，避免越界读取/写入 |
+| 文件权限 | Go 临时写文件使用 0600；最终文本文件权限可能比 C# 默认 umask 更严格 |
+| Operation Stop | Go 在 Stop 后拒绝新 operation；C# 会接受但立即使用已取消 lifetime。仅影响 Agent 退出窗口 |
+| Confirmation tombstone | Go 在超过 4096 时立即裁剪到 2048；C# 在下一次 prune 时裁剪。极端重放窗口有差异 |
+| JSON 对象顺序 | Go map 序列化使用确定性排序，C# Dictionary 保留插入顺序；字段名/值/null 不变，契约比较应 normalize 对象顺序 |
+| Console journal 队列 | Go 使用有界无关的无等待入队循环，避免磁盘卡顿阻塞 Java stdout；事件/operation 仍等待持久化。极端磁盘故障会积压内存并记录错误 |
 | attach | 新增 Go 模式；protocol `deploymentMode` 仍用现有 `agent`，不引入新枚举；动态移除 control，properties 只读配置不改写 |
 | TPS | 当前协议没有 TPS capability token；Go 不发明握手能力。Paper/Spigot 可尝试 RCON `tps`，失败/其他平台 `tps=null` |
 | TUI 权限 | TUI 仅本地，使用 `local-tui` 审计主体；仍走同一 service、confirmation、operation、audit，不开放网络监听 |
@@ -356,12 +363,12 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | 0 | Recon、兼容矩阵、配置/风险/计划 | **完成** |
 | 1 | Go module、config、HTTP skeleton、auth、handshake/status、slog、优雅退出 | **完成** |
 | 2 | Supervisor、console、RCON、commands、状态事件 | **完成**：fake Java、RCON mock、stop/kill/restart/autoRestart、audit command、state monitor 已接入 |
-| 3 | Players、files、properties、revision/UUID | 进行中：安全文件与 properties 已完成，Players/HTTP 待接入 |
-| 4 | Backups、operations、confirmations、restore | 进行中：备份 zip/retention/restore 基础已完成，Operations/Confirmation/HTTP 待接入 |
-| 5 | WebSocket、journal、probe callback、NekoProbe fallback | 计划 |
-| 6 | Bubble Tea/Lip Gloss TUI + teatest | 计划 |
-| 7 | attach、平台识别、capabilities、systemd/install/release、文档 | 计划 |
-| 8 | contract/integration、性能/安全收尾、cutover | 计划 |
+| 3 | Players、files、properties、revision/UUID | **完成**：HTTP/audit/revision/UUID/安全文件/properties 已接入 |
+| 4 | Backups、operations、confirmations、restore | **完成**：控制、文件删除、属性 patch、备份 create/restore/delete 已接入 |
+| 5 | WebSocket、journal、probe callback、NekoProbe fallback | **完成**：coder/websocket、JSONL replay/reset、HMAC/nonce、Probe 在线详情与 token 转发已接入 |
+| 6 | Bubble Tea/Lip Gloss TUI + teatest | **完成**：80×24/120×40、危险确认、过滤、命令面板、终端恢复 |
+| 7 | attach、平台识别、capabilities、systemd/install/release、文档 | **完成**：attach/TPS/install/release/systemd/部署文档已接入 |
+| 8 | contract/integration、性能/安全收尾、cutover | **本地完成**：cross-build、契约/集成、smoke、文档；Linux race/真实 Launcher/SSH 待外部环境 |
 
 每个实现 Phase 结束必须执行：
 
@@ -414,7 +421,7 @@ dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Rele
 4. 不删除 Go journal/audit；它们可能包含 cutover 期间事件。
 5. 若发生文件/属性/备份副作用，使用 restore 前冷安全备份或备份 zip 恢复；confirmation/operation 不跨进程恢复。
 
-## 10. Phase 0 验证记录
+## 10. 验证记录与 Definition of Done
 
 - `go version`：Go 1.27.4（module 计划最低 1.24）。
 - Bubble Tea 最新可用 v1.3.10；Lip Gloss v1.1.0；coder/websocket v1.8.15。按约束使用 v1。
@@ -424,7 +431,33 @@ dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Rele
 - Go Phase 1：`go test ./...`、`go vet ./...` 通过。
 - Linux 交叉构建：`CGO_ENABLED=0`、`GOARCH=amd64/arm64` 均通过。
 - Phase 2 fake Java 集成测试覆盖启动/Done、console、stdin 命令、stop 超时 kill、restart、autoRestart 上限；RCON mock 验证优先级与失败回退。
+- Phase 3–4 测试覆盖玩家 UUID/revision/mutation、文件/properties、confirmation 重放、备份 create/restore、control operation。
+- Phase 5 测试覆盖 WS snapshot/replay/reset/operation cursor、Probe HMAC/重复 event/nonce 重放/loopback。
+- attach 测试覆盖 log tail、只读 properties、生命周期降级；Paper/Spigot TPS 仅在 RCON 可解析时返回。
+- TUI teatest 覆盖 80×24/120×40、pane/过滤/resize、危险确认、退出、ANSI/§ 清理和目录删除 revision。
+- Windows 真实进程 smoke：loopback `/status` 就绪约 790ms（不含 JVM），结构化日志未输出 token/密码。
 - 当前 Windows 的 `CGO_ENABLED=0` 环境不能运行 `go test -race`；race 留给 Linux CI。
-- `Mode=attach` 在 Phase 7 前明确拒绝启动，不会误以为已支持 attach。
-- 已注册全部 27 个业务路由和 internal callback；handshake/status/console command 为真实实现，其余明确返回 `capability_not_supported`，未留 TODO。
+- 本机 Gradle Wrapper 下载被 Java PKIX 证书链校验阻断；NekoProbe 测试需在 CI/证书完整的 Linux 环境运行。
+- 全部 27 个业务路由和 internal callback 均已实现，无 `capability_not_supported` 占位端点；不支持的能力只按实际后端动态省略。
 - Recon 与 Phase 1 未修改任何现有 C#/Java/协议业务文件。
+- Go 代码规模：105 个 `.go` 文件、约 22,338 行，其中测试约 8,665 行；生产代码约 13,673 行。
+- 静态二进制大小：linux-amd64 约 9.98 MB，linux-arm64 约 9.24 MB（`-s -w`）。
+
+### 验收清单
+
+- [x] Linux amd64/arm64、CGO 关闭、单二进制构建。
+- [x] 全部 HTTP/WS/internal 路由、golden JSON、错误码、scope、rate limit、audit、confirmation、operation。
+- [x] fake Java、RCON mock、备份/恢复、玩家 revision/UUID、WS 帧与 Probe HMAC 集成测试。
+- [x] TUI 80×24/120×40 teatest、危险操作确认、headless 保护。
+- [x] token/密码日志脱敏、RCON loopback、路径/symlink/请求体限制测试。
+- [x] `MIGRATION.md`、`TUI.md`、`DEPLOYMENT.md`、systemd/install/release Go 分支。
+- [x] cutover 与 rollback 步骤。
+- [ ] 在真实 Linux VPS 上用现有 Launcher 完成端到端验收（本机无 WSL/Docker）。
+- [ ] 在 Linux CI 运行 `go test -race ./...`（本机无 CGO 编译器）。
+- [ ] 在真实 SSH 80×24 终端做 TUI 人工验收（已有 teatest）。
+- [ ] 在证书完整的 Linux 环境运行 NekoProbe Gradle 测试（本机 PKIX 阻断）。
+
+### 已知阻塞
+
+- 现有 Launcher 的 `CreateBackupAsync` 发送空 label，C# Agent 与 Go Agent 都按现有契约拒绝。迁移没有静默修改这一行为；需要在单独的上游变更中修复 Launcher 或协议默认值。
+- 当前最新发布 `v0.3.1` 不含 remote Agent/Probe 资产；必须使用包含新 Go 资产的 tag。

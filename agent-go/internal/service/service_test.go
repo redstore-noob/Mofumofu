@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,29 +19,53 @@ import (
 )
 
 type fakeSupervisor struct {
+	mu      sync.Mutex
 	state   string
 	command string
 	fail    bool
 }
 
+func (f *fakeSupervisor) SetState(state string) {
+	f.mu.Lock()
+	f.state = state
+	f.mu.Unlock()
+}
+func (f *fakeSupervisor) LastCommand() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.command
+}
 func (f *fakeSupervisor) Snapshot() server.Snapshot {
 	cpu := 3.2
 	memory := int64(512 << 20)
-	return server.Snapshot{State: f.state, CPUPercent: &cpu, MemoryBytes: &memory}
+	return server.Snapshot{State: f.State(), CPUPercent: &cpu, MemoryBytes: &memory}
 }
-func (f *fakeSupervisor) State() string                                     { return f.state }
+func (f *fakeSupervisor) State() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.state
+}
 func (f *fakeSupervisor) RecentConsole(int64) ([]server.ConsoleLine, int64) { return nil, 0 }
-func (f *fakeSupervisor) IsRunning() bool                                   { return f.state == server.StateRunning }
-func (f *fakeSupervisor) AutoRestartEnabled() bool                          { return true }
+func (f *fakeSupervisor) IsRunning() bool {
+	state := f.State()
+	return state == server.StateRunning || state == server.StateStarting || state == server.StateStopping
+}
+func (f *fakeSupervisor) AutoRestartEnabled() bool { return true }
 func (f *fakeSupervisor) Command(_ context.Context, command string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.command = command
 	if f.fail {
 		return server.ServerOffline()
 	}
 	return nil
 }
-func (f *fakeSupervisor) Start(context.Context) error             { f.state = server.StateStarting; return nil }
-func (f *fakeSupervisor) Stop(context.Context, bool) error        { f.state = server.StateStopped; return nil }
+func (f *fakeSupervisor) OnlineNames(context.Context) []string { return nil }
+func (f *fakeSupervisor) Start(context.Context) error          { f.SetState(server.StateStarting); return nil }
+func (f *fakeSupervisor) Stop(context.Context, bool) error {
+	f.SetState(server.StateStopped)
+	return nil
+}
 func (f *fakeSupervisor) Restart(context.Context) error           { return nil }
 func (f *fakeSupervisor) Kill(context.Context) error              { return f.Stop(context.Background(), true) }
 func (f *fakeSupervisor) NoteIntentionalStop()                    {}
@@ -82,8 +107,8 @@ func TestServiceStatusCapabilitiesAndAuditedCommand(t *testing.T) {
 	if err := application.Command(context.Background(), audit.Actor{TokenID: "daily"}, "list"); err != nil {
 		t.Fatal(err)
 	}
-	if fake.command != "list" {
-		t.Fatalf("command=%q", fake.command)
+	if fake.LastCommand() != "list" {
+		t.Fatalf("command=%q", fake.LastCommand())
 	}
 	payload, _ := os.ReadFile(auditPath)
 	if !strings.Contains(string(payload), `"action":"console.command"`) ||
