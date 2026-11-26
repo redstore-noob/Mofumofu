@@ -1,6 +1,6 @@
 # Mofumofu ServerAgent → Go 迁移文档
 
-> 状态：**Phase 1 / Skeleton 完成；Phase 2–4 基础包进行中**
+> 状态：**Phase 2 / Supervisor 完成；Phase 3–4 基础包进行中**
 > 行为基准：当前仓库 C# `Mofumofu.ServerAgent` + `MofuCore.Server`，而不是假设中的 Minecraft 通用行为。  
 > 目标平台：`linux-amd64`、`linux-arm64`，CGO 关闭，单静态二进制。  
 > 本文档中的“计划偏差”只有在实现完成并通过测试后才会标记为已交付。
@@ -340,6 +340,7 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | API minor | Agent 接受 major 1，Probe 精确 1.0；Go 保持两层行为 |
 | Java 扫描 | Linux 不迁 Windows 注册表；Yaml/runtime 无法定位时优先环境/PATH/系统 JVM，并记录差异 |
 | PID orphan | C# 仅凭 PID kill；Go 记录相同 PID 复用风险，不假装具备进程身份验证 |
+| Linux CPU | Go 读取 `/proc/<pid>/stat`，按 Linux 常规 100 ticks/秒换算；无法读取时省略 CPU，不伪造 |
 | attach | 新增 Go 模式；protocol `deploymentMode` 仍用现有 `agent`，不引入新枚举；动态移除 control，properties 只读配置不改写 |
 | TPS | 当前协议没有 TPS capability token；Go 不发明握手能力。Paper/Spigot 可尝试 RCON `tps`，失败/其他平台 `tps=null` |
 | TUI 权限 | TUI 仅本地，使用 `local-tui` 审计主体；仍走同一 service、confirmation、operation、audit，不开放网络监听 |
@@ -354,7 +355,7 @@ Go 扩展配置（不改变现有 JSON 字段）：
 |---|---|---|
 | 0 | Recon、兼容矩阵、配置/风险/计划 | **完成** |
 | 1 | Go module、config、HTTP skeleton、auth、handshake/status、slog、优雅退出 | **完成** |
-| 2 | Supervisor、console、RCON、commands、状态事件 | 进行中：Java 解析与 RCON 已完成，Supervisor/HTTP 待接入 |
+| 2 | Supervisor、console、RCON、commands、状态事件 | **完成**：fake Java、RCON mock、stop/kill/restart/autoRestart、audit command、state monitor 已接入 |
 | 3 | Players、files、properties、revision/UUID | 进行中：安全文件与 properties 已完成，Players/HTTP 待接入 |
 | 4 | Backups、operations、confirmations、restore | 进行中：备份 zip/retention/restore 基础已完成，Operations/Confirmation/HTTP 待接入 |
 | 5 | WebSocket、journal、probe callback、NekoProbe fallback | 计划 |
@@ -422,5 +423,8 @@ dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Rele
 - ServerAgent：直接运行测试 exe，19 通过、1 因 Windows 无符号链接权限跳过。
 - Go Phase 1：`go test ./...`、`go vet ./...` 通过。
 - Linux 交叉构建：`CGO_ENABLED=0`、`GOARCH=amd64/arm64` 均通过。
-- Phase 1 已注册全部 27 个业务路由和 internal callback；handshake/status 为真实实现，其余明确返回 `capability_not_supported`，未留 TODO。
+- Phase 2 fake Java 集成测试覆盖启动/Done、console、stdin 命令、stop 超时 kill、restart、autoRestart 上限；RCON mock 验证优先级与失败回退。
+- 当前 Windows 的 `CGO_ENABLED=0` 环境不能运行 `go test -race`；race 留给 Linux CI。
+- `Mode=attach` 在 Phase 7 前明确拒绝启动，不会误以为已支持 attach。
+- 已注册全部 27 个业务路由和 internal callback；handshake/status/console command 为真实实现，其余明确返回 `capability_not_supported`，未留 TODO。
 - Recon 与 Phase 1 未修改任何现有 C#/Java/协议业务文件。

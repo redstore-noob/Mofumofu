@@ -102,8 +102,8 @@ func TestHandshakeStatusAndExplicitCapabilityPlaceholders(t *testing.T) {
 	}
 	payload, _ = io.ReadAll(response.Body)
 	response.Body.Close()
-	if response.StatusCode != http.StatusForbidden || !strings.Contains(string(payload), `"code":"capability_not_supported"`) {
-		t.Fatalf("placeholder: %d %s", response.StatusCode, payload)
+	if response.StatusCode != http.StatusConflict || !strings.Contains(string(payload), `"code":"server_offline"`) {
+		t.Fatalf("offline command: %d %s", response.StatusCode, payload)
 	}
 
 	request, _ = http.NewRequest(http.MethodPost, httpServer.URL+"/v1/servers/survival/console/commands", strings.NewReader(`{`))

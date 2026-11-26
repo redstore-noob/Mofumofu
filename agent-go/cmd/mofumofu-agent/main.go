@@ -52,6 +52,9 @@ func run(args, environ []string) error {
 	if err != nil {
 		return err
 	}
+	if cfg.Mode != config.ModeManaged {
+		return fmt.Errorf("attach mode is not implemented yet; use managed mode")
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 	metadata, err := server.LoadMetadata(cfg.ServerRootDirectory, cfg.InstanceId)
@@ -66,11 +69,14 @@ func run(args, environ []string) error {
 		return fmt.Errorf("open audit journal: %w", err)
 	}
 	defer auditSink.Close()
-	_ = auditSink // Mutating phases share this sink with the service layer.
 
+	supervisor := server.NewSupervisor(metadata, server.Options{Logger: logger, Environ: os.Environ()})
+	defer supervisor.Close()
 	registry := tokens.NewTokenRegistry(cfg.ProbeRegistryPath, time.Now)
 	limiter := tokens.NewRateLimiter(time.Now)
 	application := service.New(cfg, metadata, version, time.Now)
+	application.SetSupervisor(supervisor)
+	application.SetAudit(auditSink)
 	security := &httpapi.Security{InstanceID: cfg.InstanceId, Registry: registry, Limiter: limiter}
 	api := httpapi.New(application, security, logger)
 
@@ -94,6 +100,7 @@ func run(args, environ []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	application.StartMonitor(ctx)
 	logger.Info("Agent started", "version", version, "instanceId", cfg.InstanceId, "bind", listener.Addr().String(), "capabilities", application.Capabilities())
 	select {
 	case <-ctx.Done():
@@ -105,7 +112,10 @@ func run(args, environ []string) error {
 		return nil
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	processCtx, processCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	application.Shutdown(processCtx, 20*time.Second)
+	processCancel()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		_ = httpServer.Close()

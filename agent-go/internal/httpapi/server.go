@@ -5,10 +5,13 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"reflect"
+	"time"
 
+	"github.com/redstore-noob/Mofumofu/agent-go/internal/audit"
 	"github.com/redstore-noob/Mofumofu/agent-go/internal/protocol"
 	"github.com/redstore-noob/Mofumofu/agent-go/internal/service"
 	"github.com/redstore-noob/Mofumofu/agent-go/internal/tokens"
@@ -49,7 +52,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("POST /v1/servers/{instanceId}/handshake", secure(tokens.ScopeRead, tokens.CategoryRead, false, s.handshake))
 	mux.HandleFunc("GET /v1/servers/{instanceId}/status", secure(tokens.ScopeRead, tokens.CategoryRead, false, s.status))
-	mux.HandleFunc("POST /v1/servers/{instanceId}/console/commands", secure(tokens.ScopeCommand, tokens.CategoryWrite, false, stub(true)))
+	mux.HandleFunc("POST /v1/servers/{instanceId}/console/commands", secure(tokens.ScopeCommand, tokens.CategoryWrite, false, s.command))
 	mux.HandleFunc("GET /v1/servers/{instanceId}/players/online", secure(tokens.ScopeRead, tokens.CategoryRead, false, stub(false)))
 	mux.HandleFunc("GET /v1/servers/{instanceId}/players/{kind}", secure(tokens.ScopePlayers, tokens.CategoryRead, false, stub(false)))
 	mux.HandleFunc("POST /v1/servers/{instanceId}/players/{kind}/add", secure(tokens.ScopePlayers, tokens.CategoryWrite, false, stub(true)))
@@ -96,6 +99,31 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.service.Handshake(authentication))
+}
+
+func (s *Server) command(w http.ResponseWriter, r *http.Request) {
+	var request protocol.ConsoleCommandRequest
+	if err := ReadBody(r, &request); err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	authentication, err := Authentication(r.Context())
+	if err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	if err := s.service.Command(r.Context(), audit.Actor{TokenID: authentication.TokenID}, request.Command); err != nil {
+		if errors.Is(err, audit.ErrUnavailable) {
+			WriteError(w, r, AuditUnavailable())
+			return
+		}
+		WriteError(w, r, err)
+		return
+	}
+	response := protocol.NewConsoleCommandResponse()
+	response.Accepted = true
+	response.SentAt = protocol.NewTimestamp(time.Now())
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
