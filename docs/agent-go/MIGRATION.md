@@ -1,6 +1,6 @@
 # Mofumofu ServerAgent → Go 迁移文档
 
-> 状态：**Phase 0 / Recon 完成**  
+> 状态：**Phase 1 / Skeleton 完成；Phase 2–4 基础包进行中**
 > 行为基准：当前仓库 C# `Mofumofu.ServerAgent` + `MofuCore.Server`，而不是假设中的 Minecraft 通用行为。  
 > 目标平台：`linux-amd64`、`linux-arm64`，CGO 关闭，单静态二进制。  
 > 本文档中的“计划偏差”只有在实现完成并通过测试后才会标记为已交付。
@@ -353,10 +353,10 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | Phase | 内容 | 当前状态 |
 |---|---|---|
 | 0 | Recon、兼容矩阵、配置/风险/计划 | **完成** |
-| 1 | Go module、config、HTTP skeleton、auth、handshake/status、slog、优雅退出 | 计划 |
-| 2 | Supervisor、console、RCON、commands、状态事件 | 计划 |
-| 3 | Players、files、properties、revision/UUID | 计划 |
-| 4 | Backups、operations、confirmations、restore | 计划 |
+| 1 | Go module、config、HTTP skeleton、auth、handshake/status、slog、优雅退出 | **完成** |
+| 2 | Supervisor、console、RCON、commands、状态事件 | 进行中：Java 解析与 RCON 已完成，Supervisor/HTTP 待接入 |
+| 3 | Players、files、properties、revision/UUID | 进行中：安全文件与 properties 已完成，Players/HTTP 待接入 |
+| 4 | Backups、operations、confirmations、restore | 进行中：备份 zip/retention/restore 基础已完成，Operations/Confirmation/HTTP 待接入 |
 | 5 | WebSocket、journal、probe callback、NekoProbe fallback | 计划 |
 | 6 | Bubble Tea/Lip Gloss TUI + teatest | 计划 |
 | 7 | attach、平台识别、capabilities、systemd/install/release、文档 | 计划 |
@@ -420,4 +420,7 @@ dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Rele
 - RemoteProtocol：47 项通过。
 - Launcher：5 项通过。
 - ServerAgent：直接运行测试 exe，19 通过、1 因 Windows 无符号链接权限跳过。
-- Recon 期间未修改任何现有业务代码或协议文件。
+- Go Phase 1：`go test ./...`、`go vet ./...` 通过。
+- Linux 交叉构建：`CGO_ENABLED=0`、`GOARCH=amd64/arm64` 均通过。
+- Phase 1 已注册全部 27 个业务路由和 internal callback；handshake/status 为真实实现，其余明确返回 `capability_not_supported`，未留 TODO。
+- Recon 与 Phase 1 未修改任何现有 C#/Java/协议业务文件。
