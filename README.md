@@ -38,7 +38,6 @@
 | `Mofumofu.ExtensionAPI`              | `net10.0`         | .NET 10 SDK  | 插件 API，开发插件只需引用它                                   |
 | `Mofumofu.RemoteProtocol`            | `net10.0`         | .NET 10 SDK  | 启动器与 Agent 的通信协议                                      |
 | `Mofumofu.ServerAgent/`              | Go 1.24+          | Go SDK       | VPS 服务端 Agent（单二进制，兼容 Launcher 协议，内置 TUI）     |
-| `Mofumofu.Console`                   | `net10.0`         | .NET 10 SDK  | 终端界面版本，程序集名为 `Mofumofu.TUI`                        |
 | `Mofumofu.Extension.LogshareService` | `net10.0`         | .NET 10 SDK  | 官方插件示例：崩溃日志分析                                     |
 | `NekoSolo`                           | `net10.0-windows` | .NET 10 SDK  | 自解压安装器，**仅 Windows 可构建**                            |
 | `Mofumofu.NekoProbe`                 | Java 21           | **Java 21+** | Paper 服务端插件，用仓库自带的 `gradlew` 构建                  |
