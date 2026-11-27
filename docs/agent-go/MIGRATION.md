@@ -107,6 +107,7 @@
 | 26 | POST | `/tokens/rotate` | `TokenRotateRequest` → `TokenRotateResponse` | root / Write | grace 固定 300 秒；replacement 保留原 expiresAt |
 | 27 | GET | `/ws` | query `apiVersion`、可选 `cursor` → WS Text frames | `read` / Read | 非 upgrade 400 `invalid_request`；snapshot/replay/reset；慢消费者断开 |
 | 28 | POST | `/internal/probe/events` | 原始 body + 4 个 HMAC headers → `AgentAcknowledgementResponse` | loopback + HMAC | 新事件 202；重复 eventId 200；非 loopback 403；签名/时间/nonce 错误 401 |
+| 29 | POST | `/install/prepare`（**Go 扩展**，C# 无此路由） | `ServerInstallRequest` → `ConfirmationPrepareResponse` | `control` / Sensitive | 白名单外 403 `forbidden`；attach 或未配置 `InstallRootDirectory` 403 `capability_not_supported`；目标非空 409；execute 见 3.2 |
 
 ### 3.1 Token 转发错误
 
@@ -114,6 +115,18 @@
 - Probe 非 200：透传 HTTP status、`code`、`message`、`details`，丢弃 Probe 的 requestId/operationId。
 - Probe 响应无法解析：500 `internal_error`。
 - registry 持久化失败可透传 503 `registry_unavailable`。
+
+### 3.2 远程安装（Go 扩展）
+
+C# Agent 没有远程创建实例的路由，且其启动要求实例已存在。Go 扩展以确认流程安装服务端核心：
+
+- **scope 决策**：复用 `control`，不新增 scope。新增 scope 需要同步 C# `ProtocolScopes` 与 token 校验，超出本次范围。代价是持有 `control` 的 token 同时可以安装实例，部署时应单独签发。
+- **流程**：`POST /install/prepare` 校验白名单、EULA、版本 ID、目标目录后签发 60 秒单次 confirmation（`server.install`）；`POST /confirm/execute` 启动 operation（kind `server.install`，scope `control`）；进度通过 `GET /operations/{id}` 与 WS `operation` 帧推送（`progressPercent` 与 `message` 随下载阶段更新）。
+- **审计**：prepare 写 `server.install.prepare`，execute 写 `confirmation.execute`，operation 内部写 `server.install`（pending / succeeded / failed:<code>）。审计参数不含 MOTD 原文，只记长度。
+- **限流**：prepare 使用 Sensitive（1/s）。
+- **目标**：固定为 `<GoAgent.InstallRootDirectory>/<InstanceId>`。远程请求不能指定路径、Java 可执行文件或任意 URL。目录必须不存在或为空，失败时只清理本次创建的文件。
+- **生效方式**：安装完成后 Agent 进程仍绑定原实例。需要把 `ServerRootDirectory` 指向 `InstallRootDirectory` 并重启 Agent 才会接管。
+- **HTTP 边界**：仅 https；拒绝 userinfo、localhost、回环/私网/链路本地/保留地址（DNS 解析后检查，拨号时再检查）；重定向逐跳校验，最多 5 跳；core 体积上限 512 MiB；vanilla 校验 manifest 给出的 sha1 与 size。
 
 ## 4. DTO 字段基准
 
@@ -320,6 +333,10 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | `Mode` | `GoAgent__Mode` | `managed` | `managed`/`attach` |
 | `ProbeEnabled` | `GoAgent__ProbeEnabled` | `true` | 是否允许在线详情/token 转发；false 时 capabilities 不广告 tokens |
 | `PlayerDiffInterval` | `GoAgent__PlayerDiffInterval` | `0` | 可选玩家 diff 秒数；0 关闭以保持 C# 默认 |
+| `InstallRootDirectory` | `GoAgent__InstallRootDirectory` | 空（禁用安装） | 远程安装的唯一父目录，实例写入 `<根>/<InstanceId>` |
+| `InstallAllowedCores` | `GoAgent__InstallAllowedCores`（逗号分隔） | `[]`（全部拒绝） | 允许的 core：`vanilla`/`paper`/`fabric`/`neoforge` |
+| `InstallAllowedMinecraftVersions` | `GoAgent__InstallAllowedMinecraftVersions`（逗号分隔） | `[]`（全部拒绝） | 精确版本，或 `<前缀>.*`（如 `1.21.*` 匹配 `1.21` 与 `1.21.x`，不匹配 `1.210`）；不接受裸 `*` |
+| `InstallJavaPath` | `GoAgent__InstallJavaPath` | 空（`JAVA_HOME/bin/java` 或 `java`） | 写入启动脚本并用于 NeoForge 安装器；远程请求不能指定 |
 
 优先级：默认值 < JSON < env < 命令行。支持 `--config`/`--config=`、`--urls`/`--urls=`；新增 `--tui`、`--no-tui`、`--version`。
 
@@ -349,6 +366,15 @@ Go 扩展配置（不改变现有 JSON 字段）：
 | JSON 对象顺序 | Go map 序列化使用确定性排序，C# Dictionary 保留插入顺序；字段名/值/null 不变，契约比较应 normalize 对象顺序 |
 | Console journal 队列 | Go 使用有界无关的无等待入队循环，避免磁盘卡顿阻塞 Java stdout；事件/operation 仍等待持久化。极端磁盘故障会积压内存并记录错误 |
 | attach | 新增 Go 模式；protocol `deploymentMode` 仍用现有 `agent`，不引入新枚举；动态移除 control，properties 只读配置不改写 |
+| 远程安装（扩展） | C# 无此能力，Go 新增 `/install/prepare` 并复用 `control` scope（见 3.2）。handshake capabilities 不新增 `install` 项，客户端通过 prepare 的 `capability_not_supported` 判断是否可用 |
+| 安装版本元数据 | Go 不缓存版本列表（C# 缓存 6 小时/30 分钟）；每次安装都直接请求上游 |
+| Paper 下载选择 | C# 取 JSON 中第一个带 URL 的 download；Go 优先 `server:default`，否则按键名排序取第一个，保证确定性 |
+| Paper/Fabric/NeoForge 校验 | 上游未提供 sha1 时只做 https、公网地址与 512 MiB 上限校验；C# 行为相同，Go 未额外校验 Paper 的 sha256 checksum |
+| 下载 HEAD 探测 | C# 先发 HEAD 取 Content-Length；Go 直接 GET 并使用响应头与流式计数，减少一次上游请求 |
+| server.json | 安装后写入的 `coreVersion` 为解析后的实际版本（C# 写入用户请求值）；`javaPath` 仅记录配置值。`memoryMB` 等字段保持 0，与 C# 创建流程一致 |
+| maxPlayers 与 port | C# 不限制 maxPlayers；Go 远程请求限制为 1–1000，port 必须在 1–65535 |
+| 错误文本 | 安装错误使用英文，与 Go Agent 其他错误一致；错误与日志不包含下载 URL 或查询串 |
+| NeoForge 运行 | 平台无关使用 `exec.CommandContext`，10 分钟超时；超时只终止直接子进程，不处理其孙进程 |
 | TPS | 当前协议没有 TPS capability token；Go 不发明握手能力。Paper/Spigot 可尝试 RCON `tps`，失败/其他平台 `tps=null` |
 | TUI 权限 | TUI 仅本地，使用 `local-tui` 审计主体；仍走同一 service、confirmation、operation、audit，不开放网络监听 |
 | 文本编码/转义 | Go 必须补回 STJ 日期 offset、null 省略、WS type 首字段、字典 null 值等语义，不能直接用零值 struct 猜 |
@@ -373,7 +399,7 @@ Go 扩展配置（不改变现有 JSON 字段）：
 每个实现 Phase 结束必须执行：
 
 ```powershell
-cd agent-go
+cd Mofumofu.ServerAgent
 gofmt -l .
 go test ./...
 go vet ./...
@@ -395,11 +421,7 @@ dotnet test tests/Mofumofu.RemoteProtocol.Tests/Mofumofu.RemoteProtocol.Tests.cs
 dotnet test tests/Mofumofu.Launcher.Tests/Mofumofu.Launcher.Tests.csproj -c Release
 ```
 
-当前 Windows 的 ServerAgent 测试替代命令：
-
-```powershell
-.\tests\Mofumofu.ServerAgent.Tests\bin\Release\net10.0\Mofumofu.ServerAgent.Tests.exe
-```
+C# `Mofumofu.ServerAgent` 已移除；其行为基准保留在 git 历史中（迁移前的最后一次提交）。
 
 ## 9. Cutover / Rollback 草案
 

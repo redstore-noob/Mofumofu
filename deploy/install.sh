@@ -15,7 +15,7 @@ AGENT_PORT="${MOFU_AGENT_PORT:-28766}"
 PROBE_PORT="${MOFU_PROBE_PORT:-28765}"
 MC_VERSION="${MOFU_MC_VERSION:-1.21.4}"
 MEMORY_MB="${MOFU_MEMORY_MB:-2048}"
-AGENT_VARIANT="${MOFU_AGENT_VARIANT:-dotnet}"
+AGENT_VARIANT="${MOFU_AGENT_VARIANT:-go}"
 
 log() { printf '[mofumofu] %s\n' "$*"; }
 die() { printf '[mofumofu] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -35,7 +35,7 @@ Options:
   --release TAG        release tag; default: latest
   --show-pair          print and securely remove the one-time pairing file
   --no-install-deps    do not install apt dependencies
-  --agent-variant VARIANT  agent runtime: dotnet (default) or go
+  --agent-variant VARIANT  agent runtime: go (default; the only supported variant)
 
 Environment: MOFU_MC_VERSION, MOFU_MEMORY_MB, MOFU_AGENT_PORT, MOFU_PROBE_PORT, MOFU_AGENT_VARIANT
 EOF
@@ -88,7 +88,7 @@ if ((SHOW_PAIR)); then
 fi
 
 [[ "$MODE" == "agent" || "$MODE" == "probe" ]] || die "Use --mode agent or --mode probe"
-[[ "$AGENT_VARIANT" == "dotnet" || "$AGENT_VARIANT" == "go" ]] || die "--agent-variant must be dotnet or go"
+[[ "$AGENT_VARIANT" == "go" ]] || die "--agent-variant must be go; the .NET agent has been removed"
 [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "A valid public --domain is required"
 [[ "$DOMAIN" != *..* ]] || die "Invalid domain"
 [[ "$AGENT_PORT" =~ ^[0-9]+$ && "$PROBE_PORT" =~ ^[0-9]+$ ]] || die "Ports must be numeric"
@@ -183,28 +183,14 @@ install_agent_mode() {
     local arch agent_asset agent_binary agent_exec server_root state_dir="$STATE_ROOT/$INSTANCE"
     server_root="$(dirname "$SERVER_DIR")"
     arch="$(uname -m)"
-    case "$AGENT_VARIANT" in
-        go)
-            case "$arch" in
-                x86_64|amd64) arch="amd64" ;;
-                aarch64|arm64) arch="arm64" ;;
-                *) die "Unsupported CPU architecture: $arch" ;;
-            esac
-            agent_asset="mofumofu-agent-linux-${arch}"
-            agent_binary="mofumofu-agent"
-            agent_exec="/opt/mofumofu-agent/${agent_binary} --no-tui"
-            ;;
-        dotnet)
-            case "$arch" in
-                x86_64|amd64) arch="x64" ;;
-                aarch64|arm64) arch="arm64" ;;
-                *) die "Unsupported CPU architecture: $arch" ;;
-            esac
-            agent_asset="Mofumofu.ServerAgent-linux-${arch}"
-            agent_binary="Mofumofu.ServerAgent"
-            agent_exec="/opt/mofumofu-agent/${agent_binary}"
-            ;;
+    case "$arch" in
+        x86_64|amd64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) die "Unsupported CPU architecture: $arch" ;;
     esac
+    agent_asset="mofumofu-agent-linux-${arch}"
+    agent_binary="mofumofu-agent"
+    agent_exec="/opt/mofumofu-agent/${agent_binary} --no-tui"
 
     id mofumofu >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin mofumofu
     install -d -o root -g root -m 0755 /opt/mofumofu-agent

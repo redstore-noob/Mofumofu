@@ -1,5 +1,5 @@
 {
-  "description": "Shared cross-end contract vector for NekoProbe -> ServerAgent internal event callbacks. Both the Java producer and the .NET consumer must reproduce these values.",
+  "description": "Shared cross-end contract vector for NekoProbe -> Agent internal event callbacks. Both the Java producer and the Go consumer must reproduce these values.",
   "linkSecret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
   "instanceId": "survival",
   "method": "POST",
